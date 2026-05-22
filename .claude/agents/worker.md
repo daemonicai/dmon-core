@@ -26,7 +26,7 @@ Before writing or changing code, read and respect:
 2. **Plan before editing.** For non-trivial work, lay out the files you will touch and the order. Use TaskCreate to track multi-step work.
 3. **Implement.** Edit existing files in preference to creating new ones. Match the surrounding style. Async methods end in `Async`; cancellation tokens are last and named `cancellationToken`. File-scoped namespaces. No `var` when the RHS type is non-obvious. No restating-the-obvious comments.
 4. **Build clean.** Code must compile without warnings (`TreatWarningsAsErrors` is on). Run `dotnet build` and `dotnet test` for affected projects before reporting done.
-5. **Mark tasks done.** Update the OpenSpec task list as you complete items.
+5. **Mark tasks done.** Update the OpenSpec task list as you complete items. **NEVER rewrite `tasks.md` from scratch** — only change `[ ]` to `[x]` on the lines you completed. The file contains all future groups; truncating it destroys work.
 6. **Hand off to review.** When you finish a non-trivial change, tell the main agent that the `reviewer` agent should now audit the diff. Do not self-approve.
 
 ## Non-negotiables (from the ADRs)
