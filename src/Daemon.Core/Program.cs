@@ -10,7 +10,8 @@ var builder = Host.CreateApplicationBuilder(args);
 // Register all daemon core services.
 builder.Services
     .AddDaemonProviders()
-    .AddDaemonAuth();
+    .AddDaemonAuth()
+    .AddDaemonExtensions();
 
 builder.Services.AddHostedService<Worker>();
 

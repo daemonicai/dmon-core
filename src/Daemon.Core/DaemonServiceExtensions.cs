@@ -1,4 +1,5 @@
 using Daemon.Core.Auth;
+using Daemon.Core.Extensions;
 using Daemon.Core.Providers;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -48,5 +49,22 @@ public static class DaemonServiceExtensions
         {
             services.AddSingleton<TService, TImplementation>();
         }
+    }
+
+    /// <summary>
+    /// Registers extension loading services: tool registry, loaders, extension service,
+    /// and promote service.
+    /// </summary>
+    public static IServiceCollection AddDaemonExtensions(this IServiceCollection services)
+    {
+        services.AddSingleton<IToolRegistry, ToolRegistry>();
+        services.AddSingleton<CsxScriptLoader>();
+        services.AddSingleton<NuGetExtensionLoader>();
+        services.AddSingleton<IExtensionLoader>(sp => sp.GetRequiredService<CsxScriptLoader>());
+        services.AddSingleton<IExtensionLoader>(sp => sp.GetRequiredService<NuGetExtensionLoader>());
+        services.AddSingleton<ExtensionService>();
+        services.AddSingleton<PromoteService>();
+
+        return services;
     }
 }

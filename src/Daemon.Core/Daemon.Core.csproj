@@ -26,5 +26,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Daemon.Protocol\Daemon.Protocol.csproj" />
+    <ProjectReference Include="..\Daemon.Extensions\Daemon.Extensions.csproj" />
   </ItemGroup>
 </Project>
