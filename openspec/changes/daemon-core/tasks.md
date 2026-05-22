@@ -24,13 +24,13 @@
 
 ## 4. Provider Registry
 
-- [ ] 4.1 Define `ProviderConfig` model (adapter type, baseUrl, model, auth)
-- [ ] 4.2 Implement `IProviderRegistry` with `IChatClient` factory resolution for `openai`, `anthropic`, `gemini` adapters
-- [ ] 4.3 Implement config loading from `.daemon/config.yaml` and `~/.daemon/config.yaml` via `IConfiguration`
-- [ ] 4.4 Implement `Model` capability metadata object and `model.list` response
-- [ ] 4.5 Implement runtime provider switching (`model.set`, `model.cycle`)
-- [ ] 4.6 Implement capability negotiation — agent loop reads `toolCalling` before building `ChatOptions.Tools`
-- [ ] 4.7 Write unit tests for provider registry and switching
+- [x] 4.1 Define `ProviderConfig` model (adapter type, baseUrl, model, auth)
+- [x] 4.2 Implement `IProviderRegistry` with `IChatClient` factory resolution for `openai`, `anthropic`, `gemini` adapters
+- [x] 4.3 Implement config loading from `.daemon/config.yaml` and `~/.daemon/config.yaml` via `IConfiguration`
+- [x] 4.4 Implement `Model` capability metadata object and `model.list` response
+- [x] 4.5 Implement runtime provider switching (`model.set`, `model.cycle`)
+- [x] 4.6 Implement capability negotiation — agent loop reads `toolCalling` before building `ChatOptions.Tools`
+- [x] 4.7 Write unit tests for provider registry and switching
 
 ## 5. Session Storage
 
