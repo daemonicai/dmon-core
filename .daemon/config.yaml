@@ -1,0 +1,53 @@
+# daemon provider configuration
+# See docs/adrs/ADR-001-llm-provider-abstraction.md for provider adapter types.
+#
+# Provider entries:
+#   provider:   Unique name for this provider (used in /model commands)
+#   adapter:    IChatClient adapter — openai, anthropic, or gemini
+#   model:      Default model ID for this provider
+#   baseUrl:    Optional custom endpoint (Ollama, llama.cpp, oMLX)
+#   apiKey:     Optional inline API key (prefer env vars or credentials store)
+
+providers:
+  - provider: anthropic
+    adapter: anthropic
+    model: claude-sonnet-4-6
+    # baseUrl: https://api.anthropic.com  # default
+
+  - provider: openai
+    adapter: openai
+    model: gpt-4o
+    # baseUrl: https://api.openai.com/v1  # default
+
+  - provider: gemini
+    adapter: gemini
+    model: gemini-2.5-pro
+    # baseUrl: https://generativelanguage.googleapis.com  # default
+
+  - provider: ollama
+    adapter: openai
+    model: llama3.2
+    baseUrl: http://localhost:11434/v1
+
+  - provider: llama.cpp
+    adapter: openai
+    model: llama3.2
+    baseUrl: http://localhost:8080/v1
+
+  - provider: oMLX
+    adapter: openai
+    model: mlx-community/Meta-Llama-3.1-8B-Instruct-4bit
+    baseUrl: http://localhost:8080/v1
+
+# Session storage settings
+Daemon:
+  Session:
+    # Messages larger than this (bytes) are stored as attachment files
+    AttachmentThresholdBytes: 1024
+  Provider:
+    Retry:
+      BaseDelay: "00:00:01"
+      MaxDelay: "00:00:30"
+      MaxAttempts: 5
+  Compaction:
+    Threshold: 100

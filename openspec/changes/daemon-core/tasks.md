@@ -1,19 +1,19 @@
 ## 1. Solution Scaffolding
 
-- [ ] 1.1 Create `Daemon.sln` with project structure: `src/Daemon.Protocol` (`dotnet new classlib`), `src/Daemon.Core` (`dotnet new worker` — provides `Host`, `IConfiguration`, `ILogger`, DI container, and a `BackgroundService` lifecycle suitable for the long-running agent process), `src/Daemon.Extensions` (`dotnet new classlib`), `src/Daemon.Console` (`dotnet new console`), `test/Daemon.Protocol.Tests`, `test/Daemon.Core.Tests`, `test/Daemon.Extensions.Tests`, `spike/ScriptingSpike`
-- [ ] 1.2 Populate `Daemon.Protocol` from ADR-003: record types and enums for every host→core command, core→host event, the `messageDelta` delta types, the `Model` capability object, `risk` levels, and `stopReason` values. No logic, no I/O, no dependencies beyond the BCL and `System.Text.Json` source generator attributes. Mark public; this project is NuGet-publishable so third-party .NET frontends can consume it.
-- [ ] 1.3 Add NuGet dependencies to `Daemon.Core`: `Microsoft.Extensions.AI`, `Microsoft.Extensions.AI.OpenAI`, `Anthropic.SDK`, `GeminiDotnet.Extensions.AI`, `Microsoft.Data.Sqlite`, `Microsoft.Extensions.Configuration`, `NetEscapades.Configuration.Yaml`, `Dotnet.Script.Core` (pending spike — see task 2.5), `OpenTelemetry.Extensions.Hosting`, `OpenTelemetry.Exporter.OpenTelemetryProtocol`, `OpenTelemetry.Instrumentation.Http`, `OpenTelemetry.Instrumentation.Runtime`; project reference to `Daemon.Protocol`.
-- [ ] 1.4 Add NuGet dependencies to `Daemon.Extensions`: `Microsoft.Extensions.AI`. No reference to `Daemon.Core` or `Daemon.Protocol` — extension authors write pure M.E.AI code.
-- [ ] 1.5 Add NuGet dependencies to `Daemon.Console`: `Spectre.Console`; project reference to `Daemon.Protocol` **only**. Do not reference `Daemon.Core` or `Daemon.Extensions` — the console host talks to the core over stdio as a subprocess.
-- [ ] 1.6 Create `.daemon/config.yaml` schema and sample config with one provider entry per adapter type
+- [x] 1.1 Create `Daemon.sln` with project structure: `src/Daemon.Protocol` (`dotnet new classlib`), `src/Daemon.Core` (`dotnet new worker` — provides `Host`, `IConfiguration`, `ILogger`, DI container, and a `BackgroundService` lifecycle suitable for the long-running agent process), `src/Daemon.Extensions` (`dotnet new classlib`), `src/Daemon.Console` (`dotnet new console`), `test/Daemon.Protocol.Tests`, `test/Daemon.Core.Tests`, `test/Daemon.Extensions.Tests`, `spike/ScriptingSpike`
+- [x] 1.2 Populate `Daemon.Protocol` from ADR-003: record types and enums for every host→core command, core→host event, the `messageDelta` delta types, the `Model` capability object, `risk` levels, and `stopReason` values. No logic, no I/O, no dependencies beyond the BCL and `System.Text.Json` source generator attributes. Mark public; this project is NuGet-publishable so third-party .NET frontends can consume it.
+- [x] 1.3 Add NuGet dependencies to `Daemon.Core`: `Microsoft.Extensions.AI`, `Microsoft.Extensions.AI.OpenAI`, `Anthropic.SDK`, `GeminiDotnet.Extensions.AI`, `Microsoft.Data.Sqlite`, `Microsoft.Extensions.Configuration`, `NetEscapades.Configuration.Yaml`, `Dotnet.Script.Core` (pending spike — see task 2.5), `OpenTelemetry.Extensions.Hosting`, `OpenTelemetry.Exporter.OpenTelemetryProtocol`, `OpenTelemetry.Instrumentation.Http`, `OpenTelemetry.Instrumentation.Runtime`; project reference to `Daemon.Protocol`.
+- [x] 1.4 Add NuGet dependencies to `Daemon.Extensions`: `Microsoft.Extensions.AI`. No reference to `Daemon.Core` or `Daemon.Protocol` — extension authors write pure M.E.AI code.
+- [x] 1.5 Add NuGet dependencies to `Daemon.Console`: `Spectre.Console`; project reference to `Daemon.Protocol` **only**. Do not reference `Daemon.Core` or `Daemon.Extensions` — the console host talks to the core over stdio as a subprocess.
+- [x] 1.6 Create `.daemon/config.yaml` schema and sample config with one provider entry per adapter type
 
 ## 2. Spike — Dotnet.Script.Core Embedding
 
-- [ ] 2.1 Add `Dotnet.Script.Core` to `spike/ScriptingSpike` and write a host that loads a `.csx` file from disk
-- [ ] 2.2 Verify `#r "nuget:..."` resolution works inside a hosted script context
-- [ ] 2.3 Verify the script can return an `AIFunction` instance accessible to the host
-- [ ] 2.4 Verify the loaded script's assemblies can be isolated in a collectible `AssemblyLoadContext`
-- [ ] 2.5 Document findings; update ADR-002 if the fallback (raw Roslyn) is needed
+- [x] 2.1 Add `Dotnet.Script.Core` to `spike/ScriptingSpike` and write a host that loads a `.csx` file from disk
+- [x] 2.2 Verify `#r "nuget:..."` resolution works inside a hosted script context
+- [x] 2.3 Verify the script can return an `AIFunction` instance accessible to the host
+- [x] 2.4 Verify the loaded script's assemblies can be isolated in a collectible `AssemblyLoadContext`
+- [x] 2.5 Document findings; update ADR-002 if the fallback (raw Roslyn) is needed
 
 ## 3. Daemon.Extensions — IDaemonExtension Contract
 
