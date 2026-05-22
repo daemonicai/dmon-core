@@ -17,10 +17,10 @@
 
 ## 3. Daemon.Extensions — IDaemonExtension Contract
 
-- [ ] 3.1 Define `IDaemonExtension` interface
-- [ ] 3.2 Add XML doc comments sufficient for NuGet consumers
-- [ ] 3.3 Add `AIFunctionFactory` helper utilities to the package for common extension patterns
-- [ ] 3.4 Write unit tests for the contract
+- [x] 3.1 Define `IDaemonExtension` interface
+- [x] 3.2 Add XML doc comments sufficient for NuGet consumers
+- [x] 3.3 Add `AIFunctionFactory` helper utilities to the package for common extension patterns
+- [x] 3.4 Write unit tests for the contract
 
 ## 4. Provider Registry
 
