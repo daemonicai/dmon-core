@@ -47,14 +47,14 @@
 
 ## 6. Permission Model
 
-- [ ] 6.1 Implement `IPermissionPolicy` — CWD subtree read, tree-based path grants, bash glob matching, composite detection, HTTP domain, denylist
-- [ ] 6.2 Implement permission settings persistence — read/write `.daemon/settings.yaml` and `~/.daemon/settings.yaml`
-- [ ] 6.3 Implement bash composite detection per ADR-006: pipes (`|`, `|&`), separators (`;`, `&&`, `||`, newlines, `&`), substitution (`$()`, backticks, `<()`, `>()`), redirects (`>`, `>>`, `<`, `<<`, `<<<`, `2>`, `&>`, `>&`), subshells/groups, inline env assignments. Ambiguous parses fail safe to composite.
-- [ ] 6.4 Implement hardcoded denylist per ADR-006 (`rm` against root/system dirs, `mkfs`/`dd if=/dev/zero`/`shred`, `chmod -R 777 /`/`chattr -i /`, fork bombs, `sudo`/`su`) with test coverage for all pattern categories
-- [ ] 6.4.1 Implement grant-precedence resolution: most-specific path prefix wins; bash deny beats allow; project beats global
-- [ ] 6.5 Implement `PermissionGateChatClient` middleware — intercepts tool calls, evaluates policy, emits `tool.confirmRequest`, suspends until `tool.confirmResponse`
-- [ ] 6.6 Wire `PermissionGateChatClient` before `FunctionInvokingChatClient` in the `IChatClient` pipeline
-- [ ] 6.7 Write unit tests for permission policy, composite detection, denylist, and grant persistence
+- [x] 6.1 Implement `IPermissionPolicy` — CWD subtree read, tree-based path grants, bash glob matching, composite detection, HTTP domain, denylist
+- [x] 6.2 Implement permission settings persistence — read/write `.daemon/settings.yaml` and `~/.daemon/settings.yaml`
+- [x] 6.3 Implement bash composite detection per ADR-006: pipes (`|`, `|&`), separators (`;`, `&&`, `||`, newlines, `&`), substitution (`$()`, backticks, `<()`, `>()`), redirects (`>`, `>>`, `<`, `<<`, `<<<`, `2>`, `&>`, `>&`), subshells/groups, inline env assignments. Ambiguous parses fail safe to composite.
+- [x] 6.4 Implement hardcoded denylist per ADR-006 (`rm` against root/system dirs, `mkfs`/`dd if=/dev/zero`/`shred`, `chmod -R 777 /`/`chattr -i /`, fork bombs, `sudo`/`su`) with test coverage for all pattern categories
+- [x] 6.4.1 Implement grant-precedence resolution: most-specific path prefix wins; bash deny beats allow; project beats global
+- [x] 6.5 Implement `PermissionGateChatClient` middleware — intercepts tool calls, evaluates policy, emits `tool.confirmRequest`, suspends until `tool.confirmResponse`
+- [x] 6.6 Wire `PermissionGateChatClient` before `FunctionInvokingChatClient` in the `IChatClient` pipeline
+- [x] 6.7 Write unit tests for permission policy, composite detection, denylist, and grant persistence
 
 ## 7. Auth
 
