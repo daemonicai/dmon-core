@@ -6,6 +6,12 @@ using Daemon.Core;
 //   3. actual provider client
 
 var builder = Host.CreateApplicationBuilder(args);
+
+// Register all daemon core services.
+builder.Services
+    .AddDaemonProviders()
+    .AddDaemonAuth();
+
 builder.Services.AddHostedService<Worker>();
 
 var host = builder.Build();

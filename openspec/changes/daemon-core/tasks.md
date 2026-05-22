@@ -58,12 +58,12 @@
 
 ## 7. Auth
 
-- [ ] 7.1 Implement credential resolver — env var → `~/.daemon/credentials/<provider>.json` → interactive prompt via `ui.inputRequest {kind: "secret"}`
-- [ ] 7.1.1 Implement credentials file read/write with documented schema (provider, type, apiKey, headerStyle, createdAt, updatedAt); enforce mode `0600` on POSIX, restricted ACL on Windows; create parent dir with `0700`
-- [ ] 7.2 Implement `auth.login` / `auth.logout` RPC command handlers using `ui.inputRequest`/`ui.inputResponse` for secret entry
-- [ ] 7.3 Implement `auth.status` response with per-provider authentication state
-- [ ] 7.4 Wire credential resolver into provider registry factory
-- [ ] 7.5 Write unit tests for credential resolution order
+- [x] 7.1 Implement credential resolver — env var → `~/.daemon/credentials/<provider>.json` → interactive prompt via `ui.inputRequest {kind: "secret"}`
+- [x] 7.1.1 Implement credentials file read/write with documented schema (provider, type, apiKey, headerStyle, createdAt, updatedAt); enforce mode `0600` on POSIX, restricted ACL on Windows; create parent dir with `0700`
+- [x] 7.2 Implement `auth.login` / `auth.logout` RPC command handlers using `ui.inputRequest`/`ui.inputResponse` for secret entry
+- [x] 7.3 Implement `auth.status` response with per-provider authentication state
+- [x] 7.4 Wire credential resolver into provider registry factory
+- [x] 7.5 Write unit tests for credential resolution order
 
 ## 8. Extension Model
 
