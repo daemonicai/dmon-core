@@ -67,12 +67,12 @@
 
 ## 8. Extension Model
 
-- [ ] 8.1 Implement NuGet extension loader — `AssemblyLoadContext`, `IDaemonExtension` discovery by reflection
-- [ ] 8.2 Implement `.csx` script loader using `Dotnet.Script.Core` (or raw Roslyn if spike fails — see task 2.5)
-- [ ] 8.3 Implement `IToolRegistry` — per-session registry, `ChatOptions.Tools` built per-call
-- [ ] 8.4 Implement `extension.load`, `extension.unload` RPC command handlers; `extension.load` MUST surface to the permission gate (`risk: high`) before any network call or assembly load. Resolved NuGet packages cache to `~/.daemon/extensions/<package>/<version>/`. Failures emit `extensionError {source, phase, diagnostics[]}` with no partial registration.
-- [ ] 8.5 Implement `extension.promote` — scaffold `IDaemonExtension` class + `.csproj`, extract `#r` directives to `<PackageReference>` elements
-- [ ] 8.6 Write unit tests for NuGet loader, script loader, tool registry, and promote scaffolding
+- [x] 8.1 Implement NuGet extension loader — `AssemblyLoadContext`, `IDaemonExtension` discovery by reflection
+- [x] 8.2 Implement `.csx` script loader using `Dotnet.Script.Core` (or raw Roslyn if spike fails — see task 2.5)
+- [x] 8.3 Implement `IToolRegistry` — per-session registry, `ChatOptions.Tools` built per-call
+- [x] 8.4 Implement `extension.load`, `extension.unload` RPC command handlers; `extension.load` MUST surface to the permission gate (`risk: high`) before any network call or assembly load. Resolved NuGet packages cache to `~/.daemon/extensions/<package>/<version>/`. Failures emit `extensionError {source, phase, diagnostics[]}` with no partial registration.
+- [x] 8.5 Implement `extension.promote` — scaffold `IDaemonExtension` class + `.csproj`, extract `#r` directives to `<PackageReference>` elements
+- [x] 8.6 Write unit tests for NuGet loader, script loader, tool registry, and promote scaffolding
 
 ## 9. Agent Core — RPC Surface and Turn Loop
 
