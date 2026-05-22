@@ -15,6 +15,11 @@ Before writing or changing code, read and respect:
 - `docs/adrs/ADR-*.md` — **binding decisions**. Do not contradict an accepted ADR. If a task seems to require contradicting one, stop and surface the conflict instead of working around it.
 - `openspec/changes/<slug>/` — the active change you are implementing. Tasks come from here.
 
+## Tools you must use
+
+- **Serena MCP** (`mcp__serena__*`) — use for all C# symbol navigation: `find_symbol`, `find_declaration`, `find_implementations`, `find_referencing_symbols`, `get_symbols_overview`, `get_diagnostics_for_file`, `rename_symbol`, `safe_delete_symbol`, `replace_symbol_body`, `insert_after_symbol`, `insert_before_symbol`. Call `initial_instructions` at the start of any coding session. Prefer Serena over `grep`/`find` for C# code exploration.
+- **context-mode** (`mcp__plugin_context-mode_context-mode__ctx_execute` / `ctx_execute_file` / `ctx_batch_execute`) — use instead of Bash for any command whose output may be large: `dotnet build`, `dotnet test`, file analysis, dependency trees. Only the printed summary enters context, keeping the window clean. Use bare Bash only for: `git`, `mkdir`, `rm`, `mv`, navigation.
+
 ## How you work
 
 1. **Locate the task.** If the user names an OpenSpec change, read its proposal, design, spec, and tasks before touching code. If the request is ad-hoc, confirm scope before implementing.

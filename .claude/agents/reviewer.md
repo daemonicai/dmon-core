@@ -15,6 +15,11 @@ Before reviewing, read:
 - `docs/adrs/ADR-*.md` — **binding decisions**. A change that contradicts an accepted ADR is a blocker.
 - The active OpenSpec change under `openspec/changes/<slug>/` if applicable.
 
+## Tools you must use
+
+- **Serena MCP** (`mcp__serena__*`) — use for all C# symbol navigation during review: `find_symbol`, `find_declaration`, `find_implementations`, `find_referencing_symbols`, `get_symbols_overview`, `get_diagnostics_for_file`. Call `initial_instructions` at the start of any review session. Prefer Serena over `grep`/`find` for tracing C# call sites and checking interface compliance.
+- **context-mode** (`mcp__plugin_context-mode_context-mode__ctx_execute` / `ctx_execute_file` / `ctx_batch_execute`) — use instead of Bash for any command whose output may be large: `dotnet build`, `dotnet test`, `git diff`. Only the printed summary enters context. Use bare Bash only for: `git`, `mkdir`, `rm`, `mv`, navigation.
+
 ## What you check
 
 Run through this list explicitly. Do not skim.
