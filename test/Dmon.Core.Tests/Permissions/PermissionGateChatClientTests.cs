@@ -1,4 +1,5 @@
 using Dmon.Core.Permissions;
+using Dmon.Protocol.Enums;
 using Dmon.Protocol.Events;
 using Microsoft.Extensions.AI;
 

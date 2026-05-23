@@ -3,6 +3,7 @@ using Dmon.Core.Auth;
 using Dmon.Core.Bootstrap;
 using Dmon.Core.Extensions;
 using Dmon.Core.Permissions;
+using Dmon.Protocol.Permissions;
 using Dmon.Core.Providers;
 using Dmon.Core.Rpc;
 using Dmon.Core.Session;

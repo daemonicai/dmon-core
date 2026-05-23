@@ -1,4 +1,6 @@
 using Dmon.Core.Permissions;
+using Dmon.Protocol.Enums;
+using Dmon.Protocol.Permissions;
 
 namespace Dmon.Core.Tests.Permissions;
 

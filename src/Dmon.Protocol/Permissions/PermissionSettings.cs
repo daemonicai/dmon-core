@@ -1,4 +1,4 @@
-namespace Dmon.Core.Permissions;
+namespace Dmon.Protocol.Permissions;
 
 public sealed record TierSettings
 {

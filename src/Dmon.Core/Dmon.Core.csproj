@@ -24,6 +24,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Dmon.Abstractions\Dmon.Abstractions.csproj" />
     <ProjectReference Include="..\Dmon.Protocol\Dmon.Protocol.csproj" />
+    <ProjectReference Include="..\Dmon.BuiltinTools\Dmon.BuiltinTools.csproj" />
     <ProjectReference Include="..\Dmon.Extensions\Dmon.Extensions.csproj" />
     <ProjectReference Include="..\Dmon.Providers\Dmon.Providers.csproj" />
   </ItemGroup>

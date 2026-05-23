@@ -1,3 +1,6 @@
+using Dmon.Protocol.Enums;
+using Dmon.Protocol.Permissions;
+
 namespace Dmon.Core.Permissions;
 
 /// <summary>

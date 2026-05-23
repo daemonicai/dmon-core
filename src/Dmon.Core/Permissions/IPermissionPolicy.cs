@@ -1,6 +1,6 @@
-namespace Dmon.Core.Permissions;
+using Dmon.Protocol.Enums;
 
-public enum PermissionResult { Allow, Prompt, Deny }
+namespace Dmon.Core.Permissions;
 
 public interface IPermissionPolicy
 {
