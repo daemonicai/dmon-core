@@ -46,12 +46,12 @@
 
 ## 7. Tests
 
-- [ ] 7.1 Write unit tests for `ReadFileTool.Evaluate` — Allow inside CWD, Prompt outside CWD
-- [ ] 7.2 Write unit tests for `WriteFileTool` execution — successful write creates/overwrites file; write to invalid path returns error string
-- [ ] 7.3 Write unit tests for `EditFileTool` execution — successful replacement; `old_string` not found returns error string
-- [ ] 7.4 Write unit tests for `GlobTool` execution — pattern with matches; pattern with no matches returns empty string
-- [ ] 7.5 Write unit tests for `BashTool.Evaluate` — denylist command returns `Deny`; composite command returns `Prompt`; allowed command returns `Allow`
-- [ ] 7.6 Write unit tests for `BashTool` execution — command exits 0 returns output; command exits non-zero returns prefixed error; command times out returns `"Error: timed out"` (use a very short timeout in tests)
-- [ ] 7.7 Write unit tests for `AttachmentOffloadingChatClient` — result below threshold passes through unchanged; result above threshold is replaced with JSON object; no active session passes through unchanged
-- [ ] 7.8 Update `Daemon.Core.Tests` gate tests to reflect the simplified `IPermissionPolicy` (no category methods); add tests verifying the gate calls `FindExtension` and delegates to `extension.Evaluate`
-- [ ] 7.9 Verify build: `dotnet build` succeeds with zero warnings; `dotnet test` passes all tests
+- [x] 7.1 Write unit tests for `ReadFileTool.Evaluate` — Allow inside CWD, Prompt outside CWD
+- [x] 7.2 Write unit tests for `WriteFileTool` execution — successful write creates/overwrites file; write to invalid path returns error string
+- [x] 7.3 Write unit tests for `EditFileTool` execution — successful replacement; `old_string` not found returns error string
+- [x] 7.4 Write unit tests for `GlobTool` execution — pattern with matches; pattern with no matches returns empty string
+- [x] 7.5 Write unit tests for `BashTool.Evaluate` — denylist command returns `Deny`; composite command returns `Prompt`; allowed command returns `Allow`
+- [x] 7.6 Write unit tests for `BashTool` execution — command exits 0 returns output; command exits non-zero returns prefixed error; command times out returns `"Error: timed out"` (use a very short timeout in tests)
+- [x] 7.7 Write unit tests for `AttachmentOffloadingChatClient` — result below threshold passes through unchanged; result above threshold is replaced with JSON object; no active session passes through unchanged
+- [x] 7.8 Update `Daemon.Core.Tests` gate tests to reflect the simplified `IPermissionPolicy` (no category methods); add tests verifying the gate calls `FindExtension` and delegates to `extension.Evaluate`
+- [x] 7.9 Verify build: `dotnet build` succeeds with zero warnings; `dotnet test` passes all tests

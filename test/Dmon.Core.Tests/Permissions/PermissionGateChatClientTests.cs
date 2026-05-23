@@ -207,4 +207,98 @@ public sealed class PermissionGateChatClientTests
         FunctionResultContent result = Assert.IsType<FunctionResultContent>(Assert.Single(toolUpdate.Contents));
         Assert.Equal("s2", result.CallId);
     }
+
+    // --- Test doubles for FindExtension delegation ---
+
+    private sealed class StubEvaluatingExtension(PermissionResult result) : IDmonExtension
+    {
+        public bool EvaluateCalled { get; private set; }
+        public string Name => "stub";
+        public string Description => "stub";
+        public IEnumerable<AIFunction> Tools => [];
+
+        public PermissionResult Evaluate(
+            FunctionCallContent call,
+            IPermissionSettings project,
+            IPermissionSettings? global)
+        {
+            EvaluateCalled = true;
+            return result;
+        }
+    }
+
+    private sealed class StubRegistryWithExtension(string toolName, IDmonExtension extension) : IToolRegistry
+    {
+        public void Register(string extensionName, IDmonExtension ext, IEnumerable<AIFunction> tools) { }
+        public IDmonExtension? FindExtension(string name) => name == toolName ? extension : null;
+        public void Unregister(string extensionName) { }
+        public IReadOnlyList<AIFunction> GetAll() => [];
+        public IReadOnlyList<RegisteredExtensionSnapshot> GetSnapshot() => [];
+        public void Clear() { }
+    }
+
+    // --- FindExtension delegation tests ---
+
+    [Fact]
+    public async Task GetResponseAsync_ToolCall_CallsFindExtension_AndDelegatesToExtensionEvaluate()
+    {
+        StubEvaluatingExtension extension = new(PermissionResult.Allow);
+        FunctionCallContent call = MakeCall("call-ext", "my_tool");
+        List<ChatMessage> inner = [new ChatMessage(ChatRole.Assistant, [call])];
+
+        PermissionGateChatClient gate = new(
+            new StubInnerClient(inner),
+            new StubPolicy(),
+            new StubRegistryWithExtension("my_tool", extension),
+            (_, _) => Task.FromResult(true));
+
+        await gate.GetResponseAsync([], null, CancellationToken.None);
+
+        Assert.True(extension.EvaluateCalled);
+    }
+
+    [Fact]
+    public async Task GetResponseAsync_ExtensionReturnsAllow_SkipsConfirmCallback()
+    {
+        StubEvaluatingExtension extension = new(PermissionResult.Allow);
+        FunctionCallContent call = MakeCall("call-allow", "safe_tool");
+        List<ChatMessage> inner = [new ChatMessage(ChatRole.Assistant, [call])];
+
+        bool callbackInvoked = false;
+        PermissionGateChatClient gate = new(
+            new StubInnerClient(inner),
+            new StubPolicy(),
+            new StubRegistryWithExtension("safe_tool", extension),
+            (_, _) => { callbackInvoked = true; return Task.FromResult(true); });
+
+        ChatResponse response = await gate.GetResponseAsync([], null, CancellationToken.None);
+
+        Assert.False(callbackInvoked);
+        ChatMessage assistantMsg = Assert.Single(response.Messages);
+        Assert.Equal(ChatRole.Assistant, assistantMsg.Role);
+        Assert.Contains(call, assistantMsg.Contents);
+    }
+
+    [Fact]
+    public async Task GetResponseAsync_ExtensionReturnsDeny_ReturnsErrorResultWithoutCallback()
+    {
+        StubEvaluatingExtension extension = new(PermissionResult.Deny);
+        FunctionCallContent call = MakeCall("call-deny", "dangerous_tool");
+        List<ChatMessage> inner = [new ChatMessage(ChatRole.Assistant, [call])];
+
+        bool callbackInvoked = false;
+        PermissionGateChatClient gate = new(
+            new StubInnerClient(inner),
+            new StubPolicy(),
+            new StubRegistryWithExtension("dangerous_tool", extension),
+            (_, _) => { callbackInvoked = true; return Task.FromResult(true); });
+
+        ChatResponse response = await gate.GetResponseAsync([], null, CancellationToken.None);
+
+        Assert.False(callbackInvoked);
+        ChatMessage toolMsg = Assert.Single(response.Messages);
+        Assert.Equal(ChatRole.Tool, toolMsg.Role);
+        FunctionResultContent result = Assert.IsType<FunctionResultContent>(Assert.Single(toolMsg.Contents));
+        Assert.Equal("Tool call denied by permission policy.", result.Result?.ToString());
+    }
 }
