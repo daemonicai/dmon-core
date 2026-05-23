@@ -1,5 +1,6 @@
 using System.IO;
 using Daemon.Core.Session;
+using Microsoft.Extensions.Configuration;
 using Xunit;
 
 namespace Daemon.Core.Tests.Session;
@@ -21,10 +22,24 @@ public sealed class SessionDirectoryResolverTests : IDisposable
         }
     }
 
+    private static IConfiguration CreateConfig(string? sessionStore = null)
+    {
+        ConfigurationBuilder builder = new();
+        if (sessionStore is not null)
+        {
+            builder.AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["sessionStore"] = sessionStore
+            });
+        }
+        return builder.Build();
+    }
+
     [Fact]
     public void Resolve_NoDaemonDir_ReturnsFallbackGlobalPath()
     {
-        SessionDirectoryResolver resolver = new();
+        IConfiguration config = CreateConfig();
+        SessionDirectoryResolver resolver = new(config);
 
         string result = resolver.Resolve(_tempRoot);
 
@@ -45,10 +60,11 @@ public sealed class SessionDirectoryResolverTests : IDisposable
         string daemonDir = Path.Combine(projectDir, ".daemon");
         Directory.CreateDirectory(daemonDir);
 
-        // config.yaml exists but no sessionStore key
+        // config.yaml exists but no sessionStore key — default to "local"
         File.WriteAllText(Path.Combine(daemonDir, "config.yaml"), "# empty config\n");
 
-        SessionDirectoryResolver resolver = new();
+        IConfiguration config = CreateConfig();
+        SessionDirectoryResolver resolver = new(config);
 
         string result = resolver.Resolve(projectDir);
 
@@ -66,7 +82,8 @@ public sealed class SessionDirectoryResolverTests : IDisposable
         Directory.CreateDirectory(daemonDir);
         File.WriteAllText(Path.Combine(daemonDir, "config.yaml"), "sessionStore: local\n");
 
-        SessionDirectoryResolver resolver = new();
+        IConfiguration config = CreateConfig("local");
+        SessionDirectoryResolver resolver = new(config);
 
         string result = resolver.Resolve(projectDir);
 
@@ -83,7 +100,8 @@ public sealed class SessionDirectoryResolverTests : IDisposable
         Directory.CreateDirectory(daemonDir);
         File.WriteAllText(Path.Combine(daemonDir, "config.yaml"), "sessionStore: global\n");
 
-        SessionDirectoryResolver resolver = new();
+        IConfiguration config = CreateConfig("global");
+        SessionDirectoryResolver resolver = new(config);
 
         string result = resolver.Resolve(projectDir);
 
@@ -107,7 +125,8 @@ public sealed class SessionDirectoryResolverTests : IDisposable
         Directory.CreateDirectory(daemonDir);
         File.WriteAllText(Path.Combine(daemonDir, "config.yaml"), $"sessionStore: {customPath}\n");
 
-        SessionDirectoryResolver resolver = new();
+        IConfiguration config = CreateConfig(customPath);
+        SessionDirectoryResolver resolver = new(config);
 
         string result = resolver.Resolve(projectDir);
 
@@ -125,7 +144,8 @@ public sealed class SessionDirectoryResolverTests : IDisposable
         Directory.CreateDirectory(daemonDir);
         File.WriteAllText(Path.Combine(daemonDir, "config.yaml"), "sessionStore: local\n");
 
-        SessionDirectoryResolver resolver = new();
+        IConfiguration config = CreateConfig("local");
+        SessionDirectoryResolver resolver = new(config);
 
         // Resolve from a subdirectory — should walk up and find .daemon in projectDir.
         string result = resolver.Resolve(deepDir);

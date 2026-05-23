@@ -1,6 +1,7 @@
 using System.IO;
 using System.Text.Json;
 using Daemon.Core.Session;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
@@ -28,7 +29,8 @@ public sealed class SessionStoreTests : IDisposable
     private static ISessionStore CreateStore(string sessionsRoot)
     {
         FakeResolver resolver = new(sessionsRoot);
-        return new SessionStore(resolver, NullLogger<SessionStore>.Instance, NullLoggerFactory.Instance);
+        IConfiguration config = new ConfigurationBuilder().Build();
+        return new SessionStore(resolver, NullLogger<SessionStore>.Instance, NullLoggerFactory.Instance, config);
     }
 
     [Fact]

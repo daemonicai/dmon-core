@@ -3,6 +3,7 @@ using System.IO;
 using System.Text;
 using System.Text.Json;
 using Daemon.Core.Telemetry;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
 namespace Daemon.Core.Session;
@@ -24,16 +25,25 @@ public sealed class SessionStore : ISessionStore
     private readonly ISessionDirectoryResolver _resolver;
     private readonly ILogger<SessionStore> _logger;
     private readonly ILoggerFactory _loggerFactory;
+    private readonly int _compactionThreshold;
 
     public SessionStore(
         ISessionDirectoryResolver resolver,
         ILogger<SessionStore> logger,
-        ILoggerFactory loggerFactory)
+        ILoggerFactory loggerFactory,
+        IConfiguration configuration)
     {
         _resolver = resolver;
         _logger = logger;
         _loggerFactory = loggerFactory;
+        _compactionThreshold = configuration.GetValue("Daemon:Session:Compaction:Threshold", 100);
     }
+
+    /// <summary>
+    /// The message count at which auto-compaction should be triggered.
+    /// Read from <c>Daemon:Session:Compaction:Threshold</c>, default 100.
+    /// </summary>
+    public int CompactionThreshold => _compactionThreshold;
 
     public async Task<SessionMeta> CreateAsync(string? name = null, CancellationToken cancellationToken = default)
     {

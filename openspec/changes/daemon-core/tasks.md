@@ -81,7 +81,7 @@
 - [x] 9.2 Implement command dispatcher — route incoming commands to handlers
 - [x] 9.3 Implement event emitter — write events to stdout (full event/payload catalogue in ADR-003)
 - [x] 9.3.1 Emit `agentReady {protocolVersion, coreVersion}` on startup before processing any command
-- [ ] 9.3.2 Emit `bootstrapNotice {path, created[]}` when `.daemon/` is auto-created on first use
+- [x] 9.3.2 Emit `bootstrapNotice {path, created[]}` when `.daemon/` is auto-created on first use
 - [x] 9.4 Implement turn execution loop — `turn.submit`, `turn.steer`, `turn.followUp`, `turn.abort`
 - [x] 9.5 Implement `turnStart` / `messageDelta` / `toolExecutionStart` / `toolExecutionEnd` / `turnEnd` event emission (payloads per ADR-003)
 - [x] 9.5.1 Implement `ui.inputRequest`/`ui.inputResponse` channel for secret/text/select input (distinct from `tool.confirmRequest`)
@@ -119,8 +119,8 @@
 
 ## 11. Integration and Polish
 
-- [ ] 11.1 Wire all components together in `Daemon.Core` startup — registry, session store, permission gate, tool registry, turn loop
-- [ ] 11.2 Implement `.daemon/` initialisation on first use (decision D10): create directory + default `config.yaml` + empty `sessions/`, emit `bootstrapNotice`
-- [ ] 11.3 Add `IConfiguration`-based settings loading with documented keys (YAML provider; document `Daemon:Session:AttachmentThresholdBytes`, `Daemon:Provider:Retry:*`, `Daemon:SessionStore`, `Daemon:Compaction:Threshold`)
-- [ ] 11.4 Write end-to-end integration test — real `IChatClient` (stubbed), full turn with tool call and permission confirmation
+- [x] 11.1 Wire all components together in `Daemon.Core` startup — registry, session store, permission gate, tool registry, turn loop
+- [x] 11.2 Implement `.daemon/` initialisation on first use (decision D10): create directory + default `config.yaml` + empty `sessions/`, emit `bootstrapNotice`
+- [x] 11.3 Add `IConfiguration`-based settings loading with documented keys (YAML provider; document `Daemon:Session:AttachmentThresholdBytes`, `Daemon:Provider:Retry:*`, `Daemon:SessionStore`, `Daemon:Compaction:Threshold`)
+- [x] 11.4 Write end-to-end integration test — real `IChatClient` (stubbed), full turn with tool call and permission confirmation
 - [ ] 11.5 *(removed — Pi byte-for-byte compatibility is explicitly not a goal per design.md D3. A Pi-adapter is out of scope for V1; track separately if needed.)*

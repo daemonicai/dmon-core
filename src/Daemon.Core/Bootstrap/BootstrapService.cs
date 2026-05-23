@@ -12,9 +12,31 @@ public sealed class BootstrapService
 
     private static readonly string DefaultConfig =
         "# daemon configuration\n" +
-        "# provider: anthropic | openai | gemini\n" +
-        "provider: anthropic\n" +
-        "sessionStore: local\n";
+        "# See docs/configuration.md for full reference.\n" +
+        "\n" +
+        "# Where session data is stored: local (project .daemon/), global (~/.daemon/), or an absolute path.\n" +
+        "sessionStore: local\n" +
+        "\n" +
+        "# Provider definitions. Add one block per provider (anthropic, openai, gemini).\n" +
+        "providers:\n" +
+        "  # example:\n" +
+        "  #   adapter: anthropic\n" +
+        "  #   defaultModelId: claude-sonnet-4-20250514\n" +
+        "  #   auth:\n" +
+        "  #     type: envVar\n" +
+        "  #     envVar: ANTHROPIC_API_KEY\n" +
+        "  #   capabilities:\n" +
+        "  #     toolCalling: true\n" +
+        "  #     reasoning: true\n" +
+        "  #     contextWindow: 200000\n" +
+        "  #     maxTokens: 4096\n" +
+        "\n" +
+        "# Override default settings (YAML dot-notation keys become IConfiguration paths).\n" +
+        "# Daemon:Session:AttachmentThresholdBytes: 1024\n" +
+        "# Daemon:Session:Compaction:Threshold: 100\n" +
+        "# Daemon:Provider:Retry:BaseDelayMs: 1000\n" +
+        "# Daemon:Provider:Retry:MaxDelayMs: 30000\n" +
+        "# Daemon:Provider:Retry:MaxAttempts: 5\n";
 
     private readonly IEventEmitter _emitter;
     private readonly ILogger<BootstrapService> _logger;

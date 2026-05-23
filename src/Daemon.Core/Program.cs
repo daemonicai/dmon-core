@@ -4,6 +4,7 @@ using Daemon.Core;
 using Daemon.Core.Rpc;
 using Daemon.Core.Telemetry;
 using Microsoft.Extensions.Logging;
+using NetEscapades.Configuration.Yaml;
 using OpenTelemetry;
 using OpenTelemetry.Logs;
 using OpenTelemetry.Metrics;
@@ -12,6 +13,16 @@ using OpenTelemetry.Trace;
 
 // Logs to stderr; stdout is the JSONL RPC channel.
 HostApplicationBuilder builder = Host.CreateApplicationBuilder(args);
+
+// Add YAML configuration sources for project-local and user-global daemon config.
+// These are optional — core starts without them if .daemon/ hasn't been bootstrapped yet.
+string cwd = Directory.GetCurrentDirectory();
+string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+
+builder.Configuration.AddYamlFile(
+    Path.Combine(cwd, ".daemon", "config.yaml"), optional: true);
+builder.Configuration.AddYamlFile(
+    Path.Combine(home, ".daemon", "config.yaml"), optional: true);
 
 builder.Logging.ClearProviders();
 builder.Logging.AddConsole(o => o.LogToStandardErrorThreshold = LogLevel.Trace);

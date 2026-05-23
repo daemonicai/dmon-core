@@ -1,4 +1,5 @@
 using System.IO;
+using Microsoft.Extensions.Configuration;
 
 namespace Daemon.Core.Session;
 
@@ -9,10 +10,17 @@ public interface ISessionDirectoryResolver
 
 public sealed class SessionDirectoryResolver : ISessionDirectoryResolver
 {
+    private readonly IConfiguration _configuration;
+
     private const string DaemonDir = ".daemon";
     private const string ConfigFile = "config.yaml";
     private const string SessionsSubdir = "sessions";
     private const string GlobalRoot = "~/.daemon/sessions";
+
+    public SessionDirectoryResolver(IConfiguration configuration)
+    {
+        _configuration = configuration;
+    }
 
     public string Resolve(string workingDirectory)
     {
@@ -23,8 +31,7 @@ public sealed class SessionDirectoryResolver : ISessionDirectoryResolver
             return ExpandPath(GlobalRoot);
         }
 
-        string configPath = Path.Combine(daemonRoot, DaemonDir, ConfigFile);
-        string sessionStore = ReadSessionStoreSetting(configPath);
+        string sessionStore = _configuration.GetValue("sessionStore", "local")!;
 
         return sessionStore switch
         {
@@ -58,29 +65,6 @@ public sealed class SessionDirectoryResolver : ISessionDirectoryResolver
         }
 
         return null;
-    }
-
-    private static string ReadSessionStoreSetting(string configPath)
-    {
-        // Minimal line-based YAML read — avoids a full YAML parser dependency here.
-        // Only reads the top-level `sessionStore:` scalar.
-        if (!File.Exists(configPath))
-        {
-            return "local";
-        }
-
-        foreach (string line in File.ReadLines(configPath))
-        {
-            string trimmed = line.TrimStart();
-
-            if (trimmed.StartsWith("sessionStore:", StringComparison.OrdinalIgnoreCase))
-            {
-                string value = trimmed["sessionStore:".Length..].Trim().Trim('"', '\'');
-                return value.Length == 0 ? "local" : value;
-            }
-        }
-
-        return "local";
     }
 
     private static string ExpandPath(string path)

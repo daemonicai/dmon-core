@@ -1,6 +1,7 @@
 using System.IO;
 using System.Text.Json;
 using Daemon.Core.Session;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
@@ -17,8 +18,9 @@ public sealed class CompactionTests : IDisposable
         Directory.CreateDirectory(_tempRoot);
 
         FakeResolver resolver = new(_tempRoot);
+        IConfiguration config = new ConfigurationBuilder().Build();
 
-        _store = new SessionStore(resolver, NullLogger<SessionStore>.Instance, NullLoggerFactory.Instance);
+        _store = new SessionStore(resolver, NullLogger<SessionStore>.Instance, NullLoggerFactory.Instance, config);
         _appender = new MessageAppender(resolver);
     }
 
