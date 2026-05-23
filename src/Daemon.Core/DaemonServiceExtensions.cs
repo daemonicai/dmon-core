@@ -1,7 +1,12 @@
 using Daemon.Core.Auth;
+using Daemon.Core.Bootstrap;
 using Daemon.Core.Extensions;
+using Daemon.Core.Permissions;
 using Daemon.Core.Providers;
+using Daemon.Core.Rpc;
+using Daemon.Core.Session;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Daemon.Core;
 
@@ -41,16 +46,6 @@ public static class DaemonServiceExtensions
         return services;
     }
 
-    private static void TryAddSingleton<TService, TImplementation>(this IServiceCollection services)
-        where TService : class
-        where TImplementation : class, TService
-    {
-        if (!services.Any(d => d.ServiceType == typeof(TService)))
-        {
-            services.AddSingleton<TService, TImplementation>();
-        }
-    }
-
     /// <summary>
     /// Registers extension loading services: tool registry, loaders, extension service,
     /// and promote service.
@@ -64,6 +59,35 @@ public static class DaemonServiceExtensions
         services.AddSingleton<IExtensionLoader>(sp => sp.GetRequiredService<NuGetExtensionLoader>());
         services.AddSingleton<ExtensionService>();
         services.AddSingleton<PromoteService>();
+
+        return services;
+    }
+
+    /// <summary>
+    /// Registers the RPC infrastructure: event emitter, command dispatcher,
+    /// turn handler, stub handlers, and bootstrap service.
+    /// Call after AddDaemonProviders, AddDaemonAuth, and AddDaemonExtensions.
+    /// </summary>
+    public static IServiceCollection AddDaemonCore(this IServiceCollection services)
+    {
+        services.AddSingleton<ISessionDirectoryResolver, SessionDirectoryResolver>();
+        services.AddSingleton<ISessionStore, SessionStore>();
+
+        services.AddSingleton<IPermissionPolicy, PermissionPolicy>();
+
+        services.AddSingleton<IEventEmitter>(_ => new EventEmitter(Console.Out));
+
+        services.AddSingleton<TurnHandler>();
+        services.AddSingleton<ITurnHandler>(sp => sp.GetRequiredService<TurnHandler>());
+
+        services.AddSingleton<IModelHandler, NullModelHandler>();
+        services.AddSingleton<ISessionHandler, NullSessionHandler>();
+        services.AddSingleton<IExtensionHandler, NullExtensionHandler>();
+        services.AddSingleton<IAuthHandler, NullAuthHandler>();
+        services.AddSingleton<IThinkingHandler, NullThinkingHandler>();
+
+        services.AddSingleton<CommandDispatcher>();
+        services.AddSingleton<BootstrapService>();
 
         return services;
     }
