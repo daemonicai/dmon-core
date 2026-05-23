@@ -30,9 +30,9 @@
 
 ## 5. TurnHandler and Wiring
 
-- [ ] 5.1 Update `TurnHandler.RunTurnAsync` to map `ProviderSwitchResult` → `ProviderSwitchedEvent` after calling `CommitPendingSwitch`
-- [ ] 5.2 Update `CommandDispatcher` (or `ModelHandler`) to call `SetProvider(name)` and `SetModel(modelId)` separately when handling the `model.set` RPC command
-- [ ] 5.3 Register all three factories as `IProviderFactory` in `DaemonServiceExtensions.AddDaemonCore()` (or a new `AddDaemonProviders()` extension in `Daemon.Providers`)
+- [x] 5.1 Update `TurnHandler.RunTurnAsync` to map `ProviderSwitchResult` → `ProviderSwitchedEvent` after calling `CommitPendingSwitch`
+- [x] 5.2 Update `CommandDispatcher` (or `ModelHandler`) to call `SetProvider(name)` and `SetModel(modelId)` separately when handling the `model.set` RPC command
+- [x] 5.3 Register all three factories as `IProviderFactory` in `DaemonServiceExtensions.AddDmonProviders()` in `Dmon.Core`
 
 ## 6. Configuration Cleanup
 

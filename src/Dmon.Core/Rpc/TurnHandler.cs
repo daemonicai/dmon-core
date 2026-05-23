@@ -312,10 +312,15 @@ public sealed class TurnHandler : ITurnHandler
 
         // Commit any pending provider switch between turns.
         // Use CancellationToken.None — these emits must succeed even if the turn was aborted.
-        ProviderSwitchedEvent? switched = _providers.CommitPendingSwitch();
-        if (switched is not null)
+        ProviderSwitchResult? switchResult = _providers.CommitPendingSwitch();
+        if (switchResult is not null)
         {
-            await _emitter.EmitAsync(switched, CancellationToken.None).ConfigureAwait(false);
+            await _emitter.EmitAsync(new ProviderSwitchedEvent
+            {
+                Name = switchResult.ProviderName,
+                Model = switchResult.ModelId,
+                EffectiveNextTurn = true
+            }, CancellationToken.None).ConfigureAwait(false);
         }
 
         await _emitter.EmitAsync(new TurnEndEvent

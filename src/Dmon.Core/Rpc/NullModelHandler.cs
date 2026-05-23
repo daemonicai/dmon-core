@@ -1,3 +1,4 @@
+using Dmon.Core.Providers;
 using Dmon.Protocol.Commands;
 using Dmon.Protocol.Events;
 
@@ -8,15 +9,21 @@ namespace Dmon.Core.Rpc;
 /// </summary>
 internal sealed class NullModelHandler : IModelHandler
 {
+    private readonly IProviderRegistry _providers;
     private readonly IEventEmitter _emitter;
 
-    public NullModelHandler(IEventEmitter emitter)
+    public NullModelHandler(IProviderRegistry providers, IEventEmitter emitter)
     {
+        _providers = providers;
         _emitter = emitter;
     }
 
-    public Task SetAsync(ModelSetCommand cmd, CancellationToken cancellationToken) =>
-        throw new NotImplementedException("model.set not yet implemented");
+    public Task SetAsync(ModelSetCommand cmd, CancellationToken cancellationToken)
+    {
+        _providers.SetProvider(cmd.Provider);
+        _providers.SetModel(cmd.ModelId);
+        return Task.CompletedTask;
+    }
 
     public Task CycleAsync(ModelCycleCommand cmd, CancellationToken cancellationToken) =>
         throw new NotImplementedException("model.cycle not yet implemented");

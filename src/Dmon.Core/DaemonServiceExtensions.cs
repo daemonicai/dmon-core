@@ -5,6 +5,7 @@ using Dmon.Core.Permissions;
 using Dmon.Core.Providers;
 using Dmon.Core.Rpc;
 using Dmon.Core.Session;
+using Dmon.Providers;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Dmon.Core;
@@ -26,6 +27,9 @@ public static class DmonServiceExtensions
 
         services.AddSingleton<ICredentialFileStore, CredentialFileStore>();
         services.AddSingleton<ICredentialResolver, CredentialResolver>();
+        services.AddSingleton<IProviderFactory, OpenAiProviderFactory>();
+        services.AddSingleton<IProviderFactory, AnthropicProviderFactory>();
+        services.AddSingleton<IProviderFactory, GeminiProviderFactory>();
         services.AddSingleton<IProviderRegistry, ProviderRegistry>();
 
         return services;
