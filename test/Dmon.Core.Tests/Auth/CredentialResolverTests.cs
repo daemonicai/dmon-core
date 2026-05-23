@@ -251,13 +251,6 @@ public sealed class CredentialResolverTests
                 Type = type,
                 EnvVar = envVar
             },
-            Capabilities = new ProviderCapabilities
-            {
-                ToolCalling = true,
-                Reasoning = false,
-                ContextWindow = 8192,
-                MaxTokens = 4096
-            }
         };
 
     private sealed class FakeFileStore : ICredentialFileStore

@@ -123,8 +123,7 @@ internal sealed class StubProviderRegistry : IProviderRegistry
     {
         Name = "stub",
         Adapter = "stub",
-        Auth = new ProviderAuthConfig { Type = "none" },
-        Capabilities = new ProviderCapabilities { ToolCalling = false, Reasoning = false }
+        Auth = new ProviderAuthConfig { Type = "none" }
     };
 
     public IReadOnlyList<ProviderConfig> GetAll() => [GetCurrentConfig()];

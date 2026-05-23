@@ -13,14 +13,7 @@ public sealed class ProviderRegistryTests
             Name = name,
             Adapter = "openai",
             DefaultModelId = $"{name}-model",
-            Auth = new ProviderAuthConfig { Type = "none" },
-            Capabilities = new ProviderCapabilities
-            {
-                ToolCalling = toolCalling,
-                Reasoning = reasoning,
-                ContextWindow = 8192,
-                MaxTokens = 4096
-            }
+            Auth = new ProviderAuthConfig { Type = "none" }
         };
 
     private static IProviderRegistry CreateRegistry(

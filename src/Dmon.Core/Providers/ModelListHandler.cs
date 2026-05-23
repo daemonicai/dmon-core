@@ -7,10 +7,12 @@ namespace Dmon.Core.Providers;
 public sealed class ModelListHandler
 {
     private readonly IProviderRegistry _registry;
+    private readonly IReadOnlyDictionary<string, IProviderFactory> _factories;
 
-    public ModelListHandler(IProviderRegistry registry)
+    public ModelListHandler(IProviderRegistry registry, IEnumerable<IProviderFactory> factories)
     {
         _registry = registry;
+        _factories = factories.ToDictionary(f => f.AdapterName, StringComparer.OrdinalIgnoreCase);
     }
 
     public ModelListResultEvent Handle()
@@ -22,17 +24,21 @@ public sealed class ModelListHandler
 
         foreach (ProviderConfig config in all)
         {
+            ChatClientCapabilities caps = _factories.TryGetValue(config.Adapter, out IProviderFactory? factory)
+                ? factory.GetCapabilities(config.DefaultModelId ?? string.Empty)
+                : new ChatClientCapabilities();
+
             models.Add(new Model
             {
                 Id = config.DefaultModelId ?? string.Empty,
                 Name = config.Name,
                 Provider = config.Name,
                 BaseUrl = config.BaseUrl,
-                Reasoning = config.Capabilities.Reasoning,
+                Reasoning = caps.SupportsReasoning,
                 Input = [InputType.Text],
-                ToolCalling = config.Capabilities.ToolCalling,
-                ContextWindow = config.Capabilities.ContextWindow,
-                MaxTokens = config.Capabilities.MaxTokens
+                ToolCalling = caps.SupportsToolCalling,
+                ContextWindow = caps.ContextWindow,
+                MaxTokens = caps.MaxTokens
             });
         }
 

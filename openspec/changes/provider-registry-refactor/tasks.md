@@ -36,8 +36,8 @@
 
 ## 6. Configuration Cleanup
 
-- [ ] 6.1 Remove `capabilities.toolCalling` and `capabilities.reasoning` fields from `ProviderConfig`, `ProviderCapabilities`, and `ProviderConfigLoader` — `ProviderCapabilities` may retain `ContextWindow` and `MaxTokens` if still used elsewhere, or be removed entirely if all fields are now factory-owned
-- [ ] 6.2 Update `appsettings.json` (and any test fixture config files) to remove `capabilities.toolCalling` and `capabilities.reasoning` from all provider entries
+- [x] 6.1 Remove `capabilities.toolCalling` and `capabilities.reasoning` fields from `ProviderConfig`, `ProviderCapabilities`, and `ProviderConfigLoader` — `ProviderCapabilities` may retain `ContextWindow` and `MaxTokens` if still used elsewhere, or be removed entirely if all fields are now factory-owned
+- [x] 6.2 Update `appsettings.json` (and any test fixture config files) to remove `capabilities.toolCalling` and `capabilities.reasoning` from all provider entries
 
 ## 7. Tests
 

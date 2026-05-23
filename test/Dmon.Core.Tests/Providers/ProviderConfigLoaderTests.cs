@@ -14,11 +14,7 @@ public sealed class ProviderConfigLoaderTests
                 ["providers:anthropic:adapter"] = "anthropic",
                 ["providers:anthropic:defaultModelId"] = "claude-sonnet-4-6",
                 ["providers:anthropic:auth:type"] = "apiKey",
-                ["providers:anthropic:auth:envVar"] = "ANTHROPIC_API_KEY",
-                ["providers:anthropic:capabilities:toolCalling"] = "true",
-                ["providers:anthropic:capabilities:reasoning"] = "false",
-                ["providers:anthropic:capabilities:contextWindow"] = "200000",
-                ["providers:anthropic:capabilities:maxTokens"] = "8192"
+                ["providers:anthropic:auth:envVar"] = "ANTHROPIC_API_KEY"
             })
             .Build();
 
@@ -32,10 +28,6 @@ public sealed class ProviderConfigLoaderTests
         Assert.Equal("claude-sonnet-4-6", p.DefaultModelId);
         Assert.Equal("apiKey", p.Auth.Type);
         Assert.Equal("ANTHROPIC_API_KEY", p.Auth.EnvVar);
-        Assert.True(p.Capabilities.ToolCalling);
-        Assert.False(p.Capabilities.Reasoning);
-        Assert.Equal(200000, p.Capabilities.ContextWindow);
-        Assert.Equal(8192, p.Capabilities.MaxTokens);
     }
 
     [Fact]
@@ -107,24 +99,4 @@ public sealed class ProviderConfigLoaderTests
         Assert.Throws<InvalidOperationException>(() => loader.Load());
     }
 
-    [Fact]
-    public void Load_DefaultsCapabilitiesToFalseAndZero_WhenSectionAbsent()
-    {
-        IConfiguration config = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["providers:minimal:adapter"] = "openai",
-                ["providers:minimal:auth:type"] = "none"
-            })
-            .Build();
-
-        ProviderConfigLoader loader = new(config);
-        IReadOnlyList<ProviderConfig> providers = loader.Load();
-
-        ProviderCapabilities caps = providers[0].Capabilities;
-        Assert.False(caps.ToolCalling);
-        Assert.False(caps.Reasoning);
-        Assert.Equal(0, caps.ContextWindow);
-        Assert.Equal(0, caps.MaxTokens);
-    }
 }

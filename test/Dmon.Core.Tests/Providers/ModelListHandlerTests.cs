@@ -1,6 +1,7 @@
 using Dmon.Core.Providers;
 using Dmon.Protocol.Events;
 using Dmon.Protocol.Models;
+using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Dmon.Core.Tests.Providers;
@@ -10,10 +11,6 @@ public sealed class ModelListHandlerTests
     private static ProviderConfig MakeConfig(
         string name,
         string? modelId = null,
-        bool toolCalling = false,
-        bool reasoning = false,
-        int contextWindow = 8192,
-        int maxTokens = 4096,
         string? baseUrl = null) =>
         new()
         {
@@ -21,30 +18,30 @@ public sealed class ModelListHandlerTests
             Adapter = "openai",
             DefaultModelId = modelId,
             BaseUrl = baseUrl,
-            Auth = new ProviderAuthConfig { Type = "none" },
-            Capabilities = new ProviderCapabilities
-            {
-                ToolCalling = toolCalling,
-                Reasoning = reasoning,
-                ContextWindow = contextWindow,
-                MaxTokens = maxTokens
-            }
+            Auth = new ProviderAuthConfig { Type = "none" }
         };
 
     private static IProviderRegistry CreateRegistry(IEnumerable<ProviderConfig> configs)
     {
         return new ProviderRegistry(
             configs,
+            [new FakeProviderFactory()],
             new NullCredentialResolver(),
             NullLogger<ProviderRegistry>.Instance);
+    }
+
+    private static ModelListHandler CreateHandler(IProviderRegistry registry, IProviderFactory? factory = null)
+    {
+        IProviderFactory resolved = factory ?? new FakeProviderFactory();
+        return new ModelListHandler(registry, [resolved]);
     }
 
     [Fact]
     public void Handle_SingleProvider_ReturnsOneModel()
     {
-        ProviderConfig config = MakeConfig("alpha", modelId: "alpha-model", toolCalling: true);
+        ProviderConfig config = MakeConfig("alpha", modelId: "alpha-model");
         IProviderRegistry registry = CreateRegistry([config]);
-        ModelListHandler handler = new(registry);
+        ModelListHandler handler = CreateHandler(registry);
 
         ModelListResultEvent result = handler.Handle();
 
@@ -54,15 +51,19 @@ public sealed class ModelListHandlerTests
     [Fact]
     public void Handle_MapsCapabilitiesCorrectly()
     {
-        ProviderConfig config = MakeConfig(
-            "alpha",
-            modelId: "alpha-model",
-            toolCalling: true,
-            reasoning: true,
-            contextWindow: 200000,
-            maxTokens: 8192);
+        ProviderConfig config = MakeConfig("alpha", modelId: "alpha-model");
         IProviderRegistry registry = CreateRegistry([config]);
-        ModelListHandler handler = new(registry);
+        FakeProviderFactory factory = new()
+        {
+            Capabilities = new ChatClientCapabilities
+            {
+                SupportsToolCalling = true,
+                SupportsReasoning = true,
+                ContextWindow = 200000,
+                MaxTokens = 8192
+            }
+        };
+        ModelListHandler handler = CreateHandler(registry, factory);
 
         ModelListResultEvent result = handler.Handle();
 
@@ -79,7 +80,7 @@ public sealed class ModelListHandlerTests
         ProviderConfig first = MakeConfig("alpha", modelId: "alpha-model");
         ProviderConfig second = MakeConfig("beta", modelId: "beta-model");
         IProviderRegistry registry = CreateRegistry([first, second]);
-        ModelListHandler handler = new(registry);
+        ModelListHandler handler = CreateHandler(registry);
 
         ModelListResultEvent result = handler.Handle();
 
@@ -97,7 +98,7 @@ public sealed class ModelListHandlerTests
         registry.SetProvider("beta");
         registry.CommitPendingSwitch();
 
-        ModelListHandler handler = new(registry);
+        ModelListHandler handler = CreateHandler(registry);
         ModelListResultEvent result = handler.Handle();
 
         Assert.Equal("beta", result.ActiveProvider);
@@ -114,7 +115,7 @@ public sealed class ModelListHandlerTests
             MakeConfig("c", modelId: "c-model")
         ];
         IProviderRegistry registry = CreateRegistry(configs);
-        ModelListHandler handler = new(registry);
+        ModelListHandler handler = CreateHandler(registry);
 
         ModelListResultEvent result = handler.Handle();
 
@@ -129,7 +130,7 @@ public sealed class ModelListHandlerTests
     {
         ProviderConfig config = MakeConfig("ollama", baseUrl: "http://localhost:11434/v1");
         IProviderRegistry registry = CreateRegistry([config]);
-        ModelListHandler handler = new(registry);
+        ModelListHandler handler = CreateHandler(registry);
 
         ModelListResultEvent result = handler.Handle();
 
@@ -140,5 +141,36 @@ public sealed class ModelListHandlerTests
     {
         public ValueTask<string?> ResolveAsync(string providerName, CancellationToken cancellationToken = default)
             => ValueTask.FromResult<string?>(null);
+    }
+
+    private sealed class FakeProviderFactory : IProviderFactory
+    {
+        public string AdapterName => "openai";
+
+        public ChatClientCapabilities Capabilities { get; set; } = new ChatClientCapabilities();
+
+        public ChatClientCapabilities GetCapabilities(string modelId) => Capabilities;
+
+        public ValueTask<IChatClient> CreateAsync(ProviderConfig config, string? apiKey, CancellationToken cancellationToken = default)
+            => ValueTask.FromResult<IChatClient>(new FakeChatClient());
+    }
+
+    private sealed class FakeChatClient : IChatClient
+    {
+        public Task<ChatResponse> GetResponseAsync(IEnumerable<ChatMessage> messages, ChatOptions? options, CancellationToken cancellationToken)
+            => Task.FromResult(new ChatResponse([]));
+
+        public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
+            IEnumerable<ChatMessage> messages,
+            ChatOptions? options,
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+        {
+            await Task.CompletedTask;
+            yield break;
+        }
+
+        public object? GetService(Type serviceType, object? serviceKey = null) => null;
+
+        public void Dispose() { }
     }
 }

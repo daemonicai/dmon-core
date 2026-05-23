@@ -24,11 +24,6 @@ public sealed class BootstrapService
         "  #   auth:\n" +
         "  #     type: envVar\n" +
         "  #     envVar: ANTHROPIC_API_KEY\n" +
-        "  #   capabilities:\n" +
-        "  #     toolCalling: true\n" +
-        "  #     reasoning: true\n" +
-        "  #     contextWindow: 200000\n" +
-        "  #     maxTokens: 4096\n" +
         "\n" +
         "# Override default settings (YAML dot-notation keys become IConfiguration paths).\n" +
         "# Dmon:Session:AttachmentThresholdBytes: 1024\n" +
