@@ -16,11 +16,11 @@
 
 ## 3. Permission Model — Simplification
 
-- [ ] 3.1 Remove `EvaluateRead`, `EvaluateWrite`, `EvaluateBash`, and `EvaluateHttp` from `IPermissionPolicy`; add `IPermissionSettings ProjectSettings { get; }` and `IPermissionSettings? GlobalSettings { get; }` properties
-- [ ] 3.2 Rewrite `PermissionPolicy` to implement the simplified `IPermissionPolicy` (expose settings; remove category evaluation methods; retain path-matching and glob-matching helpers as `internal static` methods on the class for reuse by built-in tools)
-- [ ] 3.3 Update `PermissionGateChatClient.EvaluateToolCall` to call `IToolRegistry.FindExtension(call.Name)?.Evaluate(call, policy.ProjectSettings, policy.GlobalSettings) ?? PermissionResult.Prompt` and `extension.CreateConfirmRequest(call)` for the confirm payload — remove all category-dispatch logic
-- [ ] 3.4 Update `DaemonServiceExtensions.AddDaemonCore()` registration so `IPermissionPolicy` is registered with the simplified implementation (remove any `IBashCompositeDetector`/`IDenylistChecker` arguments from the `PermissionPolicy` constructor now that those are moved to `BashTool`)
-- [ ] 3.5 Move `IBashCompositeDetector` and `IDenylistChecker` interfaces and their implementations into `Daemon.BuiltinTools` (remove from `Daemon.Core` if no other Core component still references them; if Core still holds the interfaces, move only the implementations)
+- [x] 3.1 Remove `EvaluateRead`, `EvaluateWrite`, `EvaluateBash`, and `EvaluateHttp` from `IPermissionPolicy`; add `IPermissionSettings ProjectSettings { get; }` and `IPermissionSettings? GlobalSettings { get; }` properties
+- [x] 3.2 Rewrite `PermissionPolicy` to implement the simplified `IPermissionPolicy` (expose settings; remove category evaluation methods; retain path-matching and glob-matching helpers as `internal static` methods on the class for reuse by built-in tools)
+- [x] 3.3 Update `PermissionGateChatClient.EvaluateToolCall` to call `IToolRegistry.FindExtension(call.Name)?.Evaluate(call, policy.ProjectSettings, policy.GlobalSettings) ?? PermissionResult.Prompt` and `extension.CreateConfirmRequest(call)` for the confirm payload — remove all category-dispatch logic
+- [x] 3.4 Update `DaemonServiceExtensions.AddDaemonCore()` registration so `IPermissionPolicy` is registered with the simplified implementation (remove any `IBashCompositeDetector`/`IDenylistChecker` arguments from the `PermissionPolicy` constructor now that those are moved to `BashTool`)
+- [x] 3.5 Move `IBashCompositeDetector` and `IDenylistChecker` interfaces and their implementations into `Daemon.BuiltinTools` (remove from `Daemon.Core` if no other Core component still references them; if Core still holds the interfaces, move only the implementations)
 
 ## 4. Built-in Tools — Implementations
 

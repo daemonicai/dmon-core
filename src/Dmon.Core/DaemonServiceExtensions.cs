@@ -81,21 +81,10 @@ public static class DmonServiceExtensions
         // Permission runtime dependencies
         services.AddSingleton<IPermissionSettings>(_ =>
             PermissionSettingsLoader.LoadProject(Directory.GetCurrentDirectory()));
-        services.AddSingleton<IBashCompositeDetector, BashCompositeDetector>();
-        services.AddSingleton<IDenylistChecker, DenylistChecker>();
         services.AddSingleton<IPermissionPolicy>(sp =>
         {
             IPermissionSettings project = sp.GetRequiredService<IPermissionSettings>();
-            IBashCompositeDetector compositeDetector = sp.GetRequiredService<IBashCompositeDetector>();
-            IDenylistChecker denylist = sp.GetRequiredService<IDenylistChecker>();
-            // Note: project and global are the same instance until distinct registrations
-            // for project vs global settings are implemented.
-            return new PermissionPolicy(
-                project,
-                project,
-                Directory.GetCurrentDirectory(),
-                compositeDetector,
-                denylist);
+            return new PermissionPolicy(project, null);
         });
 
         services.AddSingleton<IEventEmitter>(_ => new EventEmitter(Console.Out));

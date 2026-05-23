@@ -1,6 +1,9 @@
+using Dmon.Core.Extensions;
 using Dmon.Core.Permissions;
+using Dmon.Extensions;
 using Dmon.Protocol.Enums;
 using Dmon.Protocol.Events;
+using Dmon.Protocol.Permissions;
 using Microsoft.Extensions.AI;
 
 namespace Dmon.Core.Tests.Permissions;
@@ -43,17 +46,32 @@ public sealed class PermissionGateChatClientTests
 
     private sealed class StubPolicy : IPermissionPolicy
     {
-        private readonly PermissionResult _result;
+        private readonly IPermissionSettings _settings;
 
-        public StubPolicy(PermissionResult result)
+        public StubPolicy()
         {
-            _result = result;
+            _settings = new StubPermissionSettings();
         }
 
-        public PermissionResult EvaluateRead(string path) => _result;
-        public PermissionResult EvaluateWrite(string path) => _result;
-        public PermissionResult EvaluateBash(string command) => _result;
-        public PermissionResult EvaluateHttp(string domain) => _result;
+        public IPermissionSettings ProjectSettings => _settings;
+        public IPermissionSettings? GlobalSettings => null;
+
+        private sealed class StubPermissionSettings : IPermissionSettings
+        {
+            public PermissionSettings Settings => new();
+            public Task SaveAsync(PermissionSettings updated, CancellationToken cancellationToken = default)
+                => Task.CompletedTask;
+        }
+    }
+
+    private sealed class StubToolRegistry : IToolRegistry
+    {
+        public void Register(string extensionName, IDmonExtension extension, IEnumerable<AIFunction> tools) { }
+        public IDmonExtension? FindExtension(string toolName) => null;
+        public void Unregister(string extensionName) { }
+        public IReadOnlyList<AIFunction> GetAll() => [];
+        public IReadOnlyList<RegisteredExtensionSnapshot> GetSnapshot() => [];
+        public void Clear() { }
     }
 
     private static FunctionCallContent MakeCall(string callId, string name)
@@ -63,10 +81,11 @@ public sealed class PermissionGateChatClientTests
         List<ChatMessage> innerResponse,
         Func<ToolConfirmRequestEvent, CancellationToken, Task<bool>> callback)
     {
-        // Policy always returns Prompt so the callback is always invoked.
+        // Policy returns Prompt for all tool calls (no extension registered) so the callback is always invoked.
         return new PermissionGateChatClient(
             new StubInnerClient(innerResponse),
-            new StubPolicy(PermissionResult.Prompt),
+            new StubPolicy(),
+            new StubToolRegistry(),
             callback);
     }
 

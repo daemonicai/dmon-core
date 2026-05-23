@@ -3,6 +3,7 @@ using Dmon.Abstractions.Providers;
 using Dmon.Core.Extensions;
 using Dmon.Extensions;
 using Dmon.Core.Permissions;
+using Dmon.Protocol.Permissions;
 using Dmon.Core.Providers;
 using Dmon.Core.Rpc;
 using Dmon.Protocol.Commands;
@@ -161,10 +162,15 @@ internal sealed class EmptyToolRegistry : IToolRegistry
 /// </summary>
 internal sealed class PermitAllPolicy : IPermissionPolicy
 {
-    public PermissionResult EvaluateRead(string path) => PermissionResult.Allow;
-    public PermissionResult EvaluateWrite(string path) => PermissionResult.Allow;
-    public PermissionResult EvaluateBash(string command) => PermissionResult.Allow;
-    public PermissionResult EvaluateHttp(string domain) => PermissionResult.Allow;
+    public IPermissionSettings ProjectSettings { get; } = new StubPermissionSettings();
+    public IPermissionSettings? GlobalSettings => null;
+
+    private sealed class StubPermissionSettings : IPermissionSettings
+    {
+        public PermissionSettings Settings => new();
+        public Task SaveAsync(PermissionSettings updated, CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
+    }
 }
 
 /// <summary>

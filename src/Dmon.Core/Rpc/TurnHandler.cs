@@ -194,7 +194,7 @@ public sealed class TurnHandler : ITurnHandler
             IChatClient providerClient = await _providers.GetCurrentAsync(cancellationToken).ConfigureAwait(false);
             IChatClient retrying = new RetryingChatClient(providerClient, _retryPolicy, _emitter, provider, model);
             IChatClient functionInvoker = new FunctionInvokingChatClient(retrying);
-            IChatClient pipeline = new PermissionGateChatClient(functionInvoker, _policy, ConfirmCallback);
+            IChatClient pipeline = new PermissionGateChatClient(functionInvoker, _policy, _tools, ConfirmCallback);
 
             IReadOnlyList<AIFunction> toolList = _tools.GetAll();
             ChatOptions options = new();

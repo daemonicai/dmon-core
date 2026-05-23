@@ -1,6 +1,6 @@
-using Dmon.Core.Permissions;
+using Dmon.BuiltinTools.Bash;
 
-namespace Dmon.Core.Tests.Permissions;
+namespace Dmon.BuiltinTools.Tests.Bash;
 
 public sealed class DenylistCheckerTests
 {

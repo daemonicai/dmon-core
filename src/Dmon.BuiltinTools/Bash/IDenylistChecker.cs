@@ -1,4 +1,4 @@
-namespace Dmon.Core.Permissions;
+namespace Dmon.BuiltinTools.Bash;
 
 public interface IDenylistChecker
 {

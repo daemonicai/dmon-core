@@ -6,285 +6,202 @@ namespace Dmon.Core.Tests.Permissions;
 
 public sealed class PermissionPolicyTests
 {
-    private const string Cwd = "/home/user/project";
-
-    // --- Helpers ---
-
-    private static PermissionPolicy BuildPolicy(
-        PermissionSettings? project = null,
-        PermissionSettings? global = null,
-        string? workingDirectory = null)
-    {
-        PermissionSettings projectSettings = project ?? new PermissionSettings();
-        PermissionSettings globalSettings = global ?? new PermissionSettings();
-
-        StubSettings projectStub = new(projectSettings);
-        StubSettings globalStub = new(globalSettings);
-
-        return new PermissionPolicy(
-            projectStub,
-            global is not null ? globalStub : null,
-            workingDirectory ?? Cwd,
-            new BashCompositeDetector(),
-            new DenylistChecker());
-    }
-
-    // --- Read ---
+    // --- ProjectSettings / GlobalSettings properties ---
 
     [Fact]
-    public void Read_InsideCwd_IsAllowed()
+    public void ProjectSettings_ReturnsConstructedValue()
     {
-        PermissionPolicy policy = BuildPolicy();
-        Assert.Equal(PermissionResult.Allow, policy.EvaluateRead(Cwd + "/src/foo.cs"));
+        StubSettings project = new(new PermissionSettings());
+        PermissionPolicy policy = new(project, null);
+        Assert.Same(project, policy.ProjectSettings);
     }
 
     [Fact]
-    public void Read_ExactlyCwd_IsAllowed()
+    public void GlobalSettings_ReturnsNullWhenNotProvided()
     {
-        PermissionPolicy policy = BuildPolicy();
-        Assert.Equal(PermissionResult.Allow, policy.EvaluateRead(Cwd));
+        StubSettings project = new(new PermissionSettings());
+        PermissionPolicy policy = new(project, null);
+        Assert.Null(policy.GlobalSettings);
     }
 
     [Fact]
-    public void Read_OutsideCwd_NoGrants_IsPrompt()
+    public void GlobalSettings_ReturnsConstructedValue()
     {
-        PermissionPolicy policy = BuildPolicy();
-        Assert.Equal(PermissionResult.Prompt, policy.EvaluateRead("/home/user/other"));
+        StubSettings project = new(new PermissionSettings());
+        StubSettings global = new(new PermissionSettings());
+        PermissionPolicy policy = new(project, global);
+        Assert.Same(global, policy.GlobalSettings);
+    }
+
+    // --- NormalisePath ---
+
+    [Fact]
+    public void NormalisePath_ResolvesRelativeDots()
+    {
+        string result = PermissionPolicy.NormalisePath("/home/user/../user/project");
+        Assert.Equal("/home/user/project", result);
+    }
+
+    // --- IsUnder ---
+
+    [Fact]
+    public void IsUnder_PathInsideDirectory_IsTrue()
+    {
+        Assert.True(PermissionPolicy.IsUnder("/home/user/project/src/foo.cs", "/home/user/project"));
     }
 
     [Fact]
-    public void Read_ProjectAllowedPath_IsAllowed()
+    public void IsUnder_ExactMatch_IsTrue()
     {
-        PermissionSettings project = new()
+        Assert.True(PermissionPolicy.IsUnder("/home/user/project", "/home/user/project"));
+    }
+
+    [Fact]
+    public void IsUnder_PathOutsideDirectory_IsFalse()
+    {
+        Assert.False(PermissionPolicy.IsUnder("/home/user/other", "/home/user/project"));
+    }
+
+    [Fact]
+    public void IsUnder_PrefixWithoutSeparator_IsFalse()
+    {
+        // /home/user/projectX is NOT under /home/user/project
+        Assert.False(PermissionPolicy.IsUnder("/home/user/projectX/file", "/home/user/project"));
+    }
+
+    // --- LongestPrefixMatch ---
+
+    [Fact]
+    public void LongestPrefixMatch_NoPatterns_ReturnsNegativeOne()
+    {
+        Assert.Equal(-1, PermissionPolicy.LongestPrefixMatch("/tmp/file", []));
+    }
+
+    [Fact]
+    public void LongestPrefixMatch_MatchingPattern_ReturnsLength()
+    {
+        int result = PermissionPolicy.LongestPrefixMatch("/tmp/secrets/key", ["/tmp"]);
+        Assert.True(result >= 0);
+    }
+
+    [Fact]
+    public void LongestPrefixMatch_LongerPatternWins()
+    {
+        int shortScore = PermissionPolicy.LongestPrefixMatch("/tmp/secrets/key", ["/tmp"]);
+        int longScore = PermissionPolicy.LongestPrefixMatch("/tmp/secrets/key", ["/tmp/secrets"]);
+        Assert.True(longScore > shortScore);
+    }
+
+    // --- ResolvePathGrant ---
+
+    [Fact]
+    public void ResolvePathGrant_NoPatterns_ReturnsNull()
+    {
+        TierSettings tier = new();
+        PermissionResult? result = PermissionPolicy.ResolvePathGrant("/tmp/file", tier, null);
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public void ResolvePathGrant_AllowOnly_ReturnsAllow()
+    {
+        TierSettings tier = new() { Allow = ["/tmp"] };
+        PermissionResult? result = PermissionPolicy.ResolvePathGrant("/tmp/file", tier, null);
+        Assert.Equal(PermissionResult.Allow, result);
+    }
+
+    [Fact]
+    public void ResolvePathGrant_DenyLongerThanAllow_ReturnsDeny()
+    {
+        TierSettings tier = new()
         {
-            Read = new TierSettings { Allow = ["/home/user/shared"] }
+            Allow = ["/tmp"],
+            Deny = ["/tmp/secrets"]
         };
-        PermissionPolicy policy = BuildPolicy(project: project);
-        Assert.Equal(PermissionResult.Allow, policy.EvaluateRead("/home/user/shared/file.txt"));
+        PermissionResult? result = PermissionPolicy.ResolvePathGrant("/tmp/secrets/key", tier, null);
+        Assert.Equal(PermissionResult.Deny, result);
     }
 
     [Fact]
-    public void Read_GlobalAllowedPath_IsAllowed()
+    public void ResolvePathGrant_AllowLongerThanDeny_ReturnsAllow()
     {
-        PermissionSettings global = new()
+        TierSettings tier = new()
         {
-            Read = new TierSettings { Allow = ["/home/user/global-shared"] }
+            Allow = ["/tmp/secrets/public"],
+            Deny = ["/tmp/secrets"]
         };
-        PermissionPolicy policy = BuildPolicy(global: global);
-        Assert.Equal(PermissionResult.Allow, policy.EvaluateRead("/home/user/global-shared/file.txt"));
-    }
-
-    // --- Write ---
-
-    [Fact]
-    public void Write_NoGrants_IsPrompt()
-    {
-        PermissionPolicy policy = BuildPolicy();
-        Assert.Equal(PermissionResult.Prompt, policy.EvaluateWrite("/tmp/output.txt"));
+        PermissionResult? result = PermissionPolicy.ResolvePathGrant("/tmp/secrets/public/readme", tier, null);
+        Assert.Equal(PermissionResult.Allow, result);
     }
 
     [Fact]
-    public void Write_AllowedPath_IsAllowed()
+    public void ResolvePathGrant_ProjectHasNoMatch_FallsBackToGlobal()
     {
-        PermissionSettings project = new()
-        {
-            Write = new TierSettings { Allow = ["/tmp"] }
-        };
-        PermissionPolicy policy = BuildPolicy(project: project);
-        Assert.Equal(PermissionResult.Allow, policy.EvaluateWrite("/tmp/output.txt"));
+        TierSettings projectTier = new();
+        TierSettings globalTier = new() { Allow = ["/shared"] };
+        PermissionResult? result = PermissionPolicy.ResolvePathGrant("/shared/file", projectTier, globalTier);
+        Assert.Equal(PermissionResult.Allow, result);
     }
 
     [Fact]
-    public void Write_DeniedSubpath_IsDenied()
+    public void ResolvePathGrant_ProjectDenyBeatsGlobalAllow()
     {
-        PermissionSettings project = new()
-        {
-            Write = new TierSettings
-            {
-                Allow = ["/tmp"],
-                Deny = ["/tmp/secrets"]
-            }
-        };
-        PermissionPolicy policy = BuildPolicy(project: project);
-        // /tmp/secrets/key.txt — deny prefix is longer → Deny wins
-        Assert.Equal(PermissionResult.Deny, policy.EvaluateWrite("/tmp/secrets/key.txt"));
+        TierSettings projectTier = new() { Deny = ["/shared/secrets"] };
+        TierSettings globalTier = new() { Allow = ["/shared"] };
+        PermissionResult? result = PermissionPolicy.ResolvePathGrant("/shared/secrets/key", projectTier, globalTier);
+        Assert.Equal(PermissionResult.Deny, result);
+    }
+
+    // --- GlobMatch ---
+
+    [Fact]
+    public void GlobMatch_ExactMatch_IsTrue()
+    {
+        Assert.True(PermissionPolicy.GlobMatch("git status", "git status"));
     }
 
     [Fact]
-    public void Write_AllowedSubpathUnderDenied_AllowWins()
+    public void GlobMatch_StarSuffix_MatchesAnything()
     {
-        // /tmp/secrets/public is more specific than /tmp/secrets deny — Allow wins
-        PermissionSettings project = new()
-        {
-            Write = new TierSettings
-            {
-                Allow = ["/tmp/secrets/public"],
-                Deny = ["/tmp/secrets"]
-            }
-        };
-        PermissionPolicy policy = BuildPolicy(project: project);
-        Assert.Equal(PermissionResult.Allow, policy.EvaluateWrite("/tmp/secrets/public/readme.txt"));
-    }
-
-    // --- Bash ---
-
-    [Fact]
-    public void Bash_Composite_IsPrompt()
-    {
-        PermissionPolicy policy = BuildPolicy();
-        Assert.Equal(PermissionResult.Prompt, policy.EvaluateBash("ls | grep foo"));
+        Assert.True(PermissionPolicy.GlobMatch("git commit -m message", "git *"));
     }
 
     [Fact]
-    public void Bash_Composite_IsPromptEvenIfAllowed()
+    public void GlobMatch_StarPrefix_MatchesAnything()
     {
-        PermissionSettings project = new()
-        {
-            Bash = new TierSettings { Allow = ["ls | grep*"] }
-        };
-        PermissionPolicy policy = BuildPolicy(project: project);
-        // Composite always prompts — stored approvals don't apply
-        Assert.Equal(PermissionResult.Prompt, policy.EvaluateBash("ls | grep foo"));
+        Assert.True(PermissionPolicy.GlobMatch("some tool", "* tool"));
     }
 
     [Fact]
-    public void Bash_Denylist_IsDeny()
+    public void GlobMatch_NoMatch_IsFalse()
     {
-        PermissionPolicy policy = BuildPolicy();
-        Assert.Equal(PermissionResult.Deny, policy.EvaluateBash("sudo rm -rf /"));
+        Assert.False(PermissionPolicy.GlobMatch("dotnet build", "git *"));
     }
 
     [Fact]
-    public void Bash_Denylist_IsDenyEvenIfAllowed()
+    public void GlobMatch_TrailingStar_MatchesEmpty()
     {
-        PermissionSettings project = new()
-        {
-            Bash = new TierSettings { Allow = ["sudo*"] }
-        };
-        PermissionPolicy policy = BuildPolicy(project: project);
-        Assert.Equal(PermissionResult.Deny, policy.EvaluateBash("sudo rm -rf /"));
+        Assert.True(PermissionPolicy.GlobMatch("git", "git*"));
+    }
+
+    // --- MatchesBashGlob ---
+
+    [Fact]
+    public void MatchesBashGlob_MatchingPattern_IsTrue()
+    {
+        Assert.True(PermissionPolicy.MatchesBashGlob("git commit -m msg", ["git *"]));
     }
 
     [Fact]
-    public void Bash_ProjectDenyBeatsAllow()
+    public void MatchesBashGlob_NoPatterns_IsFalse()
     {
-        PermissionSettings project = new()
-        {
-            Bash = new TierSettings
-            {
-                Allow = ["git *"],
-                Deny = ["git push --force*"]
-            }
-        };
-        PermissionPolicy policy = BuildPolicy(project: project);
-        Assert.Equal(PermissionResult.Deny, policy.EvaluateBash("git push --force origin main"));
+        Assert.False(PermissionPolicy.MatchesBashGlob("git commit", []));
     }
 
     [Fact]
-    public void Bash_GlobAllow_IsAllowed()
+    public void MatchesBashGlob_NonMatchingPattern_IsFalse()
     {
-        PermissionSettings project = new()
-        {
-            Bash = new TierSettings { Allow = ["git *"] }
-        };
-        PermissionPolicy policy = BuildPolicy(project: project);
-        Assert.Equal(PermissionResult.Allow, policy.EvaluateBash("git commit -m message"));
-    }
-
-    [Fact]
-    public void Bash_GlobalAllow_IsAllowed()
-    {
-        PermissionSettings global = new()
-        {
-            Bash = new TierSettings { Allow = ["dotnet *"] }
-        };
-        PermissionPolicy policy = BuildPolicy(global: global);
-        Assert.Equal(PermissionResult.Allow, policy.EvaluateBash("dotnet build"));
-    }
-
-    [Fact]
-    public void Bash_ProjectDenyBeatsGlobalAllow()
-    {
-        PermissionSettings project = new()
-        {
-            Bash = new TierSettings { Deny = ["git push*"] }
-        };
-        PermissionSettings global = new()
-        {
-            Bash = new TierSettings { Allow = ["git *"] }
-        };
-        PermissionPolicy policy = BuildPolicy(project: project, global: global);
-        // Project deny fires before global allow
-        Assert.Equal(PermissionResult.Deny, policy.EvaluateBash("git push origin main"));
-    }
-
-    [Fact]
-    public void Bash_NoMatch_IsPrompt()
-    {
-        PermissionPolicy policy = BuildPolicy();
-        Assert.Equal(PermissionResult.Prompt, policy.EvaluateBash("some-unknown-tool --flag"));
-    }
-
-    // --- HTTP ---
-
-    [Fact]
-    public void Http_ExactDomainMatch_IsAllowed()
-    {
-        PermissionSettings project = new()
-        {
-            Http = new TierSettings { Allow = ["api.github.com"] }
-        };
-        PermissionPolicy policy = BuildPolicy(project: project);
-        Assert.Equal(PermissionResult.Allow, policy.EvaluateHttp("api.github.com"));
-    }
-
-    [Fact]
-    public void Http_SubdomainDoesNotMatchParent()
-    {
-        PermissionSettings project = new()
-        {
-            Http = new TierSettings { Allow = ["github.com"] }
-        };
-        PermissionPolicy policy = BuildPolicy(project: project);
-        // api.github.com ≠ github.com per ADR-006
-        Assert.Equal(PermissionResult.Prompt, policy.EvaluateHttp("api.github.com"));
-    }
-
-    [Fact]
-    public void Http_ParentDoesNotMatchSubdomain()
-    {
-        PermissionSettings project = new()
-        {
-            Http = new TierSettings { Allow = ["api.github.com"] }
-        };
-        PermissionPolicy policy = BuildPolicy(project: project);
-        Assert.Equal(PermissionResult.Prompt, policy.EvaluateHttp("github.com"));
-    }
-
-    [Fact]
-    public void Http_NoGrant_IsPrompt()
-    {
-        PermissionPolicy policy = BuildPolicy();
-        Assert.Equal(PermissionResult.Prompt, policy.EvaluateHttp("example.com"));
-    }
-
-    // --- Precedence: project beats global ---
-
-    [Fact]
-    public void ProjectBeatsGlobal_ForWrite()
-    {
-        // Project denies /shared/secrets; global allows it.
-        PermissionSettings project = new()
-        {
-            Write = new TierSettings { Deny = ["/shared/secrets"] }
-        };
-        PermissionSettings global = new()
-        {
-            Write = new TierSettings { Allow = ["/shared"] }
-        };
-        PermissionPolicy policy = BuildPolicy(project: project, global: global);
-        // Project scope applies first — the deny in project wins over global allow.
-        Assert.Equal(PermissionResult.Deny, policy.EvaluateWrite("/shared/secrets/key.txt"));
+        Assert.False(PermissionPolicy.MatchesBashGlob("dotnet build", ["git *"]));
     }
 
     // --- Stub ---

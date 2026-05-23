@@ -1,7 +1,10 @@
 using System.Diagnostics;
+using Dmon.Core.Extensions;
 using Dmon.Core.Telemetry;
+using Dmon.Extensions;
 using Dmon.Protocol.Enums;
 using Dmon.Protocol.Events;
+using Dmon.Protocol.Models;
 using Microsoft.Extensions.AI;
 
 namespace Dmon.Core.Permissions;
@@ -19,15 +22,18 @@ public sealed class PermissionGateChatClient : IChatClient
 {
     private readonly IChatClient _inner;
     private readonly IPermissionPolicy _policy;
+    private readonly IToolRegistry _registry;
     private readonly Func<ToolConfirmRequestEvent, CancellationToken, Task<bool>> _confirmCallback;
 
     public PermissionGateChatClient(
         IChatClient inner,
         IPermissionPolicy policy,
+        IToolRegistry registry,
         Func<ToolConfirmRequestEvent, CancellationToken, Task<bool>> confirmCallback)
     {
         _inner = inner;
         _policy = policy;
+        _registry = registry;
         _confirmCallback = confirmCallback;
     }
 
@@ -109,9 +115,21 @@ public sealed class PermissionGateChatClient : IChatClient
                     permActivity.SetTag("dmon.tool.name", call.Name);
                 }
 
-                PermissionResult permission = EvaluateToolCall(call);
+                IDmonExtension? extension = _registry.FindExtension(call.Name);
+                PermissionResult permission = extension?.Evaluate(call, _policy.ProjectSettings, _policy.GlobalSettings)
+                    ?? PermissionResult.Prompt;
                 string decision = permission.ToString().ToLowerInvariant();
-                string riskLevel = "low";
+                ToolConfirmRequest confirmReq = extension?.CreateConfirmRequest(call)
+                    ?? new ToolConfirmRequest
+                    {
+                        Id = call.CallId,
+                        Name = call.Name,
+                        Args = call.Arguments is null
+                            ? new Dictionary<string, object?>()
+                            : new Dictionary<string, object?>(call.Arguments),
+                        Risk = RiskLevel.Low
+                    };
+                string riskLevel = confirmReq.Risk.ToString().ToLowerInvariant();
 
                 switch (permission)
                 {
@@ -126,7 +144,7 @@ public sealed class PermissionGateChatClient : IChatClient
                         break;
 
                     case PermissionResult.Prompt:
-                        bool confirmed = await PromptForToolCallAsync(call, cancellationToken);
+                        bool confirmed = await PromptForToolCallAsync(confirmReq, cancellationToken);
                         if (confirmed)
                         {
                             allowedContents.Add(call);
@@ -161,24 +179,16 @@ public sealed class PermissionGateChatClient : IChatClient
         return result;
     }
 
-    private static PermissionResult EvaluateToolCall(FunctionCallContent call)
-    {
-        // All tool calls go through Prompt by default. Per-tool policy integration
-        // is extended in Group 8 when the tool registry knows each tool's risk tier.
-        _ = call;
-        return PermissionResult.Prompt;
-    }
-
     private async Task<bool> PromptForToolCallAsync(
-        FunctionCallContent call,
+        ToolConfirmRequest req,
         CancellationToken cancellationToken)
     {
         ToolConfirmRequestEvent evt = new()
         {
-            ConfirmId = call.CallId,
-            Name = call.Name,
-            Args = call.Arguments ?? new Dictionary<string, object?>(),
-            Risk = RiskLevel.Low
+            ConfirmId = req.Id,
+            Name = req.Name,
+            Args = req.Args,
+            Risk = req.Risk
         };
 
         return await _confirmCallback(evt, cancellationToken);
