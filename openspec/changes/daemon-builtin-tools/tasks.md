@@ -39,10 +39,10 @@
 
 ## 6. Registration and Wiring
 
-- [ ] 6.1 Create `BuiltinToolsExtensions.cs` in `Daemon.BuiltinTools` with a static `AddBuiltinTools(this IToolRegistry registry)` method that registers all six built-in tool extensions (one `IDaemonExtension` instance per tool)
-- [ ] 6.2 Call `AddBuiltinTools()` from `DaemonServiceExtensions.AddDaemonCore()` (or from `BootstrapService`) so built-in tools are registered before the first turn
-- [ ] 6.3 Register `AttachmentOffloadingChatClient` (or its dependencies) in DI so `TurnHandler` can resolve it; confirm `IAttachmentStore` is already registered (it should be from group 9)
-- [ ] 6.4 Register `FetchTool`'s `HttpClient` dependency via `IHttpClientFactory` or a singleton `HttpClient` in `AddBuiltinTools` / DI; `FetchTool` must not construct its own `HttpClient` per-call
+- [x] 6.1 Create `BuiltinToolsExtensions.cs` in `Daemon.BuiltinTools` with a static `AddBuiltinTools(this IToolRegistry registry)` method that registers all six built-in tool extensions (one `IDaemonExtension` instance per tool)
+- [x] 6.2 Call `AddBuiltinTools()` from `DaemonServiceExtensions.AddDaemonCore()` (or from `BootstrapService`) so built-in tools are registered before the first turn
+- [x] 6.3 Register `AttachmentOffloadingChatClient` (or its dependencies) in DI so `TurnHandler` can resolve it; confirm `IAttachmentStore` is already registered (it should be from group 9)
+- [x] 6.4 Register `FetchTool`'s `HttpClient` dependency via `IHttpClientFactory` or a singleton `HttpClient` in `AddBuiltinTools` / DI; `FetchTool` must not construct its own `HttpClient` per-call
 
 ## 7. Tests
 

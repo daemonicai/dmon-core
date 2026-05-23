@@ -104,6 +104,9 @@ public static class DmonServiceExtensions
         services.AddSingleton<CommandDispatcher>();
         services.AddSingleton<BootstrapService>();
 
+        services.AddHttpClient();
+        services.AddHostedService<BuiltinToolsInitializer>();
+
         return services;
     }
 }
