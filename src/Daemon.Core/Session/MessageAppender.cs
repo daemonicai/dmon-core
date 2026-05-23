@@ -1,6 +1,8 @@
+using System.Diagnostics;
 using System.IO;
 using System.Text;
 using System.Text.Json;
+using Daemon.Core.Telemetry;
 
 namespace Daemon.Core.Session;
 
@@ -34,10 +36,12 @@ public sealed class MessageAppender : IMessageAppender
         return WriteLineAsync(sessionId, json, cancellationToken);
     }
 
-    public Task AppendCompactionAsync(string sessionId, CompactionMessage compaction, CancellationToken cancellationToken = default)
+    public async Task AppendCompactionAsync(string sessionId, CompactionMessage compaction, CancellationToken cancellationToken = default)
     {
+        using Activity? activity = DaemonTelemetry.Source.StartActivity("session.compact");
+
         string json = JsonSerializer.Serialize(compaction);
-        return WriteLineAsync(sessionId, json, cancellationToken);
+        await WriteLineAsync(sessionId, json, cancellationToken).ConfigureAwait(false);
     }
 
     private async Task WriteLineAsync(string sessionId, string json, CancellationToken cancellationToken)

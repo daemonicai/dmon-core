@@ -108,14 +108,14 @@
 
 ## 10b. OpenTelemetry Instrumentation
 
-- [ ] 10b.1 Wire OTel into the worker host: `services.AddOpenTelemetry().WithTracing(...).WithMetrics(...).WithLogging(...)`. Service name defaults to `daemon-core`; resource attributes include `service.version`, `process.pid`, `host.name`. SDK reads standard env vars (`OTEL_*`) — no daemon-specific config keys.
-- [ ] 10b.2 Default exporters to `none` when no OTLP endpoint is configured so an unconfigured daemon pays no exporter cost.
-- [ ] 10b.3 Define an `ActivitySource` (`Daemon.Core`) and a `Meter` (`Daemon.Core`). Emit spans per design.md D13 table: `turn`, `provider.call`, `tool.execute`, `permission.evaluate`, `session.<op>`.
-- [ ] 10b.4 Emit metrics per design.md D13 table: `daemon.turns`, `daemon.tokens`, `daemon.cost.usd`, `daemon.turn.duration`, `daemon.tool.invocations`, `daemon.permission.prompts`, `daemon.provider.retries`.
-- [ ] 10b.5 Add `OpenTelemetry.Instrumentation.Http` so provider HTTP calls are auto-traced; verify no double-spanning with the manual `provider.call` span.
-- [ ] 10b.6 Route `ILogger` output through the OTel Logs pipeline and ensure structured-log fields and active span context are attached.
-- [ ] 10b.7 Enforce the no-PII rule: assert in unit tests that no span attribute or metric tag carries message content, tool arguments, or tool results — only sizes, counts, and identifiers. The opt-in `Daemon:Telemetry:CapturePromptContent` flag is out of scope for V1 — do not wire it.
-- [ ] 10b.8 Document the supported `OTEL_*` env vars and the daemon-specific span/metric names in `docs/observability.md`.
+- [x] 10b.1 Wire OTel into the worker host: `services.AddOpenTelemetry().WithTracing(...).WithMetrics(...).WithLogging(...)`. Service name defaults to `daemon-core`; resource attributes include `service.version`, `process.pid`, `host.name`. SDK reads standard env vars (`OTEL_*`) — no daemon-specific config keys.
+- [x] 10b.2 Default exporters to `none` when no OTLP endpoint is configured so an unconfigured daemon pays no exporter cost.
+- [x] 10b.3 Define an `ActivitySource` (`Daemon.Core`) and a `Meter` (`Daemon.Core`). Emit spans per design.md D13 table: `turn`, `provider.call`, `tool.execute`, `permission.evaluate`, `session.<op>`.
+- [x] 10b.4 Emit metrics per design.md D13 table: `daemon.turns`, `daemon.tokens`, `daemon.cost.usd`, `daemon.turn.duration`, `daemon.tool.invocations`, `daemon.permission.prompts`, `daemon.provider.retries`.
+- [x] 10b.5 Add `OpenTelemetry.Instrumentation.Http` so provider HTTP calls are auto-traced; verify no double-spanning with the manual `provider.call` span.
+- [x] 10b.6 Route `ILogger` output through the OTel Logs pipeline and ensure structured-log fields and active span context are attached.
+- [x] 10b.7 Enforce the no-PII rule: assert in unit tests that no span attribute or metric tag carries message content, tool arguments, or tool results — only sizes, counts, and identifiers. The opt-in `Daemon:Telemetry:CapturePromptContent` flag is out of scope for V1 — do not wire it.
+- [x] 10b.8 Document the supported `OTEL_*` env vars and the daemon-specific span/metric names in `docs/observability.md`.
 
 ## 11. Integration and Polish
 

@@ -1,7 +1,9 @@
+using System.Diagnostics;
 using System.Net;
 using System.Net.Http;
 using System.Runtime.CompilerServices;
 using Daemon.Core.Rpc;
+using Daemon.Core.Telemetry;
 using Daemon.Protocol.Events;
 using Microsoft.Extensions.AI;
 
@@ -16,12 +18,21 @@ public sealed class RetryingChatClient : IChatClient
     private readonly IChatClient _inner;
     private readonly RetryPolicy _policy;
     private readonly IEventEmitter _emitter;
+    private readonly string _providerName;
+    private readonly string _modelName;
 
-    public RetryingChatClient(IChatClient inner, RetryPolicy policy, IEventEmitter emitter)
+    public RetryingChatClient(
+        IChatClient inner,
+        RetryPolicy policy,
+        IEventEmitter emitter,
+        string providerName = "unknown",
+        string modelName = "unknown")
     {
         _inner = inner;
         _policy = policy;
         _emitter = emitter;
+        _providerName = providerName;
+        _modelName = modelName;
     }
 
     public object? GetService(Type serviceType, object? serviceKey = null) =>
@@ -37,6 +48,14 @@ public sealed class RetryingChatClient : IChatClient
 
         for (int attempt = 0; attempt < _policy.MaxAttempts; attempt++)
         {
+            using Activity? callActivity = DaemonTelemetry.Source.StartActivity("provider.call");
+            if (callActivity is not null)
+            {
+                callActivity.SetTag("daemon.provider", _providerName);
+                callActivity.SetTag("daemon.model", _modelName);
+                callActivity.SetTag("daemon.retry.attempt", attempt);
+            }
+
             try
             {
                 return await _inner.GetResponseAsync(messageList, options, cancellationToken).ConfigureAwait(false);
@@ -44,6 +63,13 @@ public sealed class RetryingChatClient : IChatClient
             catch (Exception ex) when (IsRetryable(ex))
             {
                 lastException = ex;
+
+                if (callActivity is not null)
+                {
+                    callActivity.SetStatus(ActivityStatusCode.Error, ex.Message);
+                }
+
+                DaemonTelemetry.RecordProviderRetry(_providerName, ex.Message);
 
                 // On the final attempt, do not emit a retry event or sleep — there is no further retry.
                 if (attempt == _policy.MaxAttempts - 1)
@@ -78,6 +104,13 @@ public sealed class RetryingChatClient : IChatClient
 
         while (true)
         {
+            using Activity? callActivity = DaemonTelemetry.Source.StartActivity("provider.call");
+            if (callActivity is not null)
+            {
+                callActivity.SetTag("daemon.provider", _providerName);
+                callActivity.SetTag("daemon.model", _modelName);
+                callActivity.SetTag("daemon.retry.attempt", attempt);
+            }
             // Use a channel so we can yield updates without a try/catch around the yield statement
             // (which the C# compiler forbids). The producer task runs the inner stream and signals
             // whether it started before any exception, so we know whether to retry.
@@ -128,12 +161,24 @@ public sealed class RetryingChatClient : IChatClient
             // Stream failed. Only retry if it failed before the first item and is retryable.
             if (streamStarted || !IsRetryable(producerException) || attempt >= _policy.MaxAttempts - 1)
             {
+                // Set error status on the span before throwing.
+                if (callActivity is not null && producerException is not null)
+                {
+                    callActivity.SetStatus(ActivityStatusCode.Error, producerException.Message);
+                }
                 // Mid-stream failure, non-retryable error, or out of attempts — propagate.
-                System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(producerException).Throw();
+                System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(producerException!).Throw();
                 yield break; // unreachable, satisfies compiler
             }
 
-            TimeSpan delay = ComputeDelay(attempt, producerException);
+            if (callActivity is not null && producerException is not null)
+            {
+                callActivity.SetStatus(ActivityStatusCode.Error, producerException.Message);
+            }
+
+            DaemonTelemetry.RecordProviderRetry(_providerName, producerException?.Message ?? "unknown");
+
+            TimeSpan delay = ComputeDelay(attempt, producerException!);
             attempt++;
 
             await _emitter.EmitAsync(new RetryAttemptEvent
@@ -141,7 +186,7 @@ public sealed class RetryingChatClient : IChatClient
                 Attempt = attempt,
                 MaxAttempts = _policy.MaxAttempts,
                 NextDelayMs = (int)delay.TotalMilliseconds,
-                Reason = producerException.Message
+                Reason = producerException!.Message
             }, cancellationToken).ConfigureAwait(false);
 
             await Task.Delay(delay, cancellationToken).ConfigureAwait(false);

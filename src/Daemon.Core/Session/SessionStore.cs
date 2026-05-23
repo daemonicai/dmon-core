@@ -1,6 +1,8 @@
+using System.Diagnostics;
 using System.IO;
 using System.Text;
 using System.Text.Json;
+using Daemon.Core.Telemetry;
 using Microsoft.Extensions.Logging;
 
 namespace Daemon.Core.Session;
@@ -35,6 +37,8 @@ public sealed class SessionStore : ISessionStore
 
     public async Task<SessionMeta> CreateAsync(string? name = null, CancellationToken cancellationToken = default)
     {
+        using Activity? activity = DaemonTelemetry.Source.StartActivity("session.create");
+
         string root = GetRoot();
         string id = Guid.NewGuid().ToString();
         string sessionDir = Path.Combine(root, id);
@@ -128,6 +132,8 @@ public sealed class SessionStore : ISessionStore
         string? name = null,
         CancellationToken cancellationToken = default)
     {
+        using Activity? activity = DaemonTelemetry.Source.StartActivity("session.fork");
+
         string root = GetRoot();
         string sourceDir = Path.Combine(root, sourceSessionId);
 
@@ -176,6 +182,8 @@ public sealed class SessionStore : ISessionStore
         string? name = null,
         CancellationToken cancellationToken = default)
     {
+        using Activity? activity = DaemonTelemetry.Source.StartActivity("session.clone");
+
         string root = GetRoot();
         string sourceDir = Path.Combine(root, sourceSessionId);
 

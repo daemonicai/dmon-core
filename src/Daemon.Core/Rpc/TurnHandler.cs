@@ -1,9 +1,11 @@
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
 using Daemon.Core.Extensions;
 using Daemon.Core.Permissions;
 using Daemon.Core.Providers;
+using Daemon.Core.Telemetry;
 using Daemon.Protocol.Commands;
 using Daemon.Protocol.Delta;
 using Daemon.Protocol.Enums;
@@ -164,6 +166,23 @@ public sealed class TurnHandler : ITurnHandler
 
     private async Task RunTurnAsync(CancellationToken cancellationToken)
     {
+        using Activity? turnActivity = DaemonTelemetry.Source.StartActivity("turn");
+
+        string stopReason = "completed";
+        string provider = _providers.GetCurrentConfig().Name;
+        string model = _providers.GetCurrentConfig().DefaultModelId ?? "unknown";
+        string thinkingLevel = _thinking.CurrentLevel.ToString();
+        long inputTokens = 0;
+        long outputTokens = 0;
+
+        if (turnActivity is not null)
+        {
+            turnActivity.SetTag("daemon.provider", provider);
+            turnActivity.SetTag("daemon.model", model);
+            turnActivity.SetTag("daemon.thinking.level", thinkingLevel);
+        }
+
+        Stopwatch turnTimer = Stopwatch.StartNew();
         await _emitter.EmitAsync(new TurnStartEvent(), cancellationToken).ConfigureAwait(false);
 
         List<object> toolResults = [];
@@ -174,7 +193,7 @@ public sealed class TurnHandler : ITurnHandler
         {
             // Build the pipeline per-turn so provider switches take effect immediately.
             IChatClient providerClient = await _providers.GetCurrentAsync(cancellationToken).ConfigureAwait(false);
-            IChatClient retrying = new RetryingChatClient(providerClient, _retryPolicy, _emitter);
+            IChatClient retrying = new RetryingChatClient(providerClient, _retryPolicy, _emitter, provider, model);
             IChatClient functionInvoker = new FunctionInvokingChatClient(retrying);
             IChatClient pipeline = new PermissionGateChatClient(functionInvoker, _policy, ConfirmCallback);
 
@@ -274,10 +293,24 @@ public sealed class TurnHandler : ITurnHandler
             catch (OperationCanceledException)
             {
                 _logger.LogDebug("Turn cancelled.");
+                stopReason = "cancelled";
             }
 
             break;
         }
+
+        // --- Record telemetry ---
+        turnTimer.Stop();
+
+        if (turnActivity is not null)
+        {
+            turnActivity.SetTag("daemon.stop_reason", stopReason);
+            turnActivity.SetTag("daemon.tokens.input", inputTokens);
+            turnActivity.SetTag("daemon.tokens.output", outputTokens);
+        }
+
+        DaemonTelemetry.RecordTurn(provider, model, stopReason);
+        DaemonTelemetry.RecordTurnDuration(turnTimer.Elapsed.TotalMilliseconds, provider, model, stopReason);
 
         // Commit any pending provider switch between turns.
         // Use CancellationToken.None — these emits must succeed even if the turn was aborted.
@@ -342,6 +375,16 @@ public sealed class TurnHandler : ITurnHandler
         List<object> toolResults,
         CancellationToken cancellationToken)
     {
+        using Activity? toolActivity = DaemonTelemetry.Source.StartActivity("tool.execute");
+
+        int argsSizeBytes = JsonSerializer.SerializeToUtf8Bytes(call.Arguments ?? new Dictionary<string, object?>()).Length;
+
+        if (toolActivity is not null)
+        {
+            toolActivity.SetTag("daemon.tool.name", call.Name);
+            toolActivity.SetTag("daemon.tool.args.size_bytes", argsSizeBytes);
+        }
+
         await _emitter.EmitAsync(new ToolExecutionStartEvent
         {
             CallId = call.CallId,
@@ -353,6 +396,14 @@ public sealed class TurnHandler : ITurnHandler
         object result = new { callId = call.CallId, name = call.Name };
         bool isError = false;
 
+        int resultSizeBytes = JsonSerializer.SerializeToUtf8Bytes(result).Length;
+
+        if (toolActivity is not null)
+        {
+            toolActivity.SetTag("daemon.tool.result.size_bytes", resultSizeBytes);
+            toolActivity.SetTag("daemon.tool.is_error", isError);
+        }
+
         await _emitter.EmitAsync(new ToolExecutionEndEvent
         {
             CallId = call.CallId,
@@ -361,6 +412,8 @@ public sealed class TurnHandler : ITurnHandler
         }, cancellationToken).ConfigureAwait(false);
 
         toolResults.Add(result);
+
+        DaemonTelemetry.RecordToolInvocation(call.Name, isError);
     }
 
     private async Task<bool> HandleConfirmRequestAsync(

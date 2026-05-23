@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using Daemon.Core.Telemetry;
 using Daemon.Protocol.Events;
 using Microsoft.Extensions.AI;
 
@@ -100,16 +102,26 @@ public sealed class PermissionGateChatClient : IChatClient
                     continue;
                 }
 
+                using Activity? permActivity = DaemonTelemetry.Source.StartActivity("permission.evaluate");
+                if (permActivity is not null)
+                {
+                    permActivity.SetTag("daemon.tool.name", call.Name);
+                }
+
                 PermissionResult permission = EvaluateToolCall(call);
+                string decision = permission.ToString().ToLowerInvariant();
+                string riskLevel = "low";
 
                 switch (permission)
                 {
                     case PermissionResult.Allow:
                         allowedContents.Add(call);
+                        decision = "allow";
                         break;
 
                     case PermissionResult.Deny:
                         deniedResults.Add(BuildDeniedToolResult(call));
+                        decision = "deny";
                         break;
 
                     case PermissionResult.Prompt:
@@ -117,13 +129,23 @@ public sealed class PermissionGateChatClient : IChatClient
                         if (confirmed)
                         {
                             allowedContents.Add(call);
+                            decision = "allowonce";
                         }
                         else
                         {
                             deniedResults.Add(BuildDeniedToolResult(call));
+                            decision = "deny";
                         }
                         break;
                 }
+
+                if (permActivity is not null)
+                {
+                    permActivity.SetTag("daemon.permission.risk", riskLevel);
+                    permActivity.SetTag("daemon.permission.decision", decision);
+                }
+
+                DaemonTelemetry.RecordPermissionPrompt(riskLevel, decision);
             }
 
             // Emit the assistant message (with allowed tool calls) before any denied results.
