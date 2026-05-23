@@ -85,11 +85,11 @@
 - [x] 9.4 Implement turn execution loop — `turn.submit`, `turn.steer`, `turn.followUp`, `turn.abort`
 - [x] 9.5 Implement `turnStart` / `messageDelta` / `toolExecutionStart` / `toolExecutionEnd` / `turnEnd` event emission (payloads per ADR-003)
 - [x] 9.5.1 Implement `ui.inputRequest`/`ui.inputResponse` channel for secret/text/select input (distinct from `tool.confirmRequest`)
-- [ ] 9.6 Implement session command handlers — `session.create`, `session.fork`, `session.clone`, `session.load`, `session.list`, `session.setName`, `session.getStats`, `session.getMessages`
-- [ ] 9.6.1 Implement session directory advisory lock (`<id>/.lock` via `flock`/`LockFileEx`); second core attempting the same session emits `error {code: "sessionLocked"}` and exits non-zero
-- [ ] 9.7 Implement thinking level abstraction — `thinking.set {level: off|low|medium|high}` and `thinking.cycle`; each provider adapter maps the level to its native reasoning parameter; emit `capabilityIgnored` when active model lacks reasoning support
-- [ ] 9.8 Implement transient-error retry per ADR-003: exponential backoff with jitter (`baseDelay`, `maxDelay`, `maxAttempts` from `IConfiguration` under `Daemon:Provider:Retry:*`); honour `Retry-After`; emit `retryAttempt` per attempt; non-retryable errors end the turn with `stopReason: error`
-- [ ] 9.9 Write integration tests for turn loop with a mock `IChatClient`
+- [x] 9.6 Implement session command handlers — `session.create`, `session.fork`, `session.clone`, `session.load`, `session.list`, `session.setName`, `session.getStats`, `session.getMessages`
+- [x] 9.6.1 Implement session directory advisory lock (`<id>/.lock` via `flock`/`LockFileEx`); second core attempting the same session emits `error {code: "sessionLocked"}` and exits non-zero
+- [x] 9.7 Implement thinking level abstraction — `thinking.set {level: off|low|medium|high}` and `thinking.cycle`; each provider adapter maps the level to its native reasoning parameter; emit `capabilityIgnored` when active model lacks reasoning support
+- [x] 9.8 Implement transient-error retry per ADR-003: exponential backoff with jitter (`baseDelay`, `maxDelay`, `maxAttempts` from `IConfiguration` under `Daemon:Provider:Retry:*`); honour `Retry-After`; emit `retryAttempt` per attempt; non-retryable errors end the turn with `stopReason: error`
+- [x] 9.9 Write integration tests for turn loop with a mock `IChatClient`
 
 ## 10. Console Host
 

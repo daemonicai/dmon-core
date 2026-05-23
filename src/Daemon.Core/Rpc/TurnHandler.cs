@@ -6,8 +6,10 @@ using Daemon.Core.Permissions;
 using Daemon.Core.Providers;
 using Daemon.Protocol.Commands;
 using Daemon.Protocol.Delta;
+using Daemon.Protocol.Enums;
 using Daemon.Protocol.Events;
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
 namespace Daemon.Core.Rpc;
@@ -18,6 +20,8 @@ public sealed class TurnHandler : ITurnHandler
     private readonly IToolRegistry _tools;
     private readonly IEventEmitter _emitter;
     private readonly IPermissionPolicy _policy;
+    private readonly IThinkingHandler _thinking;
+    private readonly RetryPolicy _retryPolicy;
     private readonly ILogger<TurnHandler> _logger;
 
     // Pending confirm/ui-input response channels keyed by request id.
@@ -40,12 +44,16 @@ public sealed class TurnHandler : ITurnHandler
         IToolRegistry tools,
         IEventEmitter emitter,
         IPermissionPolicy policy,
+        IThinkingHandler thinking,
+        IConfiguration configuration,
         ILogger<TurnHandler> logger)
     {
         _providers = providers;
         _tools = tools;
         _emitter = emitter;
         _policy = policy;
+        _thinking = thinking;
+        _retryPolicy = RetryPolicy.FromConfiguration(configuration);
         _logger = logger;
     }
 
@@ -166,7 +174,8 @@ public sealed class TurnHandler : ITurnHandler
         {
             // Build the pipeline per-turn so provider switches take effect immediately.
             IChatClient providerClient = await _providers.GetCurrentAsync(cancellationToken).ConfigureAwait(false);
-            IChatClient functionInvoker = new FunctionInvokingChatClient(providerClient);
+            IChatClient retrying = new RetryingChatClient(providerClient, _retryPolicy, _emitter);
+            IChatClient functionInvoker = new FunctionInvokingChatClient(retrying);
             IChatClient pipeline = new PermissionGateChatClient(functionInvoker, _policy, ConfirmCallback);
 
             IReadOnlyList<AIFunction> toolList = _tools.GetAll();
@@ -175,6 +184,8 @@ public sealed class TurnHandler : ITurnHandler
             {
                 options.Tools = toolList.Cast<AITool>().ToList();
             }
+
+            ApplyThinkingToOptions(options);
 
             try
             {
@@ -269,17 +280,61 @@ public sealed class TurnHandler : ITurnHandler
         }
 
         // Commit any pending provider switch between turns.
+        // Use CancellationToken.None — these emits must succeed even if the turn was aborted.
         ProviderSwitchedEvent? switched = _providers.CommitPendingSwitch();
         if (switched is not null)
         {
-            await _emitter.EmitAsync(switched, cancellationToken).ConfigureAwait(false);
+            await _emitter.EmitAsync(switched, CancellationToken.None).ConfigureAwait(false);
         }
 
         await _emitter.EmitAsync(new TurnEndEvent
         {
             Message = lastMessage,
             ToolResults = toolResults
-        }, cancellationToken).ConfigureAwait(false);
+        }, CancellationToken.None).ConfigureAwait(false);
+    }
+
+    private void ApplyThinkingToOptions(ChatOptions options)
+    {
+        ThinkingLevel level = _thinking.CurrentLevel;
+        if (level == ThinkingLevel.Off)
+        {
+            return;
+        }
+
+        // Anthropic: budget_tokens in AdditionalProperties.
+        int budgetTokens = level switch
+        {
+            ThinkingLevel.Low => 1024,
+            ThinkingLevel.Medium => 8192,
+            ThinkingLevel.High => 32768,
+            _ => 0
+        };
+
+        string providerName = _providers.GetCurrentConfig().Name;
+
+        if (string.Equals(providerName, "anthropic", StringComparison.OrdinalIgnoreCase))
+        {
+            options.AdditionalProperties ??= new AdditionalPropertiesDictionary();
+            options.AdditionalProperties["thinking"] = new { type = "enabled", budget_tokens = budgetTokens };
+        }
+        else if (string.Equals(providerName, "openai", StringComparison.OrdinalIgnoreCase))
+        {
+            options.AdditionalProperties ??= new AdditionalPropertiesDictionary();
+            options.AdditionalProperties["reasoning_effort"] = level switch
+            {
+                ThinkingLevel.Low => "low",
+                ThinkingLevel.Medium => "medium",
+                ThinkingLevel.High => "high",
+                _ => null
+            };
+        }
+        else
+        {
+            // Gemini and unknown providers: store budget in AdditionalProperties.
+            options.AdditionalProperties ??= new AdditionalPropertiesDictionary();
+            options.AdditionalProperties["thinkingBudget"] = budgetTokens;
+        }
     }
 
     private async Task HandleToolCallAsync(

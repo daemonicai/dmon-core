@@ -81,10 +81,12 @@ public static class DaemonServiceExtensions
         services.AddSingleton<ITurnHandler>(sp => sp.GetRequiredService<TurnHandler>());
 
         services.AddSingleton<IModelHandler, NullModelHandler>();
-        services.AddSingleton<ISessionHandler, NullSessionHandler>();
+        services.AddSingleton<SessionHandler>();
+        services.AddSingleton<ISessionHandler>(sp => sp.GetRequiredService<SessionHandler>());
         services.AddSingleton<IExtensionHandler, NullExtensionHandler>();
         services.AddSingleton<IAuthHandler, NullAuthHandler>();
-        services.AddSingleton<IThinkingHandler, NullThinkingHandler>();
+        services.AddSingleton<ThinkingHandler>();
+        services.AddSingleton<IThinkingHandler>(sp => sp.GetRequiredService<ThinkingHandler>());
 
         services.AddSingleton<CommandDispatcher>();
         services.AddSingleton<BootstrapService>();

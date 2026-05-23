@@ -35,6 +35,7 @@ namespace Daemon.Protocol.Events;
 [JsonDerivedType(typeof(AuthLoginFailedEvent), typeDiscriminator: "auth.loginFailed")]
 [JsonDerivedType(typeof(AuthStatusResultEvent), typeDiscriminator: "auth.statusResult")]
 [JsonDerivedType(typeof(ModelListResultEvent), typeDiscriminator: "model.listResult")]
+[JsonDerivedType(typeof(ResponseEvent), typeDiscriminator: "response")]
 public abstract record Event
 {
 }
