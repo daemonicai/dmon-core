@@ -1,9 +1,9 @@
 ## 1. Foundation — Project Setup
 
-- [ ] 1.1 Create `src/Daemon.Providers/Daemon.Providers.csproj` referencing `Daemon.Core`, `OpenAI`, `Anthropic.SDK`, and `GeminiDotnet`; add to `Daemon.slnx`
-- [ ] 1.2 Create `test/Daemon.Providers.Tests/Daemon.Providers.Tests.csproj` referencing `Daemon.Providers`, `xunit`, and `Microsoft.NET.Test.Sdk`; add to `Daemon.slnx`
-- [ ] 1.3 Add a project reference from `Daemon.Core` to `Daemon.Providers` (for startup registration in `DaemonServiceExtensions`)
-- [ ] 1.4 Remove `OpenAI`, `Anthropic.SDK`, and `GeminiDotnet` `PackageReference` entries from `Daemon.Core.csproj`
+- [x] 1.1 Create `src/Dmon.Providers/Dmon.Providers.csproj` referencing `Anthropic.SDK`, `GeminiDotnet.Extensions.AI`, and `Microsoft.Extensions.AI.OpenAI`; add to `Dmon.slnx`
+- [x] 1.2 Create `test/Dmon.Providers.Tests/Dmon.Providers.Tests.csproj` referencing `Dmon.Providers`, `xunit`, and `Microsoft.NET.Test.Sdk`; add to `Dmon.slnx`
+- [x] 1.3 **REVISED (Option B — Dmon.Abstractions):** Create `src/Dmon.Abstractions/Dmon.Abstractions.csproj`; move `ProviderConfig.cs` (and `ProviderAuthConfig`, `ProviderCapabilities`) there; add `Dmon.Abstractions` to `Dmon.slnx`; update `Dmon.Core` to reference `Dmon.Abstractions` and `Dmon.Providers`; update `Dmon.Providers` to reference `Dmon.Abstractions` instead of `Dmon.Core`. Rationale: `Core→Providers→Core` is circular; Abstractions breaks the cycle.
+- [x] 1.4 Remove `Anthropic.SDK`, `GeminiDotnet.Extensions.AI`, and `Microsoft.Extensions.AI.OpenAI` `PackageReference` entries from `Dmon.Core.csproj`
 
 ## 2. Core Interfaces and Types
 

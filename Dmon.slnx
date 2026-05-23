@@ -3,14 +3,17 @@
     <Project Path="spike/ScriptingSpike/ScriptingSpike.csproj" />
   </Folder>
   <Folder Name="/src/">
+    <Project Path="src\Dmon.Abstractions\Dmon.Abstractions.csproj" />
     <Project Path="src\Dmon.Console\Dmon.Console.csproj" />
     <Project Path="src\Dmon.Core\Dmon.Core.csproj" />
     <Project Path="src\Dmon.Extensions\Dmon.Extensions.csproj" />
     <Project Path="src\Dmon.Protocol\Dmon.Protocol.csproj" />
+    <Project Path="src\Dmon.Providers\Dmon.Providers.csproj" />
   </Folder>
   <Folder Name="/test/">
     <Project Path="test\Dmon.Core.Tests\Dmon.Core.Tests.csproj" />
     <Project Path="test\Dmon.Extensions.Tests\Dmon.Extensions.Tests.csproj" />
     <Project Path="test\Dmon.Protocol.Tests\Dmon.Protocol.Tests.csproj" />
+    <Project Path="test\Dmon.Providers.Tests\Dmon.Providers.Tests.csproj" />
   </Folder>
 </Solution>
