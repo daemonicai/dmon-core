@@ -1,3 +1,4 @@
+using Dmon.Extensions;
 using Dmon.Protocol.Events;
 
 namespace Dmon.Core.Extensions;
@@ -117,7 +118,9 @@ public sealed class ExtensionService
             return;
         }
 
-        _toolRegistry.Register(result.Name, result.Tools);
+        IDmonExtension extension = result.Extension
+            ?? new AnonymousExtension(result.Name, result.Description ?? result.Name, result.Tools);
+        _toolRegistry.Register(result.Name, extension, result.Tools);
 
         Loaded?.Invoke(new ExtensionLoadedEvent
         {

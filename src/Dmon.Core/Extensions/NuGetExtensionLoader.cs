@@ -104,7 +104,8 @@ public sealed class NuGetExtensionLoader : IExtensionLoader, IDisposable
             Name = primary.Name,
             Description = primary.Description,
             Tools = allTools,
-            SourceKind = "nuget"
+            SourceKind = "nuget",
+            Extension = primary
         };
     }
 

@@ -1,18 +1,18 @@
 ## 1. Foundation — Project Setup
 
-- [ ] 1.1 Create `src/Daemon.BuiltinTools/Daemon.BuiltinTools.csproj` referencing `Microsoft.Extensions.AI` and `Daemon.Extensions` (which transitively provides `Daemon.Protocol`); add to `Daemon.slnx`
-- [ ] 1.2 Create `test/Daemon.BuiltinTools.Tests/Daemon.BuiltinTools.Tests.csproj` referencing `Daemon.BuiltinTools`, `xunit`, and `Microsoft.NET.Test.Sdk`; add to `Daemon.slnx`
-- [ ] 1.3 Add a project reference from `Daemon.Core` to `Daemon.BuiltinTools` (Core registers built-in tools at startup)
-- [ ] 1.4 Add a project reference from `Daemon.Extensions` to `Daemon.Protocol` (needed for `PermissionResult`, `IPermissionSettings`, `ToolConfirmRequest` on the updated `IDaemonExtension`)
+- [x] 1.1 Create `src/Daemon.BuiltinTools/Daemon.BuiltinTools.csproj` referencing `Microsoft.Extensions.AI` and `Daemon.Extensions` (which transitively provides `Daemon.Protocol`); add to `Daemon.slnx`
+- [x] 1.2 Create `test/Daemon.BuiltinTools.Tests/Daemon.BuiltinTools.Tests.csproj` referencing `Daemon.BuiltinTools`, `xunit`, and `Microsoft.NET.Test.Sdk`; add to `Daemon.slnx`
+- [x] 1.3 Add a project reference from `Daemon.Core` to `Daemon.BuiltinTools` (Core registers built-in tools at startup)
+- [x] 1.4 Add a project reference from `Daemon.Extensions` to `Daemon.Protocol` (needed for `PermissionResult`, `IPermissionSettings`, `ToolConfirmRequest` on the updated `IDaemonExtension`)
 
 ## 2. Extension Model — Interface Changes
 
-- [ ] 2.1 Add `PermissionResult Evaluate(FunctionCallContent call, IPermissionSettings project, IPermissionSettings? global)` to `IDaemonExtension` with default implementation returning `PermissionResult.Prompt`
-- [ ] 2.2 Add `ToolConfirmRequest CreateConfirmRequest(FunctionCallContent call)` to `IDaemonExtension` with default implementation returning `new ToolConfirmRequest { Id = call.CallId, Name = call.Name, Args = call.Arguments ?? [], Risk = RiskLevel.Low }`
-- [ ] 2.3 Change `IToolRegistry.Register` signature to `Register(string extensionName, IDaemonExtension extension, IEnumerable<AIFunction> tools)` — breaking internal change
-- [ ] 2.4 Add `IDaemonExtension? FindExtension(string toolName)` to `IToolRegistry`
-- [ ] 2.5 Update `ToolRegistry` to maintain a `Dictionary<string, IDaemonExtension>` (keyed by tool name, populated during `Register`) and implement `FindExtension`; update `Register` to accept the `IDaemonExtension` parameter
-- [ ] 2.6 Update all existing callers of `IToolRegistry.Register` (`ExtensionService`, `BuiltinToolsService` stubs if any) to pass the `IDaemonExtension` instance
+- [x] 2.1 Add `PermissionResult Evaluate(FunctionCallContent call, IPermissionSettings project, IPermissionSettings? global)` to `IDaemonExtension` with default implementation returning `PermissionResult.Prompt`
+- [x] 2.2 Add `ToolConfirmRequest CreateConfirmRequest(FunctionCallContent call)` to `IDaemonExtension` with default implementation returning `new ToolConfirmRequest { Id = call.CallId, Name = call.Name, Args = call.Arguments ?? [], Risk = RiskLevel.Low }`
+- [x] 2.3 Change `IToolRegistry.Register` signature to `Register(string extensionName, IDaemonExtension extension, IEnumerable<AIFunction> tools)` — breaking internal change
+- [x] 2.4 Add `IDaemonExtension? FindExtension(string toolName)` to `IToolRegistry`
+- [x] 2.5 Update `ToolRegistry` to maintain a `Dictionary<string, IDaemonExtension>` (keyed by tool name, populated during `Register`) and implement `FindExtension`; update `Register` to accept the `IDaemonExtension` parameter
+- [x] 2.6 Update all existing callers of `IToolRegistry.Register` (`ExtensionService`, `BuiltinToolsService` stubs if any) to pass the `IDaemonExtension` instance
 
 ## 3. Permission Model — Simplification
 

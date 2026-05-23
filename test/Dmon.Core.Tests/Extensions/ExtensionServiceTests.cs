@@ -1,4 +1,5 @@
 using Dmon.Core.Extensions;
+using Dmon.Extensions;
 using Dmon.Protocol.Events;
 using Microsoft.Extensions.AI;
 
@@ -11,6 +12,15 @@ public sealed class ExtensionServiceTests
             () => name,
             name,
             $"Test {name}");
+
+    private static IDmonExtension MakeExtension(string name) => new StubExtension(name);
+
+    private sealed class StubExtension(string name) : IDmonExtension
+    {
+        public string Name => name;
+        public string Description => $"Stub {name}";
+        public IEnumerable<AIFunction> Tools => [];
+    }
 
     [Fact]
     public async Task LoadAsync_ScriptExtension_RegistersAndEmitsEvent()
@@ -122,7 +132,7 @@ public sealed class ExtensionServiceTests
         IToolRegistry registry = new ToolRegistry();
         ExtensionUnloadedEvent? unloadedEvent = null;
 
-        registry.Register("myext", [MakeFunction("f")]);
+        registry.Register("myext", MakeExtension("myext"), [MakeFunction("f")]);
 
         ExtensionService service = new(registry, []);
         service.Unloaded += e => unloadedEvent = e;
@@ -148,8 +158,8 @@ public sealed class ExtensionServiceTests
     public void Clear_RemovesAllExtensions()
     {
         IToolRegistry registry = new ToolRegistry();
-        registry.Register("a", [MakeFunction("f")]);
-        registry.Register("b", [MakeFunction("f")]);
+        registry.Register("a", MakeExtension("a"), [MakeFunction("f")]);
+        registry.Register("b", MakeExtension("b"), [MakeFunction("f")]);
 
         ExtensionService service = new(registry, []);
         service.Clear();
@@ -161,8 +171,8 @@ public sealed class ExtensionServiceTests
     public void GetSnapshot_ReturnsCurrentState()
     {
         IToolRegistry registry = new ToolRegistry();
-        registry.Register("a", [MakeFunction("f1"), MakeFunction("f2")]);
-        registry.Register("b", [MakeFunction("f3")]);
+        registry.Register("a", MakeExtension("a"), [MakeFunction("f1"), MakeFunction("f2")]);
+        registry.Register("b", MakeExtension("b"), [MakeFunction("f3")]);
 
         ExtensionService service = new(registry, []);
 

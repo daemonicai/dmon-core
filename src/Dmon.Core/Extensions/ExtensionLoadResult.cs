@@ -1,3 +1,4 @@
+using Dmon.Extensions;
 using Microsoft.Extensions.AI;
 
 namespace Dmon.Core.Extensions;
@@ -29,6 +30,12 @@ public sealed record ExtensionLoadResult
     /// Source kind used for permission-confirmation prompts.
     /// </summary>
     public required string SourceKind { get; init; } // "nuget", "assembly", "script"
+
+    /// <summary>
+    /// The primary <see cref="IDmonExtension"/> instance from the loaded assembly.
+    /// <see langword="null"/> for .csx script extensions that do not implement the interface.
+    /// </summary>
+    public IDmonExtension? Extension { get; init; }
 }
 
 /// <summary>

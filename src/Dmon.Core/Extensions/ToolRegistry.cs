@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using Dmon.Extensions;
 using Microsoft.Extensions.AI;
 
 namespace Dmon.Core.Extensions;
@@ -6,20 +7,47 @@ namespace Dmon.Core.Extensions;
 public sealed class ToolRegistry : IToolRegistry
 {
     private readonly ConcurrentDictionary<string, List<AIFunction>> _extensions = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, IDmonExtension> _extensionsByTool = new(StringComparer.OrdinalIgnoreCase);
 
-    public void Register(string extensionName, IEnumerable<AIFunction> tools)
+    public void Register(string extensionName, IDmonExtension extension, IEnumerable<AIFunction> tools)
     {
         List<AIFunction> list = tools.ToList();
+
+        // Remove old tool→extension mappings for this extension name before replacing.
+        if (_extensions.TryGetValue(extensionName, out List<AIFunction>? existing))
+        {
+            foreach (AIFunction fn in existing)
+            {
+                _extensionsByTool.TryRemove(fn.Name, out _);
+            }
+        }
 
         _extensions.AddOrUpdate(
             extensionName,
             _ => list,
             (_, _) => list);
+
+        foreach (AIFunction fn in list)
+        {
+            _extensionsByTool[fn.Name] = extension;
+        }
+    }
+
+    public IDmonExtension? FindExtension(string toolName)
+    {
+        _extensionsByTool.TryGetValue(toolName, out IDmonExtension? extension);
+        return extension;
     }
 
     public void Unregister(string extensionName)
     {
-        _extensions.TryRemove(extensionName, out _);
+        if (_extensions.TryRemove(extensionName, out List<AIFunction>? removed))
+        {
+            foreach (AIFunction fn in removed)
+            {
+                _extensionsByTool.TryRemove(fn.Name, out _);
+            }
+        }
     }
 
     public IReadOnlyList<AIFunction> GetAll()
@@ -44,5 +72,6 @@ public sealed class ToolRegistry : IToolRegistry
     public void Clear()
     {
         _extensions.Clear();
+        _extensionsByTool.Clear();
     }
 }

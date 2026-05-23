@@ -1,6 +1,7 @@
 using System.Runtime.CompilerServices;
 using Dmon.Abstractions.Providers;
 using Dmon.Core.Extensions;
+using Dmon.Extensions;
 using Dmon.Core.Permissions;
 using Dmon.Core.Providers;
 using Dmon.Core.Rpc;
@@ -148,7 +149,8 @@ internal sealed class StubProviderRegistry : IProviderRegistry
 internal sealed class EmptyToolRegistry : IToolRegistry
 {
     public IReadOnlyList<AIFunction> GetAll() => [];
-    public void Register(string extensionName, IEnumerable<AIFunction> tools) { }
+    public void Register(string extensionName, IDmonExtension extension, IEnumerable<AIFunction> tools) { }
+    public IDmonExtension? FindExtension(string toolName) => null;
     public void Unregister(string extensionName) { }
     public IReadOnlyList<RegisteredExtensionSnapshot> GetSnapshot() => [];
     public void Clear() { }

@@ -1,4 +1,5 @@
 using Dmon.Core.Extensions;
+using Dmon.Extensions;
 using Microsoft.Extensions.AI;
 
 namespace Dmon.Core.Tests.Extensions;
@@ -11,11 +12,20 @@ public sealed class ToolRegistryTests
             name,
             $"Test function {name}");
 
+    private static IDmonExtension MakeExtension(string name) => new StubExtension(name);
+
+    private sealed class StubExtension(string name) : IDmonExtension
+    {
+        public string Name => name;
+        public string Description => $"Stub extension {name}";
+        public IEnumerable<AIFunction> Tools => [];
+    }
+
     [Fact]
     public void Register_AddsToolCount_ToGetSnapshot()
     {
         IToolRegistry registry = new ToolRegistry();
-        registry.Register("ext1", [MakeFunction("fn1"), MakeFunction("fn2")]);
+        registry.Register("ext1", MakeExtension("ext1"), [MakeFunction("fn1"), MakeFunction("fn2")]);
 
         IReadOnlyList<RegisteredExtensionSnapshot> snapshot = registry.GetSnapshot();
 
@@ -28,8 +38,8 @@ public sealed class ToolRegistryTests
     public void Register_ReplacesExistingExtension()
     {
         IToolRegistry registry = new ToolRegistry();
-        registry.Register("ext", [MakeFunction("old")]);
-        registry.Register("ext", [MakeFunction("new1"), MakeFunction("new2"), MakeFunction("new3")]);
+        registry.Register("ext", MakeExtension("ext"), [MakeFunction("old")]);
+        registry.Register("ext", MakeExtension("ext"), [MakeFunction("new1"), MakeFunction("new2"), MakeFunction("new3")]);
 
         IReadOnlyList<RegisteredExtensionSnapshot> snapshot = registry.GetSnapshot();
 
@@ -41,7 +51,7 @@ public sealed class ToolRegistryTests
     public void Unregister_RemovesExtension()
     {
         IToolRegistry registry = new ToolRegistry();
-        registry.Register("ext", [MakeFunction("fn")]);
+        registry.Register("ext", MakeExtension("ext"), [MakeFunction("fn")]);
         registry.Unregister("ext");
 
         IReadOnlyList<RegisteredExtensionSnapshot> snapshot = registry.GetSnapshot();
@@ -62,8 +72,8 @@ public sealed class ToolRegistryTests
     public void GetAll_ReturnsAllToolsFromAllExtensions()
     {
         IToolRegistry registry = new ToolRegistry();
-        registry.Register("a", [MakeFunction("fa1"), MakeFunction("fa2")]);
-        registry.Register("b", [MakeFunction("fb1")]);
+        registry.Register("a", MakeExtension("a"), [MakeFunction("fa1"), MakeFunction("fa2")]);
+        registry.Register("b", MakeExtension("b"), [MakeFunction("fb1")]);
 
         IReadOnlyList<AIFunction> all = registry.GetAll();
 
@@ -87,8 +97,8 @@ public sealed class ToolRegistryTests
     public void Clear_RemovesAllExtensions()
     {
         IToolRegistry registry = new ToolRegistry();
-        registry.Register("a", [MakeFunction("f")]);
-        registry.Register("b", [MakeFunction("f")]);
+        registry.Register("a", MakeExtension("a"), [MakeFunction("f")]);
+        registry.Register("b", MakeExtension("b"), [MakeFunction("f")]);
 
         registry.Clear();
 
@@ -100,7 +110,7 @@ public sealed class ToolRegistryTests
     public void GetSnapshot_AfterClear_ReturnsEmpty()
     {
         IToolRegistry registry = new ToolRegistry();
-        registry.Register("a", [MakeFunction("f")]);
+        registry.Register("a", MakeExtension("a"), [MakeFunction("f")]);
         registry.Clear();
 
         IReadOnlyList<RegisteredExtensionSnapshot> snapshot = registry.GetSnapshot();
@@ -112,9 +122,9 @@ public sealed class ToolRegistryTests
     public void Register_MultipleExtensions_AllInSnapshot()
     {
         IToolRegistry registry = new ToolRegistry();
-        registry.Register("alpha", [MakeFunction("f1")]);
-        registry.Register("beta", [MakeFunction("f2"), MakeFunction("f3")]);
-        registry.Register("gamma", [MakeFunction("f4"), MakeFunction("f5"), MakeFunction("f6")]);
+        registry.Register("alpha", MakeExtension("alpha"), [MakeFunction("f1")]);
+        registry.Register("beta", MakeExtension("beta"), [MakeFunction("f2"), MakeFunction("f3")]);
+        registry.Register("gamma", MakeExtension("gamma"), [MakeFunction("f4"), MakeFunction("f5"), MakeFunction("f6")]);
 
         IReadOnlyList<RegisteredExtensionSnapshot> snapshot = registry.GetSnapshot();
 
@@ -128,12 +138,70 @@ public sealed class ToolRegistryTests
     public void Register_CaseInsensitive_ExtensionName()
     {
         IToolRegistry registry = new ToolRegistry();
-        registry.Register("MyExt", [MakeFunction("f1")]);
-        registry.Register("myext", [MakeFunction("f2")]); // Same name, different case — replaces.
+        registry.Register("MyExt", MakeExtension("MyExt"), [MakeFunction("f1")]);
+        registry.Register("myext", MakeExtension("myext"), [MakeFunction("f2")]); // Same name, different case — replaces.
 
         IReadOnlyList<RegisteredExtensionSnapshot> snapshot = registry.GetSnapshot();
 
         Assert.Single(snapshot);
         Assert.Equal(1, snapshot[0].ToolCount);
+    }
+
+    [Fact]
+    public void FindExtension_ReturnsExtension_WhenToolRegistered()
+    {
+        IToolRegistry registry = new ToolRegistry();
+        IDmonExtension ext = MakeExtension("myext");
+        registry.Register("myext", ext, [MakeFunction("tool1")]);
+
+        IDmonExtension? found = registry.FindExtension("tool1");
+
+        Assert.Same(ext, found);
+    }
+
+    [Fact]
+    public void FindExtension_ReturnsNull_WhenToolNotRegistered()
+    {
+        IToolRegistry registry = new ToolRegistry();
+
+        IDmonExtension? found = registry.FindExtension("nonexistent");
+
+        Assert.Null(found);
+    }
+
+    [Fact]
+    public void FindExtension_ReturnsNull_AfterUnregister()
+    {
+        IToolRegistry registry = new ToolRegistry();
+        registry.Register("ext", MakeExtension("ext"), [MakeFunction("fn")]);
+        registry.Unregister("ext");
+
+        IDmonExtension? found = registry.FindExtension("fn");
+
+        Assert.Null(found);
+    }
+
+    [Fact]
+    public void FindExtension_ReturnsNull_AfterClear()
+    {
+        IToolRegistry registry = new ToolRegistry();
+        registry.Register("ext", MakeExtension("ext"), [MakeFunction("fn")]);
+        registry.Clear();
+
+        Assert.Null(registry.FindExtension("fn"));
+    }
+
+    [Fact]
+    public void FindExtension_ReturnsNewExtension_AfterReplace_OldToolReturnsNull()
+    {
+        IToolRegistry registry = new ToolRegistry();
+        IDmonExtension original = MakeExtension("v1");
+        IDmonExtension replacement = MakeExtension("v2");
+
+        registry.Register("ext", original, [MakeFunction("old_tool")]);
+        registry.Register("ext", replacement, [MakeFunction("new_tool")]);
+
+        Assert.Same(replacement, registry.FindExtension("new_tool"));
+        Assert.Null(registry.FindExtension("old_tool"));
     }
 }

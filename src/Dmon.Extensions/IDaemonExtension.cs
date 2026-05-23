@@ -1,3 +1,6 @@
+using Dmon.Protocol.Enums;
+using Dmon.Protocol.Models;
+using Dmon.Protocol.Permissions;
 using Microsoft.Extensions.AI;
 
 namespace Dmon.Extensions;
@@ -49,4 +52,31 @@ public interface IDmonExtension
     /// into the session tool registry and made available to the LLM on subsequent turns.
     /// </summary>
     IEnumerable<AIFunction> Tools { get; }
+
+    /// <summary>
+    /// Evaluates the permission required for the given tool call.
+    /// The default implementation always returns <see cref="PermissionResult.Prompt"/>.
+    /// Override to grant implicit permission for safe operations or deny dangerous ones.
+    /// </summary>
+    PermissionResult Evaluate(
+        FunctionCallContent call,
+        IPermissionSettings project,
+        IPermissionSettings? global)
+        => PermissionResult.Prompt;
+
+    /// <summary>
+    /// Creates a <see cref="ToolConfirmRequest"/> for the given tool call.
+    /// The default implementation uses <see cref="RiskLevel.Low"/> as the risk level.
+    /// Override to assign higher risk levels to destructive or network operations.
+    /// </summary>
+    ToolConfirmRequest CreateConfirmRequest(FunctionCallContent call)
+        => new()
+        {
+            Id = call.CallId,
+            Name = call.Name,
+            Args = call.Arguments is null
+                ? new Dictionary<string, object?>()
+                : new Dictionary<string, object?>(call.Arguments),
+            Risk = RiskLevel.Low
+        };
 }

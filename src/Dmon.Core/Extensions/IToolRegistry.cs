@@ -1,3 +1,4 @@
+using Dmon.Extensions;
 using Microsoft.Extensions.AI;
 
 namespace Dmon.Core.Extensions;
@@ -13,7 +14,13 @@ public interface IToolRegistry
     /// Registers a named extension's tools into the registry.
     /// If an extension with the same name is already registered, it is replaced.
     /// </summary>
-    void Register(string extensionName, IEnumerable<AIFunction> tools);
+    void Register(string extensionName, IDmonExtension extension, IEnumerable<AIFunction> tools);
+
+    /// <summary>
+    /// Returns the <see cref="IDmonExtension"/> that registered the tool with the given name,
+    /// or <see langword="null"/> if no extension owns that tool.
+    /// </summary>
+    IDmonExtension? FindExtension(string toolName);
 
     /// <summary>
     /// Removes all tools registered under the given extension name.
