@@ -47,4 +47,4 @@ The NuGet binary for 2.0.0 differs from the GitHub tag v2.0.0 source:
 
 ## Conclusion
 
-No update to ADR-002 required. Dotnet.Script.Core is production-ready for daemon's `.csx` extension loading.
+No update to ADR-002 required. Dotnet.Script.Core is production-ready for dmon's `.csx` extension loading.

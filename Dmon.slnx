@@ -1,0 +1,16 @@
+<Solution>
+  <Folder Name="/spike/">
+    <Project Path="spike/ScriptingSpike/ScriptingSpike.csproj" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src\Dmon.Console\Dmon.Console.csproj" />
+    <Project Path="src\Dmon.Core\Dmon.Core.csproj" />
+    <Project Path="src\Dmon.Extensions\Dmon.Extensions.csproj" />
+    <Project Path="src\Dmon.Protocol\Dmon.Protocol.csproj" />
+  </Folder>
+  <Folder Name="/test/">
+    <Project Path="test\Dmon.Core.Tests\Dmon.Core.Tests.csproj" />
+    <Project Path="test\Dmon.Extensions.Tests\Dmon.Extensions.Tests.csproj" />
+    <Project Path="test\Dmon.Protocol.Tests\Dmon.Protocol.Tests.csproj" />
+  </Folder>
+</Solution>

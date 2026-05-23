@@ -62,3 +62,6 @@ nunit-*.xml
 # JetBrains
 .idea/
 *.sln.DotSettings.user
+
+# Local notes
+notes/
