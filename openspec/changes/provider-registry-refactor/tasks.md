@@ -7,26 +7,26 @@
 
 ## 2. Core Interfaces and Types
 
-- [ ] 2.1 Create `IProviderFactory` in `Daemon.Core/Providers/IProviderFactory.cs` with `string AdapterName`, `ChatClientCapabilities GetCapabilities(string modelId)`, and `ValueTask<IChatClient> CreateAsync(ProviderConfig, string? apiKey, CancellationToken)`
-- [ ] 2.2 Create `ChatClientCapabilities` in `Daemon.Core/Providers/ChatClientCapabilities.cs` — sealed class with `bool SupportsToolCalling`, `bool SupportsReasoning`, `int ContextWindow`, `int MaxTokens`
-- [ ] 2.3 Create `ProviderSwitchResult` in `Daemon.Core/Providers/ProviderSwitchResult.cs` — `sealed record ProviderSwitchResult(string ProviderName, string ModelId)`
-- [ ] 2.4 Add `void SetModel(string modelId)` to `IProviderRegistry`; change `CommitPendingSwitch` return type from `ProviderSwitchedEvent?` to `ProviderSwitchResult?`; simplify `SetProvider` to `void SetProvider(string name)` (remove optional `modelId` parameter)
+- [x] 2.1 Create `IProviderFactory` in `Dmon.Abstractions/Providers/IProviderFactory.cs` with `string AdapterName`, `ChatClientCapabilities GetCapabilities(string modelId)`, and `ValueTask<IChatClient> CreateAsync(ProviderConfig, string? apiKey, CancellationToken)`
+- [x] 2.2 Create `ChatClientCapabilities` in `Dmon.Abstractions/Providers/ChatClientCapabilities.cs` — sealed class with `bool SupportsToolCalling`, `bool SupportsReasoning`, `int ContextWindow`, `int MaxTokens`
+- [x] 2.3 Create `ProviderSwitchResult` in `Dmon.Abstractions/Providers/ProviderSwitchResult.cs` — `sealed record ProviderSwitchResult(string ProviderName, string ModelId)`
+- [x] 2.4 Add `void SetModel(string modelId)` to `IProviderRegistry`; change `CommitPendingSwitch` return type from `ProviderSwitchedEvent?` to `ProviderSwitchResult?`; simplify `SetProvider` to `void SetProvider(string name)` (remove optional `modelId` parameter)
 
 ## 3. Factory Implementations
 
-- [ ] 3.1 Implement `OpenAiProviderFactory` in `Daemon.Providers` — `AdapterName = "openai"`; `GetCapabilities` returns per-model-id defaults for known GPT-4o / GPT-4 / o1 / o3 family models; `CreateAsync` contains the `CreateOpenAiClient` logic moved from `ProviderRegistry`; inner class `CapabilitiesDecorator` wraps the returned client
-- [ ] 3.2 Implement `AnthropicProviderFactory` in `Daemon.Providers` — `AdapterName = "anthropic"`; `GetCapabilities` returns per-model-id defaults for known Claude 3 / Claude 4 family models; `CreateAsync` contains the `CreateAnthropicClient` logic moved from `ProviderRegistry`; inner `CapabilitiesDecorator` wraps the returned client
-- [ ] 3.3 Implement `GeminiProviderFactory` in `Daemon.Providers` — `AdapterName = "gemini"`; `GetCapabilities` returns per-model-id defaults for known Gemini 1.5 / 2.x models; `CreateAsync` contains the `CreateGeminiClient` logic moved from `ProviderRegistry`; inner `CapabilitiesDecorator` wraps the returned client
-- [ ] 3.4 Each `CapabilitiesDecorator` (private inner class per factory) SHALL implement `IChatClient`, forward all members to the inner client, and return the capabilities instance when `GetService(typeof(ChatClientCapabilities))` is called
+- [x] 3.1 Implement `OpenAiProviderFactory` in `Daemon.Providers` — `AdapterName = "openai"`; `GetCapabilities` returns per-model-id defaults for known GPT-4o / GPT-4 / o1 / o3 family models; `CreateAsync` contains the `CreateOpenAiClient` logic moved from `ProviderRegistry`; inner class `CapabilitiesDecorator` wraps the returned client
+- [x] 3.2 Implement `AnthropicProviderFactory` in `Daemon.Providers` — `AdapterName = "anthropic"`; `GetCapabilities` returns per-model-id defaults for known Claude 3 / Claude 4 family models; `CreateAsync` contains the `CreateAnthropicClient` logic moved from `ProviderRegistry`; inner `CapabilitiesDecorator` wraps the returned client
+- [x] 3.3 Implement `GeminiProviderFactory` in `Daemon.Providers` — `AdapterName = "gemini"`; `GetCapabilities` returns per-model-id defaults for known Gemini 1.5 / 2.x models; `CreateAsync` contains the `CreateGeminiClient` logic moved from `ProviderRegistry`; inner `CapabilitiesDecorator` wraps the returned client
+- [x] 3.4 Each `CapabilitiesDecorator` (private inner class per factory) SHALL implement `IChatClient`, forward all members to the inner client, and return the capabilities instance when `GetService(typeof(ChatClientCapabilities))` is called
 
 ## 4. ProviderRegistry Rewrite
 
-- [ ] 4.1 Rewrite `ProviderRegistry` to inject `IEnumerable<IProviderFactory>` instead of SDK clients; build a `Dictionary<string, IProviderFactory>` keyed by `AdapterName` at construction; throw `InvalidOperationException` for any `ProviderConfig.Adapter` with no matching factory
-- [ ] 4.2 Replace `CreateClientAsync` switch with `_factories[config.Adapter].CreateAsync(config, apiKey, ct)` call
-- [ ] 4.3 Implement `SetModel(string modelId)` — store as `_pendingModelId`; log a warning if the model is not found in the factory's `GetCapabilities` lookup (do not block)
-- [ ] 4.4 Update `CommitPendingSwitch` to return `ProviderSwitchResult?` instead of `ProviderSwitchedEvent?`; apply both `_pendingIndex` and `_pendingModelId` atomically
-- [ ] 4.5 Rewrite `CurrentSupportsToolCalling` and `CurrentSupportsReasoning` to use the hybrid path: `_activeClient?.GetService(typeof(ChatClientCapabilities)) as ChatClientCapabilities ?? _factories[config.Adapter].GetCapabilities(config.DefaultModelId ?? "")`
-- [ ] 4.6 Remove `IBashCompositeDetector`, `IDenylistChecker` constructor parameters if still present (these moved to `Daemon.BuiltinTools` in the `daemon-builtin-tools` change); remove all static `CreateOpenAiClient`, `CreateAnthropicClient`, `CreateGeminiClient` methods
+- [x] 4.1 Rewrite `ProviderRegistry` to inject `IEnumerable<IProviderFactory>` instead of SDK clients; build a `Dictionary<string, IProviderFactory>` keyed by `AdapterName` at construction; throw `InvalidOperationException` for any `ProviderConfig.Adapter` with no matching factory
+- [x] 4.2 Replace `CreateClientAsync` switch with `_factories[config.Adapter].CreateAsync(config, apiKey, ct)` call
+- [x] 4.3 Implement `SetModel(string modelId)` — store as `_pendingModelId`; log a warning if the model is not found in the factory's `GetCapabilities` lookup (do not block)
+- [x] 4.4 Update `CommitPendingSwitch` to return `ProviderSwitchResult?` instead of `ProviderSwitchedEvent?`; apply both `_pendingIndex` and `_pendingModelId` atomically
+- [x] 4.5 Rewrite `CurrentSupportsToolCalling` and `CurrentSupportsReasoning` to use the hybrid path: `_activeClient?.GetService(typeof(ChatClientCapabilities)) as ChatClientCapabilities ?? _factories[config.Adapter].GetCapabilities(config.DefaultModelId ?? "")`
+- [x] 4.6 Remove `IBashCompositeDetector`, `IDenylistChecker` constructor parameters if still present (these moved to `Daemon.BuiltinTools` in the `daemon-builtin-tools` change); remove all static `CreateOpenAiClient`, `CreateAnthropicClient`, `CreateGeminiClient` methods
 
 ## 5. TurnHandler and Wiring
 

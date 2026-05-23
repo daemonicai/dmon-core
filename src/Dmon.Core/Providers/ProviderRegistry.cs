@@ -1,29 +1,23 @@
-using System.ClientModel;
-using Anthropic.SDK;
-using Dmon.Protocol.Events;
-using GeminiDotnet;
-using GeminiDotnet.Extensions.AI;
 using Microsoft.Extensions.AI;
-using OpenAI;
-using OpenAI.Chat;
+using Microsoft.Extensions.Logging;
 
 namespace Dmon.Core.Providers;
 
 public sealed class ProviderRegistry : IProviderRegistry
 {
     private readonly IReadOnlyList<ProviderConfig> _all;
+    private readonly Dictionary<string, IProviderFactory> _factories;
     private readonly ICredentialResolver _credentials;
     private readonly ILogger<ProviderRegistry> _logger;
 
     private int _activeIndex;
     private IChatClient? _activeClient;
-
-    // pending switch: index + optional override model id
     private int? _pendingIndex;
     private string? _pendingModelId;
 
     public ProviderRegistry(
         IEnumerable<ProviderConfig> configs,
+        IEnumerable<IProviderFactory> factories,
         ICredentialResolver credentials,
         ILogger<ProviderRegistry> logger)
     {
@@ -36,6 +30,20 @@ public sealed class ProviderRegistry : IProviderRegistry
             throw new InvalidOperationException("At least one provider must be configured.");
         }
 
+        _factories = factories.ToDictionary(
+            f => f.AdapterName,
+            f => f,
+            StringComparer.OrdinalIgnoreCase);
+
+        foreach (ProviderConfig config in _all)
+        {
+            if (!_factories.ContainsKey(config.Adapter))
+            {
+                throw new InvalidOperationException(
+                    $"No factory registered for adapter '{config.Adapter}' (provider '{config.Name}').");
+            }
+        }
+
         _activeIndex = 0;
     }
 
@@ -43,9 +51,27 @@ public sealed class ProviderRegistry : IProviderRegistry
 
     public ProviderConfig GetCurrentConfig() => _all[_activeIndex];
 
-    public bool CurrentSupportsToolCalling => GetCurrentConfig().Capabilities.ToolCalling;
+    public bool CurrentSupportsToolCalling
+    {
+        get
+        {
+            if (_activeClient?.GetService(typeof(ChatClientCapabilities)) is ChatClientCapabilities caps)
+                return caps.SupportsToolCalling;
+            ProviderConfig config = GetCurrentConfig();
+            return _factories[config.Adapter].GetCapabilities(config.DefaultModelId ?? string.Empty).SupportsToolCalling;
+        }
+    }
 
-    public bool CurrentSupportsReasoning => GetCurrentConfig().Capabilities.Reasoning;
+    public bool CurrentSupportsReasoning
+    {
+        get
+        {
+            if (_activeClient?.GetService(typeof(ChatClientCapabilities)) is ChatClientCapabilities caps)
+                return caps.SupportsReasoning;
+            ProviderConfig config = GetCurrentConfig();
+            return _factories[config.Adapter].GetCapabilities(config.DefaultModelId ?? string.Empty).SupportsReasoning;
+        }
+    }
 
     public async ValueTask<IChatClient> GetCurrentAsync(CancellationToken cancellationToken = default)
     {
@@ -57,12 +83,31 @@ public sealed class ProviderRegistry : IProviderRegistry
         return _activeClient;
     }
 
-    public void SetProvider(string name, string? modelId = null)
+    public void SetProvider(string name)
     {
         int index = FindProviderIndex(name);
         _pendingIndex = index;
-        _pendingModelId = modelId;
         _logger.LogDebug("Provider switch to {Provider} queued (effective next turn).", name);
+    }
+
+    public void SetModel(string modelId)
+    {
+        _pendingModelId = modelId;
+
+        int currentOrPendingIndex = _pendingIndex ?? _activeIndex;
+        ProviderConfig config = _all[currentOrPendingIndex];
+        IProviderFactory factory = _factories[config.Adapter];
+        ChatClientCapabilities capabilities = factory.GetCapabilities(modelId);
+
+        if (!capabilities.SupportsToolCalling && !capabilities.SupportsReasoning && capabilities.ContextWindow == 0)
+        {
+            _logger.LogWarning(
+                "Model '{ModelId}' is not recognised by factory '{Adapter}'; capabilities will use safe defaults.",
+                modelId,
+                config.Adapter);
+        }
+
+        _logger.LogDebug("Model switch to {ModelId} queued (effective next turn).", modelId);
     }
 
     public void CycleProvider()
@@ -73,15 +118,14 @@ public sealed class ProviderRegistry : IProviderRegistry
         _logger.LogDebug("Provider cycle queued to {Provider} (effective next turn).", _all[next].Name);
     }
 
-    /// <inheritdoc/>
-    public ProviderSwitchedEvent? CommitPendingSwitch()
+    public ProviderSwitchResult? CommitPendingSwitch()
     {
-        if (_pendingIndex is null)
+        if (_pendingIndex is null && _pendingModelId is null)
         {
             return null;
         }
 
-        int newIndex = _pendingIndex.Value;
+        int newIndex = _pendingIndex ?? _activeIndex;
         string? overrideModelId = _pendingModelId;
 
         _pendingIndex = null;
@@ -95,12 +139,7 @@ public sealed class ProviderRegistry : IProviderRegistry
         ProviderConfig newConfig = _all[_activeIndex];
         string activeModelId = overrideModelId ?? newConfig.DefaultModelId ?? string.Empty;
 
-        return new ProviderSwitchedEvent
-        {
-            Name = newConfig.Name,
-            Model = activeModelId,
-            EffectiveNextTurn = true
-        };
+        return new ProviderSwitchResult(newConfig.Name, activeModelId);
     }
 
     private int FindProviderIndex(string name)
@@ -130,75 +169,6 @@ public sealed class ProviderRegistry : IProviderRegistry
             }
         }
 
-        string modelId = config.DefaultModelId ?? string.Empty;
-
-        return config.Adapter.ToLowerInvariant() switch
-        {
-            "openai" => CreateOpenAiClient(config, apiKey, modelId),
-            "anthropic" => CreateAnthropicClient(config, apiKey, modelId),
-            "gemini" => CreateGeminiClient(config, apiKey, modelId),
-            _ => throw new InvalidOperationException($"Unknown adapter '{config.Adapter}' for provider '{config.Name}'.")
-        };
-    }
-
-    private static IChatClient CreateOpenAiClient(ProviderConfig config, string? apiKey, string modelId)
-    {
-        OpenAIClientOptions options = new();
-
-        if (config.BaseUrl is not null)
-        {
-            options.Endpoint = new Uri(config.BaseUrl);
-        }
-
-        ChatClient chatClient;
-
-        if (string.IsNullOrWhiteSpace(apiKey))
-        {
-            // Use a placeholder key for auth-type=none endpoints (e.g. Ollama)
-            chatClient = new ChatClient(modelId, new ApiKeyCredential("none"), options);
-        }
-        else
-        {
-            chatClient = new ChatClient(modelId, new ApiKeyCredential(apiKey), options);
-        }
-
-        return chatClient.AsIChatClient();
-    }
-
-    private static IChatClient CreateAnthropicClient(ProviderConfig config, string? apiKey, string modelId)
-    {
-        AnthropicClient client = string.IsNullOrWhiteSpace(apiKey)
-            ? new AnthropicClient()
-            : new AnthropicClient(apiKey);
-
-        if (config.BaseUrl is not null)
-        {
-            // ApiUrlFormat is "{baseUrl}/{0}/{1}" where {0}=version, {1}=endpoint path.
-            client.ApiUrlFormat = $"{config.BaseUrl.TrimEnd('/')}/{{0}}/{{1}}";
-        }
-
-        // MessagesEndpoint implements IChatClient directly.
-        return client.Messages;
-    }
-
-    /// <remarks>
-    /// GeminiDotnet.Extensions.AI does not expose a base-URL override via <see cref="GeminiClientOptions"/> as of v0.25.0.
-    /// If oMLX Gemini-compatible support is required, revisit when the package exposes an <c>Endpoint</c> property or
-    /// switch to the OpenAI adapter pointed at the Gemini REST base URL.
-    /// </remarks>
-    private static IChatClient CreateGeminiClient(ProviderConfig config, string? apiKey, string modelId)
-    {
-        GeminiClientOptions options = new()
-        {
-            ApiKey = apiKey ?? string.Empty,
-            ModelId = string.IsNullOrWhiteSpace(modelId) ? "gemini-2.0-flash" : modelId
-        };
-
-        if (config.BaseUrl is not null)
-        {
-            options.Endpoint = new Uri(config.BaseUrl);
-        }
-
-        return new GeminiChatClient(options);
+        return await _factories[config.Adapter].CreateAsync(config, apiKey, cancellationToken).ConfigureAwait(false);
     }
 }

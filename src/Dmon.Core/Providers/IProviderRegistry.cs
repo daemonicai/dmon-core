@@ -1,4 +1,3 @@
-using Dmon.Protocol.Events;
 using Microsoft.Extensions.AI;
 
 namespace Dmon.Core.Providers;
@@ -8,14 +7,12 @@ public interface IProviderRegistry
     ValueTask<IChatClient> GetCurrentAsync(CancellationToken cancellationToken = default);
     ProviderConfig GetCurrentConfig();
     IReadOnlyList<ProviderConfig> GetAll();
-    void SetProvider(string name, string? modelId = null);
+    void SetProvider(string name);
+    void SetModel(string modelId);
     void CycleProvider();
 
-    /// <summary>
-    /// Commits any pending provider switch and disposes the previous <see cref="IChatClient"/> immediately.
-    /// Must only be called strictly between turns — never during an active streaming call.
-    /// </summary>
-    ProviderSwitchedEvent? CommitPendingSwitch();
+    // Must only be called strictly between turns — never during an active streaming call.
+    ProviderSwitchResult? CommitPendingSwitch();
 
     bool CurrentSupportsToolCalling { get; }
     bool CurrentSupportsReasoning { get; }
