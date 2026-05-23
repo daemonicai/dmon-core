@@ -128,11 +128,13 @@ internal sealed class StubProviderRegistry : IProviderRegistry
 
     public IReadOnlyList<ProviderConfig> GetAll() => [GetCurrentConfig()];
 
-    public void SetProvider(string name, string? modelId = null) { }
+    public void SetProvider(string name) { }
+
+    public void SetModel(string modelId) { }
 
     public void CycleProvider() { }
 
-    public ProviderSwitchedEvent? CommitPendingSwitch() => null;
+    public ProviderSwitchResult? CommitPendingSwitch() => null;
 
     public bool CurrentSupportsToolCalling => false;
 

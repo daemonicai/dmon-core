@@ -41,8 +41,8 @@
 
 ## 7. Tests
 
-- [ ] 7.1 Write unit tests for `AnthropicProviderFactory.GetCapabilities` — known Claude 4 model returns `SupportsReasoning = true`; unknown model returns conservative defaults
-- [ ] 7.2 Write unit tests for `OpenAiProviderFactory.GetCapabilities` — known o1/o3 model returns `SupportsReasoning = true`; unknown model returns conservative defaults
-- [ ] 7.3 Write unit tests for `ProviderRegistry` with mock `IProviderFactory` — unknown adapter throws; `CurrentSupportsToolCalling` reads from `ChatClientCapabilities` via `GetService`; `CommitPendingSwitch` returns `ProviderSwitchResult`; `SetModel` queues independently of `SetProvider`
-- [ ] 7.4 Write unit test verifying `CapabilitiesDecorator` forwards `GetService(typeof(ChatClientCapabilities))` correctly and forwards all other service queries to the inner client
-- [ ] 7.5 Verify build: `dotnet build` succeeds with zero warnings; `dotnet test` passes all tests; `Daemon.Core.csproj` contains no references to `OpenAI`, `Anthropic.SDK`, or `GeminiDotnet`
+- [x] 7.1 Write unit tests for `AnthropicProviderFactory.GetCapabilities` — known Claude 4 model returns `SupportsReasoning = true`; unknown model returns conservative defaults
+- [x] 7.2 Write unit tests for `OpenAiProviderFactory.GetCapabilities` — known o1/o3 model returns `SupportsReasoning = true`; unknown model returns conservative defaults
+- [x] 7.3 Write unit tests for `ProviderRegistry` with mock `IProviderFactory` — unknown adapter throws; `CurrentSupportsToolCalling` reads from `ChatClientCapabilities` via `GetService`; `CommitPendingSwitch` returns `ProviderSwitchResult`; `SetModel` queues independently of `SetProvider`
+- [x] 7.4 Write unit test verifying `CapabilitiesDecorator` forwards `GetService(typeof(ChatClientCapabilities))` correctly and forwards all other service queries to the inner client (`CapabilitiesDecorator` extracted to `internal` class with `InternalsVisibleTo`)
+- [x] 7.5 Verify build: `dotnet build` succeeds with zero warnings; `dotnet test` passes all tests; `Dmon.Core.csproj` contains no references to `OpenAI`, `Anthropic.SDK`, or `GeminiDotnet`

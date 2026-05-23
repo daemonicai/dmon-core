@@ -1,5 +1,4 @@
 using Dmon.Core.Providers;
-using Dmon.Protocol.Events;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -7,7 +6,7 @@ namespace Dmon.Core.Tests.Providers;
 
 public sealed class ProviderRegistryTests
 {
-    private static ProviderConfig MakeConfig(string name, bool toolCalling = false, bool reasoning = false) =>
+    private static ProviderConfig MakeConfig(string name) =>
         new()
         {
             Name = name,
@@ -18,11 +17,14 @@ public sealed class ProviderRegistryTests
 
     private static IProviderRegistry CreateRegistry(
         IEnumerable<ProviderConfig> configs,
+        IProviderFactory? factory = null,
         ICredentialResolver? resolver = null)
     {
         resolver ??= new FakeCredentialResolver();
+        factory ??= new FakeProviderFactory();
         return new ProviderRegistry(
             configs,
+            [factory],
             resolver,
             NullLogger<ProviderRegistry>.Instance);
     }
@@ -58,24 +60,24 @@ public sealed class ProviderRegistryTests
         IProviderRegistry registry = CreateRegistry([first, second]);
 
         registry.SetProvider("beta");
-        ProviderSwitchedEvent? evt = registry.CommitPendingSwitch();
+        ProviderSwitchResult? result = registry.CommitPendingSwitch();
 
-        Assert.NotNull(evt);
-        Assert.Equal("beta", evt.Name);
-        Assert.True(evt.EffectiveNextTurn);
+        Assert.NotNull(result);
+        Assert.Equal("beta", result.ProviderName);
         Assert.Equal("beta", registry.GetCurrentConfig().Name);
     }
 
     [Fact]
-    public void SetProvider_WithModelId_OverridesModelInEvent()
+    public void SetModel_OverridesModelId_InCommitResult()
     {
         IProviderRegistry registry = CreateRegistry([MakeConfig("alpha"), MakeConfig("beta")]);
 
-        registry.SetProvider("beta", "override-model-id");
-        ProviderSwitchedEvent? evt = registry.CommitPendingSwitch();
+        registry.SetProvider("beta");
+        registry.SetModel("override-model-id");
+        ProviderSwitchResult? result = registry.CommitPendingSwitch();
 
-        Assert.NotNull(evt);
-        Assert.Equal("override-model-id", evt.Model);
+        Assert.NotNull(result);
+        Assert.Equal("override-model-id", result.ModelId);
     }
 
     [Fact]
@@ -83,9 +85,9 @@ public sealed class ProviderRegistryTests
     {
         IProviderRegistry registry = CreateRegistry([MakeConfig("alpha")]);
 
-        ProviderSwitchedEvent? evt = registry.CommitPendingSwitch();
+        ProviderSwitchResult? result = registry.CommitPendingSwitch();
 
-        Assert.Null(evt);
+        Assert.Null(result);
     }
 
     [Fact]
@@ -116,11 +118,23 @@ public sealed class ProviderRegistryTests
     }
 
     [Fact]
-    public void CurrentSupportsToolCalling_ReflectsActiveConfig()
+    public void CurrentSupportsToolCalling_ReflectsFactory()
     {
-        ProviderConfig withTool = MakeConfig("a", toolCalling: true);
-        ProviderConfig withoutTool = MakeConfig("b", toolCalling: false);
-        IProviderRegistry registry = CreateRegistry([withTool, withoutTool]);
+        // FakeProviderFactory returns tool-calling=true for models ending in "-tool", false otherwise.
+        FakeProviderFactory factory = new(modelId =>
+            modelId.EndsWith("-tool", StringComparison.Ordinal)
+                ? new ChatClientCapabilities { SupportsToolCalling = true }
+                : new ChatClientCapabilities { SupportsToolCalling = false });
+
+        ProviderConfig withTool = new()
+        {
+            Name = "a",
+            Adapter = "openai",
+            DefaultModelId = "a-tool",
+            Auth = new ProviderAuthConfig { Type = "none" }
+        };
+        ProviderConfig withoutTool = MakeConfig("b");
+        IProviderRegistry registry = CreateRegistry([withTool, withoutTool], factory);
 
         Assert.True(registry.CurrentSupportsToolCalling);
 
@@ -131,11 +145,22 @@ public sealed class ProviderRegistryTests
     }
 
     [Fact]
-    public void CurrentSupportsReasoning_ReflectsActiveConfig()
+    public void CurrentSupportsReasoning_ReflectsFactory()
     {
-        ProviderConfig withReasoning = MakeConfig("a", reasoning: true);
-        ProviderConfig withoutReasoning = MakeConfig("b", reasoning: false);
-        IProviderRegistry registry = CreateRegistry([withReasoning, withoutReasoning]);
+        FakeProviderFactory factory = new(modelId =>
+            modelId.EndsWith("-reason", StringComparison.Ordinal)
+                ? new ChatClientCapabilities { SupportsReasoning = true }
+                : new ChatClientCapabilities { SupportsReasoning = false });
+
+        ProviderConfig withReasoning = new()
+        {
+            Name = "a",
+            Adapter = "openai",
+            DefaultModelId = "a-reason",
+            Auth = new ProviderAuthConfig { Type = "none" }
+        };
+        ProviderConfig withoutReasoning = MakeConfig("b");
+        IProviderRegistry registry = CreateRegistry([withReasoning, withoutReasoning], factory);
 
         Assert.True(registry.CurrentSupportsReasoning);
 
@@ -199,9 +224,95 @@ public sealed class ProviderRegistryTests
         Assert.False(ReferenceEquals(original, switched));
     }
 
+    [Fact]
+    public void Constructor_UnknownAdapter_Throws()
+    {
+        ProviderConfig config = new()
+        {
+            Name = "unknown",
+            Adapter = "nonexistent-adapter",
+            DefaultModelId = "some-model",
+            Auth = new ProviderAuthConfig { Type = "none" }
+        };
+
+        void Act() => CreateRegistry([config]);
+
+        Assert.Throws<InvalidOperationException>(Act);
+    }
+
+    [Fact]
+    public async Task CurrentSupportsToolCalling_UsesGetService_WhenClientIsActive()
+    {
+        FakeProviderFactory factory = new(modelId =>
+            new ChatClientCapabilities { SupportsToolCalling = true });
+
+        ProviderConfig config = MakeConfig("alpha");
+        IProviderRegistry registry = CreateRegistry([config], factory);
+
+        // Activate the client so _activeClient is populated with a FakeChatClient carrying caps.
+        await registry.GetCurrentAsync();
+
+        // GetService path is exercised: FakeChatClient returns its baked-in caps.
+        Assert.True(registry.CurrentSupportsToolCalling);
+    }
+
+    [Fact]
+    public void SetModel_Alone_CommitsWithCurrentProvider()
+    {
+        IProviderRegistry registry = CreateRegistry([MakeConfig("alpha")]);
+
+        registry.SetModel("new-model-id");
+        ProviderSwitchResult? result = registry.CommitPendingSwitch();
+
+        Assert.NotNull(result);
+        Assert.Equal("alpha", result.ProviderName);
+        Assert.Equal("new-model-id", result.ModelId);
+    }
+
     private sealed class FakeCredentialResolver : ICredentialResolver
     {
         public ValueTask<string?> ResolveAsync(string providerName, CancellationToken cancellationToken = default)
             => ValueTask.FromResult<string?>(null);
+    }
+
+    private sealed class FakeProviderFactory : IProviderFactory
+    {
+        private readonly Func<string, ChatClientCapabilities>? _capabilitiesFunc;
+
+        public FakeProviderFactory(Func<string, ChatClientCapabilities>? capabilitiesFunc = null)
+        {
+            _capabilitiesFunc = capabilitiesFunc;
+        }
+
+        public string AdapterName => "openai";
+
+        public ChatClientCapabilities GetCapabilities(string modelId) =>
+            _capabilitiesFunc?.Invoke(modelId) ?? new ChatClientCapabilities();
+
+        public ValueTask<IChatClient> CreateAsync(
+            ProviderConfig config,
+            string? apiKey,
+            CancellationToken cancellationToken = default) =>
+            ValueTask.FromResult<IChatClient>(new FakeChatClient(GetCapabilities(config.DefaultModelId ?? string.Empty)));
+    }
+
+    private sealed class FakeChatClient(ChatClientCapabilities? caps = null) : IChatClient
+    {
+        public object? GetService(Type serviceType, object? serviceKey = null) =>
+            serviceType == typeof(ChatClientCapabilities) ? caps : null;
+
+        public Task<ChatResponse> GetResponseAsync(
+            IEnumerable<ChatMessage> messages,
+            ChatOptions? options = null,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new ChatResponse([]));
+
+        public IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
+            IEnumerable<ChatMessage> messages,
+            ChatOptions? options = null,
+            CancellationToken cancellationToken = default) =>
+            AsyncEnumerable.Empty<ChatResponseUpdate>();
+
+        public void Dispose() { }
     }
 }
