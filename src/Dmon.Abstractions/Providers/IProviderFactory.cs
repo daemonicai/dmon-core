@@ -1,6 +1,6 @@
 using Microsoft.Extensions.AI;
 
-namespace Dmon.Core.Providers;
+namespace Dmon.Abstractions.Providers;
 
 public interface IProviderFactory
 {

@@ -1,3 +1,5 @@
+using Dmon.Abstractions.Providers;
+
 namespace Dmon.Core.Providers;
 
 public sealed class ProviderConfigLoader

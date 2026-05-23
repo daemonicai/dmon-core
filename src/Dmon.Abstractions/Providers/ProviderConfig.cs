@@ -1,4 +1,4 @@
-namespace Dmon.Core.Providers;
+namespace Dmon.Abstractions.Providers;
 
 public sealed record ProviderAuthConfig
 {

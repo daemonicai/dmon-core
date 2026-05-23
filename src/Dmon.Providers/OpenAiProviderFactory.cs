@@ -1,5 +1,5 @@
 using System.ClientModel;
-using Dmon.Core.Providers;
+using Dmon.Abstractions.Providers;
 using Microsoft.Extensions.AI;
 using OpenAI;
 

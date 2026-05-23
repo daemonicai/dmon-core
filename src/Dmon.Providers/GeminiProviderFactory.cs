@@ -1,4 +1,4 @@
-using Dmon.Core.Providers;
+using Dmon.Abstractions.Providers;
 using GeminiDotnet;
 using GeminiDotnet.Extensions.AI;
 using Microsoft.Extensions.AI;

@@ -1,4 +1,4 @@
-using Dmon.Core.Providers;
+using Dmon.Abstractions.Providers;
 using Dmon.Providers;
 using Microsoft.Extensions.AI;
 
