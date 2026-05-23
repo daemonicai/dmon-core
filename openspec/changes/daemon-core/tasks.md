@@ -93,18 +93,18 @@
 
 ## 10. Console Host
 
-- [ ] 10.1 Integrate Spectre.Console (decision D9): streaming display for `messageDelta`, prompts for `tool.confirmRequest`/`ui.inputRequest`, markup for risk-level visual differentiation
-- [ ] 10.2 Implement core process spawner — launch `Daemon.Core` and connect stdio pipes
-- [ ] 10.3 Implement event renderer — display `messageDelta` streaming text, `toolExecutionStart/End`
-- [ ] 10.4 Implement user input prompt and slash command parser
-- [ ] 10.5 Implement `tool.confirmRequest` UI — display name, args, risk level (high-risk visually distinct); offer four options (Allow once / Allow for project / Allow globally / Deny); for composite bash, offer only Allow once / Deny
-- [ ] 10.5.1 Implement `ui.inputRequest` UI — text/secret/select kinds; secret input is masked; bootstrap-notice rendered as one-line info
-- [ ] 10.6 Implement session management slash commands (`/new`, `/fork`, `/clone`)
-- [ ] 10.7 Implement provider switching slash commands (`/model`, `/model <provider> <id>`)
-- [ ] 10.8 Implement auth slash commands (`/login <provider>`, `/logout <provider>`)
-- [ ] 10.9 Implement extension slash commands (`/load`, `/unload`, `/promote`)
-- [ ] 10.9.1 Implement `/thinking [level]` — set or cycle thinking level
-- [ ] 10.10 Write end-to-end smoke test — launch core, submit a turn, verify response rendered
+- [x] 10.1 Integrate Spectre.Console (decision D9): streaming display for `messageDelta`, prompts for `tool.confirmRequest`/`ui.inputRequest`, markup for risk-level visual differentiation
+- [x] 10.2 Implement core process spawner — launch `Daemon.Core` and connect stdio pipes
+- [x] 10.3 Implement event renderer — display `messageDelta` streaming text, `toolExecutionStart/End`
+- [x] 10.4 Implement user input prompt and slash command parser
+- [x] 10.5 Implement `tool.confirmRequest` UI — display name, args, risk level (high-risk visually distinct); offer four options (Allow once / Allow for project / Allow globally / Deny); for composite bash, offer only Allow once / Deny
+- [x] 10.5.1 Implement `ui.inputRequest` UI — text/secret/select kinds; secret input is masked; bootstrap-notice rendered as one-line info
+- [x] 10.6 Implement session management slash commands (`/new`, `/fork`, `/clone`)
+- [x] 10.7 Implement provider switching slash commands (`/model`, `/model <provider> <id>`)
+- [x] 10.8 Implement auth slash commands (`/login <provider>`, `/logout <provider>`)
+- [x] 10.9 Implement extension slash commands (`/load`, `/unload`, `/promote`)
+- [x] 10.9.1 Implement `/thinking [level]` — set or cycle thinking level
+- [x] 10.10 Write end-to-end smoke test — launch core, submit a turn, verify response rendered
 
 ## 10b. OpenTelemetry Instrumentation
 
