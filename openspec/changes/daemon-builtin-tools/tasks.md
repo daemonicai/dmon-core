@@ -33,9 +33,9 @@
 
 ## 5. Attachment Offloading Middleware
 
-- [ ] 5.1 Implement `AttachmentOffloadingChatClient : IChatClient` in `Daemon.Core` — inspects every `FunctionResultContent` in streaming updates from the inner client; if the result string exceeds `Daemon:Session:AttachmentThresholdBytes` (default 1024) and a session is active, writes to `attachments/<callId>.txt` and replaces the result with `{"attachmentPath":"attachments/<callId>.txt","preview":"<first 200 chars>..."}`
-- [ ] 5.2 Inject `ISessionHandler` (for `CurrentSession`) and `IAttachmentStore` into `AttachmentOffloadingChatClient`; skip offloading silently when `CurrentSession` is null
-- [ ] 5.3 Update `TurnHandler.RunTurnAsync` pipeline assembly to insert `AttachmentOffloadingChatClient` between `FunctionInvokingChatClient` and `RetryingChatClient`
+- [x] 5.1 Implement `AttachmentOffloadingChatClient : IChatClient` in `Daemon.Core` — inspects every `FunctionResultContent` in streaming updates from the inner client; if the result string exceeds `Daemon:Session:AttachmentThresholdBytes` (default 1024) and a session is active, writes to `attachments/<callId>.txt` and replaces the result with `{"attachmentPath":"attachments/<callId>.txt","preview":"<first 200 chars>..."}`
+- [x] 5.2 Inject `ISessionHandler` (for `CurrentSession`) and `IAttachmentStore` into `AttachmentOffloadingChatClient`; skip offloading silently when `CurrentSession` is null
+- [x] 5.3 Update `TurnHandler.RunTurnAsync` pipeline assembly to insert `AttachmentOffloadingChatClient` between `FunctionInvokingChatClient` and `RetryingChatClient`
 
 ## 6. Registration and Wiring
 

@@ -1,9 +1,11 @@
+using Dmon.Core.Session;
 using Dmon.Protocol.Commands;
 
 namespace Dmon.Core.Rpc;
 
 public interface ISessionHandler
 {
+    SessionMeta? CurrentSession { get; }
     Task CreateAsync(SessionCreateCommand cmd, CancellationToken cancellationToken);
     Task ForkAsync(SessionForkCommand cmd, CancellationToken cancellationToken);
     Task CloneAsync(SessionCloneCommand cmd, CancellationToken cancellationToken);

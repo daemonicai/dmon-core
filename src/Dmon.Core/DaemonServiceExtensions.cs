@@ -77,6 +77,7 @@ public static class DmonServiceExtensions
     {
         services.AddSingleton<ISessionDirectoryResolver, SessionDirectoryResolver>();
         services.AddSingleton<ISessionStore, SessionStore>();
+        services.AddSingleton<IAttachmentStore, AttachmentStore>();
 
         // Permission runtime dependencies
         services.AddSingleton<IPermissionSettings>(_ =>

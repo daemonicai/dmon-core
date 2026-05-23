@@ -3,6 +3,7 @@ using Dmon.Abstractions.Providers;
 using Dmon.Core.Extensions;
 using Dmon.Extensions;
 using Dmon.Core.Permissions;
+using Dmon.Core.Session;
 using Dmon.Protocol.Permissions;
 using Dmon.Core.Providers;
 using Dmon.Core.Rpc;
@@ -187,6 +188,37 @@ internal sealed class NoopThinkingHandler : IThinkingHandler
         Task.CompletedTask;
 }
 
+/// <summary>
+/// ISessionHandler stub that always returns a null current session.
+/// </summary>
+internal sealed class StubSessionHandler : ISessionHandler
+{
+    public SessionMeta? CurrentSession => null;
+
+    public Task CreateAsync(SessionCreateCommand cmd, CancellationToken cancellationToken) => Task.CompletedTask;
+    public Task ForkAsync(SessionForkCommand cmd, CancellationToken cancellationToken) => Task.CompletedTask;
+    public Task CloneAsync(SessionCloneCommand cmd, CancellationToken cancellationToken) => Task.CompletedTask;
+    public Task LoadAsync(SessionLoadCommand cmd, CancellationToken cancellationToken) => Task.CompletedTask;
+    public Task ListAsync(SessionListCommand cmd, CancellationToken cancellationToken) => Task.CompletedTask;
+    public Task SetNameAsync(SessionSetNameCommand cmd, CancellationToken cancellationToken) => Task.CompletedTask;
+    public Task GetStatsAsync(SessionGetStatsCommand cmd, CancellationToken cancellationToken) => Task.CompletedTask;
+    public Task GetMessagesAsync(SessionGetMessagesCommand cmd, CancellationToken cancellationToken) => Task.CompletedTask;
+}
+
+/// <summary>
+/// IAttachmentStore stub that never offloads (always returns null).
+/// </summary>
+internal sealed class StubAttachmentStore : IAttachmentStore
+{
+    public Task<string?> StoreIfLargeAsync(
+        string sessionId,
+        string callId,
+        string content,
+        string extension = "txt",
+        CancellationToken cancellationToken = default)
+        => Task.FromResult<string?>(null);
+}
+
 // ---------------------------------------------------------------------------
 // Factory
 // ---------------------------------------------------------------------------
@@ -200,6 +232,8 @@ internal static class TurnHandlerFactory
         EmptyToolRegistry tools = new();
         PermitAllPolicy policy = new();
         NoopThinkingHandler thinking = new();
+        StubSessionHandler sessionHandler = new();
+        StubAttachmentStore attachmentStore = new();
         IConfiguration configuration = new ConfigurationBuilder().Build();
 
         TurnHandler handler = new(
@@ -208,6 +242,8 @@ internal static class TurnHandlerFactory
             emitter,
             policy,
             thinking,
+            sessionHandler,
+            attachmentStore,
             configuration,
             NullLogger<TurnHandler>.Instance);
 
