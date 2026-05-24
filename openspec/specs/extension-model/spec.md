@@ -1,77 +1,59 @@
 ## ADDED Requirements
 
-### Requirement: IDaemonExtension contract
-The system SHALL define a `IDaemonExtension` interface in the `Daemon.Extensions` NuGet package. NuGet extensions implement this interface to expose tools to the agent.
+### Requirement: IDaemonExtension provides self-evaluation via Evaluate
+`IDaemonExtension` SHALL declare a method `PermissionResult Evaluate(FunctionCallContent call, IPermissionSettings project, IPermissionSettings? global)` with a default implementation that returns `PermissionResult.Prompt`. Extensions that understand their own argument shapes and risk profile SHALL override this method to return `Allow`, `Prompt`, or `Deny` without requiring tool-category dispatch in the gate.
 
-```csharp
-public interface IDaemonExtension
-{
-    string Name { get; }
-    string Description { get; }
-    IEnumerable<AIFunction> Tools { get; }
-}
-```
+#### Scenario: Default implementation returns Prompt
+- **WHEN** an extension does not override `Evaluate`
+- **THEN** `extension.Evaluate(call, projectSettings, globalSettings)` returns `PermissionResult.Prompt`
 
-#### Scenario: Extension discovered by reflection
-- **WHEN** a NuGet extension assembly is loaded
-- **THEN** the core discovers all types implementing `IDaemonExtension` via reflection, instantiates them, and registers their `Tools`
+#### Scenario: BashTool override returns Deny for denylist commands
+- **WHEN** `BashTool.Evaluate` is called with a `command` argument matching the hardcoded denylist
+- **THEN** it returns `PermissionResult.Deny`
 
-#### Scenario: Extension with no tools
-- **WHEN** an `IDaemonExtension` implementation returns an empty `Tools` collection
-- **THEN** the core registers the extension without error and emits `extensionLoaded` with an empty `tools` array
+#### Scenario: ReadFileTool override returns Allow for paths within CWD
+- **WHEN** `ReadFileTool.Evaluate` is called with a `path` argument inside the current working directory
+- **THEN** it returns `PermissionResult.Allow`
 
-### Requirement: .csx script loading via Dotnet.Script.Core
-The system SHALL load `.csx` scripts using `Dotnet.Script.Core`, supporting the `#r "nuget:..."` directive for runtime NuGet package resolution.
+### Requirement: IDaemonExtension provides CreateConfirmRequest with default implementation
+`IDaemonExtension` SHALL declare a method `ToolConfirmRequest CreateConfirmRequest(FunctionCallContent call)` with a default implementation that produces a request using `call.CallId`, `call.Name`, `call.Arguments`, and `RiskLevel.Low`. Extensions SHALL override this to supply an accurate `RiskLevel` and any additional context.
 
-#### Scenario: Script returns AIFunction
-- **WHEN** a `.csx` script is loaded and its final expression is one or more `AIFunction` instances
-- **THEN** the core registers those functions into the session tool registry
+#### Scenario: Default CreateConfirmRequest uses Low risk
+- **WHEN** an extension does not override `CreateConfirmRequest`
+- **THEN** the returned `ToolConfirmRequest.Risk` equals `RiskLevel.Low`
 
-#### Scenario: Script with NuGet dependency
-- **WHEN** a `.csx` script contains `#r "nuget: PackageName, Version"`
-- **THEN** the core resolves and loads the package before executing the script, subject to the permission gate (`risk: high`)
+#### Scenario: WriteFileTool override uses High risk
+- **WHEN** `WriteFileTool.CreateConfirmRequest` is called
+- **THEN** the returned `ToolConfirmRequest.Risk` equals `RiskLevel.High`
 
-#### Scenario: Script compilation error
-- **WHEN** a `.csx` script fails to compile
-- **THEN** the core emits `extensionError` with the compilation diagnostics and does not partially register any tools
+### Requirement: Existing extensions remain binary-compatible
+The default implementations on `IDaemonExtension` SHALL ensure that existing compiled extensions (`.csx` scripts and NuGet packages) continue to work without recompilation. They will silently use `Prompt` / `Low` risk defaults.
 
-### Requirement: NuGet extension loading via AssemblyLoadContext
-NuGet extensions SHALL be loaded into a collectible `AssemblyLoadContext` to allow unloading without restarting the agent process.
+#### Scenario: Extension compiled before this change continues to load
+- **WHEN** an extension compiled against the previous `IDaemonExtension` contract (without `Evaluate` or `CreateConfirmRequest`) is loaded
+- **THEN** the extension loads without error and its tools are available
 
-#### Scenario: Extension load is permission-gated
-- **WHEN** the host sends `extension.load {source}` with a NuGet package ID or local path
-- **THEN** the permission gate emits `tool.confirmRequest` with `risk: high` showing the source string (and, for NuGet sources, the resolved package id and version) before any network call or assembly load
+### Requirement: IToolRegistry exposes FindExtension reverse lookup
+`IToolRegistry` SHALL declare `IDaemonExtension? FindExtension(string toolName)` returning the `IDaemonExtension` that registered the named tool, or null if no such tool is registered.
 
-#### Scenario: Extension loaded after approval
-- **WHEN** the user approves an `extension.load` request
-- **THEN** the core resolves the package (if a NuGet id) to `~/.daemon/extensions/<package>/<version>/`, loads the assembly in a new `AssemblyLoadContext`, discovers `IDaemonExtension` types, and emits `extensionLoaded`
+#### Scenario: Known tool name returns owning extension
+- **WHEN** `FindExtension("bash")` is called after built-in tools are registered
+- **THEN** it returns the `BashTool` extension instance
 
-#### Scenario: Extension load failure surfaces diagnostics
-- **WHEN** loading an extension fails (resolution, assembly load, or reflection error)
-- **THEN** the core emits `extensionError {source, phase, diagnostics[]}` and does not partially register any tools
+#### Scenario: Unknown tool name returns null
+- **WHEN** `FindExtension("nonexistent_tool")` is called
+- **THEN** it returns null
 
-#### Scenario: Extension unloaded
-- **WHEN** the host sends `extension.unload {name}`
-- **THEN** the core removes the extension's tools from the registry, releases the `AssemblyLoadContext`, and emits `extensionUnloaded`
+### Requirement: Register signature includes the IDaemonExtension instance
+`IToolRegistry.Register` SHALL accept the owning `IDaemonExtension` instance so that `FindExtension` can return it. The updated signature SHALL be `Register(string extensionName, IDaemonExtension extension, IEnumerable<AIFunction> tools)`.
 
-### Requirement: Tool registry is per-session and per-call
-The tool registry SHALL be scoped to the current session. `ChatOptions.Tools` SHALL be built from the current registry on each LLM call so that extensions loaded or unloaded mid-session are reflected immediately.
+#### Scenario: Tools registered via new signature are retrievable
+- **WHEN** `Register("myext", extension, tools)` is called and then `FindExtension(tool.Name)` is called for a tool in that list
+- **THEN** the original `extension` instance is returned
 
-#### Scenario: Tool registered mid-session is available in next turn
-- **WHEN** an extension is loaded during a session and a new turn begins
-- **THEN** the new extension's tools appear in `ChatOptions.Tools` for that turn
+### Requirement: Daemon.Extensions references Daemon.Protocol
+The `Daemon.Extensions` project SHALL add a project reference to `Daemon.Protocol` so that `IDaemonExtension.Evaluate` can accept `IPermissionSettings` and return `PermissionResult`, and `CreateConfirmRequest` can return `ToolConfirmRequest`.
 
-#### Scenario: Tool unregistered mid-session is absent in next turn
-- **WHEN** an extension is unloaded during a session and a new turn begins
-- **THEN** the unloaded extension's tools do not appear in `ChatOptions.Tools`
-
-### Requirement: promote command
-The system SHALL provide a `promote` command that scaffolds a working `.csx` script into a NuGet extension project.
-
-#### Scenario: Promote extracts NuGet references
-- **WHEN** the host sends `extension.promote {name}` for a loaded `.csx` script
-- **THEN** the core generates a `.csproj` with `<PackageReference>` elements derived from the script's `#r "nuget:..."` directives
-
-#### Scenario: Promote wraps script body in IDaemonExtension
-- **WHEN** `extension.promote` is executed
-- **THEN** the generated project contains a class implementing `IDaemonExtension` whose `Tools` property returns the `AIFunction` instances from the original script
+#### Scenario: IDaemonExtension types compile
+- **WHEN** `Daemon.Extensions` is built after adding the `Daemon.Protocol` reference
+- **THEN** the build succeeds with zero warnings
