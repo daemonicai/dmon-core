@@ -22,8 +22,8 @@ public sealed class EditFileToolTests
                 new AIFunctionArguments(new Dictionary<string, object?>
                 {
                     ["path"] = path,
-                    ["old_string"] = "foo",
-                    ["new_string"] = "baz"
+                    ["oldString"] = "foo",
+                    ["newString"] = "baz"
                 }),
                 CancellationToken.None);
 
@@ -50,8 +50,8 @@ public sealed class EditFileToolTests
                 new AIFunctionArguments(new Dictionary<string, object?>
                 {
                     ["path"] = path,
-                    ["old_string"] = "nonexistent",
-                    ["new_string"] = "replacement"
+                    ["oldString"] = "nonexistent",
+                    ["newString"] = "replacement"
                 }),
                 CancellationToken.None);
 
@@ -76,8 +76,8 @@ public sealed class EditFileToolTests
             new AIFunctionArguments(new Dictionary<string, object?>
             {
                 ["path"] = path,
-                ["old_string"] = "x",
-                ["new_string"] = "y"
+                ["oldString"] = "x",
+                ["newString"] = "y"
             }),
             CancellationToken.None);
 

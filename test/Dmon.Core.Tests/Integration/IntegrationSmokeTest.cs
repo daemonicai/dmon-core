@@ -302,8 +302,8 @@ public class IntegrationSmokeTest : IAsyncLifetime
 
         string[] candidates =
         [
-            Path.Combine(repoRoot, "src/Dmon.Core/bin/Debug/net10.0/Dmon.Core.dll"),
-            Path.Combine(repoRoot, "src/Dmon.Core/bin/Release/net10.0/Dmon.Core.dll"),
+            Path.Combine(repoRoot, "src/Dmon.Core/bin/Debug/net10.0/dmoncore.dll"),
+            Path.Combine(repoRoot, "src/Dmon.Core/bin/Release/net10.0/dmoncore.dll"),
         ];
 
         foreach (string candidate in candidates)
@@ -315,7 +315,7 @@ public class IntegrationSmokeTest : IAsyncLifetime
         }
 
         throw new FileNotFoundException(
-            $"Could not find Dmon.Core.dll. Run 'dotnet build' first.",
-            "Dmon.Core.dll");
+            $"Could not find dmoncore.dll. Run 'dotnet build' first.",
+            "dmoncore.dll");
     }
 }

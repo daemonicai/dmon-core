@@ -43,8 +43,7 @@ public sealed class CoreProcessManager : IDisposable
     {
         var psi = new ProcessStartInfo
         {
-            FileName = "dotnet",
-            Arguments = $"exec \"{_corePath}\"",
+            FileName = _corePath,
             RedirectStandardInput = true,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
@@ -118,23 +117,30 @@ public sealed class CoreProcessManager : IDisposable
             return Path.GetFullPath(envPath);
 
         string entryDir = Path.GetDirectoryName(Assembly.GetEntryAssembly()?.Location) ?? ".";
+
+        // Published layout: dmoncore/ sits next to the dmon executable.
+        string publishedCandidate = Path.Combine(entryDir, "dmoncore", "dmoncore");
+        if (File.Exists(publishedCandidate))
+            return Path.GetFullPath(publishedCandidate);
+
+        // Dev layout: walk back to the repo root and find the bin/ output.
         string repoRoot = Path.GetFullPath(Path.Combine(entryDir, "../../../.."));
 
-        string[] candidates =
+        string[] devCandidates =
         [
-            Path.Combine(repoRoot, "src/Dmon.Core/bin/Debug/net10.0/Dmon.Core.dll"),
-            Path.Combine(repoRoot, "src/Dmon.Core/bin/Release/net10.0/Dmon.Core.dll"),
+            Path.Combine(repoRoot, "src/Dmon.Core/bin/Debug/net10.0/dmoncore"),
+            Path.Combine(repoRoot, "src/Dmon.Core/bin/Release/net10.0/dmoncore"),
         ];
 
-        foreach (string candidate in candidates)
+        foreach (string candidate in devCandidates)
         {
             if (File.Exists(candidate))
                 return candidate;
         }
 
         throw new FileNotFoundException(
-            "Could not find Dmon.Core.dll. " +
-            "Ensure the core project is built, or set DAEMON_CORE_PATH env var / --core-path argument.",
-            "Dmon.Core.dll");
+            "Could not find dmoncore. " +
+            "Run 'make build' to produce the published layout, or set DAEMON_CORE_PATH env var / --core-path argument.",
+            "dmoncore");
     }
 }
