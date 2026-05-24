@@ -18,6 +18,7 @@ Ideas here are **not** scheduled work. When something is ready to build, it goes
 | [oauth-auth.md](oauth-auth.md) | OAuth flows for subscription-based providers | 💭 Idea |
 | [lifecycle-hooks.md](lifecycle-hooks.md) | Observer and interceptor hooks for extensions | 💭 Idea |
 | [mobile-hosts.md](mobile-hosts.md) | Mobile host surfaces | 💭 Idea |
+| [extension-sp-scoping.md](extension-sp-scoping.md) | Scope the IServiceProvider passed to extension constructors (V1 passes full SP) | 💭 Idea |
 
 ---
 

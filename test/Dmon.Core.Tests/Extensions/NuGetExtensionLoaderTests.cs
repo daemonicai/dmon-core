@@ -4,6 +4,9 @@ namespace Dmon.Core.Tests.Extensions;
 
 public sealed class NuGetExtensionLoaderTests : IDisposable
 {
+    // Tests load self-contained assemblies that use parameterless constructors;
+    // a null service provider is sufficient here.
+    private static readonly IServiceProvider NullSp = new NullServiceProvider();
     private readonly string _tempDir;
 
     public NuGetExtensionLoaderTests()
@@ -22,7 +25,7 @@ public sealed class NuGetExtensionLoaderTests : IDisposable
     {
         // Use the test assembly itself which contains TestExtension and SecondTestExtension.
         string assemblyPath = typeof(TestExtension).Assembly.Location;
-        NuGetExtensionLoader loader = new();
+        NuGetExtensionLoader loader = new(NullSp);
 
         ParsedExtensionSource source = new()
         {
@@ -44,7 +47,7 @@ public sealed class NuGetExtensionLoaderTests : IDisposable
     [Fact]
     public async Task LoadAsync_FileNotFound_ThrowsFileNotFoundException()
     {
-        NuGetExtensionLoader loader = new();
+        NuGetExtensionLoader loader = new(NullSp);
         ParsedExtensionSource source = new()
         {
             Kind = "assembly",
@@ -59,7 +62,7 @@ public sealed class NuGetExtensionLoaderTests : IDisposable
     public async Task LoadAsync_ConfirmCallback_CalledForBothPhases()
     {
         string assemblyPath = typeof(TestExtension).Assembly.Location;
-        NuGetExtensionLoader loader = new();
+        NuGetExtensionLoader loader = new(NullSp);
 
         List<ExtensionLoadConfirmRequest> calls = [];
         loader.ConfirmCallback = (request, _) =>
@@ -84,7 +87,7 @@ public sealed class NuGetExtensionLoaderTests : IDisposable
     public async Task LoadAsync_ConfirmCallbackDenied_ReturnsErrorResult()
     {
         string assemblyPath = typeof(TestExtension).Assembly.Location;
-        NuGetExtensionLoader loader = new();
+        NuGetExtensionLoader loader = new(NullSp);
         loader.ConfirmCallback = (_, _) => Task.FromResult(false);
 
         ParsedExtensionSource source = new()
@@ -103,7 +106,7 @@ public sealed class NuGetExtensionLoaderTests : IDisposable
     [Fact]
     public async Task LoadAsync_NuGetSource_CallsConfirmWithPackageInfo()
     {
-        NuGetExtensionLoader loader = new();
+        NuGetExtensionLoader loader = new(NullSp);
         List<ExtensionLoadConfirmRequest> calls = [];
         loader.ConfirmCallback = (request, _) =>
         {
@@ -130,7 +133,7 @@ public sealed class NuGetExtensionLoaderTests : IDisposable
     public async Task LoadAsync_ClosesPreviousALC_OnNextLoad()
     {
         string assemblyPath = typeof(TestExtension).Assembly.Location;
-        NuGetExtensionLoader loader = new();
+        NuGetExtensionLoader loader = new(NullSp);
 
         ParsedExtensionSource source = new()
         {
@@ -149,8 +152,13 @@ public sealed class NuGetExtensionLoaderTests : IDisposable
     [Fact]
     public void SourceKind_ReturnsNuget()
     {
-        NuGetExtensionLoader loader = new();
+        NuGetExtensionLoader loader = new(NullSp);
 
         Assert.Equal("nuget", loader.SourceKind);
     }
+}
+
+file sealed class NullServiceProvider : IServiceProvider
+{
+    public object? GetService(Type serviceType) => null;
 }

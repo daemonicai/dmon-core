@@ -12,6 +12,12 @@ namespace Dmon.Core.Extensions;
 public sealed class NuGetExtensionLoader : IExtensionLoader, IDisposable
 {
     private AssemblyLoadContext? _activeContext;
+    private readonly IServiceProvider _serviceProvider;
+
+    public NuGetExtensionLoader(IServiceProvider serviceProvider)
+    {
+        _serviceProvider = serviceProvider;
+    }
 
     public string SourceKind => "nuget";
 
@@ -78,7 +84,7 @@ public sealed class NuGetExtensionLoader : IExtensionLoader, IDisposable
             }
         }
 
-        List<IDmonExtension> extensions = DiscoverExtensions(assembly);
+        List<IDmonExtension> extensions = DiscoverExtensions(assembly, _serviceProvider);
 
         if (extensions.Count == 0)
         {
@@ -176,10 +182,11 @@ public sealed class NuGetExtensionLoader : IExtensionLoader, IDisposable
         return assembly;
     }
 
-    private static List<IDmonExtension> DiscoverExtensions(Assembly assembly)
+    private static List<IDmonExtension> DiscoverExtensions(Assembly assembly, IServiceProvider serviceProvider)
     {
         List<IDmonExtension> results = [];
         Type targetType = typeof(IDmonExtension);
+        Type spType = typeof(IServiceProvider);
 
         try
         {
@@ -195,12 +202,18 @@ public sealed class NuGetExtensionLoader : IExtensionLoader, IDisposable
                     continue;
                 }
 
-                if (type.GetConstructor(Type.EmptyTypes) is null)
+                IDmonExtension? extension = null;
+
+                if (type.GetConstructor([spType]) is not null)
                 {
-                    continue;
+                    extension = Activator.CreateInstance(type, serviceProvider) as IDmonExtension;
+                }
+                else if (type.GetConstructor(Type.EmptyTypes) is not null)
+                {
+                    extension = Activator.CreateInstance(type) as IDmonExtension;
                 }
 
-                if (Activator.CreateInstance(type) is IDmonExtension extension)
+                if (extension is not null)
                 {
                     results.Add(extension);
                 }
