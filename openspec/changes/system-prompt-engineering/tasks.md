@@ -5,9 +5,9 @@
 
 ## 2. Config discovery
 
-- [ ] 2.1 Implement config file resolution logic: `~/.dmon/AGENTS.md`, `{CWD}/AGENTS.md`, `{CWD}/CLAUDE.md` fallback
-- [ ] 2.2 Combine user-level and project-level configs when both present (user config first)
-- [ ] 2.3 Emit `system.notice` event when `CLAUDE.md` is used as fallback
+- [x] 2.1 Implement config file resolution logic: `~/.dmon/AGENTS.md`, `{CWD}/AGENTS.md`, `{CWD}/CLAUDE.md` fallback
+- [x] 2.2 Combine user-level and project-level configs when both present (user config first)
+- [x] 2.3 Emit `system.notice` event when `CLAUDE.md` is used as fallback
 
 ## 3. System prompt builder implementation
 
