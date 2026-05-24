@@ -25,7 +25,7 @@
 
 ## 5. Tests
 
-- [ ] 5.1 Unit test `SystemPromptBuilder` with no config files present
-- [ ] 5.2 Unit test config discovery: `AGENTS.md` only, `CLAUDE.md` fallback, both user + project combined
-- [ ] 5.3 Unit test that `CLAUDE.md` fallback emits `system.notice`
-- [ ] 5.4 Unit test `TurnHandler` — system message at index 0 on first turn, not rebuilt on second turn
+- [x] 5.1 Unit test `SystemPromptBuilder` with no config files present
+- [x] 5.2 Unit test config discovery: `AGENTS.md` only, `CLAUDE.md` fallback, both user + project combined
+- [x] 5.3 Unit test that `CLAUDE.md` fallback emits `system.notice`
+- [x] 5.4 Unit test `TurnHandler` — system message at index 0 on first turn, not rebuilt on second turn
