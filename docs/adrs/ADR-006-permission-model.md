@@ -92,7 +92,7 @@ Within a single scope (project or global), the most-specific rule wins:
 
 Extension loading is a distinct permission tier with a mandatory multi-step gate — not a simple prompt. The gate is a pipeline that cannot be short-circuited by stored approvals:
 
-1. **Source fetch** — mandatory. The source for the exact package version being loaded must be retrievable, either as embedded source from a `.snupkg` symbol package or via Source Link resolved through the `gh` CLI. If source is not available by either path, the load is **refused unconditionally** — no approval can override this.
+1. **Source fetch** — mandatory. The source for the exact package version being loaded must be retrievable. The mechanism: the `.nupkg` is downloaded and its `.nuspec` is parsed for a `<repository url="..." commit="...">` element; a non-empty `url` is required. Source files are then fetched at the recorded commit (from `raw.githubusercontent.com` for public GitHub repos without authentication; via the `gh` CLI for private repos). If the nuspec has no `<repository>` element, or if source cannot be fetched, the load is **refused unconditionally** — no approval can override this. The `gh` CLI is not required for public-repo source fetches; it is used only for private repos and for GitHub enrichment signals.
 
 2. **Source analysis** — the daemon's LLM performs a security pass over the extension source, inspecting for suspicious patterns:
    - Filesystem access outside the CWD subtree

@@ -20,7 +20,9 @@ Extensions are published to nuget.org (or a configured private feed) and tagged 
 
 ### Source availability is a hard requirement
 
-To be loadable, a package must have source available via either embedded source in a `.snupkg` symbol package or Source Link pointing to a reachable repository. Packages without source cannot be analysed and cannot be loaded. This is not configurable.
+To be loadable, a package must declare a source repository via a `<repository url="..." commit="...">` element in its `.nuspec`. Source files are fetched at the recorded commit (from `raw.githubusercontent.com` for public GitHub repos without authentication; via the `gh` CLI for private repos). Packages with no `<repository>` element, or whose source cannot be fetched, cannot be analysed and cannot be loaded. This is not configurable.
+
+> **Note:** The `.snupkg` / symbol-server path was evaluated during the spike (2026-05-24) and found infeasible for V1: the NuGet flat container returns 404 for `.snupkg` requests, and the symbol server requires authentication outside the ADR-005 scope. The nuspec `<repository>` + commit-SHA fetch is the V1 mechanism.
 
 ### Three built-in tools
 

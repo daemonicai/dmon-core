@@ -2,13 +2,13 @@
 
 ## Group 1 — Spike: source availability detection
 
-**Goal:** Establish which NuGet API fields indicate source availability without a per-package secondary request, and validate the `.snupkg` → embedded source extraction path.
+**Goal:** Establish which NuGet API fields indicate source availability and validate the source-fetch mechanism. Spike result: secondary nuspec request is required; `.snupkg` path is infeasible for V1; nuspec `<repository>` + commit-SHA fetch is the V1 mechanism.
 
-- [ ] Spike: query NuGet search API for a known source-available package; document which response fields indicate source availability (`<repository>`, `packageTypes`, or other)
-- [ ] Spike: download a `.snupkg`, extract a `.pdb`, confirm embedded source extraction is feasible with available .NET APIs
-- [ ] Spike: confirm Source Link fallback path via `gh api` for a known package
-- [ ] Document findings in `openspec/changes/extension-ecosystem/spike-source-availability.md`
-- [ ] If `.snupkg` extraction is not feasible in V1: document the Source Link-only path and update design.md accordingly
+- [x] Spike: query NuGet search API for a known source-available package; document which response fields indicate source availability (`<repository>`, `packageTypes`, or other)
+- [x] Spike: download a `.snupkg`, extract a `.pdb`, confirm embedded source extraction is feasible with available .NET APIs
+- [x] Spike: confirm Source Link fallback path via `gh api` for a known package
+- [x] Document findings in `openspec/changes/extension-ecosystem/spike-source-availability.md`
+- [x] If `.snupkg` extraction is not feasible in V1: document the Source Link-only path and update design.md accordingly
 
 ## Group 2 — gh capability probe
 
@@ -43,11 +43,13 @@
 
 **Goal:** Wrap existing extension loading with the source-fetch → analysis → report → confirm pipeline.
 
-- [ ] Implement `IExtensionSourceFetcher`: tries `.snupkg` embedded source, falls back to Source Link via gh
+- [ ] Implement `IExtensionSourceFetcher`: downloads `.nupkg`, parses nuspec `<repository url commit>`, fetches `.cs` source files at recorded commit SHA (raw.githubusercontent.com for public repos; `gh` CLI for private repos); hard-blocks if `<repository>` is absent or fetch fails
 - [ ] Implement `ExtensionSecurityAnalyser`: calls LLM with security-analysis prompt, returns structured `SecurityAnalysisReport`
 - [ ] Implement report formatter: renders findings to user-facing text (✅ / ⚠️ / 🚨 levels)
 - [ ] Update `ExtensionLoadTool` to run the full pipeline before the ADR-006 confirmation prompt
 - [ ] Ensure "allow for project" / "allow globally" stores `package@version` key; version bump resets approval
+- [ ] Define and enforce a source-fetch volume bound (cap candidates before nuspec fan-out in search; cap file count / total bytes fed to the security analyser)
+- [ ] Clarify HTTP-tier permissioning: state explicitly whether pipeline fetches to `api.nuget.org`, `api.github.com`, and `raw.githubusercontent.com` are exempt from ADR-006 per-domain approval or implicitly approved by the extension-loading gate
 - [ ] Integration test: full pipeline against a real (test) extension package
 - [ ] Unit tests: source not available → hard block; analysis findings → correct risk levels
 

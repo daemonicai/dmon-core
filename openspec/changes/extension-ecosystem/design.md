@@ -18,7 +18,7 @@ extension.load    <package-id>    → source fetch → analysis → report → c
 ### Pipeline
 
 1. Query NuGet search API: `q={query}&tags=dmon-extension&prerelease=false`
-2. Filter: source-available packages only (packages with a `<repository>` element in nuspec, or a `.snupkg` on the feed — TBD which is queryable without a second request; spike required)
+2. Filter: source-available packages only. The NuGet search API does not expose source availability; the catalog entry `repository` field is unreliably empty. Source availability is determined by fetching the `.nupkg` for each candidate result and parsing the `<repository url="..." commit="...">` element from the nuspec. A non-empty `url` attribute indicates source is available. This requires one `.nupkg` download per candidate (acceptable: search is an agent-initiated call, not a hot path). Packages with no `<repository>` element are excluded.
 3. Enrich with GitHub signals if `gh` is available:
    - Extract `<repository url>` from nuspec
    - If `github.com`: `gh api /repos/{owner}/{repo} --jq '{stars: .stargazers_count, pushed: .pushed_at, archived: .archived}'`
@@ -83,10 +83,17 @@ Plain text excerpt. The agent uses this to disambiguate between similar-looking 
 ### Pipeline
 
 #### Stage 1: Source fetch
-Attempt in order:
-1. Download `.snupkg` from NuGet feed for `{package-id}@{version}`; extract embedded source from PDBs
-2. If no embedded source: resolve Source Link from PDB; fetch source at commit SHA via `gh` CLI
-3. If neither succeeds: refuse load with message explaining source requirement
+
+> **Spike result (2026-05-24):** `.snupkg` files are not available on the NuGet flat container (all 404). The NuGet symbol server requires authentication outside the ADR-005 scope. Even when PDBs are embedded in a `.nupkg`, they contain Source Link URL templates, not source code; parsing them requires a third-party library. The `.snupkg` path is dropped for V1.
+
+Source fetch procedure:
+1. Download the `.nupkg` for `{package-id}@{version}`; extract and parse the `.nuspec`.
+2. Read `<repository url="..." commit="...">` from the nuspec. If absent or `url` is empty: refuse load with message explaining source requirement.
+3. Derive `owner/repo` from the `url` attribute. If the URL is `github.com`:
+   - Fetch the repository tree at `{commit}` via `gh api /repos/{owner}/{repo}/git/trees/{commit}?recursive=1`
+   - Fetch each `.cs` source file via `https://raw.githubusercontent.com/{owner}/{repo}/{commit}/{path}` (no auth required for public repos; `gh` required for private repos)
+4. Non-GitHub repository URLs: fetch source via `gh api` if the host is reachable with the configured `gh` auth; otherwise refuse load with an explanation.
+5. If source cannot be fetched: refuse load with message explaining source requirement.
 
 #### Stage 2: LLM security analysis
 Pass extracted source to LLM with a security-analysis prompt. Structured output:
