@@ -6,7 +6,8 @@ namespace Dmon.Core.Providers;
 
 public sealed class ProviderRegistry : IProviderRegistry
 {
-    private readonly IReadOnlyList<ProviderConfig> _all;
+    private readonly IReadOnlyList<ProviderConfig> _builtIn;
+    private readonly List<ProviderConfig> _extensionConfigs = [];
     private readonly Dictionary<string, IProviderFactory> _factories;
     private readonly ICredentialResolver _credentials;
     private readonly ILogger<ProviderRegistry> _logger;
@@ -22,7 +23,7 @@ public sealed class ProviderRegistry : IProviderRegistry
         ICredentialResolver credentials,
         ILogger<ProviderRegistry> logger)
     {
-        _all = configs.ToList();
+        _builtIn = configs.ToList();
         _credentials = credentials;
         _logger = logger;
 
@@ -31,7 +32,7 @@ public sealed class ProviderRegistry : IProviderRegistry
             f => f,
             StringComparer.OrdinalIgnoreCase);
 
-        foreach (ProviderConfig config in _all)
+        foreach (ProviderConfig config in _builtIn)
         {
             if (!_factories.ContainsKey(config.Adapter))
             {
@@ -43,12 +44,51 @@ public sealed class ProviderRegistry : IProviderRegistry
         _activeIndex = 0;
     }
 
-    public IReadOnlyList<ProviderConfig> GetAll() => _all;
+    public IReadOnlyList<ProviderConfig> GetAll()
+    {
+        if (_extensionConfigs.Count == 0)
+            return _builtIn;
+
+        List<ProviderConfig> combined = new(_builtIn.Count + _extensionConfigs.Count);
+        combined.AddRange(_builtIn);
+        combined.AddRange(_extensionConfigs);
+        return combined;
+    }
+
+    public async Task RegisterExtensionAsync(
+        IProviderExtension extension,
+        CancellationToken cancellationToken = default)
+    {
+        IProviderFactory factory = extension.CreateFactory();
+        IReadOnlyList<ModelInfo> models = await extension.ListModelsAsync(cancellationToken).ConfigureAwait(false);
+
+        ProviderConfig config = new()
+        {
+            Name = extension.ProviderName,
+            Adapter = factory.AdapterName,
+            DefaultModelId = models.Count > 0 ? models[0].Id : null,
+            Auth = new ProviderAuthConfig { Type = "none" }
+        };
+
+        _factories[factory.AdapterName] = factory;
+
+        int existingIndex = _extensionConfigs.FindIndex(
+            c => string.Equals(c.Name, extension.ProviderName, StringComparison.OrdinalIgnoreCase));
+
+        if (existingIndex >= 0)
+            _extensionConfigs[existingIndex] = config;
+        else
+            _extensionConfigs.Add(config);
+
+        _logger.LogDebug("Registered extension provider '{Provider}' (adapter: {Adapter}).",
+            extension.ProviderName, factory.AdapterName);
+    }
 
     public ProviderConfig GetCurrentConfig()
     {
-        EnsureProviderConfigured();
-        return _all[_activeIndex];
+        IReadOnlyList<ProviderConfig> all = GetAll();
+        EnsureProviderConfigured(all);
+        return all[_activeIndex];
     }
 
     public bool CurrentSupportsToolCalling
@@ -75,11 +115,12 @@ public sealed class ProviderRegistry : IProviderRegistry
 
     public async ValueTask<IChatClient> GetCurrentAsync(CancellationToken cancellationToken = default)
     {
-        EnsureProviderConfigured();
+        IReadOnlyList<ProviderConfig> all = GetAll();
+        EnsureProviderConfigured(all);
 
         if (_activeClient is null)
         {
-            _activeClient = await CreateClientAsync(_all[_activeIndex], cancellationToken).ConfigureAwait(false);
+            _activeClient = await CreateClientAsync(all[_activeIndex], cancellationToken).ConfigureAwait(false);
         }
 
         return _activeClient;
@@ -96,8 +137,9 @@ public sealed class ProviderRegistry : IProviderRegistry
     {
         _pendingModelId = modelId;
 
+        IReadOnlyList<ProviderConfig> all = GetAll();
         int currentOrPendingIndex = _pendingIndex ?? _activeIndex;
-        ProviderConfig config = _all[currentOrPendingIndex];
+        ProviderConfig config = all[currentOrPendingIndex];
         IProviderFactory factory = _factories[config.Adapter];
         ChatClientCapabilities capabilities = factory.GetCapabilities(modelId);
 
@@ -114,10 +156,11 @@ public sealed class ProviderRegistry : IProviderRegistry
 
     public void CycleProvider()
     {
-        int next = ((_pendingIndex ?? _activeIndex) + 1) % _all.Count;
+        IReadOnlyList<ProviderConfig> all = GetAll();
+        int next = ((_pendingIndex ?? _activeIndex) + 1) % all.Count;
         _pendingIndex = next;
         _pendingModelId = null;
-        _logger.LogDebug("Provider cycle queued to {Provider} (effective next turn).", _all[next].Name);
+        _logger.LogDebug("Provider cycle queued to {Provider} (effective next turn).", all[next].Name);
     }
 
     public ProviderSwitchResult? CommitPendingSwitch()
@@ -127,6 +170,7 @@ public sealed class ProviderRegistry : IProviderRegistry
             return null;
         }
 
+        IReadOnlyList<ProviderConfig> all = GetAll();
         int newIndex = _pendingIndex ?? _activeIndex;
         string? overrideModelId = _pendingModelId;
 
@@ -138,15 +182,15 @@ public sealed class ProviderRegistry : IProviderRegistry
 
         _activeIndex = newIndex;
 
-        ProviderConfig newConfig = _all[_activeIndex];
+        ProviderConfig newConfig = all[_activeIndex];
         string activeModelId = overrideModelId ?? newConfig.DefaultModelId ?? string.Empty;
 
         return new ProviderSwitchResult(newConfig.Name, activeModelId);
     }
 
-    private void EnsureProviderConfigured()
+    private static void EnsureProviderConfigured(IReadOnlyList<ProviderConfig> all)
     {
-        if (_all.Count == 0)
+        if (all.Count == 0)
         {
             throw new InvalidOperationException("At least one provider must be configured.");
         }
@@ -154,9 +198,10 @@ public sealed class ProviderRegistry : IProviderRegistry
 
     private int FindProviderIndex(string name)
     {
-        for (int i = 0; i < _all.Count; i++)
+        IReadOnlyList<ProviderConfig> all = GetAll();
+        for (int i = 0; i < all.Count; i++)
         {
-            if (string.Equals(_all[i].Name, name, StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(all[i].Name, name, StringComparison.OrdinalIgnoreCase))
             {
                 return i;
             }

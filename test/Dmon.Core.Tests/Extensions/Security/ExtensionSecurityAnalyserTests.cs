@@ -163,6 +163,8 @@ file sealed class FakeProviderRegistry(IChatClient client) : IProviderRegistry
     public void SetProvider(string name) { }
     public void SetModel(string modelId) { }
     public void CycleProvider() { }
+    public Task RegisterExtensionAsync(IProviderExtension extension, CancellationToken cancellationToken = default)
+        => Task.CompletedTask;
     public ProviderSwitchResult? CommitPendingSwitch() => null;
     public bool CurrentSupportsToolCalling => false;
     public bool CurrentSupportsReasoning => false;

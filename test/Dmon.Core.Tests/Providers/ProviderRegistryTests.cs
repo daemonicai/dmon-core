@@ -337,4 +337,70 @@ public sealed class ProviderRegistryTests
 
         public void Dispose() { }
     }
+
+    private sealed class FakeProviderExtension(
+        string providerName,
+        IReadOnlyList<ModelInfo>? models = null) : IProviderExtension
+    {
+        private readonly IReadOnlyList<ModelInfo> _models = models ?? [];
+
+        public string ProviderName => providerName;
+        public bool IsApplicable() => true;
+        public Task<bool> IsRunningAsync(CancellationToken cancellationToken = default) => Task.FromResult(true);
+        public Task EnsureRunningAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task<IReadOnlyList<ModelInfo>> ListModelsAsync(CancellationToken cancellationToken = default)
+            => Task.FromResult(_models);
+        public IProviderFactory CreateFactory() => new FakeProviderFactory();
+    }
+
+    [Fact]
+    public async Task RegisterExtensionAsync_AddsProviderToGetAll()
+    {
+        IProviderRegistry registry = CreateRegistry([MakeConfig("alpha")]);
+        FakeProviderExtension extension = new("ext-provider",
+            [new ModelInfo { Id = "ext-model-1", Capabilities = new ChatClientCapabilities() }]);
+
+        await registry.RegisterExtensionAsync(extension);
+
+        IReadOnlyList<ProviderConfig> all = registry.GetAll();
+        Assert.Equal(2, all.Count);
+        Assert.Contains(all, c => c.Name == "ext-provider");
+        ProviderConfig extConfig = Assert.Single(all, c => c.Name == "ext-provider");
+        Assert.Equal("ext-model-1", extConfig.DefaultModelId);
+        Assert.Equal("none", extConfig.Auth.Type);
+    }
+
+    [Fact]
+    public async Task RegisterExtensionAsync_SetProviderFindsExtensionProvider()
+    {
+        IProviderRegistry registry = CreateRegistry([MakeConfig("alpha")]);
+        FakeProviderExtension extension = new("ext-provider");
+
+        await registry.RegisterExtensionAsync(extension);
+
+        // Should not throw
+        registry.SetProvider("ext-provider");
+        ProviderSwitchResult? result = registry.CommitPendingSwitch();
+        Assert.NotNull(result);
+        Assert.Equal("ext-provider", result.ProviderName);
+    }
+
+    [Fact]
+    public async Task RegisterExtensionAsync_ReplacingDuplicateUpdatesEntry()
+    {
+        IProviderRegistry registry = CreateRegistry([MakeConfig("alpha")]);
+        FakeProviderExtension first = new("ext-provider",
+            [new ModelInfo { Id = "model-v1", Capabilities = new ChatClientCapabilities() }]);
+        FakeProviderExtension second = new("ext-provider",
+            [new ModelInfo { Id = "model-v2", Capabilities = new ChatClientCapabilities() }]);
+
+        await registry.RegisterExtensionAsync(first);
+        await registry.RegisterExtensionAsync(second);
+
+        IReadOnlyList<ProviderConfig> all = registry.GetAll();
+        // Only one entry for ext-provider
+        Assert.Equal(2, all.Count);
+        ProviderConfig extConfig = Assert.Single(all, c => c.Name == "ext-provider");
+        Assert.Equal("model-v2", extConfig.DefaultModelId);
+    }
 }

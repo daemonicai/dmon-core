@@ -139,6 +139,9 @@ internal sealed class StubProviderRegistry : IProviderRegistry
 
     public void CycleProvider() { }
 
+    public Task RegisterExtensionAsync(IProviderExtension extension, CancellationToken cancellationToken = default)
+        => Task.CompletedTask;
+
     public ProviderSwitchResult? CommitPendingSwitch() => null;
 
     public bool CurrentSupportsToolCalling => false;

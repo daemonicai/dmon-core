@@ -17,10 +17,10 @@
 
 **Goal:** Allow `ProviderRegistry` to accept runtime-registered providers from extension packages.
 
-- [ ] Add `Task RegisterExtensionAsync(IProviderExtension extension, CancellationToken cancellationToken = default)` to `IProviderRegistry`
-- [ ] Implement `ProviderRegistry.RegisterExtensionAsync`: call `CreateFactory()`, call `ListModelsAsync()` (pick first model as `DefaultModelId`), synthesise `ProviderConfig` with `Auth.Type = "none"`, store factory + config; replace existing entry if same `ProviderName` is already registered
-- [ ] `ProviderRegistry.GetAll()` returns built-in configs concatenated with extension-registered configs
-- [ ] Unit tests: register extension provider → appears in `GetAll()`; `SetProvider` finds it; replacing duplicate name updates the entry
+- [x] Add `Task RegisterExtensionAsync(IProviderExtension extension, CancellationToken cancellationToken = default)` to `IProviderRegistry`
+- [x] Implement `ProviderRegistry.RegisterExtensionAsync`: call `CreateFactory()`, call `ListModelsAsync()` (pick first model as `DefaultModelId`), synthesise `ProviderConfig` with `Auth.Type = "none"`, store factory + config; replace existing entry if same `ProviderName` is already registered
+- [x] `ProviderRegistry.GetAll()` returns built-in configs concatenated with extension-registered configs
+- [x] Unit tests: register extension provider → appears in `GetAll()`; `SetProvider` finds it; replacing duplicate name updates the entry
 
 ## Group 3 — Extension loader routing
 
