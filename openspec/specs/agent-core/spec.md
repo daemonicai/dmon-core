@@ -16,7 +16,7 @@ The agent core SHALL run as a standalone process, communicating with host fronte
 - **THEN** the second core releases its handle, emits `error {code: "sessionLocked", recoverable: false}`, and exits non-zero
 
 ### Requirement: Turn execution loop
-The agent core SHALL execute turns by calling the active `IChatClient`, handling tool invocations via the permission gate, and streaming results back to the host as events.
+The agent core SHALL execute turns by calling the active `IChatClient`, handling tool invocations via the permission gate, and streaming results back to the host as events. Before the first turn of each session, the core SHALL prepend the assembled system prompt (via `ISystemPromptBuilder`) as a `ChatRole.System` message at index 0 of the conversation history.
 
 #### Scenario: Standard turn with no tool calls
 - **WHEN** the host sends `turn.submit` with a user message
@@ -29,6 +29,10 @@ The agent core SHALL execute turns by calling the active `IChatClient`, handling
 #### Scenario: Turn abort
 - **WHEN** the host sends `turn.abort` during an active turn
 - **THEN** the current LLM call and any pending tool invocations are cancelled and `turnEnd` is emitted with `stopReason: aborted`
+
+#### Scenario: System message present on first turn
+- **WHEN** the host sends the first `turn.submit` of a session
+- **THEN** the LLM pipeline receives the history with the system message at index 0 followed by the user message
 
 ### Requirement: Message queuing
 The agent core SHALL support `turn.steer` (queued after current tool execution) and `turn.followUp` (queued after the agent finishes) to allow the host to redirect or extend the agent mid-turn without losing the current operation.
