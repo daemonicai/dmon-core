@@ -13,21 +13,21 @@ public sealed class EditFileTool : IDmonExtension
     public EditFileTool()
     {
         _function = AIFunctionFactory.Create(
-            (string path, string old_string, string new_string) =>
+            (string path, string oldString, string newString) =>
             {
                 try
                 {
                     string resolved = Path.GetFullPath(path);
                     string text = File.ReadAllText(resolved);
-                    int idx = text.IndexOf(old_string, StringComparison.Ordinal);
+                    int idx = text.IndexOf(oldString, StringComparison.Ordinal);
                     if (idx < 0)
                     {
                         return $"Error: old_string not found in {path}";
                     }
                     string updated = string.Concat(
                         text.AsSpan(0, idx),
-                        new_string,
-                        text.AsSpan(idx + old_string.Length));
+                        newString,
+                        text.AsSpan(idx + oldString.Length));
                     File.WriteAllText(resolved, updated);
                     return "OK";
                 }
