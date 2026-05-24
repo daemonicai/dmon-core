@@ -57,5 +57,5 @@
 
 **Goal:** Document the "smart tools save tokens" principle.
 
-- [ ] Add a `## Tool design principles` section to `README.md` (or `docs/contributing-extensions.md` if that exists) documenting: tools should return curated output, not raw API data; this reduces agentic reasoning cost
-- [ ] Add a note to the extension authoring guide (when written) about providing good `Description` metadata
+- [x] Add a `## Tool design principles` section to `README.md` (or `docs/contributing-extensions.md` if that exists) documenting: tools should return curated output, not raw API data; this reduces agentic reasoning cost
+- [x] Add a note to the extension authoring guide (when written) about providing good `Description` metadata
