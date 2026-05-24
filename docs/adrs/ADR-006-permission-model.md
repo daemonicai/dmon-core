@@ -110,6 +110,8 @@ Extension loading is a distinct permission tier with a mandatory multi-step gate
 
 **Stored approvals for extension versions.** "Allow for project" and "allow globally" suppress the confirmation prompt on subsequent loads of the same `package-id@version`. They do **not** suppress the source fetch and analysis — analysis always runs on the first load of a given version in a given installation. A patch-version bump resets the approval for that version.
 
+The stored approval key format is `"{packageId}@{version}"` — for example, `"Acme.MyTool@1.2.3"`. This key is stored under `permissions.extensions.allow` in the settings file. A change to any part of the version string (major, minor, or patch) produces a different key and therefore requires a new approval. Pre-release suffixes (e.g. `1.0.0-beta.1`) are treated as distinct versions.
+
 **Why source availability is non-negotiable.** The source analysis is the primary safety mechanism for extension loading. An extension whose source cannot be fetched cannot be analysed and cannot be trusted. This is not a configurable behaviour.
 
 Extension loads always carry `risk: high` regardless of stored approvals.
@@ -151,6 +153,10 @@ permissions:
     allow:
       - api.github.com
       - registry.npmjs.org
+  extensions:
+    allow:
+      - "Acme.MyTool@1.2.3"
+      - "SomeOrg.Helper@0.9.0"
 ```
 
 ## Consequences

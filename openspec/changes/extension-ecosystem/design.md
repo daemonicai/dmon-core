@@ -171,3 +171,14 @@ Extension loading is a new permission tier (added to ADR-006 as part of this cha
 `extension.search`, `extension.readme`, and `extension.load` are registered as built-in tools alongside the existing file, bash, and web tools. They are part of `Daemon.Core.BuiltinTools` (the subject of the `daemon-builtin-tools` change, now archived).
 
 The `extension.load` tool wraps the existing extension loading infrastructure (ADR-002) with the new security pipeline. The underlying `IExtensionLoader` and `IToolRegistry` interfaces are unchanged.
+
+## HTTP tier and extension pipeline
+
+The extension pipeline makes HTTP calls to three hosts:
+- `api.nuget.org` — package download (`.nupkg`) and search
+- `api.github.com` — repository tree fetch (when `gh` is unavailable for public repos)
+- `raw.githubusercontent.com` — source file fetch at commit SHA
+
+These calls are implicitly approved by the user initiating the extension-load pipeline. They are not subject to ADR-006 per-domain confirmation prompts. The extension-loading gate (source fetch + analysis + confirmation) is the applicable permission mechanism for this tier.
+
+The `extension.search` and `extension.readme` tools make similar calls. Their read-only nature and the `gh` CLI auth boundary are the applicable trust boundaries.
