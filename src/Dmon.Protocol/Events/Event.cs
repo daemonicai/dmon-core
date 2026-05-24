@@ -38,6 +38,7 @@ namespace Dmon.Protocol.Events;
 [JsonDerivedType(typeof(ResponseEvent), typeDiscriminator: "response")]
 [JsonDerivedType(typeof(SetupRequiredEvent), typeDiscriminator: "setupRequired")]
 [JsonDerivedType(typeof(ProviderConfiguredEvent), typeDiscriminator: "providerConfigured")]
+[JsonDerivedType(typeof(SystemNoticeEvent), typeDiscriminator: "system.notice")]
 public abstract record Event
 {
 }

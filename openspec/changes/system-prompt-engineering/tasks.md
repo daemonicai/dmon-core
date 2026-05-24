@@ -1,7 +1,7 @@
 ## 1. Interface and abstractions
 
-- [ ] 1.1 Define `ISystemPromptBuilder` interface in `Dmon.Abstractions` with a single `BuildAsync(CancellationToken) -> Task<ChatMessage>` method
-- [ ] 1.2 Add `system.notice` event type to `Dmon.Protocol` (reuse `SystemEvents` or add new event record)
+- [x] 1.1 Define `ISystemPromptBuilder` interface in `Dmon.Abstractions` with a single `BuildAsync(CancellationToken) -> Task<ChatMessage>` method
+- [x] 1.2 Add `system.notice` event type to `Dmon.Protocol` (reuse `SystemEvents` or add new event record)
 
 ## 2. Config discovery
 

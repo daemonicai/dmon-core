@@ -106,3 +106,9 @@ public sealed record ProviderConfiguredEvent : Event
     [JsonPropertyName("scope")]
     public required string Scope { get; init; }
 }
+
+public sealed record SystemNoticeEvent : Event
+{
+    [JsonPropertyName("message")]
+    public required string Message { get; init; }
+}
