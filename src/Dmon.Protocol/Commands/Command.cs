@@ -32,6 +32,7 @@ namespace Dmon.Protocol.Commands;
 [JsonDerivedType(typeof(AuthLoginCommand), typeDiscriminator: "auth.login")]
 [JsonDerivedType(typeof(AuthLogoutCommand), typeDiscriminator: "auth.logout")]
 [JsonDerivedType(typeof(AuthStatusCommand), typeDiscriminator: "auth.status")]
+[JsonDerivedType(typeof(ProviderConfigureCommand), typeDiscriminator: "provider.configure")]
 public abstract record Command
 {
     [JsonPropertyName("id")]

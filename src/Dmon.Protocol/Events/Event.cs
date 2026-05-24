@@ -36,6 +36,8 @@ namespace Dmon.Protocol.Events;
 [JsonDerivedType(typeof(AuthStatusResultEvent), typeDiscriminator: "auth.statusResult")]
 [JsonDerivedType(typeof(ModelListResultEvent), typeDiscriminator: "model.listResult")]
 [JsonDerivedType(typeof(ResponseEvent), typeDiscriminator: "response")]
+[JsonDerivedType(typeof(SetupRequiredEvent), typeDiscriminator: "setupRequired")]
+[JsonDerivedType(typeof(ProviderConfiguredEvent), typeDiscriminator: "providerConfigured")]
 public abstract record Event
 {
 }

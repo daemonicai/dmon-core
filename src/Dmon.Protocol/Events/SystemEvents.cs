@@ -73,3 +73,36 @@ public sealed record ErrorEvent : Event
     [JsonPropertyName("recoverable")]
     public bool Recoverable { get; init; }
 }
+
+public sealed record AdapterInfo
+{
+    [JsonPropertyName("name")]
+    public required string Name { get; init; }
+
+    [JsonPropertyName("defaultModelId")]
+    public required string DefaultModelId { get; init; }
+
+    [JsonPropertyName("defaultEnvVar")]
+    public required string DefaultEnvVar { get; init; }
+
+    [JsonPropertyName("envVarDetected")]
+    public bool EnvVarDetected { get; init; }
+}
+
+public sealed record SetupRequiredEvent : Event
+{
+    [JsonPropertyName("adapters")]
+    public required IReadOnlyList<AdapterInfo> Adapters { get; init; }
+}
+
+public sealed record ProviderConfiguredEvent : Event
+{
+    [JsonPropertyName("adapter")]
+    public required string Adapter { get; init; }
+
+    [JsonPropertyName("modelId")]
+    public required string ModelId { get; init; }
+
+    [JsonPropertyName("scope")]
+    public required string Scope { get; init; }
+}
