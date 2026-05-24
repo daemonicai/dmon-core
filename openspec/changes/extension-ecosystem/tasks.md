@@ -23,12 +23,12 @@
 
 **Goal:** Implement the search tool with NuGet + optional GitHub enrichment.
 
-- [ ] Implement `NuGetSearchService`: queries nuget.org search API, filters by `dmon-extension` tag and source availability
-- [ ] Implement ranking formula (downloads, stars, recency) with graceful degradation when gh unavailable
-- [ ] Implement GitHub enrichment via `IGhCliService`: `gh api /repos/{owner}/{repo}`
-- [ ] Implement `ExtensionSearchTool` (`IDaemonExtension` / `AIFunction`), returning curated formatted output (≤5 results, `readme_available` flag)
-- [ ] Register as built-in tool
-- [ ] Unit tests: ranking, graceful degradation (no gh), archived repo exclusion, tag filter
+- [x] Implement `NuGetSearchService`: queries nuget.org search API, filters by `dmon-extension` tag and source availability
+- [x] Implement ranking formula (downloads, stars, recency) with graceful degradation when gh unavailable
+- [x] Implement GitHub enrichment via `IGhCliService`: `gh api /repos/{owner}/{repo}`
+- [x] Implement `ExtensionSearchTool` (`IDaemonExtension` / `AIFunction`), returning curated formatted output (≤5 results, `readme_available` flag)
+- [x] Register as built-in tool
+- [x] Unit tests: ranking, graceful degradation (no gh), archived repo exclusion, tag filter
 
 ## Group 4 — extension.readme
 
