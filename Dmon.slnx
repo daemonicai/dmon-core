@@ -1,4 +1,8 @@
 <Solution>
+  <Folder Name="/claude/">
+    <File Path="CLAUDE.md" />
+  </Folder>
+  <Folder Name="/files/" />
   <Folder Name="/spike/">
     <Project Path="spike/ScriptingSpike/ScriptingSpike.csproj" />
   </Folder>

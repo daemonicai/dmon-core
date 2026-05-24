@@ -1,8 +1,8 @@
-# daemon — Project Instructions
+# dmon — Project Instructions
 
 ## What this project is
 
-daemon is a .NET-native coding agent inspired by [Pi](https://github.com/earendil-works/pi). It is written in **C# on .NET 10**. The agent core runs as a separate process over JSONL/stdio. Two host surfaces are planned: a console/TUI host and an Avalonia desktop host.
+dmon (pronounced like "demon") is a .NET-native coding agent inspired by [Pi](https://github.com/earendil-works/pi). It is written in **C# on .NET 10**. The agent core runs as a separate process over JSONL/stdio. Two host surfaces are planned: a console/TUI host and an Avalonia desktop host.
 
 See [`coding-agent-brief.md`](./coding-agent-brief.md) for the full vision and architectural rationale.
 
@@ -104,7 +104,7 @@ All code must build without warnings. Treat warnings as errors (`<TreatWarningsA
 - Use [Conventional Commits](https://www.conventionalcommits.org/): `feat:`, `fix:`, `chore:`, `docs:`, `refactor:`, `test:`.
 - Scope is the component: `feat(session):`, `fix(rpc):`, `docs(adr):`, etc.
 - Subject line in imperative mood, no period, max 72 characters.
-- Reference the OpenSpec change slug in the body if the commit is part of a change: `Change: daemon-core`.
+- Reference the OpenSpec change slug in the body if the commit is part of a change: `Change: dmon-core`.
 
 ---
 
