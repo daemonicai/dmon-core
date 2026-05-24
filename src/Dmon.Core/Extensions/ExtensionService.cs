@@ -1,5 +1,8 @@
+using Dmon.Abstractions.Providers;
+using Dmon.Core.Providers;
 using Dmon.Extensions;
 using Dmon.Protocol.Events;
+using Microsoft.Extensions.Logging;
 
 namespace Dmon.Core.Extensions;
 
@@ -12,7 +15,9 @@ namespace Dmon.Core.Extensions;
 public sealed class ExtensionService
 {
     private readonly IToolRegistry _toolRegistry;
+    private readonly IProviderRegistry? _providerRegistry;
     private readonly Dictionary<string, IExtensionLoader> _loaders;
+    private readonly ILogger<ExtensionService> _logger;
 
     /// <summary>
     /// Raised when an <see cref="ExtensionLoadedEvent"/> is produced.
@@ -29,9 +34,15 @@ public sealed class ExtensionService
     /// </summary>
     public event Action<ExtensionErrorEvent>? Error;
 
-    public ExtensionService(IToolRegistry toolRegistry, IEnumerable<IExtensionLoader> loaders)
+    public ExtensionService(
+        IToolRegistry toolRegistry,
+        IEnumerable<IExtensionLoader> loaders,
+        ILogger<ExtensionService> logger,
+        IProviderRegistry? providerRegistry = null)
     {
         _toolRegistry = toolRegistry;
+        _providerRegistry = providerRegistry;
+        _logger = logger;
         _loaders = loaders.ToDictionary(l => l.SourceKind, StringComparer.OrdinalIgnoreCase);
 
         // The NuGetExtensionLoader handles both "nuget" package sources and
@@ -50,6 +61,12 @@ public sealed class ExtensionService
     /// <see cref="ExtensionErrorEvent"/> on failure.
     /// No partial registration — all or nothing.
     /// </summary>
+    /// <remarks>
+    /// Extension registration (both tool and provider) must happen strictly between turns —
+    /// never during an active streaming call. The turn model is single-threaded, so no
+    /// locking is needed, but callers must ensure this method is not invoked concurrently
+    /// with an in-flight LLM streaming call.
+    /// </remarks>
     public async Task LoadAsync(string source, CancellationToken cancellationToken = default)
     {
         ParsedExtensionSource parsed = ParsedExtensionSource.Parse(source);
@@ -106,26 +123,54 @@ public sealed class ExtensionService
             return;
         }
 
-        // All or nothing — register iff we have tools.
-        if (result.Tools.Count == 0)
+        // Route provider extension if present.
+        string? registeredProviderName = null;
+
+        if (result.ProviderExtension is IProviderExtension providerExt)
+        {
+            if (!providerExt.IsApplicable())
+            {
+                _logger.LogWarning(
+                    "Provider extension '{Name}' is not applicable on this platform and will not be activated.",
+                    providerExt.ProviderName);
+            }
+            else if (_providerRegistry is null)
+            {
+                _logger.LogWarning(
+                    "Provider extension '{Name}' cannot be registered: no IProviderRegistry is available.",
+                    providerExt.ProviderName);
+            }
+            else
+            {
+                await _providerRegistry.RegisterExtensionAsync(providerExt, cancellationToken);
+                registeredProviderName = providerExt.ProviderName;
+            }
+        }
+
+        // All or nothing — require tools or a registered provider.
+        if (result.Tools.Count == 0 && registeredProviderName is null)
         {
             Error?.Invoke(new ExtensionErrorEvent
             {
                 Source = source,
                 Phase = "load",
-                Diagnostics = ["Extension provided no AIFunction instances."]
+                Diagnostics = ["Extension provided no AIFunction instances and no applicable provider."]
             });
             return;
         }
 
-        IDmonExtension extension = result.Extension
-            ?? new AnonymousExtension(result.Name, result.Description ?? result.Name, result.Tools);
-        _toolRegistry.Register(result.Name, extension, result.Tools);
+        if (result.Tools.Count > 0)
+        {
+            IDmonExtension extension = result.Extension
+                ?? new AnonymousExtension(result.Name, result.Description ?? result.Name, result.Tools);
+            _toolRegistry.Register(result.Name, extension, result.Tools);
+        }
 
         Loaded?.Invoke(new ExtensionLoadedEvent
         {
             Name = result.Name,
-            Tools = result.Tools.Select(f => f.Name).ToList()
+            Tools = result.Tools.Select(f => f.Name).ToList(),
+            ProviderName = registeredProviderName
         });
     }
 

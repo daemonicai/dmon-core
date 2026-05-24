@@ -26,9 +26,9 @@
 
 **Goal:** Update the extension loading pipeline to detect `IProviderExtension`, run `IsApplicable()`, and route to the registry.
 
-- [ ] Add `IProviderExtension? ProviderExtension { get; init; }` to `ExtensionLoadResult`
-- [ ] Update `NuGetExtensionLoader.DiscoverExtensions` (rename to `DiscoverAll`) to also scan for `IProviderExtension` types; return both tool extensions and provider extensions; a type may implement both
-- [ ] Update `ExtensionService` constructor to accept `IProviderRegistry?` (nullable — falls back to Warning if absent)
-- [ ] Update `ExtensionService.LoadAsync`: route `ProviderExtension` → call `IsApplicable()` (log Warning + return if false); call `RegisterExtensionAsync` if applicable; relax the "no tools → error" invariant to "no tools AND no provider → error"
-- [ ] Add `string? ProviderName { get; init; }` to `ExtensionLoadedEvent`; populate with `extension.ProviderName` when a provider is registered, null otherwise
-- [ ] Unit tests: provider extension `IsApplicable()` false → Warning logged, not registered; `IsApplicable()` true → registered in registry; extension with both tools and provider → both registered; extension with neither → error
+- [x] Add `IProviderExtension? ProviderExtension { get; init; }` to `ExtensionLoadResult`
+- [x] Update `NuGetExtensionLoader.DiscoverExtensions` (rename to `DiscoverAll`) to also scan for `IProviderExtension` types; return both tool extensions and provider extensions; a type may implement both
+- [x] Update `ExtensionService` constructor to accept `IProviderRegistry?` (nullable — falls back to Warning if absent)
+- [x] Update `ExtensionService.LoadAsync`: route `ProviderExtension` → call `IsApplicable()` (log Warning + return if false); call `RegisterExtensionAsync` if applicable; relax the "no tools → error" invariant to "no tools AND no provider → error"
+- [x] Add `string? ProviderName { get; init; }` to `ExtensionLoadedEvent`; populate with `extension.ProviderName` when a provider is registered, null otherwise
+- [x] Unit tests: provider extension `IsApplicable()` false → Warning logged, not registered; `IsApplicable()` true → registered in registry; extension with both tools and provider → both registered; extension with neither → error

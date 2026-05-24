@@ -34,6 +34,13 @@ public sealed record ExtensionLoadedEvent : Event
 
     [JsonPropertyName("tools")]
     public required IReadOnlyList<string> Tools { get; init; }
+
+    /// <summary>
+    /// Non-null when the extension registered a provider.
+    /// Null when the extension was inapplicable or had no provider.
+    /// </summary>
+    [JsonPropertyName("providerName")]
+    public string? ProviderName { get; init; }
 }
 
 public sealed record ExtensionUnloadedEvent : Event

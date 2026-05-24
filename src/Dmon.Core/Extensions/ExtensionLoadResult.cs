@@ -1,3 +1,4 @@
+using Dmon.Abstractions.Providers;
 using Dmon.Extensions;
 using Microsoft.Extensions.AI;
 
@@ -36,6 +37,12 @@ public sealed record ExtensionLoadResult
     /// <see langword="null"/> for .csx script extensions that do not implement the interface.
     /// </summary>
     public IDmonExtension? Extension { get; init; }
+
+    /// <summary>
+    /// The <see cref="IProviderExtension"/> discovered in the loaded assembly, if any.
+    /// A type may implement both <see cref="IDmonExtension"/> and <see cref="IProviderExtension"/>.
+    /// </summary>
+    public IProviderExtension? ProviderExtension { get; init; }
 }
 
 /// <summary>

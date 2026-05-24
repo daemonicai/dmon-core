@@ -1,5 +1,6 @@
 using System.Reflection;
 using System.Runtime.Loader;
+using Dmon.Abstractions.Providers;
 using Dmon.Extensions;
 using Microsoft.Extensions.AI;
 
@@ -84,34 +85,53 @@ public sealed class NuGetExtensionLoader : IExtensionLoader, IDisposable
             }
         }
 
-        List<IDmonExtension> extensions = DiscoverExtensions(assembly, _serviceProvider);
+        (List<IDmonExtension> toolExtensions, List<IProviderExtension> providerExtensions) =
+            DiscoverAll(assembly, _serviceProvider);
 
-        if (extensions.Count == 0)
+        if (toolExtensions.Count == 0 && providerExtensions.Count == 0)
         {
             return CreateErrorResult(
                 source.Value,
                 "load",
-                $"No types implementing IDmonExtension found in '{assembly.GetName().Name}'.");
+                $"No types implementing IDmonExtension or IProviderExtension found in '{assembly.GetName().Name}'.");
         }
 
-        IDmonExtension primary = extensions[0];
+        // Use the first tool extension as the primary for Name/Description.
+        // If there are no tool extensions, synthesise a minimal name from the assembly.
+        string name;
+        string? description;
+        IDmonExtension? primary;
         List<AIFunction> allTools = [];
 
-        foreach (IDmonExtension ext in extensions)
+        if (toolExtensions.Count > 0)
         {
-            foreach (AIFunction fn in ext.Tools)
+            primary = toolExtensions[0];
+            name = primary.Name;
+            description = primary.Description;
+
+            foreach (IDmonExtension ext in toolExtensions)
             {
-                allTools.Add(fn);
+                foreach (AIFunction fn in ext.Tools)
+                {
+                    allTools.Add(fn);
+                }
             }
+        }
+        else
+        {
+            primary = null;
+            name = providerExtensions[0].ProviderName;
+            description = null;
         }
 
         return new ExtensionLoadResult
         {
-            Name = primary.Name,
-            Description = primary.Description,
+            Name = name,
+            Description = description,
             Tools = allTools,
             SourceKind = "nuget",
-            Extension = primary
+            Extension = primary,
+            ProviderExtension = providerExtensions.Count > 0 ? providerExtensions[0] : null
         };
     }
 
@@ -182,10 +202,13 @@ public sealed class NuGetExtensionLoader : IExtensionLoader, IDisposable
         return assembly;
     }
 
-    private static List<IDmonExtension> DiscoverExtensions(Assembly assembly, IServiceProvider serviceProvider)
+    private static (List<IDmonExtension> tools, List<IProviderExtension> providers)
+        DiscoverAll(Assembly assembly, IServiceProvider serviceProvider)
     {
-        List<IDmonExtension> results = [];
-        Type targetType = typeof(IDmonExtension);
+        List<IDmonExtension> tools = [];
+        List<IProviderExtension> providers = [];
+        Type toolType = typeof(IDmonExtension);
+        Type providerType = typeof(IProviderExtension);
         Type spType = typeof(IServiceProvider);
 
         try
@@ -197,25 +220,40 @@ public sealed class NuGetExtensionLoader : IExtensionLoader, IDisposable
                     continue;
                 }
 
-                if (!targetType.IsAssignableFrom(type))
+                bool isToolExt = toolType.IsAssignableFrom(type);
+                bool isProviderExt = providerType.IsAssignableFrom(type);
+
+                if (!isToolExt && !isProviderExt)
                 {
                     continue;
                 }
 
-                IDmonExtension? extension = null;
+                // A type implementing both interfaces is instantiated once; the same
+                // instance is added to both lists.
+                object? instance = null;
 
                 if (type.GetConstructor([spType]) is not null)
                 {
-                    extension = Activator.CreateInstance(type, serviceProvider) as IDmonExtension;
+                    instance = Activator.CreateInstance(type, serviceProvider);
                 }
                 else if (type.GetConstructor(Type.EmptyTypes) is not null)
                 {
-                    extension = Activator.CreateInstance(type) as IDmonExtension;
+                    instance = Activator.CreateInstance(type);
                 }
 
-                if (extension is not null)
+                if (instance is null)
                 {
-                    results.Add(extension);
+                    continue;
+                }
+
+                if (isToolExt && instance is IDmonExtension toolExt)
+                {
+                    tools.Add(toolExt);
+                }
+
+                if (isProviderExt && instance is IProviderExtension providerExt)
+                {
+                    providers.Add(providerExt);
                 }
             }
         }
@@ -228,7 +266,7 @@ public sealed class NuGetExtensionLoader : IExtensionLoader, IDisposable
                 ex);
         }
 
-        return results;
+        return (tools, providers);
     }
 
     private static ExtensionLoadResult CreateErrorResult(

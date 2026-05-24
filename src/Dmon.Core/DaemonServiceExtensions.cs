@@ -13,6 +13,7 @@ using Dmon.Core.Rpc;
 using Dmon.Core.Session;
 using Dmon.Providers;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
 
 namespace Dmon.Core;
 
@@ -68,7 +69,11 @@ public static class DmonServiceExtensions
         services.AddSingleton<NuGetExtensionLoader>();
         services.AddSingleton<IExtensionLoader>(sp => sp.GetRequiredService<CsxScriptLoader>());
         services.AddSingleton<IExtensionLoader>(sp => sp.GetRequiredService<NuGetExtensionLoader>());
-        services.AddSingleton<ExtensionService>();
+        services.AddSingleton<ExtensionService>(sp => new ExtensionService(
+            sp.GetRequiredService<IToolRegistry>(),
+            sp.GetRequiredService<IEnumerable<IExtensionLoader>>(),
+            sp.GetRequiredService<ILogger<ExtensionService>>(),
+            sp.GetService<IProviderRegistry>()));
         services.AddSingleton<PromoteService>();
 
         return services;
