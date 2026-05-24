@@ -88,6 +88,32 @@ Within a single scope (project or global), the most-specific rule wins:
 - For bash globs, an explicit `deny` pattern beats an `allow` pattern; ties resolve to deny.
 - Across scopes, project wins over global (existing rule).
 
+#### Extension loading
+
+Extension loading is a distinct permission tier with a mandatory multi-step gate — not a simple prompt. The gate is a pipeline that cannot be short-circuited by stored approvals:
+
+1. **Source fetch** — mandatory. The source for the exact package version being loaded must be retrievable, either as embedded source from a `.snupkg` symbol package or via Source Link resolved through the `gh` CLI. If source is not available by either path, the load is **refused unconditionally** — no approval can override this.
+
+2. **Source analysis** — the daemon's LLM performs a security pass over the extension source, inspecting for suspicious patterns:
+   - Filesystem access outside the CWD subtree
+   - Outbound network calls (flagged with context — expected for some extension types)
+   - Process spawning
+   - Reflection abuse (dynamic assembly loading)
+   - Credential or environment variable harvesting
+   - Obfuscated or machine-generated code that resists inspection
+
+   The analysis produces a structured report: `risk_level` (`low` / `medium` / `high`), a list of findings (empty if clean), and a plain-language summary. The report notes explicitly that it covers the extension's own source only, not transitive NuGet dependencies.
+
+3. **Report to user** — the analysis report is presented in full before any confirmation prompt. The user sees what the analysis found (or that nothing was found) before being asked whether to proceed.
+
+4. **Confirmation** — standard four-option prompt (allow once / allow for project / allow globally / deny), presented after the report.
+
+**Stored approvals for extension versions.** "Allow for project" and "allow globally" suppress the confirmation prompt on subsequent loads of the same `package-id@version`. They do **not** suppress the source fetch and analysis — analysis always runs on the first load of a given version in a given installation. A patch-version bump resets the approval for that version.
+
+**Why source availability is non-negotiable.** The source analysis is the primary safety mechanism for extension loading. An extension whose source cannot be fetched cannot be analysed and cannot be trusted. This is not a configurable behaviour.
+
+Extension loads always carry `risk: high` regardless of stored approvals.
+
 ### Risk levels
 
 The `risk` field on `tool.confirmRequest` (ADR-003) is set as follows:
