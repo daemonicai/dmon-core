@@ -17,6 +17,7 @@ public sealed class CommandDispatcher
     private readonly IExtensionHandler _extension;
     private readonly IAuthHandler _auth;
     private readonly IThinkingHandler _thinking;
+    private readonly IProviderSetupHandler _providerSetup;
     private readonly IEventEmitter _emitter;
     private readonly ILogger<CommandDispatcher> _logger;
 
@@ -27,6 +28,7 @@ public sealed class CommandDispatcher
         IExtensionHandler extension,
         IAuthHandler auth,
         IThinkingHandler thinking,
+        IProviderSetupHandler providerSetup,
         IEventEmitter emitter,
         ILogger<CommandDispatcher> logger)
     {
@@ -36,6 +38,7 @@ public sealed class CommandDispatcher
         _extension = extension;
         _auth = auth;
         _thinking = thinking;
+        _providerSetup = providerSetup;
         _emitter = emitter;
         _logger = logger;
     }
@@ -131,6 +134,7 @@ public sealed class CommandDispatcher
             "auth.status" => _auth.StatusAsync(Deserialize<AuthStatusCommand>(element), cancellationToken),
             "thinking.set" => _thinking.SetAsync(Deserialize<ThinkingSetCommand>(element), cancellationToken),
             "thinking.cycle" => _thinking.CycleAsync(Deserialize<ThinkingCycleCommand>(element), cancellationToken),
+            "provider.configure" => _providerSetup.ConfigureAsync(Deserialize<ProviderConfigureCommand>(element), cancellationToken),
             _ => UnknownCommandAsync(type, cancellationToken)
         };
     }

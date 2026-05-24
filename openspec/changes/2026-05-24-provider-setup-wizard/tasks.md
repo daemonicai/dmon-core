@@ -29,14 +29,14 @@
 
 ## Group 4 — Core: setup handler
 
-- [ ] Add `ProviderSetupHandler` to `Dmon.Core/Rpc/`
+- [x] Add `ProviderSetupHandler` to `Dmon.Core/Rpc/`
   - Handles `ProviderConfigureCommand`
   - Resolves target path: `~/.dmon/config.yaml` for `scope: global`, `.dmon/config.yaml` for `scope: local`
   - Creates `~/.dmon/` directory if it does not exist
   - If target file does not exist: writes a new file with the provider stanza
   - If target file exists: appends the provider stanza under `providers:` (see design D4 note on YAML append)
   - Emits `ProviderConfiguredEvent` on success; emits `ErrorEvent` on failure
-- [ ] Register `ProviderSetupHandler` in `CommandDispatcher` / `DaemonServiceExtensions`
+- [x] Register `ProviderSetupHandler` in `CommandDispatcher` / `DaemonServiceExtensions`
 
 ## Group 5 — Console: wizard and lifecycle
 

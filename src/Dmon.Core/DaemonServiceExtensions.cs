@@ -100,6 +100,8 @@ public static class DmonServiceExtensions
         services.AddSingleton<IAuthHandler, NullAuthHandler>();
         services.AddSingleton<ThinkingHandler>();
         services.AddSingleton<IThinkingHandler>(sp => sp.GetRequiredService<ThinkingHandler>());
+        services.AddSingleton<ProviderSetupHandler>();
+        services.AddSingleton<IProviderSetupHandler>(sp => sp.GetRequiredService<ProviderSetupHandler>());
 
         services.AddSingleton<CommandDispatcher>();
         services.AddSingleton<BootstrapService>();
