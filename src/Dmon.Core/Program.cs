@@ -4,6 +4,7 @@ using Dmon.Core;
 using Dmon.Core.Rpc;
 using Dmon.Core.Telemetry;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Console;
 using NetEscapades.Configuration.Yaml;
 using OpenTelemetry;
 using OpenTelemetry.Logs;
@@ -25,10 +26,17 @@ builder.Configuration.AddYamlFile(
     Path.Combine(home, ".dmon", "config.yaml"), optional: true);
 
 builder.Logging.ClearProviders();
-builder.Logging.AddConsole(o => o.LogToStandardErrorThreshold = LogLevel.Trace);
+builder.Logging.AddConsole(o =>
+{
+    o.LogToStandardErrorThreshold = LogLevel.Trace;
+    o.FormatterName = ConsoleFormatterNames.Json;
+});
 // HttpClient logs request lifecycle at Information; suppress below Warning to avoid
 // flooding [core-stderr] with NuGet/GitHub HTTP traffic from built-in tools.
 builder.Logging.AddFilter("System.Net.Http", LogLevel.Warning);
+// Suppress .NET hosting lifecycle messages (started, env, content root) — these are
+// noise on every launch and not useful via [core-stderr] in the console host.
+builder.Logging.AddFilter("Microsoft.Hosting.Lifetime", LogLevel.Warning);
 
 // --- OpenTelemetry ---
 // Service name reads OTEL_SERVICE_NAME env var, falls back to dmon-core.

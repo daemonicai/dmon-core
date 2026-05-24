@@ -53,11 +53,9 @@ public sealed class CoreProcessManager : IDisposable
 
         _process = new Process { StartInfo = psi };
 
-        _process.ErrorDataReceived += (_, e) =>
-        {
-            if (e.Data is not null)
-                System.Console.Error.WriteLine($"[core-stderr] {e.Data}");
-        };
+        // Drain stderr to prevent the child process blocking on a full pipe buffer.
+        // Core logs are structured JSON on stderr; the console host does not forward them.
+        _process.ErrorDataReceived += (_, _) => { };
 
         _process.Start();
         _process.BeginErrorReadLine();
