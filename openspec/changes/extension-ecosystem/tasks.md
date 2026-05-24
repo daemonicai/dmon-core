@@ -34,10 +34,10 @@
 
 **Goal:** Implement the README fetch tool.
 
-- [ ] Implement `ExtensionReadmeTool`: fetches README via `gh api /repos/{owner}/{repo}/readme`, strips badges, returns ~500 char excerpt
-- [ ] Error handling: gh unavailable, no repository URL, 404
-- [ ] Register as built-in tool
-- [ ] Unit tests: badge stripping, truncation, error paths
+- [x] Implement `ExtensionReadmeTool`: fetches README via `gh api /repos/{owner}/{repo}/readme`, strips badges, returns ~500 char excerpt
+- [x] Error handling: gh unavailable, no repository URL, 404
+- [x] Register as built-in tool
+- [x] Unit tests: badge stripping, truncation, error paths
 
 ## Group 5 — extension.load security pipeline
 

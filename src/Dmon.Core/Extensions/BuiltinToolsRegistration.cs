@@ -19,7 +19,9 @@ public static class BuiltinToolsRegistration
         GlobTool glob = new();
         FetchTool fetch = new(httpClient);
         BashTool bash = new(denylist, compositeDetector, bashTimeoutSeconds);
-        ExtensionSearchTool extensionSearch = new(new NuGetSearchService(httpClient, ghCliService));
+        NuGetSearchService nugetSearch = new(httpClient, ghCliService);
+        ExtensionSearchTool extensionSearch = new(nugetSearch);
+        ExtensionReadmeTool extensionReadme = new(ghCliService, nugetSearch);
 
         registry.Register(readFile.Name, readFile, readFile.Tools);
         registry.Register(writeFile.Name, writeFile, writeFile.Tools);
@@ -28,6 +30,7 @@ public static class BuiltinToolsRegistration
         registry.Register(fetch.Name, fetch, fetch.Tools);
         registry.Register(bash.Name, bash, bash.Tools);
         registry.Register(extensionSearch.Name, extensionSearch, extensionSearch.Tools);
+        registry.Register(extensionReadme.Name, extensionReadme, extensionReadme.Tools);
 
         return registry;
     }
