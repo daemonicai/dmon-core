@@ -43,10 +43,10 @@ public sealed class BootstrapService
 
     public async Task RunAsync(CancellationToken cancellationToken)
     {
-        string cwd = Directory.GetCurrentDirectory();
-        string dmonPath = Path.Combine(cwd, DmonDir);
+        string globalHome = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        string dmonPath = Path.Combine(globalHome, DmonDir);
 
-        if (DmonRootExists(cwd))
+        if (DmonRootExists())
         {
             return;
         }
@@ -73,9 +73,18 @@ public sealed class BootstrapService
         }, cancellationToken).ConfigureAwait(false);
     }
 
-    private static bool DmonRootExists(string start)
+    private static bool DmonRootExists()
     {
-        string? current = Path.GetFullPath(start);
+        // Global config counts as bootstrapped.
+        string globalHome = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        string globalCandidate = Path.Combine(globalHome, DmonDir, ConfigFileName);
+        if (File.Exists(globalCandidate))
+        {
+            return true;
+        }
+
+        // Walk up from CWD looking for a project-local config.
+        string? current = Path.GetFullPath(Directory.GetCurrentDirectory());
 
         while (current is not null)
         {

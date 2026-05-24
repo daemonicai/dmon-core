@@ -20,12 +20,12 @@
 
 ## Group 3 — Core: setup detection
 
-- [ ] Remove the `_all.Count == 0` throw from `ProviderRegistry` constructor; allow zero providers
-- [ ] Update `BootstrapService` to target `~/.dmon/config.yaml` (global) instead of `.dmon/config.yaml` (local) for the initial first-run file creation
-- [ ] Add `SetupCheckService` to `Dmon.Core/Bootstrap/`
+- [x] Remove the `_all.Count == 0` throw from `ProviderRegistry` constructor; allow zero providers
+- [x] Update `BootstrapService` to target `~/.dmon/config.yaml` (global) instead of `.dmon/config.yaml` (local) for the initial first-run file creation
+- [x] Add `SetupCheckService` to `Dmon.Core/Bootstrap/`
   - Injected with `IEnumerable<ProviderConfig>` and `IEnumerable<IProviderFactory>` and `IEventEmitter`
   - `RunAsync`: if provider count > 0, return (no-op); otherwise check `Environment.GetEnvironmentVariable(factory.DefaultEnvVar)` per factory and emit `SetupRequiredEvent`
-- [ ] Wire `SetupCheckService.RunAsync` into `RpcHostedService` startup, after `BootstrapService.RunAsync` and before emitting `agentReady`
+- [x] Wire `SetupCheckService.RunAsync` into `RpcHostedService` startup, after `BootstrapService.RunAsync` and before emitting `agentReady`
 
 ## Group 4 — Core: setup handler
 

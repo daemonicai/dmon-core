@@ -26,11 +26,6 @@ public sealed class ProviderRegistry : IProviderRegistry
         _credentials = credentials;
         _logger = logger;
 
-        if (_all.Count == 0)
-        {
-            throw new InvalidOperationException("At least one provider must be configured.");
-        }
-
         _factories = factories.ToDictionary(
             f => f.AdapterName,
             f => f,
@@ -50,7 +45,11 @@ public sealed class ProviderRegistry : IProviderRegistry
 
     public IReadOnlyList<ProviderConfig> GetAll() => _all;
 
-    public ProviderConfig GetCurrentConfig() => _all[_activeIndex];
+    public ProviderConfig GetCurrentConfig()
+    {
+        EnsureProviderConfigured();
+        return _all[_activeIndex];
+    }
 
     public bool CurrentSupportsToolCalling
     {
@@ -76,6 +75,8 @@ public sealed class ProviderRegistry : IProviderRegistry
 
     public async ValueTask<IChatClient> GetCurrentAsync(CancellationToken cancellationToken = default)
     {
+        EnsureProviderConfigured();
+
         if (_activeClient is null)
         {
             _activeClient = await CreateClientAsync(_all[_activeIndex], cancellationToken).ConfigureAwait(false);
@@ -141,6 +142,14 @@ public sealed class ProviderRegistry : IProviderRegistry
         string activeModelId = overrideModelId ?? newConfig.DefaultModelId ?? string.Empty;
 
         return new ProviderSwitchResult(newConfig.Name, activeModelId);
+    }
+
+    private void EnsureProviderConfigured()
+    {
+        if (_all.Count == 0)
+        {
+            throw new InvalidOperationException("At least one provider must be configured.");
+        }
     }
 
     private int FindProviderIndex(string name)

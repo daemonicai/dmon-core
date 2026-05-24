@@ -9,23 +9,27 @@ public sealed class RpcHostedService : BackgroundService
     private readonly CommandDispatcher _dispatcher;
     private readonly IEventEmitter _emitter;
     private readonly BootstrapService _bootstrap;
+    private readonly SetupCheckService _setupCheck;
     private readonly ILogger<RpcHostedService> _logger;
 
     public RpcHostedService(
         CommandDispatcher dispatcher,
         IEventEmitter emitter,
         BootstrapService bootstrap,
+        SetupCheckService setupCheck,
         ILogger<RpcHostedService> logger)
     {
         _dispatcher = dispatcher;
         _emitter = emitter;
         _bootstrap = bootstrap;
+        _setupCheck = setupCheck;
         _logger = logger;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         await _bootstrap.RunAsync(stoppingToken).ConfigureAwait(false);
+        await _setupCheck.RunAsync(stoppingToken).ConfigureAwait(false);
 
         string coreVersion = Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "0.0.0";
 

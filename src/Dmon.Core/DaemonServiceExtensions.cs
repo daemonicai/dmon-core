@@ -103,6 +103,7 @@ public static class DmonServiceExtensions
 
         services.AddSingleton<CommandDispatcher>();
         services.AddSingleton<BootstrapService>();
+        services.AddSingleton<SetupCheckService>();
 
         services.AddHttpClient();
         services.AddHostedService<BuiltinToolsInitializer>();
