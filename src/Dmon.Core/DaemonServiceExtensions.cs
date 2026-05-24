@@ -2,6 +2,7 @@ using Dmon.Abstractions;
 using Dmon.Abstractions.Providers;
 using Dmon.Core.Auth;
 using Dmon.Core.Config;
+using Dmon.Core.GitHub;
 using Dmon.Core.SystemPrompt;
 using Dmon.Core.Bootstrap;
 using Dmon.Core.Extensions;
@@ -60,6 +61,8 @@ public static class DmonServiceExtensions
     /// </summary>
     public static IServiceCollection AddDmonExtensions(this IServiceCollection services)
     {
+        services.AddSingleton<IGhCliService, GhCliService>();
+
         services.AddSingleton<IToolRegistry, ToolRegistry>();
         services.AddSingleton<CsxScriptLoader>();
         services.AddSingleton<NuGetExtensionLoader>();

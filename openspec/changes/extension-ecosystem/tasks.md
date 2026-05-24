@@ -14,10 +14,10 @@
 
 **Goal:** Implement the lazy `gh` availability check used by all three tools.
 
-- [ ] Add `IGhCliService` to `Daemon.Core` with `Task<bool> IsAvailableAsync(CancellationToken)`
-- [ ] Implement `GhCliService`: runs `gh auth status`, caches result for session lifetime
-- [ ] Register `IGhCliService` in DI
-- [ ] Unit tests: available, not installed, not authenticated
+- [x] Add `IGhCliService` to `Daemon.Core` with `Task<bool> IsAvailableAsync(CancellationToken)`
+- [x] Implement `GhCliService`: runs `gh auth status`, caches result for session lifetime
+- [x] Register `IGhCliService` in DI
+- [x] Unit tests: available, not installed, not authenticated
 
 ## Group 3 — extension.search
 
