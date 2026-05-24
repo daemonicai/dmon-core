@@ -286,6 +286,8 @@ public sealed class ProviderRegistryTests
         }
 
         public string AdapterName => "openai";
+        public string DefaultModelId => "gpt-4o";
+        public string DefaultEnvVar => "OPENAI_API_KEY";
 
         public ChatClientCapabilities GetCapabilities(string modelId) =>
             _capabilitiesFunc?.Invoke(modelId) ?? new ChatClientCapabilities();

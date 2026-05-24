@@ -147,6 +147,8 @@ public sealed class ModelListHandlerTests
     private sealed class FakeProviderFactory : IProviderFactory
     {
         public string AdapterName => "openai";
+        public string DefaultModelId => "gpt-4o";
+        public string DefaultEnvVar => "OPENAI_API_KEY";
 
         public ChatClientCapabilities Capabilities { get; set; } = new ChatClientCapabilities();
 

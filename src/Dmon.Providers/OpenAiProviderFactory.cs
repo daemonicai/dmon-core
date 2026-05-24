@@ -8,6 +8,8 @@ namespace Dmon.Providers;
 public sealed class OpenAiProviderFactory : IProviderFactory
 {
     public string AdapterName => "openai";
+    public string DefaultModelId => "gpt-4o";
+    public string DefaultEnvVar => "OPENAI_API_KEY";
 
     public ChatClientCapabilities GetCapabilities(string modelId) => modelId.ToLowerInvariant() switch
     {

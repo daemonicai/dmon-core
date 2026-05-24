@@ -8,6 +8,8 @@ namespace Dmon.Providers;
 public sealed class GeminiProviderFactory : IProviderFactory
 {
     public string AdapterName => "gemini";
+    public string DefaultModelId => "gemini-2.5-pro";
+    public string DefaultEnvVar => "GEMINI_API_KEY";
 
     public ChatClientCapabilities GetCapabilities(string modelId) => modelId.ToLowerInvariant() switch
     {

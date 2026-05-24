@@ -7,6 +7,8 @@ namespace Dmon.Providers;
 public sealed class AnthropicProviderFactory : IProviderFactory
 {
     public string AdapterName => "anthropic";
+    public string DefaultModelId => "claude-sonnet-4-6";
+    public string DefaultEnvVar => "ANTHROPIC_API_KEY";
 
     public ChatClientCapabilities GetCapabilities(string modelId) => modelId.ToLowerInvariant() switch
     {

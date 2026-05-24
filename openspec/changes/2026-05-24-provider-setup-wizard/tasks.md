@@ -13,10 +13,10 @@
 
 ## Group 2 — Factory metadata
 
-- [ ] Add `string DefaultModelId { get; }` and `string DefaultEnvVar { get; }` to `IProviderFactory` in `Dmon.Abstractions`
-- [ ] Implement in `AnthropicProviderFactory`: `DefaultModelId = "claude-sonnet-4-6"`, `DefaultEnvVar = "ANTHROPIC_API_KEY"`
-- [ ] Implement in `OpenAiProviderFactory`: `DefaultModelId = "gpt-4o"`, `DefaultEnvVar = "OPENAI_API_KEY"`
-- [ ] Implement in `GeminiProviderFactory`: `DefaultModelId = "gemini-2.5-pro"`, `DefaultEnvVar = "GEMINI_API_KEY"`
+- [x] Add `string DefaultModelId { get; }` and `string DefaultEnvVar { get; }` to `IProviderFactory` in `Dmon.Abstractions`
+- [x] Implement in `AnthropicProviderFactory`: `DefaultModelId = "claude-sonnet-4-6"`, `DefaultEnvVar = "ANTHROPIC_API_KEY"`
+- [x] Implement in `OpenAiProviderFactory`: `DefaultModelId = "gpt-4o"`, `DefaultEnvVar = "OPENAI_API_KEY"`
+- [x] Implement in `GeminiProviderFactory`: `DefaultModelId = "gemini-2.5-pro"`, `DefaultEnvVar = "GEMINI_API_KEY"`
 
 ## Group 3 — Core: setup detection
 
