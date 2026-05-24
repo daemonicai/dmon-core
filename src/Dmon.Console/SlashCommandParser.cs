@@ -13,6 +13,11 @@ public static class SlashCommandParser
     {
         public Command? Command { get; init; }
 
+        /// <summary>
+        /// A client-side-only command (not sent to core). Check this before <see cref="Command"/>.
+        /// </summary>
+        public object? ClientCommand { get; init; }
+
         public string? Error { get; init; }
 
         public bool IsExit { get; init; }
@@ -46,6 +51,8 @@ public static class SlashCommandParser
         return cmd switch
         {
             "quit" or "exit" => new ParseResult { IsSlashCommand = true, IsExit = true },
+
+            "add-provider" => ParseAddProvider(args),
 
             "new" => new ParseResult
             {
@@ -185,6 +192,18 @@ public static class SlashCommandParser
         {
             IsSlashCommand = true,
             Command = new ThinkingSetCommand { Id = id, Level = level.Value }
+        };
+    }
+
+    private static ParseResult ParseAddProvider(string[] args)
+    {
+        if (args.Length > 0)
+            return new ParseResult { IsSlashCommand = true, Error = "Usage: /add-provider (no arguments)" };
+
+        return new ParseResult
+        {
+            IsSlashCommand = true,
+            ClientCommand = new AddProviderCommand()
         };
     }
 }

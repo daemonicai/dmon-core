@@ -40,21 +40,21 @@
 
 ## Group 5 — Console: wizard and lifecycle
 
-- [ ] Add `SetupWizard` class to `Dmon.Console/`
+- [x] Add `SetupWizard` class to `Dmon.Console/`
   - `Show(IReadOnlyList<AdapterInfo> adapters, bool isAddProvider)` — synchronous Spectre.Console prompts
   - Branches on `envVarDetected` count per design D3
   - When `isAddProvider = true`: always show full adapter picker + scope step (`global` / `local`)
   - Returns `SetupWizardResult { Adapter, ModelId, EnvVar, Scope }`
-- [ ] Update `ConsoleHost.RunAsync` to intercept `SetupRequiredEvent` before `agentReady`:
+- [x] Update `ConsoleHost.RunAsync` to intercept `SetupRequiredEvent` before `agentReady`:
   - Run `SetupWizard.Show(adapters, isAddProvider: false)`
   - Send `ProviderConfigureCommand` to core
   - Wait for `ProviderConfiguredEvent` (or `ErrorEvent`)
   - On success: call `StopAsync` + `StartAsync` on `CoreProcessManager` (restart core), then resume normal startup
   - On error: display message and exit
-- [ ] Update `ConsoleHost.ProcessEventAsync` to handle `ProviderConfiguredEvent` in the mid-session (post-ready) path (for `/add-provider`)
-- [ ] Add `AddProviderCommand` client-side marker type (not sent to core) to `Dmon.Console/`
-- [ ] Update `SlashCommandParser` to parse `/add-provider` into `AddProviderCommand`
-- [ ] Update `ConsoleHost.ProcessUserInputAsync` to handle `AddProviderCommand`:
+- [x] Update `ConsoleHost.ProcessEventAsync` to handle `ProviderConfiguredEvent` in the mid-session (post-ready) path (for `/add-provider`)
+- [x] Add `AddProviderCommand` client-side marker type (not sent to core) to `Dmon.Console/`
+- [x] Update `SlashCommandParser` to parse `/add-provider` into `AddProviderCommand`
+- [x] Update `ConsoleHost.ProcessUserInputAsync` to handle `AddProviderCommand`:
   - Run `SetupWizard.Show(adapters, isAddProvider: true)`
   - Send `ProviderConfigureCommand` to core
   - Restart core on `ProviderConfiguredEvent`
