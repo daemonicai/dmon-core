@@ -26,6 +26,9 @@ builder.Configuration.AddYamlFile(
 
 builder.Logging.ClearProviders();
 builder.Logging.AddConsole(o => o.LogToStandardErrorThreshold = LogLevel.Trace);
+// HttpClient logs request lifecycle at Information; suppress below Warning to avoid
+// flooding [core-stderr] with NuGet/GitHub HTTP traffic from built-in tools.
+builder.Logging.AddFilter("System.Net.Http", LogLevel.Warning);
 
 // --- OpenTelemetry ---
 // Service name reads OTEL_SERVICE_NAME env var, falls back to dmon-core.
