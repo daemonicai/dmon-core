@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Text.Json;
 
 namespace Dmon.Core.Tests;
@@ -7,110 +6,40 @@ namespace Dmon.Core.Tests;
 /// End-to-end smoke test that launches the Dmon.Core process over stdio
 /// and verifies it starts, responds to commands, and shuts down cleanly.
 ///
-/// Requires a valid provider config in an appsettings.json next to the core DLL,
-/// or a pre-configured .dmon/config.yaml at CWD. The test auto-creates
-/// a minimal appsettings.json before launching the core.
+/// The process is shared across all tests in this class via
+/// <see cref="CoreProcessFixture"/>: it starts once, all tests run against
+/// the same process, then it is stopped once.
 /// </summary>
-public class ConsoleSmokeTest : IAsyncLifetime
+public class ConsoleSmokeTest : IClassFixture<CoreProcessFixture>
 {
-    private Process? _coreProcess;
-    private StreamWriter? _stdin;
-    private StreamReader? _stdout;
-    private string? _tempWorkDir;
-    private readonly List<string> _coreStderr = [];
+    private readonly CoreProcessFixture _fixture;
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase
     };
 
-    public async Task InitializeAsync()
+    public ConsoleSmokeTest(CoreProcessFixture fixture)
     {
-        (string coreDll, string coreDir) = FindCoreDll();
-
-        // Write a minimal appsettings.json next to the core DLL so the host finds it.
-        string appSettingsPath = Path.Combine(coreDir, "appsettings.json");
-        await File.WriteAllTextAsync(appSettingsPath, """
-        {
-          "providers": {
-            "test": {
-              "adapter": "openai",
-              "defaultModelId": "gpt-4",
-              "auth": { "type": "none" }
-            }
-          }
-        }
-        """);
-
-        // Use the core dir as working directory so bootstrap creates .dmon/ there.
-        _tempWorkDir = coreDir;
-
-        var psi = new ProcessStartInfo
-        {
-            FileName = "dotnet",
-            Arguments = $"exec \"{coreDll}\"",
-            RedirectStandardInput = true,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false,
-            CreateNoWindow = true,
-            WorkingDirectory = _tempWorkDir
-        };
-
-        _coreProcess = new Process { StartInfo = psi };
-        _coreProcess.ErrorDataReceived += (_, e) =>
-        {
-            if (e.Data is not null)
-            {
-                _coreStderr.Add(e.Data);
-                System.Diagnostics.Debug.WriteLine($"[core-stderr] {e.Data}");
-            }
-        };
-
-        _coreProcess.Start();
-        _coreProcess.BeginErrorReadLine();
-        _stdin = _coreProcess.StandardInput;
-        _stdout = _coreProcess.StandardOutput;
-    }
-
-    public async Task DisposeAsync()
-    {
-        if (_coreProcess is { HasExited: false })
-        {
-            try
-            {
-                _stdin?.Close();
-                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-                await _coreProcess.WaitForExitAsync(cts.Token);
-            }
-            catch
-            {
-                try { _coreProcess.Kill(entireProcessTree: true); }
-                catch { /* best effort */ }
-            }
-        }
-        _coreProcess?.Dispose();
+        _fixture = fixture;
     }
 
     [Fact]
     public async Task CoreStartsAndRespondsToSessionList()
     {
-        Assert.NotNull(_stdout);
+        Assert.NotNull(_fixture.StandardOutput);
+        Assert.True(_fixture.AgentReadyReceived, _fixture.FormatFailure("agentReady was never received"));
 
-        await SkipToAgentReadyAsync();
-
-        // Send session.list
         string cmdId = Guid.NewGuid().ToString("N");
         string cmd = JsonSerializer.Serialize(new { type = "session.list", id = cmdId }, JsonOptions);
-        await _stdin!.WriteLineAsync(cmd);
-        await _stdin.FlushAsync();
+        await _fixture.StandardInput!.WriteLineAsync(cmd);
+        await _fixture.StandardInput.FlushAsync();
 
-        // Read response — may take a few lines if there are other events
         string? respLine = null;
         for (int i = 0; i < 20; i++)
         {
-            string? line = await _stdout.ReadLineAsync();
-            Assert.NotNull(line);
-            if (line!.Contains("\"response\"") && line.Contains(cmdId))
+            string? line = await _fixture.ReadLineWithTimeoutAsync(TimeSpan.FromSeconds(2));
+            if (line is null) break;
+            if (line.Contains("\"response\"") && line.Contains(cmdId))
             {
                 respLine = line;
                 break;
@@ -126,19 +55,16 @@ public class ConsoleSmokeTest : IAsyncLifetime
     [Fact]
     public async Task CoreRespondsToErrorOnMalformedCommand()
     {
-        Assert.NotNull(_stdout);
+        Assert.NotNull(_fixture.StandardOutput);
+        Assert.True(_fixture.AgentReadyReceived, _fixture.FormatFailure("agentReady was never received"));
 
-        await SkipToAgentReadyAsync();
+        await _fixture.StandardInput!.WriteLineAsync("{not valid json");
+        await _fixture.StandardInput.FlushAsync();
 
-        // Send garbage
-        await _stdin!.WriteLineAsync("{not valid json");
-        await _stdin.FlushAsync();
-
-        // Read error event
         string? errorLine = null;
         for (int i = 0; i < 20; i++)
         {
-            string? line = await _stdout.ReadLineAsync();
+            string? line = await _fixture.ReadLineWithTimeoutAsync(TimeSpan.FromSeconds(2));
             if (line is null) break;
             if (line.Contains("\"error\""))
             {
@@ -150,53 +76,5 @@ public class ConsoleSmokeTest : IAsyncLifetime
         Assert.NotNull(errorLine);
         JsonDocument errorDoc = JsonDocument.Parse(errorLine);
         Assert.Equal("error", errorDoc.RootElement.GetProperty("type").GetString());
-    }
-
-    private async Task SkipToAgentReadyAsync()
-    {
-        for (int i = 0; i < 20; i++)
-        {
-            string? line = await _stdout!.ReadLineAsync();
-            if (line is null) break;
-            if (line.Contains("\"agentReady\""))
-            {
-                return;
-            }
-        }
-
-        string stderrText = string.Join("\n", _coreStderr);
-        string extraInfo = _coreProcess?.HasExited == true
-            ? $"Core exited with code {_coreProcess.ExitCode}"
-            : "Core still running";
-        Assert.Fail($"agentReady was never received. {extraInfo}. Core stderr:\n{stderrText}");
-    }
-
-    private static (string path, string directory) FindCoreDll()
-    {
-        string assemblyPath = System.Reflection.Assembly.GetExecutingAssembly().Location;
-        string assemblyDir = Path.GetDirectoryName(assemblyPath) ?? ".";
-
-        // Walk from test DLL to repo root.
-        // Test DLL is at test/Dmon.Core.Tests/bin/Debug/net10.0/
-        // Going up 5 levels reaches the repo root.
-        string repoRoot = Path.GetFullPath(Path.Combine(assemblyDir, "../../../../.."));
-
-        string[] candidates =
-        [
-            Path.Combine(repoRoot, "src/Dmon.Core/bin/Debug/net10.0/dmoncore.dll"),
-            Path.Combine(repoRoot, "src/Dmon.Core/bin/Release/net10.0/dmoncore.dll"),
-        ];
-
-        foreach (string candidate in candidates)
-        {
-            if (File.Exists(candidate))
-            {
-                return (candidate, Path.GetDirectoryName(candidate)!);
-            }
-        }
-
-        throw new FileNotFoundException(
-            $"Could not find dmoncore.dll. Run 'dotnet build' first.",
-            "dmoncore.dll");
     }
 }
