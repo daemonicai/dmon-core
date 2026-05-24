@@ -19,9 +19,9 @@
 
 ## 4. TurnHandler integration
 
-- [ ] 4.1 Inject `ISystemPromptBuilder` into `TurnHandler` constructor
-- [ ] 4.2 On first `turn.submit`, call `BuildAsync`, prepend result as `_history[0]`
-- [ ] 4.3 Skip rebuild on subsequent turns (check `_history.Count > 0` or a flag)
+- [x] 4.1 Inject `ISystemPromptBuilder` into `TurnHandler` constructor
+- [x] 4.2 On first `turn.submit`, call `BuildAsync`, prepend result as `_history[0]`
+- [x] 4.3 Skip rebuild on subsequent turns (check `_history.Count > 0` or a flag)
 
 ## 5. Tests
 

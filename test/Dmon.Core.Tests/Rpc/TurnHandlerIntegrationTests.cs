@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using Dmon.Abstractions;
 using Dmon.Abstractions.Providers;
 using Dmon.Core.Extensions;
 using Dmon.Extensions;
@@ -223,6 +224,12 @@ internal sealed class StubAttachmentStore : IAttachmentStore
 // Factory
 // ---------------------------------------------------------------------------
 
+internal sealed class StubSystemPromptBuilder : ISystemPromptBuilder
+{
+    public Task<ChatMessage> BuildAsync(CancellationToken cancellationToken)
+        => Task.FromResult(new ChatMessage(ChatRole.System, "You are a test assistant."));
+}
+
 internal static class TurnHandlerFactory
 {
     public static (TurnHandler handler, TestEventEmitter emitter) Create(IChatClient client)
@@ -234,6 +241,7 @@ internal static class TurnHandlerFactory
         NoopThinkingHandler thinking = new();
         StubSessionHandler sessionHandler = new();
         StubAttachmentStore attachmentStore = new();
+        StubSystemPromptBuilder systemPromptBuilder = new();
         IConfiguration configuration = new ConfigurationBuilder().Build();
 
         TurnHandler handler = new(
@@ -244,6 +252,7 @@ internal static class TurnHandlerFactory
             thinking,
             sessionHandler,
             attachmentStore,
+            systemPromptBuilder,
             configuration,
             NullLogger<TurnHandler>.Instance);
 

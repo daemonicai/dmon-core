@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
+using Dmon.Abstractions;
 using Dmon.Abstractions.Providers;
 using Dmon.Core.Extensions;
 using Dmon.Core.Permissions;
@@ -26,6 +27,7 @@ public sealed class TurnHandler : ITurnHandler
     private readonly IThinkingHandler _thinking;
     private readonly ISessionHandler _sessionHandler;
     private readonly IAttachmentStore _attachmentStore;
+    private readonly ISystemPromptBuilder _systemPromptBuilder;
     private readonly RetryPolicy _retryPolicy;
     private readonly ILogger<TurnHandler> _logger;
 
@@ -43,6 +45,7 @@ public sealed class TurnHandler : ITurnHandler
 
     // Conversation history for this session.
     private readonly List<ChatMessage> _history = [];
+    private bool _systemPromptInjected;
 
     public TurnHandler(
         IProviderRegistry providers,
@@ -52,6 +55,7 @@ public sealed class TurnHandler : ITurnHandler
         IThinkingHandler thinking,
         ISessionHandler sessionHandler,
         IAttachmentStore attachmentStore,
+        ISystemPromptBuilder systemPromptBuilder,
         IConfiguration configuration,
         ILogger<TurnHandler> logger)
     {
@@ -62,6 +66,7 @@ public sealed class TurnHandler : ITurnHandler
         _thinking = thinking;
         _sessionHandler = sessionHandler;
         _attachmentStore = attachmentStore;
+        _systemPromptBuilder = systemPromptBuilder;
         _retryPolicy = RetryPolicy.FromConfiguration(configuration);
         _logger = logger;
     }
@@ -87,6 +92,13 @@ public sealed class TurnHandler : ITurnHandler
         _turnCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         try
         {
+            if (!_systemPromptInjected)
+            {
+                ChatMessage systemMessage = await _systemPromptBuilder.BuildAsync(_turnCts.Token).ConfigureAwait(false);
+                _history.Insert(0, systemMessage);
+                _systemPromptInjected = true;
+            }
+
             ChatMessage userMessage = new(ChatRole.User, cmd.Message);
             _history.Add(userMessage);
             await RunTurnAsync(_turnCts.Token).ConfigureAwait(false);
