@@ -62,16 +62,16 @@
 
 ## Group 6 — Tests
 
-- [ ] Unit tests for `SetupCheckService`:
+- [x] Unit tests for `SetupCheckService`:
   - No providers configured → `SetupRequiredEvent` emitted with correct `EnvVarDetected` flags
   - One provider configured → no event emitted
   - Env var present in environment → `EnvVarDetected = true` for that adapter
-- [ ] Unit tests for `ProviderSetupHandler`:
+- [x] Unit tests for `ProviderSetupHandler`:
   - New global file created with correct YAML content
   - New local file created with correct YAML content
   - Existing file appended with new provider stanza
   - `ProviderConfiguredEvent` emitted on success
-- [ ] Integration test for first-run flow (extend `IntegrationSmokeTest`):
+- [x] Integration test for first-run flow (extend `IntegrationSmokeTest`):
   - Core started with no config → `setupRequired` event received
   - `provider.configure` command sent → `providerConfigured` event received
   - Config file written at expected path

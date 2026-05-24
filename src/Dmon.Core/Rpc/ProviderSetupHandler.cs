@@ -3,7 +3,7 @@ using Dmon.Protocol.Events;
 
 namespace Dmon.Core.Rpc;
 
-public sealed class ProviderSetupHandler : IProviderSetupHandler
+public class ProviderSetupHandler : IProviderSetupHandler
 {
     private readonly IEventEmitter _emitter;
 
@@ -14,19 +14,8 @@ public sealed class ProviderSetupHandler : IProviderSetupHandler
 
     public async Task ConfigureAsync(ProviderConfigureCommand command, CancellationToken cancellationToken)
     {
-        string configPath;
-        if (command.Scope == "global")
-        {
-            configPath = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-                ".dmon",
-                "config.yaml");
-        }
-        else if (command.Scope == "local")
-        {
-            configPath = Path.Combine(Directory.GetCurrentDirectory(), ".dmon", "config.yaml");
-        }
-        else
+        string? configPath = ResolveConfigPath(command.Scope);
+        if (configPath is null)
         {
             await _emitter.EmitAsync(new ErrorEvent
             {
@@ -106,6 +95,25 @@ public sealed class ProviderSetupHandler : IProviderSetupHandler
                 Recoverable = true
             }, cancellationToken).ConfigureAwait(false);
         }
+    }
+
+    // Returns null for unknown scopes; callers treat null as an error.
+    protected virtual string? ResolveConfigPath(string scope)
+    {
+        if (scope == "global")
+        {
+            return Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                ".dmon",
+                "config.yaml");
+        }
+
+        if (scope == "local")
+        {
+            return Path.Combine(Directory.GetCurrentDirectory(), ".dmon", "config.yaml");
+        }
+
+        return null;
     }
 
     // The provider stanza body: the indented child lines that live under the

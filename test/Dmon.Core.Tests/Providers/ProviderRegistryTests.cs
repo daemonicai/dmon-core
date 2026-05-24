@@ -182,11 +182,30 @@ public sealed class ProviderRegistryTests
     }
 
     [Fact]
-    public void Constructor_EmptyConfigs_Throws()
+    public void Constructor_EmptyConfigs_Succeeds()
     {
-        void Act() => CreateRegistry([]);
+        // Zero providers is valid after the registry was softened (Group 3).
+        // GetCurrentConfig() will throw at use-time, not at construction.
+        IProviderRegistry registry = CreateRegistry([]);
 
-        Assert.Throws<InvalidOperationException>(Act);
+        Assert.Empty(registry.GetAll());
+    }
+
+    [Fact]
+    public void GetCurrentConfig_EmptyConfigs_ThrowsInvalidOperation()
+    {
+        IProviderRegistry registry = CreateRegistry([]);
+
+        Assert.Throws<InvalidOperationException>(() => registry.GetCurrentConfig());
+    }
+
+    [Fact]
+    public async Task GetCurrentAsync_EmptyConfigs_ThrowsInvalidOperation()
+    {
+        IProviderRegistry registry = CreateRegistry([]);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            async () => await registry.GetCurrentAsync());
     }
 
     [Fact]

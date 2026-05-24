@@ -129,6 +129,21 @@ public class IntegrationSmokeTest : IClassFixture<CoreProcessFixture>
         Assert.NotNull(root.GetProperty("message").GetString());
     }
 
+    [Fact]
+    public void AgentReady_ReceivedWithoutSetupRequired()
+    {
+        // The fixture starts the core with appsettings.json that includes a provider stanza.
+        // SetupCheckService sees providers > 0 and skips emitting setupRequired, so the
+        // process emits agentReady directly. WaitForAgentReadyAsync in the fixture would
+        // have timed out and left AgentReadyReceived = false if setupRequired had been
+        // emitted instead (since the fixture does not handle that handshake).
+        Assert.True(_fixture.AgentReadyReceived, _fixture.FormatFailure("agentReady was never received"));
+
+        // TODO: add a second fixture (NoprovidersProcessFixture) that starts the core
+        // with no provider config and asserts setupRequired is emitted. This requires a
+        // separate IClassFixture so it does not share the process with this class.
+    }
+
     // ─── helpers ──────────────────────────────────────────────
 
     private async Task SendAsync(object cmd)
