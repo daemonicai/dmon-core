@@ -11,11 +11,11 @@
 
 ## 3. System prompt builder implementation
 
-- [ ] 3.1 Implement `SystemPromptBuilder` in `Dmon.Core` implementing `ISystemPromptBuilder`
-- [ ] 3.2 Write static core text (identity, tool-usage norms, permission model awareness, terse/informal tone)
-- [ ] 3.3 Assemble dynamic context block (CWD, OS/platform, provider name + model ID, loaded extensions)
-- [ ] 3.4 Append project config content (from step 2) when present
-- [ ] 3.5 Register `SystemPromptBuilder` in DI container
+- [x] 3.1 Implement `SystemPromptBuilder` in `Dmon.Core` implementing `ISystemPromptBuilder`
+- [x] 3.2 Write static core text (identity, tool-usage norms, permission model awareness, terse/informal tone)
+- [x] 3.3 Assemble dynamic context block (CWD, OS/platform, provider name + model ID, loaded extensions)
+- [x] 3.4 Append project config content (from step 2) when present
+- [x] 3.5 Register `SystemPromptBuilder` in DI container
 
 ## 4. TurnHandler integration
 

@@ -1,5 +1,8 @@
+using Dmon.Abstractions;
 using Dmon.Abstractions.Providers;
 using Dmon.Core.Auth;
+using Dmon.Core.Config;
+using Dmon.Core.SystemPrompt;
 using Dmon.Core.Bootstrap;
 using Dmon.Core.Extensions;
 using Dmon.Core.Permissions;
@@ -89,6 +92,9 @@ public static class DmonServiceExtensions
         });
 
         services.AddSingleton<IEventEmitter>(_ => new EventEmitter(Console.Out));
+
+        services.AddSingleton<AgentConfigResolver>();
+        services.AddSingleton<ISystemPromptBuilder, SystemPromptBuilder>();
 
         services.AddSingleton<TurnHandler>();
         services.AddSingleton<ITurnHandler>(sp => sp.GetRequiredService<TurnHandler>());
