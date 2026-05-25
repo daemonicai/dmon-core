@@ -20,13 +20,13 @@
 
 ## 3. MarkdownRenderer (Spectre port)
 
-- [ ] 3.1 Copy `MarkdownRenderer.cs` from `Dmon.Tui`; change return type from `List<(string Text, Attribute Style)>` to `string` (Spectre markup string)
-- [ ] 3.2 `ParagraphBlock`: emit plain text with word-wrap (no special markup)
-- [ ] 3.3 `FencedCodeBlock` / `IndentedCodeBlock`: emit as `[[[italic dim]{language}[/]]]\n{code}` wrapped in a `Panel`-equivalent markup block (use Spectre `[[ ]]` panel syntax or manual border characters)
-- [ ] 3.4 `ListBlock` / `ListItemBlock`: prefix each item with `  • `
-- [ ] 3.5 `EmphasisInline` bold: `[bold]{text}[/]`; italic: `[italic]{text}[/]`
-- [ ] 3.6 `CodeInline`: `[bold yellow on grey]{text}[/]`
-- [ ] 3.7 `HeadingBlock`: `[bold underline]{text}[/]`
+- [x] 3.1 Copy `MarkdownRenderer.cs` from `Dmon.Tui`; change return type from `List<(string Text, Attribute Style)>` to `string` (Spectre markup string)
+- [x] 3.2 `ParagraphBlock`: emit plain text with word-wrap (no special markup)
+- [x] 3.3 `FencedCodeBlock` / `IndentedCodeBlock`: emit as `[[[italic dim]{language}[/]]]\n{code}` wrapped in a `Panel`-equivalent markup block (use Spectre `[[ ]]` panel syntax or manual border characters)
+- [x] 3.4 `ListBlock` / `ListItemBlock`: prefix each item with `  • `
+- [x] 3.5 `EmphasisInline` bold: `[bold]{text}[/]`; italic: `[italic]{text}[/]`
+- [x] 3.6 `CodeInline`: `[bold yellow on grey]{text}[/]`
+- [x] 3.7 `HeadingBlock`: `[bold underline]{text}[/]`
 
 ## 4. InputReader
 
