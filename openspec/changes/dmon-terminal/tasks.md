@@ -41,12 +41,12 @@
 
 ## 5. Inline Prompts (Wizard + Tool Confirm)
 
-- [ ] 5.1 Implement `InlinePrompt` static helper: `Task<int?> ChooseAsync(string title, IReadOnlyList<string> options, CancellationToken)` — prints numbered list, reads a single digit keypress (1–9), returns 0-based index or null for cancel (Ctrl+C / `0` / `q`)
-- [ ] 5.2 Implement `InlinePrompt.ReadLineAsync(string prompt, bool secret, CancellationToken)` — prints prompt label, reads a line (using `InputReader`-style loop); masks input with `*` when `secret`
-- [ ] 5.3 Rewrite `AdapterSelectionStep`: use `InlinePrompt.ChooseAsync` with adapter names; no Terminal.Gui; `b`/`0` returns `WizardState.Back`
-- [ ] 5.4 Rewrite `ModelSelectionStep`: use `InlinePrompt.ChooseAsync` with model names for selected adapter
-- [ ] 5.5 Rewrite `AuthConfigStep`: use `InlinePrompt.ReadLineAsync` for env-var name; use `InlinePrompt.ChooseAsync` for scope (local/global)
-- [ ] 5.6 Implement `ToolConfirmPrompt.ShowAsync(string name, string args, string risk, CancellationToken)`: print tool name/args, print `[red]⚠ HIGH RISK[/]` when risk is `high`, use `InlinePrompt.ChooseAsync` with four options; return `ToolPermission?`
+- [x] 5.1 Implement `InlinePrompt` static helper: `Task<int?> ChooseAsync(string title, IReadOnlyList<string> options, CancellationToken)` — prints numbered list, reads a single digit keypress (1–9), returns 0-based index or null for cancel (Ctrl+C / `0` / `q`)
+- [x] 5.2 Implement `InlinePrompt.ReadLineAsync(string prompt, bool secret, CancellationToken)` — prints prompt label, reads a line (using `InputReader`-style loop); masks input with `*` when `secret`
+- [x] 5.3 Rewrite `AdapterSelectionStep`: use `InlinePrompt.ChooseAsync` with adapter names; no Terminal.Gui; `b`/`0` returns `WizardState.Back`
+- [x] 5.4 Rewrite `ModelSelectionStep`: use `InlinePrompt.ChooseAsync` with model names for selected adapter
+- [x] 5.5 Rewrite `AuthConfigStep`: use `InlinePrompt.ReadLineAsync` for env-var name; use `InlinePrompt.ChooseAsync` for scope (local/global)
+- [x] 5.6 Implement `ToolConfirmPrompt.ShowAsync(string name, string args, string risk, CancellationToken)`: print tool name/args, print `[red]⚠ HIGH RISK[/]` when risk is `high`, use `InlinePrompt.ChooseAsync` with four options; return `ToolPermission?`
 
 ## 6. ConsoleEventHandler
 
