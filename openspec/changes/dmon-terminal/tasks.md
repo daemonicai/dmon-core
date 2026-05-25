@@ -30,14 +30,14 @@
 
 ## 4. InputReader
 
-- [ ] 4.1 Implement `InputReader` class: holds a `Channel<string>` and exposes `IAsyncEnumerable<string> ReadLinesAsync(CancellationToken)`
-- [ ] 4.2 `RunAsync(CancellationToken)`: loop on `Console.ReadKey(intercept: true)`; build a `StringBuilder` for the current line
-- [ ] 4.3 Handle `Enter`: write the buffered line to the channel, clear buffer, write `\n` to move past the prompt
-- [ ] 4.4 Handle `Backspace`: if buffer non-empty, remove last char, write `\b \b` to erase the character on screen
-- [ ] 4.5 Handle printable characters: append to buffer, echo to `Console.Out`
-- [ ] 4.6 Handle `UpArrow` / `DownArrow`: cycle through in-memory history list; rewrite current input line
-- [ ] 4.7 Handle `Escape`: clear the current buffer and rewrite (blank) the prompt line
-- [ ] 4.8 Expose `bool IsLocked { get; set; }`: when `true`, accept keystrokes but do not echo or enqueue them
+- [x] 4.1 Implement `InputReader` class: holds a `Channel<string>` and exposes `IAsyncEnumerable<string> ReadLinesAsync(CancellationToken)`
+- [x] 4.2 `RunAsync(CancellationToken)`: loop on `Console.ReadKey(intercept: true)`; build a `StringBuilder` for the current line
+- [x] 4.3 Handle `Enter`: write the buffered line to the channel, clear buffer, write `\n` to move past the prompt
+- [x] 4.4 Handle `Backspace`: if buffer non-empty, remove last char, write `\b \b` to erase the character on screen
+- [x] 4.5 Handle printable characters: append to buffer, echo to `Console.Out`
+- [x] 4.6 Handle `UpArrow` / `DownArrow`: cycle through in-memory history list; rewrite current input line
+- [x] 4.7 Handle `Escape`: clear the current buffer and rewrite (blank) the prompt line
+- [x] 4.8 Expose `bool IsLocked { get; set; }`: when `true`, accept keystrokes but do not echo or enqueue them
 
 ## 5. Inline Prompts (Wizard + Tool Confirm)
 
