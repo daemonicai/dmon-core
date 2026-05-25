@@ -45,11 +45,11 @@
 
 ## 6. Modal Dialogs — Tool Confirm and UI Input
 
-- [ ] 6.1 Implement `ToolConfirmDialog`: Terminal.Gui `Dialog` with tool name, args, risk level, and four buttons (Allow once / Allow for project / Allow globally / Deny)
-- [ ] 6.2 Implement high-risk visual distinction in `ToolConfirmDialog` (e.g. red border or warning label when `risk: high`)
-- [ ] 6.3 Implement `UiInputDialog`: Terminal.Gui `Dialog` with prompt label and `TextField` (or masked `TextField` for `kind: secret`)
-- [ ] 6.4 Handle `ToolConfirmRequestEvent` in `TuiEventHandler`: show `ToolConfirmDialog`, send `ToolConfirmResponseCommand` with result
-- [ ] 6.5 Handle `UiInputRequestEvent` in `TuiEventHandler`: show `UiInputDialog`, send `UiInputResponseCommand` with result
+- [x] 6.1 Implement `ToolConfirmDialog`: Terminal.Gui `Dialog` with tool name, args, risk level, and four buttons (Allow once / Allow for project / Allow globally / Deny)
+- [x] 6.2 Implement high-risk visual distinction in `ToolConfirmDialog` (e.g. red border or warning label when `risk: high`)
+- [x] 6.3 Implement `UiInputDialog`: Terminal.Gui `Dialog` with prompt label and `TextField` (or masked `TextField` for `kind: secret`)
+- [x] 6.4 Handle `ToolConfirmRequestEvent` in `TuiEventHandler`: show `ToolConfirmDialog`, send `ToolConfirmResponseCommand` with result
+- [x] 6.5 Handle `UiInputRequestEvent` in `TuiEventHandler`: show `UiInputDialog`, send `UiInputResponseCommand` with result
 
 ## 7. Setup Wizard — Step-Dialog Sequence
 

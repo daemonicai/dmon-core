@@ -9,6 +9,12 @@ public sealed record ToolConfirmResponseCommand : Command
 
     [JsonPropertyName("cancelled")]
     public bool Cancelled { get; init; }
+
+    /// <summary>
+    /// Permission scope: "once" | "project" | "global" | null (denied).
+    /// </summary>
+    [JsonPropertyName("scope")]
+    public string? Scope { get; init; }
 }
 
 public sealed record UiInputResponseCommand : Command

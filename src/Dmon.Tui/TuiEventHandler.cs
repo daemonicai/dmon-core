@@ -1,4 +1,6 @@
 using System.Text.Json;
+using Dmon.Protocol.Commands;
+using Dmon.Protocol.Enums;
 using Dmon.Protocol.Events;
 using Terminal.Gui.App;
 
@@ -14,7 +16,6 @@ internal sealed class TuiEventHandler
     private readonly DmonWindow _window;
     private readonly IApplication _app;
 
-    // sendCommand is reserved for Group 6 (tool confirm and UI input responses).
     private readonly Func<object, CancellationToken, Task> _sendCommand;
 
     public TuiEventHandler(
@@ -27,7 +28,7 @@ internal sealed class TuiEventHandler
         _sendCommand = sendCommand;
     }
 
-    public Task HandleAsync(Event @event, CancellationToken cancellationToken)
+    public async Task HandleAsync(Event @event, CancellationToken cancellationToken)
     {
         switch (@event)
         {
@@ -131,6 +132,14 @@ internal sealed class TuiEventHandler
                 });
                 break;
 
+            case ToolConfirmRequestEvent confirm:
+                await HandleToolConfirmAsync(confirm, cancellationToken).ConfigureAwait(false);
+                break;
+
+            case UiInputRequestEvent uiInput:
+                await HandleUiInputAsync(uiInput, cancellationToken).ConfigureAwait(false);
+                break;
+
             case CompactionStartEvent:
             case CompactionEndEvent:
             case MessageStartEvent:
@@ -148,15 +157,86 @@ internal sealed class TuiEventHandler
             case AuthLoginFailedEvent:
             case AuthStatusResultEvent:
             case ModelListResultEvent:
-            case UiInputRequestEvent:
-            case ToolConfirmRequestEvent:
             case CapabilityIgnoredEvent:
-            case ResponseEvent:
-                // Silently ignored at this stage; handled in later groups or not surfaced.
+            case ResponseEvent: // success responses — not surfaced in the TUI
+            default:
                 break;
         }
+    }
 
-        return Task.CompletedTask;
+    private async Task HandleToolConfirmAsync(ToolConfirmRequestEvent confirm, CancellationToken cancellationToken)
+    {
+        string argsText = confirm.Args?.ToString() ?? string.Empty;
+        string riskText = confirm.Risk.ToString();
+
+        TaskCompletionSource<ToolPermission?> bridgeTcs = new();
+        _app.Invoke(() =>
+        {
+            _ = BridgeAsync(
+                ToolConfirmDialog.ShowAsync(_app, confirm.Name, argsText, riskText, cancellationToken),
+                bridgeTcs);
+        });
+        ToolPermission? permission = await bridgeTcs.Task.ConfigureAwait(false);
+
+        string? scope = permission switch
+        {
+            ToolPermission.Once    => "once",
+            ToolPermission.Project => "project",
+            ToolPermission.Global  => "global",
+            _                      => null,
+        };
+
+        ToolConfirmResponseCommand response = new()
+        {
+            Id = confirm.ConfirmId,
+            Confirmed = permission is not null,
+            Cancelled = false,
+            Scope = scope,
+        };
+
+        await _sendCommand(response, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task HandleUiInputAsync(UiInputRequestEvent uiInput, CancellationToken cancellationToken)
+    {
+        string kind = uiInput.Kind.ToString();
+
+        TaskCompletionSource<string?> bridgeTcs = new();
+        _app.Invoke(() =>
+        {
+            _ = BridgeAsync(
+                UiInputDialog.ShowAsync(_app, uiInput.Prompt, kind, cancellationToken),
+                bridgeTcs);
+        });
+        string? value = await bridgeTcs.Task.ConfigureAwait(false);
+
+        UiInputResponseCommand response = new()
+        {
+            Id = uiInput.EventId,
+            Value = value,
+            Cancelled = value is null,
+        };
+
+        await _sendCommand(response, cancellationToken).ConfigureAwait(false);
+    }
+
+    // Awaits a dialog task started on the UI thread and forwards its outcome to the
+    // background-thread awaiter via the bridge. All exceptions and cancellation are
+    // captured into the bridge so the awaiter never hangs and nothing escapes as async void.
+    private static async Task BridgeAsync<T>(Task<T> dialogTask, TaskCompletionSource<T> bridge)
+    {
+        try
+        {
+            bridge.TrySetResult(await dialogTask.ConfigureAwait(true));
+        }
+        catch (OperationCanceledException)
+        {
+            bridge.TrySetCanceled();
+        }
+        catch (Exception ex)
+        {
+            bridge.TrySetException(ex);
+        }
     }
 
     // Extracts the text delta from the MessageDeltaEvent.Delta object.
