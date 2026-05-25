@@ -65,12 +65,12 @@
 
 ## 7. Program.cs and Wiring
 
-- [ ] 7.1 Implement `Program.cs`: parse `--core-path`; create `CoreProcessManager`, `EventDispatcher`, `TerminalRenderer`, `InputReader`, `ConsoleEventHandler`
-- [ ] 7.2 Wire `Console.CancelKeyPress` to `cts.Cancel()` (no `Invoke` needed — Spectre.Console does not intercept signals)
-- [ ] 7.3 Start `EventDispatcher.RunAsync(cts.Token)` as background task
-- [ ] 7.4 Start `InputReader.RunAsync(cts.Token)` as background task
-- [ ] 7.5 Main loop: `await foreach (string line in inputReader.ReadLinesAsync(cts.Token))` → `await handler.HandleUserInputAsync(line, cts.Token)`; also drain the event channel via `Task.WhenAny` so events process concurrently with input
-- [ ] 7.6 After main loop exits: `await coreProcess.StopAsync()`; print final separator
+- [x] 7.1 Implement `Program.cs`: parse `--core-path`; create `CoreProcessManager`, `EventDispatcher`, `TerminalRenderer`, `InputReader`, `ConsoleEventHandler`
+- [x] 7.2 Wire `Console.CancelKeyPress` to `cts.Cancel()` (no `Invoke` needed — Spectre.Console does not intercept signals)
+- [x] 7.3 Start `EventDispatcher.RunAsync(cts.Token)` as background task
+- [x] 7.4 Start `InputReader.RunAsync(cts.Token)` as background task
+- [x] 7.5 Main loop: `await foreach (string line in inputReader.ReadLinesAsync(cts.Token))` → `await handler.HandleUserInputAsync(line, cts.Token)`; also drain the event channel via `Task.WhenAny` so events process concurrently with input
+- [x] 7.6 After main loop exits: `await coreProcess.StopAsync()`; print final separator
 
 ## 8. Verification
 
