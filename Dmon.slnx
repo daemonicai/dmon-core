@@ -13,7 +13,7 @@
   </Folder>
   <Folder Name="/src/">
     <Project Path="src\Dmon.Abstractions\Dmon.Abstractions.csproj" />
-    <Project Path="src\Dmon.Tui\Dmon.Tui.csproj" />
+    <Project Path="src\Dmon.Terminal\Dmon.Terminal.csproj" />
     <Project Path="src\Dmon.Core\Dmon.Core.csproj" />
     <Project Path="src\Dmon.BuiltinTools\Dmon.BuiltinTools.csproj" />
     <Project Path="src\Dmon.Extensions\Dmon.Extensions.csproj" />
