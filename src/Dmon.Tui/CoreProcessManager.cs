@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using System.Reflection;
 
-namespace Dmon.Console;
+namespace Dmon.Tui;
 
 /// <summary>
 /// Manages the Dmon.Core process lifecycle.
@@ -54,7 +54,7 @@ public sealed class CoreProcessManager : IDisposable
         _process = new Process { StartInfo = psi };
 
         // Drain stderr to prevent the child process blocking on a full pipe buffer.
-        // Core logs are structured JSON on stderr; the console host does not forward them.
+        // Core logs are structured JSON on stderr; the TUI host does not forward them.
         _process.ErrorDataReceived += (_, _) => { };
 
         _process.Start();

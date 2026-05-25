@@ -2,7 +2,7 @@ using System.Text.Json;
 using System.Threading.Channels;
 using Dmon.Protocol.Events;
 
-namespace Dmon.Console;
+namespace Dmon.Tui;
 
 /// <summary>
 /// Reads JSONL events from the core process's standard output and dispatches
@@ -55,7 +55,7 @@ public sealed class EventDispatcher
                 catch (JsonException ex)
                 {
                     await System.Console.Error.WriteLineAsync(
-                        $"[console] Failed to deserialize event: {ex.Message}").ConfigureAwait(false);
+                        $"[tui] Failed to deserialize event: {ex.Message}").ConfigureAwait(false);
                 }
             }
         }

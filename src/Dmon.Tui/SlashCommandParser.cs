@@ -1,7 +1,7 @@
 using Dmon.Protocol.Commands;
 using Dmon.Protocol.Enums;
 
-namespace Dmon.Console;
+namespace Dmon.Tui;
 
 /// <summary>
 /// Parses user input into either a regular message (returned as-is) or a
