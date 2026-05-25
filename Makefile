@@ -1,17 +1,17 @@
-.PHONY: all build build-console build-core test clean
+.PHONY: all build build-terminal build-core test clean
 
-CONFIG      ?= Release
-CONSOLE_OUT := build
-CORE_OUT    := build/dmoncore
+CONFIG       ?= Release
+CORE_OUT     := build/dmoncore
+TERMINAL_OUT := build
 
 all: build test
 
-build: build-console build-core
+build: build-terminal build-core
 
-build-console:
-	dotnet publish src/Dmon.Tui/Dmon.Tui.csproj \
+build-terminal:
+	dotnet publish src/Dmon.Terminal/Dmon.Terminal.csproj \
 		-c $(CONFIG) \
-		-o $(CONSOLE_OUT) \
+		-o $(TERMINAL_OUT) \
 		--no-self-contained
 
 build-core:

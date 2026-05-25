@@ -66,3 +66,9 @@ nunit-*.xml
 
 # Local notes
 notes/
+
+# dmon publish output
+--no-self-contained/
+
+# dmon session data
+.dmon/sessions/
