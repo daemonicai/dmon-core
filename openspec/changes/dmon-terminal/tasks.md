@@ -74,7 +74,7 @@
 
 ## 8. Verification
 
-- [ ] 8.1 `dotnet build` — zero warnings, zero errors (`TreatWarningsAsErrors` enabled)
-- [ ] 8.2 Smoke test: startup on clean `~/.dmon` → wizard appears inline → select adapter + model + env var → submit message → response streams token by token → turn settles with markdown → `/exit` closes cleanly
-- [ ] 8.3 Smoke test: Ctrl+C exits cleanly at idle and during streaming
-- [ ] 8.4 Smoke test: copy/paste works in the terminal (OS-level text selection is not intercepted)
+- [x] 8.1 `dotnet build` — zero warnings, zero errors (`TreatWarningsAsErrors` enabled)
+- [x] 8.2 Smoke test: startup on clean `~/.dmon` → wizard appears inline → select adapter + model + env var → submit message → response streams token by token → turn settles with markdown → `/exit` closes cleanly
+- [x] 8.3 Smoke test: Ctrl+C exits cleanly at idle and during streaming
+- [x] 8.4 Smoke test: copy/paste works in the terminal (OS-level text selection is not intercepted)
