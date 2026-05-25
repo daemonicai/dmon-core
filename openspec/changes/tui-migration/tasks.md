@@ -10,10 +10,10 @@
 
 ## 2. TurnBlock Model and ChatOutputView
 
-- [ ] 2.1 Define `TurnBlock` record (`ChatRole Role`, `string RawText`, `bool Rendered`) in `Dmon.Tui`
-- [ ] 2.2 Implement `ChatOutputView : View` holding `List<TurnBlock>`, overriding `OnDrawContent` to render the block list
-- [ ] 2.3 Implement streaming append: `AppendToken(string token)` adds to the last assistant block, triggers redraw, scrolls to bottom
-- [ ] 2.4 Implement inline code span detection: scan the tail of `RawText` on each append; apply monospace `Attribute` to completed backtick spans
+- [x] 2.1 Define `TurnBlock` class (`ChatRole Role`, `string RawText`, `bool Rendered`) in `Dmon.Tui`
+- [x] 2.2 Implement `ChatOutputView : View` holding `List<TurnBlock>`, overriding `OnDrawContent` to render the block list
+- [x] 2.3 Implement streaming append: `AppendToken(string token)` adds to the last assistant block, triggers redraw, scrolls to bottom
+- [x] 2.4 Implement inline code span detection: scan the tail of `RawText` on each append; apply monospace `Attribute` to completed backtick spans
 
 ## 3. Markdig Settled Renderer
 
