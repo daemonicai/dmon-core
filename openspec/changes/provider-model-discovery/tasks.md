@@ -5,10 +5,10 @@
 
 ## 2. Implement GetAvailableModelsAsync in built-in factories
 
-- [ ] 2.1 Implement `GetAvailableModelsAsync` in `GeminiProviderFactory`: call `GET https://generativelanguage.googleapis.com/v1beta/models?key={apiKey}`, strip the `models/` prefix, filter to entries starting with `gemini`, fall back to static list on any failure or null/empty key; apply a 5-second timeout
-- [ ] 2.2 Implement `GetAvailableModelsAsync` in `AnthropicProviderFactory`: call `GET https://api.anthropic.com/v1/models` with `x-api-key` and `anthropic-version: 2023-06-01` headers, parse `data[].id`, fall back to static list on any failure or null/empty key; apply a 5-second timeout
-- [ ] 2.3 Implement `GetAvailableModelsAsync` in `OpenAiProviderFactory`: call `GET https://api.openai.com/v1/models` with `Authorization: Bearer {apiKey}`, filter `data[].id` to entries starting with `gpt-` or `o`, fall back to static list on any failure or null/empty key; apply a 5-second timeout
-- [ ] 2.4 Define the static fallback list in each factory as a private static field mirroring the values currently hard-coded in `WizardSteps.cs`
+- [x] 2.1 Implement `GetAvailableModelsAsync` in `GeminiProviderFactory`: call `GET https://generativelanguage.googleapis.com/v1beta/models?key={apiKey}`, strip the `models/` prefix, filter to entries starting with `gemini`, fall back to static list on any failure or null/empty key; apply a 5-second timeout
+- [x] 2.2 Implement `GetAvailableModelsAsync` in `AnthropicProviderFactory`: call `GET https://api.anthropic.com/v1/models` with `x-api-key` and `anthropic-version: 2023-06-01` headers, parse `data[].id`, fall back to static list on any failure or null/empty key; apply a 5-second timeout
+- [x] 2.3 Implement `GetAvailableModelsAsync` in `OpenAiProviderFactory`: call `GET https://api.openai.com/v1/models` with `Authorization: Bearer {apiKey}`, filter `data[].id` to entries starting with `gpt-` or `o`, fall back to static list on any failure or null/empty key; apply a 5-second timeout
+- [x] 2.4 Define the static fallback list in each factory as a private static field mirroring the values currently hard-coded in `WizardSteps.cs`
 
 ## 3. Update WizardState
 
