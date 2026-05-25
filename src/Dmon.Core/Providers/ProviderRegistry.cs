@@ -84,6 +84,26 @@ public sealed class ProviderRegistry : IProviderRegistry
             extension.ProviderName, factory.AdapterName);
     }
 
+    public void AddDynamicProvider(ProviderConfig config)
+    {
+        if (!_factories.ContainsKey(config.Adapter))
+        {
+            throw new InvalidOperationException(
+                $"No factory registered for adapter '{config.Adapter}'.");
+        }
+
+        int existingIndex = _extensionConfigs.FindIndex(
+            c => string.Equals(c.Name, config.Name, StringComparison.OrdinalIgnoreCase));
+
+        if (existingIndex >= 0)
+            _extensionConfigs[existingIndex] = config;
+        else
+            _extensionConfigs.Add(config);
+
+        _logger.LogDebug("Added dynamic provider '{Provider}' (adapter: {Adapter}).",
+            config.Name, config.Adapter);
+    }
+
     public ProviderConfig GetCurrentConfig()
     {
         IReadOnlyList<ProviderConfig> all = GetAll();

@@ -4,6 +4,7 @@ using Dmon.Core.Rpc;
 using Dmon.Core.Tests.Fakes;
 using Dmon.Protocol.Commands;
 using Dmon.Protocol.Events;
+using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Configuration;
 using NetEscapades.Configuration.Yaml;
 
@@ -54,7 +55,8 @@ public sealed class ProviderSetupHandlerTests : IDisposable
     private sealed class TestablePsh(
         IEventEmitter emitter,
         string globalConfigPath,
-        string localConfigPath) : ProviderSetupHandler(emitter)
+        string localConfigPath,
+        IProviderRegistry? registry = null) : ProviderSetupHandler(emitter, registry ?? new NoOpProviderRegistry())
     {
         protected override string? ResolveConfigPath(string scope) =>
             scope switch
@@ -63,6 +65,21 @@ public sealed class ProviderSetupHandlerTests : IDisposable
                 "local" => localConfigPath,
                 _ => null
             };
+    }
+
+    private sealed class NoOpProviderRegistry : IProviderRegistry
+    {
+        public ValueTask<IChatClient> GetCurrentAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public ProviderConfig GetCurrentConfig() => throw new NotSupportedException();
+        public IReadOnlyList<ProviderConfig> GetAll() => throw new NotSupportedException();
+        public void SetProvider(string name) { }
+        public void SetModel(string modelId) { }
+        public void CycleProvider() { }
+        public Task RegisterExtensionAsync(IProviderExtension extension, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public void AddDynamicProvider(ProviderConfig config) { }
+        public ProviderSwitchResult? CommitPendingSwitch() => null;
+        public bool CurrentSupportsToolCalling => false;
+        public bool CurrentSupportsReasoning => false;
     }
 
     // ─── tests ────────────────────────────────────────────────
@@ -190,7 +207,7 @@ public sealed class ProviderSetupHandlerTests : IDisposable
     {
         // Use base handler directly — TestablePsh passes unknown scopes through to null.
         FakeEventEmitter emitter = new();
-        ProviderSetupHandler handler = new(emitter);
+        ProviderSetupHandler handler = new(emitter, new NoOpProviderRegistry());
 
         await handler.ConfigureAsync(MakeCommand("unknown-scope"), CancellationToken.None);
 

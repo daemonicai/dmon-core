@@ -19,6 +19,12 @@ public interface IProviderRegistry
     /// </summary>
     Task RegisterExtensionAsync(IProviderExtension extension, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Adds a provider that was configured at runtime via <c>provider.configure</c>.
+    /// The provider is immediately available; no restart required.
+    /// </summary>
+    void AddDynamicProvider(ProviderConfig config);
+
     // Must only be called strictly between turns — never during an active streaming call.
     ProviderSwitchResult? CommitPendingSwitch();
 

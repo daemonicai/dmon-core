@@ -1,3 +1,5 @@
+using Dmon.Abstractions.Providers;
+using Dmon.Core.Providers;
 using Dmon.Protocol.Commands;
 using Dmon.Protocol.Events;
 
@@ -6,10 +8,12 @@ namespace Dmon.Core.Rpc;
 public class ProviderSetupHandler : IProviderSetupHandler
 {
     private readonly IEventEmitter _emitter;
+    private readonly IProviderRegistry _registry;
 
-    public ProviderSetupHandler(IEventEmitter emitter)
+    public ProviderSetupHandler(IEventEmitter emitter, IProviderRegistry registry)
     {
         _emitter = emitter;
+        _registry = registry;
     }
 
     public async Task ConfigureAsync(ProviderConfigureCommand command, CancellationToken cancellationToken)
@@ -78,6 +82,18 @@ public class ProviderSetupHandler : IProviderSetupHandler
             }
 
             await File.WriteAllTextAsync(configPath, content, cancellationToken).ConfigureAwait(false);
+
+            _registry.AddDynamicProvider(new ProviderConfig
+            {
+                Name = command.Adapter,
+                Adapter = command.Adapter,
+                DefaultModelId = command.ModelId,
+                Auth = new ProviderAuthConfig
+                {
+                    Type = "envVar",
+                    EnvVar = command.EnvVar,
+                },
+            });
 
             await _emitter.EmitAsync(new ProviderConfiguredEvent
             {

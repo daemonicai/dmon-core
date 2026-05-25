@@ -142,6 +142,8 @@ internal sealed class StubProviderRegistry : IProviderRegistry
     public Task RegisterExtensionAsync(IProviderExtension extension, CancellationToken cancellationToken = default)
         => Task.CompletedTask;
 
+    public void AddDynamicProvider(ProviderConfig config) { }
+
     public ProviderSwitchResult? CommitPendingSwitch() => null;
 
     public bool CurrentSupportsToolCalling => false;
