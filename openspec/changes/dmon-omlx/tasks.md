@@ -31,11 +31,11 @@
 
 **Goal:** Implement `OmlxProviderExtension : IProviderExtension`.
 
-- [ ] Implement `OmlxProviderExtension`: constructor accepts optional `OmlxConfig` (falls back to `OmlxConfig.FromEnvironment()`); exposes `ProviderName = "oMLX"`
-- [ ] Implement `IsApplicable()`: `RuntimeInformation.IsOSPlatform(OSPlatform.OSX) && RuntimeInformation.ProcessArchitecture == Architecture.Arm64`; catch all exceptions → return `false`
-- [ ] Implement `IsRunningAsync()`: `GET {BaseUrl}/v1/models` with `x-api-key` header; 2 s internal timeout; return `true` iff HTTP 200 and any entry has `owned_by == "omlx"`; catch all exceptions → return `false`
-- [ ] Implement `EnsureRunningAsync()`: no-op if already running; launch `open -a oMLX` via `Process.Start`; poll `IsRunningAsync()` every 1 s up to timeout (default 30 s); throw `TimeoutException` if timeout elapses
-- [ ] Implement `ListModelsAsync()`: `GET {BaseUrl}/v1/models`; map each entry to `new ModelInfo { Id = entry.id, Capabilities = OmlxCapabilityHeuristic.Infer(entry.id) }`; return empty list on any error
-- [ ] Implement `CreateFactory()`: return `new OmlxProviderFactory(config)`
-- [ ] Unit tests: `IsApplicable()` returns correct value per platform/arch (use `RuntimeInformation` abstraction or test directly); `IsRunningAsync()` true on 200+owned_by, false on wrong owned_by, false on connection refused; `ListModelsAsync()` maps models correctly, returns empty on error; `EnsureRunningAsync()` no-ops when running, throws TimeoutException when server never responds
-- [ ] Confirm `dotnet build` and `dotnet test` are clean
+- [x] Implement `OmlxProviderExtension`: constructor accepts optional `OmlxConfig` (falls back to `OmlxConfig.FromEnvironment()`); exposes `ProviderName = "oMLX"`
+- [x] Implement `IsApplicable()`: `RuntimeInformation.IsOSPlatform(OSPlatform.OSX) && RuntimeInformation.ProcessArchitecture == Architecture.Arm64`; catch all exceptions → return `false`
+- [x] Implement `IsRunningAsync()`: `GET {BaseUrl}/v1/models` with `x-api-key` header; 2 s internal timeout; return `true` iff HTTP 200 and any entry has `owned_by == "omlx"`; catch all exceptions → return `false`
+- [x] Implement `EnsureRunningAsync()`: no-op if already running; launch `open -a oMLX` via `Process.Start`; poll `IsRunningAsync()` every 1 s up to timeout (default 30 s); throw `TimeoutException` if timeout elapses
+- [x] Implement `ListModelsAsync()`: `GET {BaseUrl}/v1/models`; map each entry to `new ModelInfo { Id = entry.id, Capabilities = OmlxCapabilityHeuristic.Infer(entry.id) }`; return empty list on any error
+- [x] Implement `CreateFactory()`: return `new OmlxProviderFactory(config)`
+- [x] Unit tests: `IsApplicable()` returns correct value per platform/arch (use `RuntimeInformation` abstraction or test directly); `IsRunningAsync()` true on 200+owned_by, false on wrong owned_by, false on connection refused; `ListModelsAsync()` maps models correctly, returns empty on error; `EnsureRunningAsync()` no-ops when running, throws TimeoutException when server never responds
+- [x] Confirm `dotnet build` and `dotnet test` are clean

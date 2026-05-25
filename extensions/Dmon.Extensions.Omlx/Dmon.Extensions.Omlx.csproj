@@ -12,6 +12,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="Dmon.Extensions.Omlx.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\src\Dmon.Abstractions\Dmon.Abstractions.csproj" />
   </ItemGroup>
 
