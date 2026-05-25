@@ -28,7 +28,9 @@ InputReader inputReader = new();
 
 async Task SendCommandAsync(Command cmd, CancellationToken ct)
 {
-    string json = JsonSerializer.Serialize(cmd, cmd.GetType(), jsonOptions);
+    // Serialize as the base Command type so [JsonPolymorphic] emits the "type" discriminator.
+    // Passing cmd.GetType() (the concrete type) bypasses the polymorphic attributes and omits it.
+    string json = JsonSerializer.Serialize(cmd, jsonOptions);
     // ADR-003: strict LF framing. Do not rely on StreamWriter.NewLine (CRLF on Windows).
     await coreProcess.StandardInput.WriteAsync(json.AsMemory(), ct).ConfigureAwait(false);
     await coreProcess.StandardInput.WriteAsync('\n').ConfigureAwait(false);
