@@ -77,17 +77,17 @@ If the index is lost or corrupted it can be fully rebuilt by scanning session di
 
 ### Session location
 
-Sessions are stored **project-local by default**: the agent walks up the directory tree from the working directory looking for a `.daemon/` directory, exactly as git does for `.git/`. If found, sessions are stored in `.daemon/sessions/`. If no `.daemon/` directory is found, the agent falls back to `~/.daemon/sessions/`.
+Sessions are stored **project-local by default**: the agent walks up the directory tree from the working directory looking for a `.dmon/` directory, exactly as git does for `.git/`. If found, sessions are stored in `.dmon/sessions/`. If no `.dmon/` directory is found, the agent falls back to `~/.dmon/sessions/`.
 
-A project can opt out of local storage by setting `sessionStore: global` in `.daemon/config.yaml`, which redirects all sessions to `~/.daemon/sessions/`. A custom path is also accepted (`sessionStore: /path/to/sessions`).
+A project can opt out of local storage by setting `sessionStore: global` in `.dmon/config.yaml`, which redirects all sessions to `~/.dmon/sessions/`. A custom path is also accepted (`sessionStore: /path/to/sessions`).
 
 ```
 Discovery order:
-  1. Walk up from CWD for .daemon/config.yaml → read sessionStore
-  2. If sessionStore: local (default) → .daemon/sessions/ in that directory
-  3. If sessionStore: global            → ~/.daemon/sessions/
+  1. Walk up from CWD for .dmon/config.yaml → read sessionStore
+  2. If sessionStore: local (default) → .dmon/sessions/ in that directory
+  3. If sessionStore: global            → ~/.dmon/sessions/
   4. If sessionStore: <path>            → that path
-  5. If no .daemon/ found anywhere     → ~/.daemon/sessions/
+  5. If no .dmon/ found anywhere     → ~/.dmon/sessions/
 ```
 
 ### Forking

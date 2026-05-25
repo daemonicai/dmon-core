@@ -123,7 +123,7 @@ Provider capability differences (tool-calling support, context window, reasoning
 | `agentReady` | `protocolVersion`, `coreVersion` | First event emitted on startup, before any command is processed |
 | `agentStart` | — | Per-turn marker |
 | `agentEnd` | `messages` | Per-turn marker |
-| `bootstrapNotice` | `path`, `created[]` | Emitted when `.daemon/` is auto-created on first use |
+| `bootstrapNotice` | `path`, `created[]` | Emitted when `.dmon/` is auto-created on first use |
 | `providerSwitched` | `name`, `model`, `effectiveNextTurn` | `effectiveNextTurn: true` — in-flight turn finishes on previous provider |
 | `capabilityIgnored` | `capability`, `requestedValue`, `reason` | E.g. `thinking.set` against a provider without reasoning support |
 | `extensionError` | `source`, `phase`, `diagnostics[]` | Script compile errors, NuGet load errors, etc. |
@@ -183,7 +183,7 @@ Provider calls that fail with retryable errors (HTTP 5xx, 429 rate-limit, provid
 ## Consequences
 
 - **Pi frontends need minimal adaptation.** The protocol shape is close enough that clients written for Pi can talk to daemon with a thin adapter.
-- **bash is not a top-level command.** Pi surfaces bash as a first-class RPC command because its TypeScript runtime needs it. daemon's bash tool is an `AIFunction` extension that goes through the same path as all other tools, including the permission gate. No special case at the protocol level.
+- **bash is not a top-level command.** Pi surfaces bash as a first-class RPC command because its TypeScript runtime needs it. dmon's bash tool is an `AIFunction` extension that goes through the same path as all other tools, including the permission gate. No special case at the protocol level.
 - **Tool confirmation is not a separate channel.** The `tool.confirmRequest / tool.confirmResponse` pattern composes with any future host UI interaction (select, input, editor) using the same mechanism.
 - **camelCase throughout.** Diverges from Pi's `snake_case` to match .NET/JSON conventions.
 - **No JSON-RPC 2.0 compliance.** Tooling that expects a strict JSON-RPC 2.0 server will not work without an adapter.

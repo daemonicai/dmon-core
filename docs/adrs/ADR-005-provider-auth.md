@@ -58,14 +58,14 @@ providers:
 For each provider, credentials are resolved in this order:
 
 1. **Environment variable** named in `auth.envVar` — CI-friendly, takes precedence
-2. **Credentials file** `~/.daemon/credentials/<provider>.json` — set by `/login`
+2. **Credentials file** `~/.dmon/credentials/<provider>.json` — set by `/login`
 3. **Interactive prompt** via the UI input mechanism (ADR-003 `ui.inputRequest` with `kind: secret`) — stores result in the credentials file. Credential prompts use the dedicated `ui.inputRequest` channel rather than `tool.confirmRequest` (the latter is reserved for tool execution gating).
 
-Credentials are **always user-global** (`~/.daemon/credentials/`). They are never stored in the project-local `.daemon/` directory to prevent accidental inclusion in version control.
+Credentials are **always user-global** (`~/.dmon/credentials/`). They are never stored in the project-local `.dmon/` directory to prevent accidental inclusion in version control.
 
 ### Credentials file format
 
-Each provider has its own file: `~/.daemon/credentials/<provider>.json`. The credentials directory is created with mode `0700`; each file with mode `0600` on POSIX. On Windows, the directory ACL is restricted to the current user.
+Each provider has its own file: `~/.dmon/credentials/<provider>.json`. The credentials directory is created with mode `0700`; each file with mode `0600` on POSIX. On Windows, the directory ACL is restricted to the current user.
 
 ```json
 {
@@ -97,12 +97,12 @@ Auth is managed via slash commands in the agent UI, which map to RPC messages (A
   Core checks what's needed:
     - API key → emits ui.inputRequest {id, kind: "secret", prompt: "API key for <provider>"}
                 Host collects key, sends ui.inputResponse {id, value}
-                Core stores in ~/.daemon/credentials/<provider>.json (mode 0600)
+                Core stores in ~/.dmon/credentials/<provider>.json (mode 0600)
   Core → Host: auth.loginComplete {provider}
 
 /logout <provider>
   Host → Core: auth.logout {provider}
-  Core deletes ~/.daemon/credentials/<provider>.json
+  Core deletes ~/.dmon/credentials/<provider>.json
   Core → Host: auth.logoutComplete {provider}
 ```
 
@@ -125,7 +125,7 @@ If Gemini via Vertex AI is added in a future version, the device code flow will 
 - Core emits `auth.loginPending {provider, url, code, expiresIn}`
 - Host displays the code and URL
 - Core polls in background
-- Core stores access token + refresh token in `~/.daemon/credentials/<provider>.json`
+- Core stores access token + refresh token in `~/.dmon/credentials/<provider>.json`
 - Core refreshes automatically before expiry
 
 No OAuth implementation is required for V1.

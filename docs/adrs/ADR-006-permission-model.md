@@ -52,7 +52,7 @@ The classifier runs on the *raw* string the agent submits — not on a shell-exp
 
 #### Network / HTTP
 
-HTTP calls from tools require per-domain approval, stored at **project level only** (`.daemon/settings.yaml`). Domain approvals are not user-global: a domain approved in one project is not approved in another. Subdomains require their own approval (`api.example.com` ≠ `example.com`).
+HTTP calls from tools require per-domain approval, stored at **project level only** (`.dmon/settings.yaml`). Domain approvals are not user-global: a domain approved in one project is not approved in another. Subdomains require their own approval (`api.example.com` ≠ `example.com`).
 
 ### Denylist
 
@@ -73,8 +73,8 @@ Every prompt offers four options:
 | Option | Scope | Storage |
 |--------|-------|---------|
 | Allow once | This invocation only | Not stored |
-| Allow for project | All sessions in this project | `.daemon/settings.yaml` |
-| Allow globally | All projects | `~/.daemon/settings.yaml` |
+| Allow for project | All sessions in this project | `.dmon/settings.yaml` |
+| Allow globally | All projects | `~/.dmon/settings.yaml` |
 | Deny | Rejected, reported to agent | Not stored |
 
 Project settings take precedence over global settings. Denying does not store a permanent deny rule — the agent may ask again in a future session.
@@ -94,7 +94,7 @@ Extension loading is a distinct permission tier with a mandatory multi-step gate
 
 1. **Source fetch** — mandatory. The source for the exact package version being loaded must be retrievable. The mechanism: the `.nupkg` is downloaded and its `.nuspec` is parsed for a `<repository url="..." commit="...">` element; a non-empty `url` is required. Source files are then fetched at the recorded commit (from `raw.githubusercontent.com` for public GitHub repos without authentication; via the `gh` CLI for private repos). If the nuspec has no `<repository>` element, or if source cannot be fetched, the load is **refused unconditionally** — no approval can override this. The `gh` CLI is not required for public-repo source fetches; it is used only for private repos and for GitHub enrichment signals.
 
-2. **Source analysis** — the daemon's LLM performs a security pass over the extension source, inspecting for suspicious patterns:
+2. **Source analysis** — dmon's LLM performs a security pass over the extension source, inspecting for suspicious patterns:
    - Filesystem access outside the CWD subtree
    - Outbound network calls (flagged with context — expected for some extension types)
    - Process spawning
@@ -131,7 +131,7 @@ Hosts use `risk` to decide how to present the confirmation. The Avalonia host ma
 ### Settings file shape
 
 ```yaml
-# .daemon/settings.yaml (project) or ~/.daemon/settings.yaml (global)
+# .dmon/settings.yaml (project) or ~/.dmon/settings.yaml (global)
 permissions:
   read:
     allow:

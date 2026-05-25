@@ -1,4 +1,4 @@
-# daemon provider configuration
+# dmon provider configuration
 # See docs/adrs/ADR-001-llm-provider-abstraction.md for provider adapter types.
 #
 # Provider entries:
@@ -40,7 +40,7 @@ providers:
     baseUrl: http://localhost:8080/v1
 
 # Session storage settings
-Daemon:
+Dmon:
   Session:
     # Messages larger than this (bytes) are stored as attachment files
     AttachmentThresholdBytes: 1024
