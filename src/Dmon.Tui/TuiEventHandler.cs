@@ -16,12 +16,12 @@ internal sealed class TuiEventHandler
     private readonly DmonWindow _window;
     private readonly IApplication _app;
 
-    private readonly Func<object, CancellationToken, Task> _sendCommand;
+    private readonly Func<Command, CancellationToken, Task> _sendCommand;
 
     public TuiEventHandler(
         DmonWindow window,
         IApplication app,
-        Func<object, CancellationToken, Task> sendCommand)
+        Func<Command, CancellationToken, Task> sendCommand)
     {
         _window = window;
         _app = app;
@@ -232,6 +232,61 @@ internal sealed class TuiEventHandler
         };
 
         await _sendCommand(command, cancellationToken).ConfigureAwait(false);
+
+        _app.Invoke(() =>
+        {
+            _window.ChatOutput.AddSystemTurn("[Add Provider] Configuring provider, waiting for agent ready…");
+        });
+    }
+
+    /// <summary>
+    /// Processes a line of user input: routes slash commands to core or client handlers,
+    /// and sends plain messages as <see cref="TurnSubmitCommand"/>.
+    /// </summary>
+    public async Task HandleUserInputAsync(string input, CancellationToken cancellationToken)
+    {
+        SlashCommandParser.ParseResult result = SlashCommandParser.Parse(input);
+
+        if (result.IsExit)
+        {
+            _app.Invoke(() => _app.RequestStop());
+            return;
+        }
+
+        if (result.Error is not null)
+        {
+            _app.Invoke(() =>
+            {
+                _window.ChatOutput.AddSystemTurn($"[Error] {result.Error}");
+            });
+            return;
+        }
+
+        if (result.ClientCommand is AddProviderCommand)
+        {
+            await HandleAddProviderAsync(cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
+        if (result.Command is not null)
+        {
+            await _sendCommand(result.Command, cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
+        // Plain message — not a slash command.
+        TurnSubmitCommand submitCommand = new()
+        {
+            Id = Guid.NewGuid().ToString("N"),
+            Message = input,
+        };
+
+        _app.Invoke(() =>
+        {
+            _window.ChatOutput.AddUserTurn(input);
+        });
+
+        await _sendCommand(submitCommand, cancellationToken).ConfigureAwait(false);
     }
 
     private async Task HandleUiInputAsync(UiInputRequestEvent uiInput, CancellationToken cancellationToken)

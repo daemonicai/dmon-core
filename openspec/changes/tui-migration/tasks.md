@@ -62,9 +62,9 @@
 
 ## 8. Wiring and Verification
 
-- [ ] 8.1 Implement `Program.cs` entry point: create `IApplication`, init, run `DmonWindow`, dispose
-- [ ] 8.2 Wire `CancellationToken` from Ctrl+C to `Application.RequestStop`
-- [ ] 8.3 Port all slash command handling from `ConsoleHost.ProcessUserInputAsync` to `TuiEventHandler` (session, model, thinking, fork, exit)
-- [ ] 8.4 Port `HandleAddProviderAsync` restart-and-wait logic to `TuiEventHandler`
-- [ ] 8.5 Verify `dotnet build` passes with zero warnings (`TreatWarningsAsErrors` enabled)
+- [x] 8.1 Implement `Program.cs` entry point: create `IApplication`, init, run `DmonWindow`, dispose
+- [x] 8.2 Wire `CancellationToken` from Ctrl+C to `Application.RequestStop`
+- [x] 8.3 Port all slash command handling from `ConsoleHost.ProcessUserInputAsync` to `TuiEventHandler` (session, model, thinking, fork, exit)
+- [x] 8.4 Port `HandleAddProviderAsync` restart-and-wait logic to `TuiEventHandler`
+- [x] 8.5 Verify `dotnet build` passes with zero warnings (`TreatWarningsAsErrors` enabled)
 - [ ] 8.6 Smoke test: startup → submit message → response streams and settles → tool confirm dialog → `/exit`
