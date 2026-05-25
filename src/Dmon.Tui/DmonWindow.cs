@@ -1,3 +1,6 @@
+using System.Threading.Channels;
+using Dmon.Protocol.Events;
+using Terminal.Gui.App;
 using Terminal.Gui.Input;
 using Terminal.Gui.ViewBase;
 using Terminal.Gui.Views;
@@ -82,6 +85,40 @@ internal sealed class DmonWindow : Window
     {
         _inputField.Enabled = true;
         _inputField.SetFocus();
+    }
+
+    /// <summary>
+    /// Starts a background task that drains <paramref name="events"/> and routes each event
+    /// through <paramref name="handler"/>. Stops when the channel completes or
+    /// <paramref name="cancellationToken"/> is cancelled.
+    /// </summary>
+    public void StartEventLoop(
+        ChannelReader<Event> events,
+        TuiEventHandler handler,
+        IApplication app,
+        CancellationToken cancellationToken)
+    {
+        Task.Run(async () =>
+        {
+            try
+            {
+                await foreach (Event ev in events.ReadAllAsync(cancellationToken).ConfigureAwait(false))
+                {
+                    await handler.HandleAsync(ev, cancellationToken).ConfigureAwait(false);
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                // Shutting down — swallow silently.
+            }
+            catch (Exception ex)
+            {
+                app.Invoke(() =>
+                {
+                    ChatOutput.AddSystemTurn($"[Internal Error] {ex.Message}");
+                });
+            }
+        }, cancellationToken);
     }
 
     // ------------------------------------------------------------------

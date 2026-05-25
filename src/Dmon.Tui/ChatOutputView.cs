@@ -14,13 +14,17 @@ namespace Dmon.Tui;
 /// <remarks>
 /// Thread safety: all public methods and the <c>_blocks</c> list must only be accessed on the
 /// Terminal.Gui UI thread. Callers from background tasks (Group 5 and later) must marshal via
-/// <c>Application.MainLoop.Invoke</c> before calling any member of this class.
+/// <c>IApplication.Invoke</c> before calling any member of this class.
 /// </remarks>
 internal sealed class ChatOutputView : View
 {
     // Bright cyan on black — distinct from normal prose for inline code spans.
     private static readonly Terminal.Gui.Drawing.Attribute CodeSpanAttribute =
         new(ColorName16.BrightCyan, ColorName16.Black);
+
+    // Gray on black — used for system/notice messages (errors, bootstrap, agent-ready, etc.).
+    private static readonly Terminal.Gui.Drawing.Attribute SystemAttribute =
+        new(ColorName16.Gray, ColorName16.Black);
 
     private readonly List<TurnBlock> _blocks = [];
 
@@ -43,6 +47,17 @@ internal sealed class ChatOutputView : View
     public void AddUserTurn(string message)
     {
         _blocks.Add(new TurnBlock(ChatRole.User, message));
+        RefreshLayout();
+        ScrollToBottom();
+        SetNeedsDraw();
+    }
+
+    /// <summary>
+    /// Appends a system/notice block and redraws.
+    /// </summary>
+    public void AddSystemTurn(string message)
+    {
+        _blocks.Add(new TurnBlock(ChatRole.System, message));
         RefreshLayout();
         ScrollToBottom();
         SetNeedsDraw();
@@ -155,11 +170,23 @@ internal sealed class ChatOutputView : View
     {
         bool isUser = block.Role == ChatRole.User;
 
-        // Prefix: "You: " for user, "     " indent for assistant.
-        string prefix = isUser ? "You: " : "     ";
+        // Prefix: "You: " for user, " ℹ   " for system, "     " indent for assistant.
+        // All three are 5 code units wide so content columns line up.
+        string prefix =
+            block.Role == ChatRole.User ? "You: " :
+            block.Role == ChatRole.System ? " ℹ   " :
+            "     ";
         int prefixLen = prefix.Length;
 
         Move(0, viewportRow);
+
+        if (block.Role == ChatRole.System)
+        {
+            SetAttribute(SystemAttribute);
+            AddStr(prefix + TruncateLine(line, viewportWidth - prefixLen));
+            SetAttribute(GetAttributeForRole(VisualRole.Normal));
+            return;
+        }
 
         if (isUser)
         {

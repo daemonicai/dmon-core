@@ -34,14 +34,14 @@
 
 ## 5. TuiEventHandler
 
-- [ ] 5.1 Implement `TuiEventHandler` — replaces `ConsoleHost.ProcessEventAsync`; all UI mutations wrapped in `Application.MainLoop.Invoke`
-- [ ] 5.2 Handle `TurnStartEvent`: append new assistant `TurnBlock`, lock input, set status to Thinking
-- [ ] 5.3 Handle `MessageDeltaEvent`: call `ChatOutputView.AppendToken`
-- [ ] 5.4 Handle `TurnEndEvent`: call `ChatOutputView.SettleTurn`, unlock input, set status to Idle, return focus to input field
-- [ ] 5.5 Handle `ErrorEvent`: display error in output view; cancel application if `!Recoverable`
-- [ ] 5.6 Handle `ResponseEvent`: display failure message in output view if `!Success`
-- [ ] 5.7 Handle `AgentReadyEvent`, `BootstrapNoticeEvent`, and remaining event types (port from `EventRenderer`)
-- [ ] 5.8 Start background `Task` in `DmonWindow` that drains `ChannelReader<Event>` and routes each event through `TuiEventHandler` via `Application.MainLoop.Invoke`
+- [x] 5.1 Implement `TuiEventHandler` — replaces `ConsoleHost.ProcessEventAsync`; all UI mutations wrapped in `Application.MainLoop.Invoke`
+- [x] 5.2 Handle `TurnStartEvent`: append new assistant `TurnBlock`, lock input, set status to Thinking
+- [x] 5.3 Handle `MessageDeltaEvent`: call `ChatOutputView.AppendToken`
+- [x] 5.4 Handle `TurnEndEvent`: call `ChatOutputView.SettleTurn`, unlock input, set status to Idle, return focus to input field
+- [x] 5.5 Handle `ErrorEvent`: display error in output view; cancel application if `!Recoverable`
+- [x] 5.6 Handle `ResponseEvent`: display failure message in output view if `!Success`
+- [x] 5.7 Handle `AgentReadyEvent`, `BootstrapNoticeEvent`, and remaining event types (port from `EventRenderer`)
+- [x] 5.8 Start background `Task` in `DmonWindow` that drains `ChannelReader<Event>` and routes each event through `TuiEventHandler` via `Application.MainLoop.Invoke`
 
 ## 6. Modal Dialogs — Tool Confirm and UI Input
 
