@@ -9,14 +9,14 @@
 
 ## 2. TerminalRenderer
 
-- [ ] 2.1 Implement `TerminalRenderer` class: wraps `AnsiConsole`; exposes `AppendToken(string)`, `SettleTurn(string rawText)`, `AddUserLine(string)`, `AddSystemLine(string)`, `PrintSeparator(string? label = null)`, `PrintPrompt()`
-- [ ] 2.2 `AppendToken`: write token directly to `Console.Out` without newline; track current column position; flush after each token
-- [ ] 2.3 `SettleTurn`: erase the streamed line(s) using ANSI cursor-up + erase sequences, then write the settled Spectre markup (from `MarkdownRenderer`)
-- [ ] 2.4 `PrintSeparator`: write a full-width `─` rule; if `label` provided, embed it in the rule using `AnsiConsole.Write(new Rule(label))`
-- [ ] 2.5 `PrintPrompt`: write `[grey] >[/] ` using Spectre markup; do not write a newline (cursor stays on prompt line)
-- [ ] 2.6 `AddUserLine`: print `[bold] > {text}[/]` on its own line
-- [ ] 2.7 `AddSystemLine`: print `[grey]{text}[/]` on its own line
-- [ ] 2.8 `SetStatus(string modelName, bool thinking)`: stores state used by `PrintSeparator` to build the label
+- [x] 2.1 Implement `TerminalRenderer` class: wraps `AnsiConsole`; exposes `AppendToken(string)`, `SettleTurn(string rawText)`, `AddUserLine(string)`, `AddSystemLine(string)`, `PrintSeparator(string? label = null)`, `PrintPrompt()`
+- [x] 2.2 `AppendToken`: write token directly to `Console.Out` without newline; track current column position; flush after each token
+- [x] 2.3 `SettleTurn`: erase the streamed line(s) using ANSI cursor-up + erase sequences, then write the settled Spectre markup (from `MarkdownRenderer`)
+- [x] 2.4 `PrintSeparator`: write a full-width `─` rule; if `label` provided, embed it in the rule using `AnsiConsole.Write(new Rule(label))`
+- [x] 2.5 `PrintPrompt`: write `[grey] >[/] ` using Spectre markup; do not write a newline (cursor stays on prompt line)
+- [x] 2.6 `AddUserLine`: print `[bold] > {text}[/]` on its own line
+- [x] 2.7 `AddSystemLine`: print `[grey]{text}[/]` on its own line
+- [x] 2.8 `SetStatus(string modelName, bool thinking)`: stores state used by `PrintSeparator` to build the label
 
 ## 3. MarkdownRenderer (Spectre port)
 
