@@ -80,7 +80,7 @@ public sealed class CoreProcessManager : IDisposable
             // Pipe may already be closed
         }
 
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(500));
         try
         {
             await _process.WaitForExitAsync(cts.Token).ConfigureAwait(false);
