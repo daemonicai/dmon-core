@@ -53,12 +53,12 @@
 
 ## 7. Setup Wizard — Step-Dialog Sequence
 
-- [ ] 7.1 Define `WizardState` record (`string? Adapter`, `string? ModelId`, `string? EnvVar`, `string? Scope`)
-- [ ] 7.2 Implement wizard step runner: iterates `List<Func<WizardState, Task<WizardState?>>>`, maintains prior-state stack for Back navigation
-- [ ] 7.3 Implement `AdapterSelectionStep`: `Dialog` with `ListView` of adapter names
-- [ ] 7.4 Implement `ModelSelectionStep`: `Dialog` with `ListView` of models for the selected adapter
-- [ ] 7.5 Implement `AuthConfigStep`: `Dialog` with env-var-name `TextField` or direct-entry option
-- [ ] 7.6 Wire wizard into `DmonWindow` startup flow (replaces `SetupWizard.Show`) and `/add-provider` slash command handler
+- [x] 7.1 Define `WizardState` record (`string? Adapter`, `string? ModelId`, `string? EnvVar`, `string? Scope`)
+- [x] 7.2 Implement wizard step runner: iterates `List<Func<WizardState, Task<WizardState?>>>`, maintains prior-state stack for Back navigation
+- [x] 7.3 Implement `AdapterSelectionStep`: `Dialog` with `ListView` of adapter names
+- [x] 7.4 Implement `ModelSelectionStep`: `Dialog` with `ListView` of models for the selected adapter
+- [x] 7.5 Implement `AuthConfigStep`: `Dialog` with env-var-name `TextField` or direct-entry option
+- [x] 7.6 Wire wizard into `DmonWindow` startup flow (replaces `SetupWizard.Show`) and `/add-provider` slash command handler
 
 ## 8. Wiring and Verification
 

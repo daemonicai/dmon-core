@@ -122,6 +122,26 @@ internal sealed class DmonWindow : Window
     }
 
     // ------------------------------------------------------------------
+    // Wizard
+    // ------------------------------------------------------------------
+
+    /// <summary>
+    /// Runs the add-provider step-dialog wizard and returns the final <see cref="WizardState"/>,
+    /// or <c>null</c> if the user cancelled. Must be called on the UI thread (or via
+    /// <c>app.Invoke</c> from a background task).
+    /// </summary>
+    public Task<WizardState?> RunSetupWizardAsync(IApplication app, CancellationToken cancellationToken)
+    {
+        List<Func<WizardState, Task<WizardState?>>> steps =
+        [
+            AdapterSelectionStep.Create(app, cancellationToken),
+            ModelSelectionStep.Create(app, cancellationToken),
+            AuthConfigStep.Create(app, cancellationToken),
+        ];
+        return WizardRunner.RunAsync(steps, cancellationToken);
+    }
+
+    // ------------------------------------------------------------------
     // Private
     // ------------------------------------------------------------------
 

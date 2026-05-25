@@ -197,6 +197,43 @@ internal sealed class TuiEventHandler
         await _sendCommand(response, cancellationToken).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Runs the add-provider wizard and, on completion, sends a
+    /// <see cref="ProviderConfigureCommand"/> to the agent core. If the wizard is
+    /// cancelled, logs a notice to the chat output.
+    /// </summary>
+    public async Task HandleAddProviderAsync(CancellationToken cancellationToken)
+    {
+        TaskCompletionSource<WizardState?> bridgeTcs = new();
+        _app.Invoke(() =>
+        {
+            _ = BridgeAsync(
+                _window.RunSetupWizardAsync(_app, cancellationToken),
+                bridgeTcs);
+        });
+        WizardState? result = await bridgeTcs.Task.ConfigureAwait(false);
+
+        if (result is null)
+        {
+            _app.Invoke(() =>
+            {
+                _window.ChatOutput.AddSystemTurn("[Add Provider] Cancelled.");
+            });
+            return;
+        }
+
+        ProviderConfigureCommand command = new()
+        {
+            Id       = Guid.NewGuid().ToString("N"),
+            Adapter  = result.Adapter  ?? string.Empty,
+            ModelId  = result.ModelId  ?? string.Empty,
+            EnvVar   = result.EnvVar   ?? string.Empty,
+            Scope    = result.Scope    ?? "local",
+        };
+
+        await _sendCommand(command, cancellationToken).ConfigureAwait(false);
+    }
+
     private async Task HandleUiInputAsync(UiInputRequestEvent uiInput, CancellationToken cancellationToken)
     {
         string kind = uiInput.Kind.ToString();
