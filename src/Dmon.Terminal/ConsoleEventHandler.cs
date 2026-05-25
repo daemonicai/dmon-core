@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Dmon.Abstractions.Providers;
 using Dmon.Protocol.Commands;
 using Dmon.Protocol.Enums;
 using Dmon.Protocol.Events;
@@ -11,6 +12,7 @@ internal sealed class ConsoleEventHandler
     private readonly InputReader _input;
     private readonly Func<Command, CancellationToken, Task> _sendCommand;
     private readonly CancellationTokenSource _cts;
+    private readonly IReadOnlyList<IProviderFactory> _providerFactories;
 
     private string _rawText = string.Empty;
     private string _modelName = string.Empty;
@@ -19,12 +21,14 @@ internal sealed class ConsoleEventHandler
         TerminalRenderer renderer,
         InputReader input,
         Func<Command, CancellationToken, Task> sendCommand,
-        CancellationTokenSource cts)
+        CancellationTokenSource cts,
+        IReadOnlyList<IProviderFactory> providerFactories)
     {
         _renderer = renderer;
         _input = input;
         _sendCommand = sendCommand;
         _cts = cts;
+        _providerFactories = providerFactories;
     }
 
     public async Task HandleAsync(Event @event, CancellationToken cancellationToken)
@@ -187,8 +191,8 @@ internal sealed class ConsoleEventHandler
         WizardState? result = await WizardRunner.RunAsync(
             [
                 AdapterSelectionStep.Create(cancellationToken),
-                ModelSelectionStep.Create(cancellationToken),
                 AuthConfigStep.Create(cancellationToken),
+                ModelSelectionStep.Create(_providerFactories, cancellationToken),
             ],
             cancellationToken).ConfigureAwait(false);
 

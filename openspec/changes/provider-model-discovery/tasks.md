@@ -12,14 +12,14 @@
 
 ## 3. Update WizardState
 
-- [ ] 3.1 Add `string? ResolvedApiKey` property to the `WizardState` record in `Dmon.Terminal` (in-memory only; not serialised or persisted)
+- [x] 3.1 Add `string? ResolvedApiKey` property to the `WizardState` record in `Dmon.Terminal` (in-memory only; not serialised or persisted)
 
 ## 4. Reorder wizard steps in Dmon.Terminal
 
-- [ ] 4.1 Move `AuthConfigStep` to run as step 2 (immediately after adapter selection) in the wizard pipeline in `Dmon.Terminal`
-- [ ] 4.2 Update `AuthConfigStep.RunAsync` in `Dmon.Terminal` to resolve the actual API key from the environment after the user enters the env var name, and store it in `WizardState.ResolvedApiKey`
-- [ ] 4.3 Move `ModelSelectionStep` to run as step 3 in `Dmon.Terminal`; update it to inject the appropriate `IProviderFactory`, call `GetAvailableModelsAsync(state.ResolvedApiKey, cancellationToken)`, show a `Fetching models…` status line while the call is in flight, and fall back to the static list if the result is empty
-- [ ] 4.4 Remove the hard-coded `ModelsByAdapter` dictionary from `ModelSelectionStep` in `Dmon.Terminal` (the static fallback now lives in each factory)
+- [x] 4.1 Move `AuthConfigStep` to run as step 2 (immediately after adapter selection) in the wizard pipeline in `Dmon.Terminal`
+- [x] 4.2 Update `AuthConfigStep.RunAsync` in `Dmon.Terminal` to resolve the actual API key from the environment after the user enters the env var name, and store it in `WizardState.ResolvedApiKey`
+- [x] 4.3 Move `ModelSelectionStep` to run as step 3 in `Dmon.Terminal`; update it to inject the appropriate `IProviderFactory`, call `GetAvailableModelsAsync(state.ResolvedApiKey, cancellationToken)`, show a `Fetching models…` status line while the call is in flight, and fall back to the static list if the result is empty
+- [x] 4.4 Remove the hard-coded `ModelsByAdapter` dictionary from `ModelSelectionStep` in `Dmon.Terminal` (the static fallback now lives in each factory)
 
 ## 5. Verify and clean up
 

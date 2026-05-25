@@ -1,6 +1,8 @@
 using System.Text.Json;
+using Dmon.Abstractions.Providers;
 using Dmon.Protocol.Commands;
 using Dmon.Protocol.Events;
+using Dmon.Providers;
 using Dmon.Terminal;
 
 string? corePathOverride = null;
@@ -37,7 +39,14 @@ async Task SendCommandAsync(Command cmd, CancellationToken ct)
     await coreProcess.StandardInput.FlushAsync(ct).ConfigureAwait(false);
 }
 
-ConsoleEventHandler handler = new(renderer, inputReader, SendCommandAsync, cts);
+IReadOnlyList<IProviderFactory> providerFactories =
+[
+    new AnthropicProviderFactory(),
+    new OpenAiProviderFactory(),
+    new GeminiProviderFactory(),
+];
+
+ConsoleEventHandler handler = new(renderer, inputReader, SendCommandAsync, cts, providerFactories);
 
 Console.CancelKeyPress += (_, e) =>
 {

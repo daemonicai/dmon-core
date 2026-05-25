@@ -1,3 +1,4 @@
+using Dmon.Abstractions.Providers;
 using Spectre.Console;
 
 namespace Dmon.Terminal;
@@ -23,25 +24,36 @@ internal static class AdapterSelectionStep
 
 internal static class ModelSelectionStep
 {
-    private static readonly Dictionary<string, string[]> ModelsByAdapter =
-        new(StringComparer.OrdinalIgnoreCase)
-        {
-            ["anthropic"] = ["claude-opus-4-7", "claude-sonnet-4-6", "claude-haiku-4-5-20251001"],
-            ["openai"]    = ["gpt-4o", "gpt-4o-mini", "o3"],
-            ["gemini"]    = ["gemini-2.5-pro", "gemini-2.5-flash"],
-        };
+    public static Func<WizardState, Task<WizardState?>> Create(
+        IReadOnlyList<IProviderFactory> factories,
+        CancellationToken cancellationToken)
+        => state => RunAsync(state, factories, cancellationToken);
 
-    private static readonly string[] FallbackModels = ["(unknown adapter)"];
-
-    public static Func<WizardState, Task<WizardState?>> Create(CancellationToken cancellationToken)
-        => state => RunAsync(state, cancellationToken);
-
-    private static async Task<WizardState?> RunAsync(WizardState state, CancellationToken cancellationToken)
+    private static async Task<WizardState?> RunAsync(
+        WizardState state,
+        IReadOnlyList<IProviderFactory> factories,
+        CancellationToken cancellationToken)
     {
-        AnsiConsole.Write(new Rule("[bold]Add Provider — Step 2: Select Model[/]").LeftJustified());
-        string[] models = state.Adapter is not null &&
-                          ModelsByAdapter.TryGetValue(state.Adapter, out string[]? m)
-            ? m : FallbackModels;
+        AnsiConsole.Write(new Rule("[bold]Add Provider — Step 3: Select Model[/]").LeftJustified());
+
+        IProviderFactory? factory = factories.FirstOrDefault(
+            f => string.Equals(f.AdapterName, state.Adapter, StringComparison.OrdinalIgnoreCase));
+
+        string[] models;
+        if (factory is null)
+        {
+            models = ["(unknown adapter)"];
+        }
+        else
+        {
+            AnsiConsole.MarkupLine("[grey]Fetching models…[/]");
+            IReadOnlyList<ModelInfo> available = await factory
+                .GetAvailableModelsAsync(state.ResolvedApiKey, cancellationToken)
+                .ConfigureAwait(false);
+            models = available.Count > 0
+                ? available.Select(m => m.Id).ToArray()
+                : ["(no models found)"];
+        }
 
         int? choice = await InlinePrompt.ChooseAsync("Model:", models, cancellationToken).ConfigureAwait(false);
 
@@ -69,7 +81,7 @@ internal static class AuthConfigStep
 
     private static async Task<WizardState?> RunAsync(WizardState state, CancellationToken cancellationToken)
     {
-        AnsiConsole.Write(new Rule("[bold]Add Provider — Step 3: Auth Configuration[/]").LeftJustified());
+        AnsiConsole.Write(new Rule("[bold]Add Provider — Step 2: Auth Configuration[/]").LeftJustified());
 
         string defaultEnvVar = state.Adapter is not null &&
                                EnvVarsByAdapter.TryGetValue(state.Adapter, out string? e)
@@ -88,6 +100,7 @@ internal static class AuthConfigStep
         if (scopeChoice == -1) return WizardState.Back;
 
         string scope = scopeChoice.Value == 1 ? "global" : "local";
-        return state with { EnvVar = envVar, Scope = scope };
+        string? resolvedKey = Environment.GetEnvironmentVariable(envVar);
+        return state with { EnvVar = envVar, Scope = scope, ResolvedApiKey = resolvedKey };
     }
 }
