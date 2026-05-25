@@ -21,11 +21,11 @@
 
 **Goal:** Implement the custom HTTP auth and the `IProviderFactory`.
 
-- [ ] Implement `OmlxAuthHandler : DelegatingHandler` — adds `x-api-key: {key}` header when key is non-empty; omits the header otherwise; never sends `Authorization`
-- [ ] Implement `OmlxProviderFactory : IProviderFactory` — `AdapterName = "omlx"`, `DefaultModelId = string.Empty`; `CreateAsync` builds `OpenAIClientOptions` with custom endpoint + `OmlxAuthHandler`; wraps `OpenAI.Chat.ChatClient.AsIChatClient()` in `CapabilitiesDecorator`
-- [ ] `OmlxProviderFactory.GetCapabilities(modelId)` delegates to `OmlxCapabilityHeuristic.Infer(modelId)`
-- [ ] Implement `OmlxCapabilityHeuristic` static class with `Infer(string modelId)`: pattern matching per spec (embed/rerank → no tools; qwen3/thinking/r1/reason → tools+reasoning; -it-/instruct/-chat → tools; vlm/vision/-vl- → tools; else → conservative defaults)
-- [ ] Unit tests: `OmlxAuthHandler` injects header with key, omits with empty key, no Authorization header; `OmlxCapabilityHeuristic.Infer` for each pattern branch including unrecognised
+- [x] Implement `OmlxAuthHandler : DelegatingHandler` — adds `x-api-key: {key}` header when key is non-empty; omits the header otherwise; never sends `Authorization`
+- [x] Implement `OmlxProviderFactory : IProviderFactory` — `AdapterName = "omlx"`, `DefaultModelId = string.Empty`; `CreateAsync` builds `OpenAIClientOptions` with custom endpoint + `OmlxAuthHandler`; wraps `OpenAI.Chat.ChatClient.AsIChatClient()` in `CapabilitiesDecorator`
+- [x] `OmlxProviderFactory.GetCapabilities(modelId)` delegates to `OmlxCapabilityHeuristic.Infer(modelId)`
+- [x] Implement `OmlxCapabilityHeuristic` static class with `Infer(string modelId)`: pattern matching per spec (embed/rerank → no tools; qwen3/thinking/r1/reason → tools+reasoning; -it-/instruct/-chat → tools; vlm/vision/-vl- → tools; else → conservative defaults)
+- [x] Unit tests: `OmlxAuthHandler` injects header with key, omits with empty key, no Authorization header; `OmlxCapabilityHeuristic.Infer` for each pattern branch including unrecognised
 
 ## Group 4 — Provider extension
 

@@ -13,7 +13,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Dmon.Abstractions\Dmon.Abstractions.csproj" />
-    <ProjectReference Include="..\..\src\Dmon.Providers\Dmon.Providers.csproj" />
   </ItemGroup>
 
 </Project>

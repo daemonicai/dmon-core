@@ -1,9 +1,8 @@
-using Dmon.Abstractions.Providers;
 using Microsoft.Extensions.AI;
 
-namespace Dmon.Providers;
+namespace Dmon.Abstractions.Providers;
 
-internal sealed class CapabilitiesDecorator(IChatClient inner, ChatClientCapabilities caps) : IChatClient
+public sealed class CapabilitiesDecorator(IChatClient inner, ChatClientCapabilities caps) : IChatClient
 {
     public object? GetService(Type serviceType, object? serviceKey = null) =>
         serviceType == typeof(ChatClientCapabilities) ? caps : inner.GetService(serviceType, serviceKey);

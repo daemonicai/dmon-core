@@ -1,5 +1,4 @@
 using Dmon.Abstractions.Providers;
-using Dmon.Providers;
 using Microsoft.Extensions.AI;
 
 namespace Dmon.Providers.Tests;
