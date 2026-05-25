@@ -27,10 +27,10 @@
 
 ## 4. DmonWindow and Status Bar
 
-- [ ] 4.1 Implement `DmonWindow : Window` with three zones: `ChatOutputView` (fills upper area), `StatusBar` (one line), `TextField` input (one line at bottom)
-- [ ] 4.2 Implement status bar: shows active model name + "Thinking" (with indicator) or "Idle"
-- [ ] 4.3 Wire input `TextField`: on Enter, read text, clear field, delegate to `TuiEventHandler`
-- [ ] 4.4 Implement input locking: `TextField.Enabled = false` on `TurnStartEvent`, `= true` on `TurnEndEvent`, focus returns to input on re-enable
+- [x] 4.1 Implement `DmonWindow : Window` with three zones: `ChatOutputView` (fills upper area), `StatusBar` (one line), `TextField` input (one line at bottom)
+- [x] 4.2 Implement status bar: shows active model name + "Thinking" (with indicator) or "Idle"
+- [x] 4.3 Wire input `TextField`: on Enter, read text, clear field, delegate to `TuiEventHandler`
+- [x] 4.4 Implement input locking: `TextField.Enabled = false` on `TurnStartEvent`, `= true` on `TurnEndEvent`, focus returns to input on re-enable
 
 ## 5. TuiEventHandler
 
