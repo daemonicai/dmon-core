@@ -50,18 +50,18 @@
 
 ## 6. ConsoleEventHandler
 
-- [ ] 6.1 Implement `ConsoleEventHandler`: constructor takes `TerminalRenderer renderer`, `InputReader input`, `Func<Command, CancellationToken, Task> sendCommand`
-- [ ] 6.2 `HandleAsync(Event, CancellationToken)`: switch on event type; all output via `renderer`; no `IApplication`/`Invoke` wrapping
-- [ ] 6.3 `TurnStartEvent`: lock input (`input.IsLocked = true`), print separator with `Thinking…` label
-- [ ] 6.4 `MessageDeltaEvent`: call `renderer.AppendToken(text)`
-- [ ] 6.5 `TurnEndEvent`: call `renderer.SettleTurn(rawText)`, unlock input (`input.IsLocked = false`), reprint separator + prompt
-- [ ] 6.6 `ErrorEvent`: `renderer.AddSystemLine("[Error] …")`; if `!Recoverable`, cancel the `CancellationTokenSource`
-- [ ] 6.7 `AgentReadyEvent`, `BootstrapNoticeEvent`, `ProviderSwitchedEvent`, `RetryAttemptEvent`, `ExtensionErrorEvent`, `SystemNoticeEvent`, `SessionUpdatedEvent`: emit appropriate system line (port from `TuiEventHandler`)
-- [ ] 6.8 `ToolConfirmRequestEvent`: call `ToolConfirmPrompt.ShowAsync`; send `ToolConfirmResponseCommand`
-- [ ] 6.9 `UiInputRequestEvent`: call `InlinePrompt.ReadLineAsync`; send `UiInputResponseCommand`
-- [ ] 6.10 `SetupRequiredEvent`: lock input, print notice, call `HandleAddProviderAsync`
-- [ ] 6.11 `HandleAddProviderAsync`: run `WizardRunner` with rewritten steps; send `ProviderConfigureCommand`; unlock input
-- [ ] 6.12 `HandleUserInputAsync(string, CancellationToken)`: parse with `SlashCommandParser`; route exit / client commands / core commands / plain messages (same logic as `TuiEventHandler.HandleUserInputAsync`)
+- [x] 6.1 Implement `ConsoleEventHandler`: constructor takes `TerminalRenderer renderer`, `InputReader input`, `Func<Command, CancellationToken, Task> sendCommand`
+- [x] 6.2 `HandleAsync(Event, CancellationToken)`: switch on event type; all output via `renderer`; no `IApplication`/`Invoke` wrapping
+- [x] 6.3 `TurnStartEvent`: lock input (`input.IsLocked = true`), print separator with `Thinking…` label
+- [x] 6.4 `MessageDeltaEvent`: call `renderer.AppendToken(text)`
+- [x] 6.5 `TurnEndEvent`: call `renderer.SettleTurn(rawText)`, unlock input (`input.IsLocked = false`), reprint separator + prompt
+- [x] 6.6 `ErrorEvent`: `renderer.AddSystemLine("[Error] …")`; if `!Recoverable`, cancel the `CancellationTokenSource`
+- [x] 6.7 `AgentReadyEvent`, `BootstrapNoticeEvent`, `ProviderSwitchedEvent`, `RetryAttemptEvent`, `ExtensionErrorEvent`, `SystemNoticeEvent`, `SessionUpdatedEvent`: emit appropriate system line (port from `TuiEventHandler`)
+- [x] 6.8 `ToolConfirmRequestEvent`: call `ToolConfirmPrompt.ShowAsync`; send `ToolConfirmResponseCommand`
+- [x] 6.9 `UiInputRequestEvent`: call `InlinePrompt.ReadLineAsync`; send `UiInputResponseCommand`
+- [x] 6.10 `SetupRequiredEvent`: lock input, print notice, call `HandleAddProviderAsync`
+- [x] 6.11 `HandleAddProviderAsync`: run `WizardRunner` with rewritten steps; send `ProviderConfigureCommand`; unlock input
+- [x] 6.12 `HandleUserInputAsync(string, CancellationToken)`: parse with `SlashCommandParser`; route exit / client commands / core commands / plain messages (same logic as `TuiEventHandler.HandleUserInputAsync`)
 
 ## 7. Program.cs and Wiring
 
