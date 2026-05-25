@@ -4,10 +4,10 @@
 
 **Goal:** Create the `extensions/Dmon.Extensions.Omlx/` project, add it to the solution, and wire up dependencies.
 
-- [ ] Create `extensions/Dmon.Extensions.Omlx/Dmon.Extensions.Omlx.csproj` targeting `net10.0`; reference `Dmon.Abstractions` and the `OpenAI` NuGet package; set `TreatWarningsAsErrors=true`
-- [ ] Add `extensions/Dmon.Extensions.Omlx/` project to `Daemon.slnx`
-- [ ] Create `tests/Dmon.Extensions.Omlx.Tests/` xUnit test project; reference the extension project; add to `Daemon.slnx`
-- [ ] Confirm `dotnet build` is clean
+- [x] Create `extensions/Dmon.Extensions.Omlx/Dmon.Extensions.Omlx.csproj` targeting `net10.0`; reference `Dmon.Abstractions` and the `OpenAI` NuGet package; set `TreatWarningsAsErrors=true`
+- [x] Add `extensions/Dmon.Extensions.Omlx/` project to `Daemon.slnx`
+- [x] Create `tests/Dmon.Extensions.Omlx.Tests/` xUnit test project; reference the extension project; add to `Daemon.slnx`
+- [x] Confirm `dotnet build` is clean
 
 ## Group 2 — Configuration
 

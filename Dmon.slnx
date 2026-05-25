@@ -6,6 +6,9 @@
   <Folder Name="/spike/">
     <Project Path="spike/ScriptingSpike/ScriptingSpike.csproj" />
   </Folder>
+  <Folder Name="/extensions/">
+    <Project Path="extensions\Dmon.Extensions.Omlx\Dmon.Extensions.Omlx.csproj" />
+  </Folder>
   <Folder Name="/src/">
     <Project Path="src\Dmon.Abstractions\Dmon.Abstractions.csproj" />
     <Project Path="src\Dmon.Console\Dmon.Console.csproj" />
@@ -21,5 +24,6 @@
     <Project Path="test\Dmon.Protocol.Tests\Dmon.Protocol.Tests.csproj" />
     <Project Path="test\Dmon.BuiltinTools.Tests\Dmon.BuiltinTools.Tests.csproj" />
     <Project Path="test\Dmon.Providers.Tests\Dmon.Providers.Tests.csproj" />
+    <Project Path="test\Dmon.Extensions.Omlx.Tests\Dmon.Extensions.Omlx.Tests.csproj" />
   </Folder>
 </Solution>
