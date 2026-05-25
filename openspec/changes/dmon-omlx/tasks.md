@@ -13,9 +13,9 @@
 
 **Goal:** Implement `OmlxConfig` — the single source of truth for base URL and API key.
 
-- [ ] Implement `OmlxConfig` sealed record: `BaseUrl` (default `http://localhost:8666`) and `ApiKey` (default empty string)
-- [ ] Implement `OmlxConfig.FromEnvironment()` static factory: reads `OMLX_BASE_URL` and `OMLX_API_KEY` env vars, falls back to defaults
-- [ ] Unit tests: env var override for base URL; env var override for API key; defaults when env vars absent
+- [x] Implement `OmlxConfig` sealed record: `BaseUrl` (default `http://localhost:8666`) and `ApiKey` (default empty string)
+- [x] Implement `OmlxConfig.FromEnvironment()` static factory: reads `OMLX_BASE_URL` and `OMLX_API_KEY` env vars, falls back to defaults
+- [x] Unit tests: env var override for base URL; env var override for API key; defaults when env vars absent
 
 ## Group 3 — Auth handler and provider factory
 
