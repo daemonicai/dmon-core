@@ -29,6 +29,12 @@ internal sealed class InputReader
             {
                 while (!cancellationToken.IsCancellationRequested)
                 {
+                    if (_isLocked || !Console.KeyAvailable)
+                    {
+                        Thread.Sleep(10);
+                        continue;
+                    }
+
                     ConsoleKeyInfo key;
                     try
                     {
