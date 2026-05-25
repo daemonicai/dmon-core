@@ -17,13 +17,13 @@
 
 ## 3. Markdig Settled Renderer
 
-- [ ] 3.1 Implement `MarkdownRenderer` class: accepts a Markdig `MarkdownDocument`, walks the AST, produces `List<(string Text, Attribute Style)>` segments
-- [ ] 3.2 Handle `ParagraphBlock`: emit plain text with word wrap
-- [ ] 3.3 Handle `FencedCodeBlock` / `IndentedCodeBlock`: emit a bordered box with monospace colour attribute
-- [ ] 3.4 Handle `ListBlock` / `ListItemBlock`: emit `  • ` indent + item text
-- [ ] 3.5 Handle `EmphasisInline` (bold/italic): emit text with bold or italic colour attribute
-- [ ] 3.6 Handle `CodeInline`: emit text with monospace colour attribute
-- [ ] 3.7 Implement `SettleTurn()` on `ChatOutputView`: parse `RawText` with Markdig, replace block display with rendered segments, set `Rendered = true`
+- [x] 3.1 Implement `MarkdownRenderer` class: accepts a Markdig `MarkdownDocument`, walks the AST, produces `List<(string Text, Attribute Style)>` segments
+- [x] 3.2 Handle `ParagraphBlock`: emit plain text with word wrap
+- [x] 3.3 Handle `FencedCodeBlock` / `IndentedCodeBlock`: emit a bordered box with monospace colour attribute
+- [x] 3.4 Handle `ListBlock` / `ListItemBlock`: emit `  • ` indent + item text
+- [x] 3.5 Handle `EmphasisInline` (bold/italic): emit text with bold or italic colour attribute
+- [x] 3.6 Handle `CodeInline`: emit text with monospace colour attribute
+- [x] 3.7 Implement `SettleTurn()` on `ChatOutputView`: parse `RawText` with Markdig, replace block display with rendered segments, set `Rendered = true`
 
 ## 4. DmonWindow and Status Bar
 

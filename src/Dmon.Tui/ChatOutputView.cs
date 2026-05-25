@@ -1,4 +1,6 @@
 using System.Drawing;
+using Markdig;
+using Markdig.Syntax;
 using Microsoft.Extensions.AI;
 using Terminal.Gui.Drawing;
 using Terminal.Gui.ViewBase;
@@ -79,12 +81,34 @@ internal sealed class ChatOutputView : View
     }
 
     /// <summary>
-    /// Marks the most recent assistant block as settled. The caller (Group 3) will
-    /// replace <see cref="TurnBlock.RawText"/> with Markdig output and set
-    /// <see cref="TurnBlock.Rendered"/> = true before calling this.
+    /// Parses the last non-rendered assistant block's <see cref="TurnBlock.RawText"/> with
+    /// Markdig, builds <see cref="TurnBlock.RenderedText"/> and
+    /// <see cref="TurnBlock.RenderedAttributes"/>, sets <see cref="TurnBlock.Rendered"/>
+    /// to <see langword="true"/>, then refreshes layout and redraws.
     /// </summary>
     public void SettleTurn()
     {
+        TurnBlock? block = _blocks.LastOrDefault(b => b.Role == ChatRole.Assistant && !b.Rendered);
+        if (block is not null)
+        {
+            MarkdownDocument doc = Markdown.Parse(block.RawText);
+            List<(string Text, Terminal.Gui.Drawing.Attribute Style)> segments = MarkdownRenderer.Render(doc);
+
+            // Build flat text and parallel attribute array from segments.
+            System.Text.StringBuilder sb = new();
+            List<Terminal.Gui.Drawing.Attribute> attrs = [];
+            foreach ((string text, Terminal.Gui.Drawing.Attribute style) in segments)
+            {
+                sb.Append(text);
+                for (int i = 0; i < text.Length; i++)
+                    attrs.Add(style);
+            }
+
+            block.RenderedText = sb.ToString();
+            block.RenderedAttributes = [.. attrs];
+            block.Rendered = true;
+        }
+
         RefreshLayout();
         SetNeedsDraw();
     }
@@ -107,7 +131,8 @@ internal sealed class ChatOutputView : View
 
         foreach (TurnBlock block in _blocks)
         {
-            string[] lines = SplitToLines(block.RawText, viewport.Width);
+            string displayText = (block.Rendered ? block.RenderedText : null) ?? block.RawText;
+            string[] lines = SplitToLines(displayText, viewport.Width);
 
             foreach (string line in lines)
             {
@@ -128,12 +153,9 @@ internal sealed class ChatOutputView : View
 
     private void DrawBlockLine(TurnBlock block, string line, int contentRow, int viewportRow, int viewportWidth)
     {
-        // Compute the character offset of this line within the block's RawText.
-        int lineStartInBlock = ComputeLineStartOffset(block.RawText, contentRow - BlockStartRow(block), viewportWidth);
-
         bool isUser = block.Role == ChatRole.User;
 
-        // Prefix: "You: " for user, "    " indent for assistant.
+        // Prefix: "You: " for user, "     " indent for assistant.
         string prefix = isUser ? "You: " : "     ";
         int prefixLen = prefix.Length;
 
@@ -146,22 +168,44 @@ internal sealed class ChatOutputView : View
             return;
         }
 
-        // Assistant line — draw character by character, applying CodeSpanAttribute to ranges.
         AddStr(prefix);
 
         Terminal.Gui.Drawing.Attribute normal = GetAttributeForRole(VisualRole.Normal);
 
-        for (int i = 0; i < line.Length && (prefixLen + i) < viewportWidth; i++)
+        if (block.Rendered && block.RenderedText is not null && block.RenderedAttributes is not null)
         {
-            int charIndexInBlock = lineStartInBlock + i;
-            bool inCodeSpan = IsInCodeSpan(block, charIndexInBlock);
+            // Settled block: use per-character attributes from the rendered attribute array.
+            string displayText = block.RenderedText;
+            int lineStartInBlock = ComputeLineStartOffset(displayText, contentRow - BlockStartRow(block), viewportWidth);
 
-            if (inCodeSpan)
-                SetAttribute(CodeSpanAttribute);
-            else
-                SetAttribute(normal);
+            for (int i = 0; i < line.Length && (prefixLen + i) < viewportWidth; i++)
+            {
+                int charIndex = lineStartInBlock + i;
+                Terminal.Gui.Drawing.Attribute attr =
+                    charIndex < block.RenderedAttributes.Length
+                        ? block.RenderedAttributes[charIndex]
+                        : normal;
+                SetAttribute(attr);
+                AddRune(line[i]);
+            }
+        }
+        else
+        {
+            // Streaming block: draw character by character, applying CodeSpanAttribute to detected ranges.
+            int lineStartInBlock = ComputeLineStartOffset(block.RawText, contentRow - BlockStartRow(block), viewportWidth);
 
-            AddRune(line[i]);
+            for (int i = 0; i < line.Length && (prefixLen + i) < viewportWidth; i++)
+            {
+                int charIndexInBlock = lineStartInBlock + i;
+                bool inCodeSpan = IsInCodeSpan(block, charIndexInBlock);
+
+                if (inCodeSpan)
+                    SetAttribute(CodeSpanAttribute);
+                else
+                    SetAttribute(normal);
+
+                AddRune(line[i]);
+            }
         }
 
         // Reset to normal after each line.
@@ -247,7 +291,8 @@ internal sealed class ChatOutputView : View
     private void RefreshLayout()
     {
         int width = Viewport.Width > 0 ? Viewport.Width : 80;
-        _totalContentRows = _blocks.Sum(b => SplitToLines(b.RawText, width).Length);
+        _totalContentRows = _blocks.Sum(b =>
+            SplitToLines((b.Rendered ? b.RenderedText : null) ?? b.RawText, width).Length);
         SetContentSize(new Size(width, _totalContentRows));
     }
 
@@ -274,7 +319,8 @@ internal sealed class ChatOutputView : View
         {
             if (ReferenceEquals(b, block))
                 return row;
-            row += SplitToLines(b.RawText, width).Length;
+            string displayText = (b.Rendered ? b.RenderedText : null) ?? b.RawText;
+            row += SplitToLines(displayText, width).Length;
         }
         return row;
     }

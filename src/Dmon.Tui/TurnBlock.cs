@@ -37,5 +37,17 @@ internal sealed class TurnBlock
     /// </summary>
     public int ScannedUpTo { get; set; }
 
+    /// <summary>
+    /// The flattened text produced by <c>MarkdownRenderer</c> after settling.
+    /// Null until <c>ChatOutputView.SettleTurn</c> completes.
+    /// </summary>
+    public string? RenderedText { get; set; }
+
+    /// <summary>
+    /// Per-character <see cref="Terminal.Gui.Drawing.Attribute"/> array parallel to
+    /// <see cref="RenderedText"/>. Null until <c>ChatOutputView.SettleTurn</c> completes.
+    /// </summary>
+    public Terminal.Gui.Drawing.Attribute[]? RenderedAttributes { get; set; }
+
     public void AppendText(string token) => RawText += token;
 }
