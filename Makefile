@@ -9,7 +9,7 @@ all: build test
 build: build-console build-core
 
 build-console:
-	dotnet publish src/Dmon.Console/Dmon.Console.csproj \
+	dotnet publish src/Dmon.Tui/Dmon.Tui.csproj \
 		-c $(CONFIG) \
 		-o $(CONSOLE_OUT) \
 		--no-self-contained

@@ -30,7 +30,7 @@ public sealed class BuiltinToolsInitializer : IHostedService
     public Task StartAsync(CancellationToken cancellationToken)
     {
         HttpClient httpClient = _httpClientFactory.CreateClient("builtin");
-        int timeoutSeconds = _configuration.GetValue("Daemon:Tools:Bash:TimeoutSeconds", 30);
+        int timeoutSeconds = _configuration.GetValue("Dmon:Tools:Bash:TimeoutSeconds", 30);
         _registry.AddBuiltinTools(httpClient, _ghCliService, _providerRegistry, timeoutSeconds);
         return Task.CompletedTask;
     }

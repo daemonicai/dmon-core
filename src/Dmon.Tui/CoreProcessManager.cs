@@ -110,7 +110,7 @@ public sealed class CoreProcessManager : IDisposable
         if (!string.IsNullOrEmpty(overridePath) && File.Exists(overridePath))
             return Path.GetFullPath(overridePath);
 
-        string? envPath = Environment.GetEnvironmentVariable("DAEMON_CORE_PATH");
+        string? envPath = Environment.GetEnvironmentVariable("DMON_CORE_PATH");
         if (!string.IsNullOrEmpty(envPath) && File.Exists(envPath))
             return Path.GetFullPath(envPath);
 
@@ -138,7 +138,7 @@ public sealed class CoreProcessManager : IDisposable
 
         throw new FileNotFoundException(
             "Could not find dmoncore. " +
-            "Run 'make build' to produce the published layout, or set DAEMON_CORE_PATH env var / --core-path argument.",
+            "Run 'make build' to produce the published layout, or set DMON_CORE_PATH env var / --core-path argument.",
             "dmoncore");
     }
 }
