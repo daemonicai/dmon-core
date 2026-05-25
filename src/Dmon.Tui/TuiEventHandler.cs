@@ -140,6 +140,16 @@ internal sealed class TuiEventHandler
                 await HandleUiInputAsync(uiInput, cancellationToken).ConfigureAwait(false);
                 break;
 
+            case SetupRequiredEvent:
+                _app.Invoke(() =>
+                {
+                    _window.LockInput();
+                    _window.ChatOutput.AddSystemTurn(
+                        "[Setup Required] No provider configured. Starting setup wizard…");
+                });
+                await HandleAddProviderAsync(cancellationToken).ConfigureAwait(false);
+                break;
+
             case CompactionStartEvent:
             case CompactionEndEvent:
             case MessageStartEvent:
@@ -150,7 +160,6 @@ internal sealed class TuiEventHandler
             case ToolExecutionEndEvent:
             case ExtensionLoadedEvent:
             case ExtensionUnloadedEvent:
-            case SetupRequiredEvent:
             case ProviderConfiguredEvent:
             case AuthLoginCompleteEvent:
             case AuthLogoutCompleteEvent:
@@ -218,6 +227,7 @@ internal sealed class TuiEventHandler
             _app.Invoke(() =>
             {
                 _window.ChatOutput.AddSystemTurn("[Add Provider] Cancelled.");
+                _window.UnlockInput();
             });
             return;
         }
@@ -236,6 +246,7 @@ internal sealed class TuiEventHandler
         _app.Invoke(() =>
         {
             _window.ChatOutput.AddSystemTurn("[Add Provider] Configuring provider, waiting for agent ready…");
+            _window.UnlockInput();
         });
     }
 
