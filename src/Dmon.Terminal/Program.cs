@@ -103,7 +103,12 @@ try
 catch (OperationCanceledException) { }
 finally
 {
-    await inputEnum.DisposeAsync().ConfigureAwait(false);
+    // ChannelReader<T>.ReadAllAsync in .NET 10 throws NotSupportedException from
+    // DisposeAsync when the enumerator is still suspended at WaitToReadAsync.
+    // OperationCanceledException is also expected here on normal shutdown.
+    try { await inputEnum.DisposeAsync().ConfigureAwait(false); }
+    catch (NotSupportedException) { }
+    catch (OperationCanceledException) { }
 }
 
 await coreProcess.StopAsync().ConfigureAwait(false);
