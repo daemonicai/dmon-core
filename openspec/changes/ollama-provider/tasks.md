@@ -5,11 +5,11 @@
 
 ## 2. OllamaProviderFactory
 
-- [ ] 2.1 Create `src/Dmon.Providers.Ollama/OllamaProviderFactory.cs` implementing `IProviderFactory` with `AdapterName = "ollama"`, `DisplayName = "Ollama"`, `DefaultModelId = "llama3.2"`, `DefaultEnvVar = "OLLAMA_HOST"`
-- [ ] 2.2 Implement `GetCapabilities(string modelId)` using the pattern heuristic from the `provider-extension` spec (instruct/chat → tool calling; qwen3/reason/thinking/r1 → reasoning; embed/rerank → neither; unknown → conservative false/false)
-- [ ] 2.3 Implement `GetAvailableModelsAsync` — construct `OllamaApiClient` from `apiKey` (treated as base URL) or fall back to `http://localhost:11434`; call the appropriate OllamaSharp API to list local models; return empty list on any exception
-- [ ] 2.4 Implement `GetNextStepAsync` wizard flow: step 1 = `ChooseOneStep` id `"deployment"` (Local / Cloud); step 2 = `TextInputStep` id `"base-url"` with correct default per deployment choice, overridden by `OLLAMA_HOST` env var when set; step 3 = `ChooseOneStep` id `"model"` populated via `GetAvailableModelsAsync`, with a not-reachable hint option when list is empty; step 4 = `WizardCompletedStep`
-- [ ] 2.5 Implement `CreateAsync` — construct `OllamaApiClient` with `config.BaseUrl` (or `http://localhost:11434` fallback), select `config.DefaultModelId`, wrap in `CapabilitiesDecorator` using `GetCapabilities`
+- [x] 2.1 Create `src/Dmon.Providers.Ollama/OllamaProviderFactory.cs` implementing `IProviderFactory` with `AdapterName = "ollama"`, `DisplayName = "Ollama"`, `DefaultModelId = "llama3.2"`, `DefaultEnvVar = "OLLAMA_HOST"`
+- [x] 2.2 Implement `GetCapabilities(string modelId)` using the pattern heuristic from the `provider-extension` spec (instruct/chat → tool calling; qwen3/reason/thinking/r1 → reasoning; embed/rerank → neither; unknown → conservative false/false)
+- [x] 2.3 Implement `GetAvailableModelsAsync` — construct `OllamaApiClient` from `apiKey` (treated as base URL) or fall back to `http://localhost:11434`; call the appropriate OllamaSharp API to list local models; return empty list on any exception
+- [x] 2.4 Implement `GetNextStepAsync` wizard flow: step 1 = `ChooseOneStep` id `"deployment"` (Local / Cloud); step 2 = `TextInputStep` id `"base-url"` with correct default per deployment choice, overridden by `OLLAMA_HOST` env var when set; step 3 = `ChooseOneStep` id `"model"` populated via `GetAvailableModelsAsync`, with a not-reachable hint option when list is empty; step 4 = `WizardCompletedStep`
+- [x] 2.5 Implement `CreateAsync` — construct `OllamaApiClient` with `config.BaseUrl` (or `http://localhost:11434` fallback), select `config.DefaultModelId`, wrap in `CapabilitiesDecorator` using `GetCapabilities`
 
 ## 3. OllamaProviderExtension
 
