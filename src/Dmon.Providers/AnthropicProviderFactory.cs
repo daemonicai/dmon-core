@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Anthropic.SDK;
 using Dmon.Abstractions.Providers;
+using Dmon.Abstractions.Wizard;
 using Microsoft.Extensions.AI;
 
 namespace Dmon.Providers;
@@ -8,6 +9,7 @@ namespace Dmon.Providers;
 public sealed class AnthropicProviderFactory : IProviderFactory
 {
     public string AdapterName => "anthropic";
+    public string DisplayName => "Anthropic";
     public string DefaultModelId => "claude-sonnet-4-6";
     public string DefaultEnvVar => "ANTHROPIC_API_KEY";
 
@@ -74,6 +76,55 @@ public sealed class AnthropicProviderFactory : IProviderFactory
         {
             return FallbackModels;
         }
+    }
+
+    public async ValueTask<WizardStep> GetNextStepAsync(
+        WizardState state, CancellationToken cancellationToken = default)
+    {
+        TextInputStep? apiKeyStep = state.Steps
+            .OfType<TextInputStep>()
+            .FirstOrDefault(s => s.Id == "api-key");
+
+        if (apiKeyStep is null || !apiKeyStep.IsAnswered)
+        {
+            return new TextInputStep
+            {
+                Id = "api-key",
+                Prompt = $"API key (or set {DefaultEnvVar})",
+                Secret = true,
+                Required = true,
+            };
+        }
+
+        ChooseOneStep? modelStep = state.Steps
+            .OfType<ChooseOneStep>()
+            .FirstOrDefault(s => s.Id == "model");
+
+        if (modelStep is null || !modelStep.IsAnswered)
+        {
+            IReadOnlyList<ModelInfo> models = await GetAvailableModelsAsync(
+                apiKeyStep.Value, cancellationToken).ConfigureAwait(false);
+
+            IReadOnlyList<WizardOption> options = models.Count > 0
+                ? models.Select(m => new WizardOption(m.Id, m.Id)).ToList()
+                : (IReadOnlyList<WizardOption>)[new WizardOption("(no models found)", string.Empty)];
+
+            return new ChooseOneStep
+            {
+                Id = "model",
+                Prompt = "Select a model",
+                Options = options,
+            };
+        }
+
+        string selectedModelId = modelStep.Options[modelStep.SelectedIndex!.Value].Value;
+
+        return new WizardCompletedStep
+        {
+            Id = "completed",
+            Prompt = string.Empty,
+            Message = $"✓ {DisplayName} configured with model {selectedModelId}.",
+        };
     }
 
     public ValueTask<IChatClient> CreateAsync(ProviderConfig config, string? apiKey, CancellationToken cancellationToken = default)

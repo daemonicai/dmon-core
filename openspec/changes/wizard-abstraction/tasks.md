@@ -13,10 +13,10 @@
 
 ## 2. Migrate built-in factories to GetNextStepAsync
 
-- [ ] 2.1 Implement `DisplayName` and `GetNextStepAsync` in `AnthropicProviderFactory` (api-key step → model step from `GetAvailableModelsAsync` → build `ProviderConfig` + `WizardCompletedStep`).
-- [ ] 2.2 Implement `DisplayName` and `GetNextStepAsync` in `OpenAiProviderFactory` following the same pattern.
-- [ ] 2.3 Implement `DisplayName` and `GetNextStepAsync` in `GeminiProviderFactory` following the same pattern.
-- [ ] 2.4 Verify each factory reads prior answers by step id (`"api-key"`, `"model"`) and builds the in-flight `ProviderConfig` without persisting to disk.
+- [x] 2.1 Implement `DisplayName` and `GetNextStepAsync` in `AnthropicProviderFactory` (api-key step → model step from `GetAvailableModelsAsync` → build `ProviderConfig` + `WizardCompletedStep`).
+- [x] 2.2 Implement `DisplayName` and `GetNextStepAsync` in `OpenAiProviderFactory` following the same pattern.
+- [x] 2.3 Implement `DisplayName` and `GetNextStepAsync` in `GeminiProviderFactory` following the same pattern.
+- [x] 2.4 Verify each factory reads prior answers by step id (`"api-key"`, `"model"`) and builds the in-flight `ProviderConfig` without persisting to disk.
 
 ## 3. Wizard engine and renderer in Dmon.Terminal
 
