@@ -3,6 +3,7 @@ using Dmon.Abstractions.Providers;
 using Dmon.Protocol.Commands;
 using Dmon.Protocol.Events;
 using Dmon.Providers;
+using Dmon.Providers.Ollama;
 using Dmon.Terminal;
 
 string? corePathOverride = null;
@@ -44,6 +45,7 @@ IReadOnlyList<IProviderFactory> providerFactories =
     new AnthropicProviderFactory(),
     new OpenAiProviderFactory(),
     new GeminiProviderFactory(),
+    new OllamaProviderFactory(),
 ];
 
 ConsoleEventHandler handler = new(renderer, inputReader, SendCommandAsync, cts, providerFactories);
