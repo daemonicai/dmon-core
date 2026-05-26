@@ -76,6 +76,7 @@ internal sealed class ConsoleEventHandler
             case AgentReadyEvent ready:
                 _renderer.AddSystemLine(
                     $"[Ready] dmon core v{ready.CoreVersion} (protocol {ready.ProtocolVersion})");
+                _renderer.PrintPrompt();
                 break;
 
             case BootstrapNoticeEvent bootstrap:

@@ -59,7 +59,6 @@ Console.CancelKeyPress += (_, e) =>
 Task dispatchTask = dispatcher.RunAsync(cts.Token);
 Task inputTask = inputReader.RunAsync(cts.Token);
 
-renderer.PrintPrompt();
 
 IAsyncEnumerator<string> inputEnum = inputReader.ReadLinesAsync(cts.Token)
     .GetAsyncEnumerator(cts.Token);
