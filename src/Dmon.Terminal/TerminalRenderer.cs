@@ -52,14 +52,32 @@ internal sealed class TerminalRenderer
 
     public void PrintPrompt()
     {
-        AnsiConsole.Markup("[grey] > [/]");
-        _currentLineLength = 3;
+        Console.Write("\n");
+        AnsiConsole.Write(new Rule());
+        Console.Write("❯ \n");
+        AnsiConsole.Write(new Rule());
+
+        bool hasStatus = !string.IsNullOrEmpty(_modelName);
+        if (hasStatus)
+        {
+            AnsiConsole.MarkupLine($"[grey]{Markup.Escape(_modelName)}[/]");
+            Console.Write("\n");
+            // 6 lines printed, cursor is at line 7 — move up 4, right 2
+            Console.Write("\x1b[4A\x1b[2C");
+        }
+        else
+        {
+            // 4 lines printed, cursor is at line 5 — move up 2, right 2
+            Console.Write("\x1b[2A\x1b[2C");
+        }
+
+        _currentLineLength = 2;
         _streamedLineCount = 0;
     }
 
     public void AddUserLine(string text)
     {
-        AnsiConsole.MarkupLine($"[bold] > {Markup.Escape(text)}[/]");
+        AnsiConsole.MarkupLine($"[bold]❯ {Markup.Escape(text)}[/]");
     }
 
     public void AddSystemLine(string text)
