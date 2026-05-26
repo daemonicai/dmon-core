@@ -13,12 +13,12 @@
 
 ## 3. OllamaProviderExtension
 
-- [ ] 3.1 Create `src/Dmon.Providers.Ollama/OllamaProviderExtension.cs` implementing `IProviderExtension` with `ProviderName = "Ollama"` and a constructor that accepts a base URL (defaulting to `http://localhost:11434`)
-- [ ] 3.2 Implement `IsApplicable()` returning `true`
-- [ ] 3.3 Implement `IsRunningAsync` — use OllamaSharp to ping the configured base URL with a 2-second timeout; return `false` (do not throw) on any exception or timeout
-- [ ] 3.4 Implement `EnsureRunningAsync` throwing `NotSupportedException` with message `"Ollama must be started manually. See https://ollama.com for installation instructions."`
-- [ ] 3.5 Implement `ListModelsAsync` — delegate to `OllamaApiClient`, map results to `ModelInfo` using `GetCapabilities` heuristic
-- [ ] 3.6 Implement `CreateFactory()` returning `new OllamaProviderFactory()`
+- [x] 3.1 Create `src/Dmon.Providers.Ollama/OllamaProviderExtension.cs` implementing `IProviderExtension` with `ProviderName = "Ollama"` and a constructor that accepts a base URL (defaulting to `http://localhost:11434`)
+- [x] 3.2 Implement `IsApplicable()` returning `true`
+- [x] 3.3 Implement `IsRunningAsync` — use OllamaSharp to ping the configured base URL with a 2-second timeout; return `false` (do not throw) on any exception or timeout
+- [x] 3.4 Implement `EnsureRunningAsync` throwing `NotSupportedException` with message `"Ollama must be started manually. See https://ollama.com for installation instructions."`
+- [x] 3.5 Implement `ListModelsAsync` — delegate to `OllamaApiClient`, map results to `ModelInfo` using `GetCapabilities` heuristic
+- [x] 3.6 Implement `CreateFactory()` returning `new OllamaProviderFactory()`
 
 ## 4. Startup Registration
 
