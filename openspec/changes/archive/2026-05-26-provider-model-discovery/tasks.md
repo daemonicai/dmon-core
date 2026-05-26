@@ -25,5 +25,5 @@
 
 - [x] 5.1 Run `dotnet build` — zero warnings, zero errors
 - [x] 5.2 Run `dotnet test` — all tests pass
-- [ ] 5.3 Manually run the wizard in `Dmon.Terminal` with a valid Gemini API key set in the environment and confirm the live model list appears in step 3
-- [ ] 5.4 Manually run the wizard with an invalid/missing key and confirm the static fallback list appears without an error message
+- [x] 5.3 Manually run the wizard in `Dmon.Terminal` with a valid Gemini API key set in the environment and confirm the live model list appears in step 3
+- [x] 5.4 Manually run the wizard with an invalid/missing key and confirm the static fallback list appears without an error message

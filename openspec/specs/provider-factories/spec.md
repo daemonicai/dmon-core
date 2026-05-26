@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: IProviderFactory interface for pluggable client construction
-The system SHALL define `IProviderFactory` in `Daemon.Core` with three members: `string AdapterName`, `ChatClientCapabilities GetCapabilities(string modelId)`, and `ValueTask<IChatClient> CreateAsync(ProviderConfig config, string? apiKey, CancellationToken cancellationToken)`. `ProviderRegistry` SHALL resolve the correct factory by matching `ProviderConfig.Adapter` against `IProviderFactory.AdapterName` (case-insensitive).
+The system SHALL define `IProviderFactory` in `Dmon.Abstractions` with four members: `string AdapterName`, `ChatClientCapabilities GetCapabilities(string modelId)`, `ValueTask<IChatClient> CreateAsync(ProviderConfig config, string? apiKey, CancellationToken cancellationToken)`, and `ValueTask<IReadOnlyList<ModelInfo>> GetAvailableModelsAsync(string? apiKey, CancellationToken cancellationToken = default)`. The fourth member SHALL have a default interface implementation that returns an empty list, so existing external implementations continue to compile without modification. `ProviderRegistry` SHALL resolve the correct factory by matching `ProviderConfig.Adapter` against `IProviderFactory.AdapterName` (case-insensitive).
 
 #### Scenario: Known adapter resolves to correct factory
 - **WHEN** a `ProviderConfig` with `Adapter = "anthropic"` is active
@@ -11,16 +11,24 @@ The system SHALL define `IProviderFactory` in `Daemon.Core` with three members: 
 - **WHEN** a `ProviderConfig` with an `Adapter` value that matches no registered factory is present
 - **THEN** `ProviderRegistry` throws `InvalidOperationException` during initialisation with a message naming the unknown adapter
 
-### Requirement: Three built-in factory implementations in Daemon.Providers
-The `Daemon.Providers` project SHALL contain `OpenAiProviderFactory`, `AnthropicProviderFactory`, and `GeminiProviderFactory`, each implementing `IProviderFactory`. `Daemon.Core` SHALL carry no direct NuGet references to `OpenAI`, `Anthropic.SDK`, or `GeminiDotnet` after this change.
+#### Scenario: External implementor compiles without adding the new method
+- **WHEN** an external type implements `IProviderFactory` without defining `GetAvailableModelsAsync`
+- **THEN** the project compiles successfully because the default interface implementation is used
 
-#### Scenario: Daemon.Core has no SDK references
-- **WHEN** the `Daemon.Core.csproj` is inspected
+### Requirement: Three built-in factory implementations in Dmon.Providers
+The `Dmon.Providers` project SHALL contain `OpenAiProviderFactory`, `AnthropicProviderFactory`, and `GeminiProviderFactory`, each implementing `IProviderFactory` including `GetAvailableModelsAsync`. `Dmon.Core` SHALL carry no direct NuGet references to `OpenAI`, `Anthropic.SDK`, or `GeminiDotnet` after this change.
+
+#### Scenario: Dmon.Core has no SDK references
+- **WHEN** the `Dmon.Core.csproj` is inspected
 - **THEN** it contains no `PackageReference` for `OpenAI`, `Anthropic.SDK`, or `GeminiDotnet`
 
 #### Scenario: Factories registered at startup
 - **WHEN** the host starts
 - **THEN** all three factory implementations are registered as `IProviderFactory` in DI before the first turn
+
+#### Scenario: Each factory returns a non-empty model list
+- **WHEN** `GetAvailableModelsAsync(null, CancellationToken.None)` is called on any built-in factory
+- **THEN** the result is non-null and contains at least one `ModelInfo` (the static fallback)
 
 ### Requirement: ChatClientCapabilities available via GetService
 Each `IChatClient` returned by a factory's `CreateAsync` SHALL expose a `ChatClientCapabilities` instance via `GetService(typeof(ChatClientCapabilities))`. Callers who hold only an `IChatClient` reference SHALL be able to probe capabilities without knowing the factory that created it.
@@ -44,9 +52,9 @@ Each `IChatClient` returned by a factory's `CreateAsync` SHALL expose a `ChatCli
 - **WHEN** `GetCapabilities("unknown-model-xyz")` is called on any factory
 - **THEN** the result has `SupportsToolCalling = false` and `SupportsReasoning = false`
 
-### Requirement: Daemon.Providers has no dependency on Daemon.Core internals
-`Daemon.Providers` SHALL reference `Daemon.Core` only for `IProviderFactory`, `ProviderConfig`, and `ChatClientCapabilities`. It SHALL NOT reference any other `Daemon.Core` type.
+### Requirement: Dmon.Providers has no dependency on Dmon.Core internals
+`Dmon.Providers` SHALL reference `Dmon.Abstractions` only for `IProviderFactory`, `ProviderConfig`, and `ChatClientCapabilities`. It SHALL NOT reference any other `Dmon.Core` type.
 
 #### Scenario: Dependency graph is clean
 - **WHEN** the solution dependency graph is inspected
-- **THEN** `Daemon.Providers` references `Daemon.Core` and the three LLM SDKs; it references nothing else in the daemon solution
+- **THEN** `Dmon.Providers` references `Dmon.Abstractions` and the three LLM SDKs; it references nothing else in the daemon solution
