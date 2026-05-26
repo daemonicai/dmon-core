@@ -1,8 +1,9 @@
-.PHONY: all build build-terminal build-core test clean
+.PHONY: all build build-terminal build-core build-extensions test clean
 
-CONFIG       ?= Release
-CORE_OUT     := build/dmoncore
-TERMINAL_OUT := build
+CONFIG            ?= Release
+CORE_OUT          := build/dmoncore
+TERMINAL_OUT      := build
+EXTENSIONS_OUT    := build/extensions
 
 all: build test
 
@@ -19,6 +20,16 @@ build-core:
 		-c $(CONFIG) \
 		-o $(CORE_OUT) \
 		--no-self-contained
+
+build-extensions:
+	@for csproj in extensions/*/*.csproj; do \
+		name=$$(basename $$(dirname $$csproj)); \
+		echo "Building extension: $$name"; \
+		dotnet publish "$$csproj" \
+			-c $(CONFIG) \
+			-o "$(EXTENSIONS_OUT)/$$name" \
+			--no-self-contained; \
+	done
 
 test:
 	dotnet test -c $(CONFIG)
