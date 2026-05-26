@@ -55,7 +55,8 @@ Use `/opsx:apply` to work through the tasks for a change. Tasks are organised in
 2. Spawn the `reviewer` agent to review the resulting changes.
 3. If the reviewer requests changes, send the worker back in to address them. Loop until the reviewer approves.
 4. Once approved, `git commit` the changes (Conventional Commits format, scoped to the group) and `git push`.
-5. Only then move on to the next group of tasks.
+5. Report progress to the user and ask if they want to continue with the next group. Skip this step if explicitly instructed to "apply all groups" or "apply without pausing" or similar.
+6. If user approves or you are running without pausing, move on to the next group of tasks.
 
 Mark tasks completed in `tasks.md` as the worker finishes them.
 
@@ -154,6 +155,7 @@ Do not implement, propose, or accept tasks for these unless the brief is explici
 This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.
 
 Rules:
+
 - For codebase questions, first run `graphify query "<question>"` when graphify-out/graph.json exists. Use `graphify path "<A>" "<B>"` for relationships and `graphify explain "<concept>"` for focused concepts. These return a scoped subgraph, usually much smaller than GRAPH_REPORT.md or raw grep output.
 - If graphify-out/wiki/index.md exists, use it for broad navigation instead of raw source browsing.
 - Read graphify-out/GRAPH_REPORT.md only for broad architecture review or when query/path/explain do not surface enough context.
