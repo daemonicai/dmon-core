@@ -14,16 +14,43 @@ public sealed class ProviderFactoryWizardTests
     // ------------------------------------------------------------------ //
 
     [Fact]
-    public async Task Anthropic_FirstStep_IsApiKey()
+    public async Task AnthropicFactory_FirstStep_WhenEnvVarSet_UsesDefault()
     {
-        AnthropicProviderFactory factory = new();
+        Environment.SetEnvironmentVariable("ANTHROPIC_API_KEY", "test-key");
+        try
+        {
+            AnthropicProviderFactory factory = new();
+            WizardStep step = await factory.GetNextStepAsync(WizardState.Empty);
+            TextInputStep textStep = Assert.IsType<TextInputStep>(step);
+            Assert.Equal("api-key", textStep.Id);
+            Assert.False(textStep.Required);
+            Assert.Equal("test-key", textStep.Default);
+            Assert.True(textStep.Secret);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("ANTHROPIC_API_KEY", null);
+        }
+    }
 
-        WizardStep step = await factory.GetNextStepAsync(WizardState.Empty);
-
-        TextInputStep textStep = Assert.IsType<TextInputStep>(step);
-        Assert.Equal("api-key", textStep.Id);
-        Assert.True(textStep.Secret);
-        Assert.True(textStep.Required);
+    [Fact]
+    public async Task AnthropicFactory_FirstStep_WhenEnvVarNotSet_IsRequired()
+    {
+        Environment.SetEnvironmentVariable("ANTHROPIC_API_KEY", null);
+        try
+        {
+            AnthropicProviderFactory factory = new();
+            WizardStep step = await factory.GetNextStepAsync(WizardState.Empty);
+            TextInputStep textStep = Assert.IsType<TextInputStep>(step);
+            Assert.Equal("api-key", textStep.Id);
+            Assert.True(textStep.Required);
+            Assert.Null(textStep.Default);
+            Assert.True(textStep.Secret);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("ANTHROPIC_API_KEY", null);
+        }
     }
 
     [Fact]
@@ -55,16 +82,43 @@ public sealed class ProviderFactoryWizardTests
     // ------------------------------------------------------------------ //
 
     [Fact]
-    public async Task OpenAi_FirstStep_IsApiKey()
+    public async Task OpenAiFactory_FirstStep_WhenEnvVarSet_UsesDefault()
     {
-        OpenAiProviderFactory factory = new();
+        Environment.SetEnvironmentVariable("OPENAI_API_KEY", "test-key");
+        try
+        {
+            OpenAiProviderFactory factory = new();
+            WizardStep step = await factory.GetNextStepAsync(WizardState.Empty);
+            TextInputStep textStep = Assert.IsType<TextInputStep>(step);
+            Assert.Equal("api-key", textStep.Id);
+            Assert.False(textStep.Required);
+            Assert.Equal("test-key", textStep.Default);
+            Assert.True(textStep.Secret);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("OPENAI_API_KEY", null);
+        }
+    }
 
-        WizardStep step = await factory.GetNextStepAsync(WizardState.Empty);
-
-        TextInputStep textStep = Assert.IsType<TextInputStep>(step);
-        Assert.Equal("api-key", textStep.Id);
-        Assert.True(textStep.Secret);
-        Assert.True(textStep.Required);
+    [Fact]
+    public async Task OpenAiFactory_FirstStep_WhenEnvVarNotSet_IsRequired()
+    {
+        Environment.SetEnvironmentVariable("OPENAI_API_KEY", null);
+        try
+        {
+            OpenAiProviderFactory factory = new();
+            WizardStep step = await factory.GetNextStepAsync(WizardState.Empty);
+            TextInputStep textStep = Assert.IsType<TextInputStep>(step);
+            Assert.Equal("api-key", textStep.Id);
+            Assert.True(textStep.Required);
+            Assert.Null(textStep.Default);
+            Assert.True(textStep.Secret);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("OPENAI_API_KEY", null);
+        }
     }
 
     [Fact]
@@ -96,16 +150,43 @@ public sealed class ProviderFactoryWizardTests
     // ------------------------------------------------------------------ //
 
     [Fact]
-    public async Task Gemini_FirstStep_IsApiKey()
+    public async Task GeminiFactory_FirstStep_WhenEnvVarSet_UsesDefault()
     {
-        GeminiProviderFactory factory = new();
+        Environment.SetEnvironmentVariable("GEMINI_API_KEY", "test-key");
+        try
+        {
+            GeminiProviderFactory factory = new();
+            WizardStep step = await factory.GetNextStepAsync(WizardState.Empty);
+            TextInputStep textStep = Assert.IsType<TextInputStep>(step);
+            Assert.Equal("api-key", textStep.Id);
+            Assert.False(textStep.Required);
+            Assert.Equal("test-key", textStep.Default);
+            Assert.True(textStep.Secret);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("GEMINI_API_KEY", null);
+        }
+    }
 
-        WizardStep step = await factory.GetNextStepAsync(WizardState.Empty);
-
-        TextInputStep textStep = Assert.IsType<TextInputStep>(step);
-        Assert.Equal("api-key", textStep.Id);
-        Assert.True(textStep.Secret);
-        Assert.True(textStep.Required);
+    [Fact]
+    public async Task GeminiFactory_FirstStep_WhenEnvVarNotSet_IsRequired()
+    {
+        Environment.SetEnvironmentVariable("GEMINI_API_KEY", null);
+        try
+        {
+            GeminiProviderFactory factory = new();
+            WizardStep step = await factory.GetNextStepAsync(WizardState.Empty);
+            TextInputStep textStep = Assert.IsType<TextInputStep>(step);
+            Assert.Equal("api-key", textStep.Id);
+            Assert.True(textStep.Required);
+            Assert.Null(textStep.Default);
+            Assert.True(textStep.Secret);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("GEMINI_API_KEY", null);
+        }
     }
 
     [Fact]

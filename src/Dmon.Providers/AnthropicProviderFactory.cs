@@ -87,12 +87,16 @@ public sealed class AnthropicProviderFactory : IProviderFactory
 
         if (apiKeyStep is null || !apiKeyStep.IsAnswered)
         {
+            string? envVarValue = Environment.GetEnvironmentVariable(DefaultEnvVar);
+            bool hasEnvVar = !string.IsNullOrWhiteSpace(envVarValue);
+
             return new TextInputStep
             {
                 Id = "api-key",
-                Prompt = $"API key (or set {DefaultEnvVar})",
+                Prompt = hasEnvVar ? $"API key (or use ${DefaultEnvVar})" : "API key",
                 Secret = true,
-                Required = true,
+                Required = !hasEnvVar,
+                Default = hasEnvVar ? envVarValue : null,
             };
         }
 

@@ -52,7 +52,10 @@ internal static class WizardRenderer
         TextInputStep step, CancellationToken cancellationToken)
     {
         if (step.Default is not null)
-            AnsiConsole.MarkupLine($"[grey]Default: {Markup.Escape(step.Default)}[/]");
+        {
+            string shown = step.Secret ? new string('*', 8) : Markup.Escape(step.Default);
+            AnsiConsole.MarkupLine($"[grey]Default: {shown}[/]");
+        }
 
         string? value = await InlinePrompt.ReadLineAsync(step.Prompt, step.Secret, cancellationToken)
             .ConfigureAwait(false);
