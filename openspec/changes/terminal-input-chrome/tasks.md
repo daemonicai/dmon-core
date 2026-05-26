@@ -6,9 +6,9 @@
 
 ## 2. ConsoleEventHandler — remove redundant separator
 
-- [ ] 2.1 Remove `_renderer.PrintSeparator()` call from the `TurnEndEvent` handler
+- [x] 2.1 Remove `_renderer.PrintSeparator()` call from the `TurnEndEvent` handler
 
 ## 3. Verify
 
-- [ ] 3.1 Build `Dmon.Terminal` without warnings
+- [x] 3.1 Build `Dmon.Terminal` without warnings
 - [ ] 3.2 Smoke-test: startup renders input block with no status line; after provider switch the model name appears; submitted input shows `❯` glyph in history

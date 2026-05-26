@@ -57,7 +57,6 @@ internal sealed class ConsoleEventHandler
                 _rawText = string.Empty;
                 _input.IsLocked = false;
                 _renderer.SetStatus(_modelName, thinking: false);
-                _renderer.PrintSeparator();
                 _renderer.PrintPrompt();
                 break;
 
