@@ -188,13 +188,8 @@ internal sealed class ConsoleEventHandler
 
     private async Task HandleAddProviderAsync(CancellationToken cancellationToken)
     {
-        WizardState? result = await WizardRunner.RunAsync(
-            [
-                AdapterSelectionStep.Create(cancellationToken),
-                AuthConfigStep.Create(cancellationToken),
-                ModelSelectionStep.Create(_providerFactories, cancellationToken),
-            ],
-            cancellationToken).ConfigureAwait(false);
+        WizardEngine engine = new(_providerFactories);
+        WizardResult? result = await engine.RunAsync(cancellationToken).ConfigureAwait(false);
 
         if (result is null)
         {
@@ -206,10 +201,10 @@ internal sealed class ConsoleEventHandler
         ProviderConfigureCommand command = new()
         {
             Id      = Guid.NewGuid().ToString("N"),
-            Adapter = result.Adapter ?? string.Empty,
-            ModelId = result.ModelId ?? string.Empty,
-            EnvVar  = result.EnvVar  ?? string.Empty,
-            Scope   = result.Scope   ?? "local",
+            Adapter = result.Adapter,
+            ModelId = result.ModelId,
+            EnvVar  = result.EnvVar,
+            Scope   = "global",
         };
 
         await _sendCommand(command, cancellationToken).ConfigureAwait(false);

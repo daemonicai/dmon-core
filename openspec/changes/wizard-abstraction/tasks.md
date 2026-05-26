@@ -20,12 +20,12 @@
 
 ## 3. Wizard engine and renderer in Dmon.Terminal
 
-- [ ] 3.1 Implement the wizard engine: build provider-selection `ChooseOneStep` from registered factories (`Label` = `DisplayName`, `Value` = `AdapterName`), resolve the factory, then loop on `GetNextStepAsync`.
-- [ ] 3.2 Implement the renderer: pattern-match `WizardStep` subtypes onto `InlinePrompt` calls; honour `Secret`/`Required` on `TextInputStep`; map back/cancel signals to engine outcomes.
-- [ ] 3.3 Implement loop semantics: append answered step on `Answered`, truncate last step and re-ask on `Back` (back from first factory step returns to provider selection), abandon on `Cancel`.
-- [ ] 3.4 On `WizardCompletedStep`, persist the provider config to global scope and render the completion `Message`.
-- [ ] 3.5 Delete the hardcoded adapter list, the env-var dictionary, and the local/global scope prompt from `WizardSteps.cs`; adapt or remove `WizardRunner.cs`/`WizardState.cs` as superseded by the engine.
-- [ ] 3.6 Confirm the completed wizard still emits the existing `ProviderConfigureCommand` to the core.
+- [x] 3.1 Implement the wizard engine: build provider-selection `ChooseOneStep` from registered factories (`Label` = `DisplayName`, `Value` = `AdapterName`), resolve the factory, then loop on `GetNextStepAsync`.
+- [x] 3.2 Implement the renderer: pattern-match `WizardStep` subtypes onto `InlinePrompt` calls; honour `Secret`/`Required` on `TextInputStep`; map back/cancel signals to engine outcomes.
+- [x] 3.3 Implement loop semantics: append answered step on `Answered`, truncate last step and re-ask on `Back` (back from first factory step returns to provider selection), abandon on `Cancel`.
+- [x] 3.4 On `WizardCompletedStep`, persist the provider config to global scope and render the completion `Message`.
+- [x] 3.5 Delete the hardcoded adapter list, the env-var dictionary, and the local/global scope prompt from `WizardSteps.cs`; adapt or remove `WizardRunner.cs`/`WizardState.cs` as superseded by the engine.
+- [x] 3.6 Confirm the completed wizard still emits the existing `ProviderConfigureCommand` to the core.
 
 ## 4. Build, test, and verify
 
