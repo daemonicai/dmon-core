@@ -1,4 +1,5 @@
 using Dmon.Abstractions.Providers;
+using Dmon.Abstractions.Wizard;
 using Dmon.Core.Providers;
 using Dmon.Protocol.Events;
 using Dmon.Protocol.Models;
@@ -147,8 +148,12 @@ public sealed class ModelListHandlerTests
     private sealed class FakeProviderFactory : IProviderFactory
     {
         public string AdapterName => "openai";
+        public string DisplayName => "OpenAI";
         public string DefaultModelId => "gpt-4o";
         public string DefaultEnvVar => "OPENAI_API_KEY";
+
+        public ValueTask<WizardStep> GetNextStepAsync(WizardState state, CancellationToken cancellationToken = default)
+            => throw new NotSupportedException("Not needed in model-list tests.");
 
         public ChatClientCapabilities Capabilities { get; set; } = new ChatClientCapabilities();
 

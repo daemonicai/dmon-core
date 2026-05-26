@@ -1,4 +1,5 @@
 using Dmon.Abstractions.Providers;
+using Dmon.Abstractions.Wizard;
 using Dmon.Core.Providers;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -305,8 +306,12 @@ public sealed class ProviderRegistryTests
         }
 
         public string AdapterName => "openai";
+        public string DisplayName => "OpenAI";
         public string DefaultModelId => "gpt-4o";
         public string DefaultEnvVar => "OPENAI_API_KEY";
+
+        public ValueTask<WizardStep> GetNextStepAsync(WizardState state, CancellationToken cancellationToken = default)
+            => throw new NotSupportedException("Not needed in provider-registry tests.");
 
         public ChatClientCapabilities GetCapabilities(string modelId) =>
             _capabilitiesFunc?.Invoke(modelId) ?? new ChatClientCapabilities();

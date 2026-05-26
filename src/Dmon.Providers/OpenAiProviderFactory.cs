@@ -1,6 +1,7 @@
 using System.ClientModel;
 using System.Text.Json;
 using Dmon.Abstractions.Providers;
+using Dmon.Abstractions.Wizard;
 using Microsoft.Extensions.AI;
 using OpenAI;
 
@@ -9,8 +10,12 @@ namespace Dmon.Providers;
 public sealed class OpenAiProviderFactory : IProviderFactory
 {
     public string AdapterName => "openai";
+    public string DisplayName => "OpenAI";
     public string DefaultModelId => "gpt-4o";
     public string DefaultEnvVar => "OPENAI_API_KEY";
+
+    public ValueTask<WizardStep> GetNextStepAsync(WizardState state, CancellationToken cancellationToken = default)
+        => throw new NotSupportedException("OpenAI provider wizard setup is not yet implemented.");
 
     private static readonly IReadOnlyList<ModelInfo> FallbackModels =
     [

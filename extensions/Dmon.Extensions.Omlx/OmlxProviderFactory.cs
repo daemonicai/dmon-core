@@ -1,6 +1,7 @@
 using System.ClientModel;
 using System.ClientModel.Primitives;
 using Dmon.Abstractions.Providers;
+using Dmon.Abstractions.Wizard;
 using Microsoft.Extensions.AI;
 using OpenAI;
 using OpenAI.Chat;
@@ -17,8 +18,12 @@ public sealed class OmlxProviderFactory : IProviderFactory
     }
 
     public string AdapterName => "omlx";
+    public string DisplayName => "oMLX";
     public string DefaultModelId => string.Empty;
     public string DefaultEnvVar => "OMLX_API_KEY";
+
+    public ValueTask<WizardStep> GetNextStepAsync(WizardState state, CancellationToken cancellationToken = default)
+        => throw new NotSupportedException("oMLX provider wizard setup is not yet implemented.");
 
     public ChatClientCapabilities GetCapabilities(string modelId) =>
         OmlxCapabilityHeuristic.Infer(modelId);

@@ -1,4 +1,5 @@
 using Dmon.Abstractions.Providers;
+using Dmon.Abstractions.Wizard;
 using Dmon.Core.Bootstrap;
 using Dmon.Core.Tests.Fakes;
 using Dmon.Protocol.Events;
@@ -114,8 +115,12 @@ public sealed class SetupCheckServiceTests
         : IProviderFactory
     {
         public string AdapterName => adapterName;
+        public string DisplayName => adapterName;
         public string DefaultModelId => defaultModelId;
         public string DefaultEnvVar => defaultEnvVar;
+
+        public ValueTask<WizardStep> GetNextStepAsync(WizardState state, CancellationToken cancellationToken = default)
+            => throw new NotSupportedException("Not needed in setup-check tests.");
 
         public ChatClientCapabilities GetCapabilities(string modelId) => new();
 

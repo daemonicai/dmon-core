@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Dmon.Abstractions.Providers;
+using Dmon.Abstractions.Wizard;
 using GeminiDotnet;
 using GeminiDotnet.Extensions.AI;
 using Microsoft.Extensions.AI;
@@ -9,8 +10,12 @@ namespace Dmon.Providers;
 public sealed class GeminiProviderFactory : IProviderFactory
 {
     public string AdapterName => "gemini";
+    public string DisplayName => "Google Gemini";
     public string DefaultModelId => "gemini-2.5-pro";
     public string DefaultEnvVar => "GEMINI_API_KEY";
+
+    public ValueTask<WizardStep> GetNextStepAsync(WizardState state, CancellationToken cancellationToken = default)
+        => throw new NotSupportedException("Gemini provider wizard setup is not yet implemented.");
 
     private static readonly IReadOnlyList<ModelInfo> FallbackModels =
     [
