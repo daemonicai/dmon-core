@@ -33,4 +33,4 @@
 - [x] 4.2 Add a `test/Dmon.Terminal.Tests` project for engine tests; reuse `test/Dmon.Providers.Tests` for factory tests; register both in `Dmon.slnx`.
 - [x] 4.3 Add unit tests for `GetNextStepAsync` flow per factory (first step is api-key, second is model list, third completes).
 - [x] 4.4 Add unit tests for engine back/cancel navigation and global-scope persistence.
-- [ ] 4.5 Manually run `/add-provider` for Anthropic, OpenAI, and Gemini and confirm each completes and writes global config.
+- [x] 4.5 Manually run `/add-provider` for Anthropic, OpenAI, and Gemini and confirm each completes and writes global config.
