@@ -22,9 +22,9 @@
 
 ## 4. Startup Registration
 
-- [ ] 4.1 In `DaemonServiceExtensions.cs`, add `ProjectReference` to `Dmon.Providers.Ollama` in `Dmon.Core.csproj`
-- [ ] 4.2 Register `OllamaProviderFactory` as `IProviderFactory` alongside the other built-in factories in `DaemonServiceExtensions`
+- [x] 4.1 In `DaemonServiceExtensions.cs`, add `ProjectReference` to `Dmon.Providers.Ollama` in `Dmon.Core.csproj`
+- [x] 4.2 Register `OllamaProviderFactory` as `IProviderFactory` alongside the other built-in factories in `DaemonServiceExtensions`
 
 ## 5. Build Verification
 
-- [ ] 5.1 Run `dotnet build` from the solution root and confirm zero warnings and zero errors
+- [x] 5.1 Run `dotnet build` from the solution root and confirm zero warnings and zero errors

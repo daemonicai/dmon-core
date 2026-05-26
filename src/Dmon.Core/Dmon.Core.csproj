@@ -29,5 +29,6 @@
     <ProjectReference Include="..\Dmon.BuiltinTools\Dmon.BuiltinTools.csproj" />
     <ProjectReference Include="..\Dmon.Extensions\Dmon.Extensions.csproj" />
     <ProjectReference Include="..\Dmon.Providers\Dmon.Providers.csproj" />
+    <ProjectReference Include="..\Dmon.Providers.Ollama\Dmon.Providers.Ollama.csproj" />
   </ItemGroup>
 </Project>

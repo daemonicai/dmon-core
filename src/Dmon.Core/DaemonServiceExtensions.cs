@@ -12,6 +12,7 @@ using Dmon.Core.Providers;
 using Dmon.Core.Rpc;
 using Dmon.Core.Session;
 using Dmon.Providers;
+using Dmon.Providers.Ollama;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 
@@ -37,6 +38,7 @@ public static class DmonServiceExtensions
         services.AddSingleton<IProviderFactory, OpenAiProviderFactory>();
         services.AddSingleton<IProviderFactory, AnthropicProviderFactory>();
         services.AddSingleton<IProviderFactory, GeminiProviderFactory>();
+        services.AddSingleton<IProviderFactory, OllamaProviderFactory>();
         services.AddSingleton<IProviderRegistry, ProviderRegistry>();
 
         return services;
