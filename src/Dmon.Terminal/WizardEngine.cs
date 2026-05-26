@@ -12,10 +12,18 @@ namespace Dmon.Terminal;
 internal sealed class WizardEngine
 {
     private readonly IReadOnlyList<IProviderFactory> _factories;
+    private readonly Func<WizardStep, CancellationToken, Task<WizardStepOutcome>> _renderStep;
 
-    public WizardEngine(IReadOnlyList<IProviderFactory> factories)
+    /// <param name="factories">The registered provider factories.</param>
+    /// <param name="renderStep">
+    /// Override the render delegate for testing. Defaults to <see cref="WizardRenderer.RenderAsync"/>.
+    /// </param>
+    public WizardEngine(
+        IReadOnlyList<IProviderFactory> factories,
+        Func<WizardStep, CancellationToken, Task<WizardStepOutcome>>? renderStep = null)
     {
         _factories = factories;
+        _renderStep = renderStep ?? WizardRenderer.RenderAsync;
     }
 
     /// <summary>
@@ -34,8 +42,8 @@ internal sealed class WizardEngine
             if (factory is null)
             {
                 ChooseOneStep selectStep = BuildProviderSelectionStep();
-                WizardStepOutcome selectOutcome = await WizardRenderer
-                    .RenderAsync(selectStep, cancellationToken).ConfigureAwait(false);
+                WizardStepOutcome selectOutcome = await _renderStep(selectStep, cancellationToken)
+                    .ConfigureAwait(false);
 
                 if (selectOutcome is WizardStepOutcome.Cancel or WizardStepOutcome.Back)
                     return null;
@@ -56,8 +64,8 @@ internal sealed class WizardEngine
                 return BuildResult(factory, state);
             }
 
-            WizardStepOutcome outcome = await WizardRenderer
-                .RenderAsync(step, cancellationToken).ConfigureAwait(false);
+            WizardStepOutcome outcome = await _renderStep(step, cancellationToken)
+                .ConfigureAwait(false);
 
             switch (outcome)
             {

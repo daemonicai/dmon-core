@@ -27,5 +27,6 @@
     <Project Path="test\Dmon.BuiltinTools.Tests\Dmon.BuiltinTools.Tests.csproj" />
     <Project Path="test\Dmon.Providers.Tests\Dmon.Providers.Tests.csproj" />
     <Project Path="test\Dmon.Extensions.Omlx.Tests\Dmon.Extensions.Omlx.Tests.csproj" />
+    <Project Path="test\Dmon.Terminal.Tests\Dmon.Terminal.Tests.csproj" />
   </Folder>
 </Solution>
