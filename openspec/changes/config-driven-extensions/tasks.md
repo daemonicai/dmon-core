@@ -13,10 +13,10 @@
 
 ## 3. Startup Loading
 
-- [ ] 3.1 Add a startup step (in/invoked by `BootstrapService`) that loads each effective entry via `ExtensionService`, bypassing the interactive confirm callback
-- [ ] 3.2 Log per-entry load failures and continue startup (no abort)
-- [ ] 3.3 Verify config-declared extensions register their tools at startup with no prompt
-- [ ] 3.4 Integration test: one failing entry is skipped; the rest load and the daemon starts
+- [x] 3.1 Add a startup step (in/invoked by `BootstrapService`) that loads each effective entry via `ExtensionService`, bypassing the interactive confirm callback
+- [x] 3.2 Log per-entry load failures and continue startup (no abort)
+- [x] 3.3 Verify config-declared extensions register their tools at startup with no prompt
+- [x] 3.4 Integration test: one failing entry is skipped; the rest load and the daemon starts
 
 ## 4. Add/Remove Surface (Edit-Only)
 

@@ -78,6 +78,10 @@ public static class DmonServiceExtensions
             sp.GetService<IProviderRegistry>()));
         services.AddSingleton<PromoteService>();
 
+        services.AddSingleton<ExtensionsConfigReader>();
+        services.AddSingleton<EffectiveExtensionSetResolver>();
+        services.AddSingleton<StartupExtensionLoader>();
+
         return services;
     }
 
