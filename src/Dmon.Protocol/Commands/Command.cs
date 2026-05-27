@@ -24,6 +24,7 @@ namespace Dmon.Protocol.Commands;
 [JsonDerivedType(typeof(ModelSetCommand), typeDiscriminator: "model.set")]
 [JsonDerivedType(typeof(ModelCycleCommand), typeDiscriminator: "model.cycle")]
 [JsonDerivedType(typeof(ModelListCommand), typeDiscriminator: "model.list")]
+[JsonDerivedType(typeof(ModelModelsCommand), typeDiscriminator: "model.models")]
 [JsonDerivedType(typeof(ExtensionLoadCommand), typeDiscriminator: "extension.load")]
 [JsonDerivedType(typeof(ExtensionUnloadCommand), typeDiscriminator: "extension.unload")]
 [JsonDerivedType(typeof(ExtensionPromoteCommand), typeDiscriminator: "extension.promote")]

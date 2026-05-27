@@ -18,3 +18,9 @@ public sealed record ModelCycleCommand : Command
 public sealed record ModelListCommand : Command
 {
 }
+
+public sealed record ModelModelsCommand : Command
+{
+    [JsonPropertyName("provider")]
+    public required string Provider { get; init; }
+}

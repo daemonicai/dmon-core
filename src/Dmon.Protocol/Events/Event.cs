@@ -35,6 +35,7 @@ namespace Dmon.Protocol.Events;
 [JsonDerivedType(typeof(AuthLoginFailedEvent), typeDiscriminator: "auth.loginFailed")]
 [JsonDerivedType(typeof(AuthStatusResultEvent), typeDiscriminator: "auth.statusResult")]
 [JsonDerivedType(typeof(ModelListResultEvent), typeDiscriminator: "model.listResult")]
+[JsonDerivedType(typeof(ModelModelsResultEvent), typeDiscriminator: "model.models.result")]
 [JsonDerivedType(typeof(ResponseEvent), typeDiscriminator: "response")]
 [JsonDerivedType(typeof(SetupRequiredEvent), typeDiscriminator: "setupRequired")]
 [JsonDerivedType(typeof(ProviderConfiguredEvent), typeDiscriminator: "providerConfigured")]

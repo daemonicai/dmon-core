@@ -14,3 +14,15 @@ public sealed record ModelListResultEvent : Event
     [JsonPropertyName("activeModelId")]
     public required string ActiveModelId { get; init; }
 }
+
+public sealed record ModelModelsResultEvent : Event
+{
+    [JsonPropertyName("provider")]
+    public required string Provider { get; init; }
+
+    [JsonPropertyName("models")]
+    public required IReadOnlyList<string> Models { get; init; }
+
+    [JsonPropertyName("activeModelId")]
+    public string? ActiveModelId { get; init; }
+}

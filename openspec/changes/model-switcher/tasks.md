@@ -1,9 +1,9 @@
 ## 1. Protocol — new command and event types
 
-- [ ] 1.1 Add `ModelModelsCommand` record to `src/Dmon.Protocol/Commands/ModelCommands.cs` with `[JsonPropertyName("provider")] public required string Provider { get; init; }`
-- [ ] 1.2 Add `ModelModelsResultEvent` record to `src/Dmon.Protocol/Events/ModelEvents.cs` with `Provider` (string), `Models` (IReadOnlyList<string>), and `ActiveModelId` (string?) properties
-- [ ] 1.3 Register `ModelModelsCommand` in `Command.cs` JsonDerivedType attributes (type discriminator `"model.models"`)
-- [ ] 1.4 Register `ModelModelsResultEvent` in `Event.cs` JsonDerivedType attributes (type discriminator `"model.models.result"`)
+- [x] 1.1 Add `ModelModelsCommand` record to `src/Dmon.Protocol/Commands/ModelCommands.cs` with `[JsonPropertyName("provider")] public required string Provider { get; init; }`
+- [x] 1.2 Add `ModelModelsResultEvent` record to `src/Dmon.Protocol/Events/ModelEvents.cs` with `Provider` (string), `Models` (IReadOnlyList<string>), and `ActiveModelId` (string?) properties
+- [x] 1.3 Register `ModelModelsCommand` in `Command.cs` JsonDerivedType attributes (type discriminator `"model.models"`)
+- [x] 1.4 Register `ModelModelsResultEvent` in `Event.cs` JsonDerivedType attributes (type discriminator `"model.models.result"`)
 
 ## 2. Registry — committed active model ID
 
