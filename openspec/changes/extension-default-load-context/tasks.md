@@ -25,11 +25,11 @@
 
 ## 5. Tests
 
-- [ ] 5.1 Unit test: loader loads a local assembly into `AssemblyLoadContext.Default` and creates no collectible context
-- [ ] 5.2 Unit test: loading extension B does not unload or disturb extension A's registered tools
+- [x] 5.1 Unit test: loader loads a local assembly into `AssemblyLoadContext.Default` and creates no collectible context
+- [x] 5.2 Unit test: loading extension B does not unload or disturb extension A's registered tools
 - [x] 5.3 Unit test: extension with a sibling/`.deps.json` dependency resolves and loads
-- [ ] 5.4 Unit test: `Unload` removes tools and emits `ExtensionUnloadedEvent` without reclaiming the assembly
-- [ ] 5.5 Unit test: `CsxScriptLoader` holds no `AssemblyLoadContext` reference after loading a script
+- [x] 5.4 Unit test: `Unload` removes tools and emits `ExtensionUnloadedEvent` without reclaiming the assembly
+- [x] 5.5 Unit test: `CsxScriptLoader` holds no `AssemblyLoadContext` reference after loading a script
 
 ## 6. Docs & ADR Cross-Reference
 
