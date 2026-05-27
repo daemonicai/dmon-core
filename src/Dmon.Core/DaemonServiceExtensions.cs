@@ -109,6 +109,8 @@ public static class DmonServiceExtensions
         services.AddSingleton<TurnHandler>();
         services.AddSingleton<ITurnHandler>(sp => sp.GetRequiredService<TurnHandler>());
 
+        services.AddSingleton<ModelListHandler>();
+        services.AddSingleton<ModelModelsHandler>();
         services.AddSingleton<IModelHandler, NullModelHandler>();
         services.AddSingleton<SessionHandler>();
         services.AddSingleton<ISessionHandler>(sp => sp.GetRequiredService<SessionHandler>());

@@ -7,4 +7,5 @@ public interface IModelHandler
     Task SetAsync(ModelSetCommand cmd, CancellationToken cancellationToken);
     Task CycleAsync(ModelCycleCommand cmd, CancellationToken cancellationToken);
     Task ListAsync(ModelListCommand cmd, CancellationToken cancellationToken);
+    Task ModelsAsync(ModelModelsCommand cmd, CancellationToken cancellationToken);
 }

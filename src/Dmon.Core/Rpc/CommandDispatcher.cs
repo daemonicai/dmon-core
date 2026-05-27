@@ -118,6 +118,7 @@ public sealed class CommandDispatcher
             "model.set" => _model.SetAsync(Deserialize<ModelSetCommand>(element), cancellationToken),
             "model.cycle" => _model.CycleAsync(Deserialize<ModelCycleCommand>(element), cancellationToken),
             "model.list" => _model.ListAsync(Deserialize<ModelListCommand>(element), cancellationToken),
+            "model.models" => _model.ModelsAsync(Deserialize<ModelModelsCommand>(element), cancellationToken),
             "session.create" => _session.CreateAsync(Deserialize<SessionCreateCommand>(element), cancellationToken),
             "session.fork" => _session.ForkAsync(Deserialize<SessionForkCommand>(element), cancellationToken),
             "session.clone" => _session.CloneAsync(Deserialize<SessionCloneCommand>(element), cancellationToken),

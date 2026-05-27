@@ -60,17 +60,14 @@ public class IntegrationSmokeTest : IClassFixture<CoreProcessFixture>
         string cmdId = Guid.NewGuid().ToString("N");
         await SendAsync(new { type = "model.list", id = cmdId });
 
-        string? respLine = await ReadResponseAsync(cmdId);
+        string? respLine = await ReadEventAsync("model.listResult");
         Assert.NotNull(respLine);
 
         using JsonDocument doc = JsonDocument.Parse(respLine);
         JsonElement root = doc.RootElement;
 
-        Assert.Equal("response", root.GetProperty("type").GetString());
-        Assert.True(root.GetProperty("success").GetBoolean());
-
-        JsonElement payload = root.GetProperty("data");
-        Assert.Equal(JsonValueKind.Array, payload.ValueKind);
+        Assert.Equal("model.listResult", root.GetProperty("type").GetString());
+        Assert.Equal(JsonValueKind.Array, root.GetProperty("models").ValueKind);
         // NullModelHandler returns an empty list when no providers are configured.
         // The array may be empty but must be present.
     }
@@ -160,6 +157,20 @@ public class IntegrationSmokeTest : IClassFixture<CoreProcessFixture>
             string? line = await _fixture.ReadLineWithTimeoutAsync(TimeSpan.FromSeconds(2));
             if (line is null) return null;
             if (line.Contains("\"response\"") && line.Contains(cmdId))
+                return line;
+        }
+
+        return null;
+    }
+
+    private async Task<string?> ReadEventAsync(string eventType)
+    {
+        string needle = $"\"{eventType}\"";
+        for (int i = 0; i < 20; i++)
+        {
+            string? line = await _fixture.ReadLineWithTimeoutAsync(TimeSpan.FromSeconds(2));
+            if (line is null) return null;
+            if (line.Contains(needle))
                 return line;
         }
 

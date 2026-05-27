@@ -4,18 +4,23 @@ using Dmon.Protocol.Events;
 
 namespace Dmon.Core.Rpc;
 
-/// <summary>
-/// Placeholder model handler — full implementation is in a later group.
-/// </summary>
 internal sealed class NullModelHandler : IModelHandler
 {
     private readonly IProviderRegistry _providers;
     private readonly IEventEmitter _emitter;
+    private readonly ModelListHandler _listHandler;
+    private readonly ModelModelsHandler _modelsHandler;
 
-    public NullModelHandler(IProviderRegistry providers, IEventEmitter emitter)
+    public NullModelHandler(
+        IProviderRegistry providers,
+        IEventEmitter emitter,
+        ModelListHandler listHandler,
+        ModelModelsHandler modelsHandler)
     {
         _providers = providers;
         _emitter = emitter;
+        _listHandler = listHandler;
+        _modelsHandler = modelsHandler;
     }
 
     public Task SetAsync(ModelSetCommand cmd, CancellationToken cancellationToken)
@@ -30,12 +35,13 @@ internal sealed class NullModelHandler : IModelHandler
 
     public async Task ListAsync(ModelListCommand cmd, CancellationToken cancellationToken)
     {
-        await _emitter.EmitAsync(new ResponseEvent
-        {
-            RequestId = cmd.Id,
-            Command = "model.list",
-            Success = true,
-            Data = Array.Empty<object>()
-        }, cancellationToken).ConfigureAwait(false);
+        ModelListResultEvent result = _listHandler.Handle();
+        await _emitter.EmitAsync(result, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task ModelsAsync(ModelModelsCommand cmd, CancellationToken cancellationToken)
+    {
+        ModelModelsResultEvent result = await _modelsHandler.HandleAsync(cmd, cancellationToken).ConfigureAwait(false);
+        await _emitter.EmitAsync(result, cancellationToken).ConfigureAwait(false);
     }
 }

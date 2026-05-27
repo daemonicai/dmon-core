@@ -47,7 +47,7 @@ public sealed class ModelListHandler
         {
             Models = models,
             ActiveProvider = current.Name,
-            ActiveModelId = current.DefaultModelId ?? string.Empty
+            ActiveModelId = _registry.GetCurrentModelId() ?? current.DefaultModelId ?? string.Empty
         };
     }
 }

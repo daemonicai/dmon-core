@@ -12,13 +12,13 @@
 
 ## 3. Core — handlers and wiring
 
-- [ ] 3.1 Fix `ModelListHandler.Handle()` to source `ActiveModelId` from `IProviderRegistry.GetCurrentModelId()`, falling back to `current.DefaultModelId ?? string.Empty` when null
-- [ ] 3.2 Add `IModelHandler` method `ModelsAsync(ModelModelsCommand cmd, CancellationToken ct)` to `IModelHandler` interface
-- [ ] 3.3 Implement `ModelModelsHandler` in `src/Dmon.Core/Providers/`: resolve credentials for `cmd.Provider` from the registry config, call `factory.GetAvailableModelsAsync(apiKey, ct)` with 5-second timeout, emit `ModelModelsResultEvent { Provider, Models = modelIds, ActiveModelId = registry.GetCurrentModelId() }`
-- [ ] 3.4 Fix `NullModelHandler.ListAsync` to call `ModelListHandler.Handle()` and emit a proper `ModelListResultEvent` (not the generic `ResponseEvent` stub)
-- [ ] 3.5 Implement `NullModelHandler.ModelsAsync` by delegating to `ModelModelsHandler`
-- [ ] 3.6 Register `ModelModelsHandler` in `DaemonServiceExtensions.cs`
-- [ ] 3.7 Wire `"model.models"` in `CommandDispatcher.RouteAsync` to call `_model.ModelsAsync(...)`
+- [x] 3.1 Fix `ModelListHandler.Handle()` to source `ActiveModelId` from `IProviderRegistry.GetCurrentModelId()`, falling back to `current.DefaultModelId ?? string.Empty` when null
+- [x] 3.2 Add `IModelHandler` method `ModelsAsync(ModelModelsCommand cmd, CancellationToken ct)` to `IModelHandler` interface
+- [x] 3.3 Implement `ModelModelsHandler` in `src/Dmon.Core/Providers/`: resolve credentials for `cmd.Provider` from the registry config, call `factory.GetAvailableModelsAsync(apiKey, ct)` with 5-second timeout, emit `ModelModelsResultEvent { Provider, Models = modelIds, ActiveModelId = registry.GetCurrentModelId() }`
+- [x] 3.4 Fix `NullModelHandler.ListAsync` to call `ModelListHandler.Handle()` and emit a proper `ModelListResultEvent` (not the generic `ResponseEvent` stub)
+- [x] 3.5 Implement `NullModelHandler.ModelsAsync` by delegating to `ModelModelsHandler`
+- [x] 3.6 Register `ModelModelsHandler` in `DaemonServiceExtensions.cs`
+- [x] 3.7 Wire `"model.models"` in `CommandDispatcher.RouteAsync` to call `_model.ModelsAsync(...)`
 
 ## 4. Terminal — interactive two-step picker
 
