@@ -7,10 +7,10 @@
 
 ## 2. Transitive Dependency Resolution
 
-- [ ] 2.1 Build an `AssemblyDependencyResolver` from each loaded extension assembly path
-- [ ] 2.2 Register a `AssemblyLoadContext.Default.Resolving` handler that consults the resolver, falling back to probing the extension assembly's directory
-- [ ] 2.3 De-duplicate resolvers by extension path so repeated loads do not accumulate handlers
-- [ ] 2.4 Verify an extension with a sibling dependency and one with a `.deps.json`-described dependency both load
+- [x] 2.1 Build an `AssemblyDependencyResolver` from each loaded extension assembly path
+- [x] 2.2 Register a `AssemblyLoadContext.Default.Resolving` handler that consults the resolver, falling back to probing the extension assembly's directory
+- [x] 2.3 De-duplicate resolvers by extension path so repeated loads do not accumulate handlers
+- [x] 2.4 Verify an extension with a sibling dependency and one with a `.deps.json`-described dependency both load
 
 ## 3. Script Loader Cleanup
 
@@ -27,7 +27,7 @@
 
 - [ ] 5.1 Unit test: loader loads a local assembly into `AssemblyLoadContext.Default` and creates no collectible context
 - [ ] 5.2 Unit test: loading extension B does not unload or disturb extension A's registered tools
-- [ ] 5.3 Unit test: extension with a sibling/`.deps.json` dependency resolves and loads
+- [x] 5.3 Unit test: extension with a sibling/`.deps.json` dependency resolves and loads
 - [ ] 5.4 Unit test: `Unload` removes tools and emits `ExtensionUnloadedEvent` without reclaiming the assembly
 - [ ] 5.5 Unit test: `CsxScriptLoader` holds no `AssemblyLoadContext` reference after loading a script
 
