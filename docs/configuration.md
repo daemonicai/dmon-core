@@ -39,6 +39,18 @@ OTel is configured entirely via standard environment variables. See [observabili
 
 ---
 
+## Extension loading
+
+NuGet/local-assembly extensions load into the **Default `AssemblyLoadContext`** (`AssemblyLoadContext.Default`). There is no per-extension collectible context. See [ADR-008](./adrs/ADR-008-extension-load-context.md) for the rationale.
+
+**Unload semantics.** `extension.unload <name>` (and the corresponding `ExtensionService.Unload` call) is a **deregister-only** operation: the extension's tools are removed from the registry and are no longer offered to the LLM, but the extension's assembly remains resident in the process. To reclaim the assembly — or to pick up a changed extension — restart the `Dmon.Core` process.
+
+**Dependency isolation.** Transitive dependencies are resolved by probing the extension's own directory and its `.deps.json`. Conflicting dependency versions across extensions are not supported: the first-loaded version wins, and a second extension requiring a different version may fail with a type-identity or strong-name mismatch.
+
+Config-driven startup loading (`extensions:` key in `config.yaml`) and the `/reload` restart path are covered separately by ADR-009.
+
+---
+
 ## Provider configuration
 
 Each provider is defined under the `providers` key in `config.yaml`:

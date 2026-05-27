@@ -33,5 +33,5 @@
 
 ## 6. Docs & ADR Cross-Reference
 
-- [ ] 6.1 Note Default-context loading and the deregister-only unload semantics in the config/usage docs; reference ADR-008
-- [ ] 6.2 Confirm ADR-008 is `Accepted` and ADR-002's loading-mechanism supersession pointer is in place
+- [x] 6.1 Note Default-context loading and the deregister-only unload semantics in the config/usage docs; reference ADR-008
+- [x] 6.2 Confirm ADR-008 is `Accepted` and ADR-002's loading-mechanism supersession pointer is in place
