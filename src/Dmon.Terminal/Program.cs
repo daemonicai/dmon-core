@@ -21,13 +21,13 @@ JsonSerializerOptions jsonOptions = new() { PropertyNamingPolicy = JsonNamingPol
 using CancellationTokenSource cts = new();
 using CoreProcessManager coreProcess = new(corePathOverride);
 
-TerminalRenderer renderer = new();
-renderer.PrintSeparator("dmon");
-
 await coreProcess.StartAsync().ConfigureAwait(false);
 
 EventDispatcher dispatcher = new(coreProcess.StandardOutput);
 InputReader inputReader = new();
+
+TerminalRenderer renderer = new(() => inputReader.CurrentBuffer);
+renderer.PrintSeparator("dmon");
 
 async Task SendCommandAsync(Command cmd, CancellationToken ct)
 {

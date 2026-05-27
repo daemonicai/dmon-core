@@ -15,8 +15,8 @@
 
 ## 3. Program.cs — wire buffer delegate
 
-- [ ] 3.1 Pass `() => inputReader.CurrentBuffer` as the `getBuffer` argument to `TerminalRenderer`
-- [ ] 3.2 Build `Dmon.Terminal` without warnings
+- [x] 3.1 Pass `() => inputReader.CurrentBuffer` as the `getBuffer` argument to `TerminalRenderer`
+- [x] 3.2 Build `Dmon.Terminal` without warnings
 
 ## 4. Update standing spec
 
