@@ -175,6 +175,7 @@ public sealed class SystemPromptBuilderTests : IDisposable
         public Task RegisterExtensionAsync(IProviderExtension extension, CancellationToken cancellationToken = default)
             => Task.CompletedTask;
         public void AddDynamicProvider(ProviderConfig config) { }
+        public string? GetCurrentModelId() => null;
         public ProviderSwitchResult? CommitPendingSwitch() => null;
         public bool CurrentSupportsToolCalling => false;
         public bool CurrentSupportsReasoning => false;

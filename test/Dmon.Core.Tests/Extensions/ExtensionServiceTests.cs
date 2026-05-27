@@ -447,6 +447,7 @@ public sealed class ExtensionServiceTests
         public void SetModel(string modelId) => throw new NotSupportedException();
         public void CycleProvider() => throw new NotSupportedException();
         public void AddDynamicProvider(ProviderConfig config) => throw new NotSupportedException();
+        public string? GetCurrentModelId() => null;
         public ProviderSwitchResult? CommitPendingSwitch() => throw new NotSupportedException();
         public bool CurrentSupportsToolCalling => false;
         public bool CurrentSupportsReasoning => false;

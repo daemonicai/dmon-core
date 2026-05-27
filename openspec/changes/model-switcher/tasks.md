@@ -7,8 +7,8 @@
 
 ## 2. Registry — committed active model ID
 
-- [ ] 2.1 Add `string? _activeModelId` field to `ProviderRegistry` and update it inside `CommitPendingSwitch()` when `_pendingModelId` is applied
-- [ ] 2.2 Add `string? GetCurrentModelId()` to `IProviderRegistry` interface and implement it on `ProviderRegistry` to return `_activeModelId`
+- [x] 2.1 Add `string? _activeModelId` field to `ProviderRegistry` and update it inside `CommitPendingSwitch()` when `_pendingModelId` is applied
+- [x] 2.2 Add `string? GetCurrentModelId()` to `IProviderRegistry` interface and implement it on `ProviderRegistry` to return `_activeModelId`
 
 ## 3. Core — handlers and wiring
 

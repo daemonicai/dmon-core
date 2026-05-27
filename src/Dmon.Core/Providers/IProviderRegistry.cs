@@ -25,6 +25,8 @@ public interface IProviderRegistry
     /// </summary>
     void AddDynamicProvider(ProviderConfig config);
 
+    string? GetCurrentModelId();
+
     // Must only be called strictly between turns — never during an active streaming call.
     ProviderSwitchResult? CommitPendingSwitch();
 

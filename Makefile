@@ -7,18 +7,18 @@ EXTENSIONS_OUT    := build/extensions
 
 all: build test
 
-build: build-terminal build-core
-
-build-terminal:
-	dotnet publish src/Dmon.Terminal/Dmon.Terminal.csproj \
-		-c $(CONFIG) \
-		-o $(TERMINAL_OUT) \
-		--no-self-contained
+build: build-core build-terminal build-extensions
 
 build-core:
 	dotnet publish src/Dmon.Core/Dmon.Core.csproj \
 		-c $(CONFIG) \
 		-o $(CORE_OUT) \
+		--no-self-contained
+
+build-terminal:
+	dotnet publish src/Dmon.Terminal/Dmon.Terminal.csproj \
+		-c $(CONFIG) \
+		-o $(TERMINAL_OUT) \
 		--no-self-contained
 
 build-extensions:

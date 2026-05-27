@@ -16,6 +16,7 @@ public sealed class ProviderRegistry : IProviderRegistry
     private IChatClient? _activeClient;
     private int? _pendingIndex;
     private string? _pendingModelId;
+    private string? _activeModelId;
 
     public ProviderRegistry(
         IEnumerable<ProviderConfig> configs,
@@ -103,6 +104,8 @@ public sealed class ProviderRegistry : IProviderRegistry
         _logger.LogDebug("Added dynamic provider '{Provider}' (adapter: {Adapter}).",
             config.Name, config.Adapter);
     }
+
+    public string? GetCurrentModelId() => _activeModelId;
 
     public ProviderConfig GetCurrentConfig()
     {
@@ -204,6 +207,9 @@ public sealed class ProviderRegistry : IProviderRegistry
 
         ProviderConfig newConfig = all[_activeIndex];
         string activeModelId = overrideModelId ?? newConfig.DefaultModelId ?? string.Empty;
+
+        if (overrideModelId is not null)
+            _activeModelId = overrideModelId;
 
         return new ProviderSwitchResult(newConfig.Name, activeModelId);
     }

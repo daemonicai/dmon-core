@@ -144,6 +144,8 @@ internal sealed class StubProviderRegistry : IProviderRegistry
 
     public void AddDynamicProvider(ProviderConfig config) { }
 
+    public string? GetCurrentModelId() => null;
+
     public ProviderSwitchResult? CommitPendingSwitch() => null;
 
     public bool CurrentSupportsToolCalling => false;
