@@ -1,3 +1,5 @@
+> **Prerequisite:** this change depends on `extension-default-load-context` (ADR-008) landing first. That change moves extension loading to the Default `AssemblyLoadContext`, removing the "unload the previous load context on next load" behaviour that would otherwise tear down the folded `IChatClient` pipeline mid-session — the risk noted in design decision D6.
+
 ## Why
 
 The `IChatClient` pipeline model in `Microsoft.Extensions.AI` is a first-class composition pattern: any `IChatClient` can wrap another, mutating the full request (`IEnumerable<ChatMessage>`) and response (`ChatResponse` / `IAsyncEnumerable<ChatResponseUpdate>`) on every turn. Tools operate only at the LLM's discretion; middleware operates unconditionally, enabling capabilities — semantic caching, context-window management, RAG injection, guardrails, cost enforcement, observability — that cannot be expressed as tools.
