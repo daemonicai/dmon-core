@@ -36,5 +36,5 @@
 
 ## 6. Docs & ADR Cross-Reference
 
-- [ ] 6.1 Document the `extensions` config schema, the edit-only model, and `/reload` in the config/usage docs
-- [ ] 6.2 Reference ADR-009 (and its relationship to ADR-002/ADR-006/ADR-008) in the docs
+- [x] 6.1 Document the `extensions` config schema, the edit-only model, and `/reload` in the config/usage docs
+- [x] 6.2 Reference ADR-009 (and its relationship to ADR-002/ADR-006/ADR-008) in the docs
