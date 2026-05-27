@@ -12,7 +12,7 @@ See [`coding-agent-brief.md`](./coding-agent-brief.md) for the full vision and a
 
 - **Language:** C# 13 / .NET 10
 - **LLM abstraction:** `Microsoft.Extensions.AI` (`IChatClient`) — see ADR-001
-- **Extension model:** Two tiers — `.csx` scripts (hot-loaded) and NuGet packages via `AssemblyLoadContext` — see ADR-002
+- **Extension model:** Two tiers — `.csx` scripts (hot-loaded) and NuGet packages loaded into the Default `AssemblyLoadContext` — see ADR-002, ADR-008
 - **RPC protocol:** JSONL over stdio, Pi-compatible shape — see ADR-003
 - **Session storage:** Relocatable directory with `messages.jsonl` + `meta.json` + `attachments/` — see ADR-004
 - **Provider auth:** API keys via env vars or config file — see ADR-005
@@ -29,11 +29,14 @@ Key accepted decisions:
 | ADR | Decision |
 |-----|----------|
 | ADR-001 | Use `IChatClient` (M.E.AI) for LLM abstraction. No MAF dependency. |
-| ADR-002 | Extensions expose `AIFunction` via `IDaemonExtension`. No wrapper interface. |
+| ADR-002 | Extensions expose `AIFunction` via `IDmonExtension`. No wrapper interface. (Loading mechanism superseded by ADR-008.) |
 | ADR-003 | JSONL over stdio, Pi-compatible protocol shape. Not strict JSON-RPC 2.0. |
 | ADR-004 | Session = relocatable directory. `messages.jsonl` append-only. Large outputs in `attachments/`. |
 | ADR-005 | API keys only (env or config). No OAuth for V1. |
 | ADR-006 | Conservative permission model. Read within CWD is implicit; all writes require a prompt. |
+| ADR-007 | Provider-extension lifecycle: `IsApplicable()` at load, `EnsureRunningAsync()` gated, per-runner `IProviderFactory`. |
+| ADR-008 | Extensions load into the **Default** `AssemblyLoadContext` (no collectible per-load contexts); reclaim via process restart. Supersedes ADR-002's loading mechanism. |
+| ADR-009 | Active extensions are declared in `config.yaml` (user + project), auto-loaded at startup; `/reload` restarts the core. |
 
 New ADRs belong in `docs/adrs/ADR-NNN-<slug>.md`. Use the existing ADRs as the format template.
 
@@ -49,16 +52,50 @@ Use `/opsx:propose` to create a new change. This generates a proposal, design, s
 
 ### Implementing a change
 
-Use `/opsx:apply` to work through the tasks for a change. Tasks are organised into groups in `openspec/changes/<slug>/tasks.md`. Process **one group at a time**, and for each group:
+Use `/opsx:apply`. **This subsection is authoritative** — if the skill's behaviour ever conflicts with what's written here, follow this document.
 
-1. Spawn the `worker` agent to implement the tasks in that group — and only that group. Do not let the worker stray into later groups.
-2. Spawn the `reviewer` agent to review the resulting changes.
-3. If the reviewer requests changes, send the worker back in to address them. Loop until the reviewer approves.
-4. Once approved, `git commit` the changes (Conventional Commits format, scoped to the group) and `git push`.
-5. Report progress to the user and ask if they want to continue with the next group. Skip this step if explicitly instructed to "apply all groups" or "apply without pausing" or similar.
-6. If user approves or you are running without pausing, move on to the next group of tasks.
+#### Roles — the main thread never writes feature code
 
-Mark tasks completed in `tasks.md` as the worker finishes them.
+- **Orchestrator** = the main thread (you). Reads specs, selects work, briefs agents, runs the gates, ticks boxes, and commits. **Does not implement feature code directly.**
+- **`worker`** agent — implements the tasks of one group.
+- **`reviewer`** agent — audits the worker's diff and **reports findings; it does not edit code.**
+
+Both agents are defined in `.claude/agents/`. Delegate; don't shortcut by implementing yourself.
+
+#### Pre-flight (before any group)
+
+1. Read `proposal.md`, `design.md`, the relevant `specs/<capability>/spec.md`, and any ADRs the change touches.
+2. **Working tree must be clean** (`git status`). If dirty, stop and ask.
+3. **Change must validate:** `openspec validate <slug> --strict`. If not, stop and ask.
+4. **Be on the change branch** `change/<slug>`. Create it from `main` if missing: `git switch -c change/<slug>`.
+
+#### Per group — the unit of work is one `## N.` group in `tasks.md`
+
+Walk groups in order from the first unticked `- [ ]` task. For each:
+
+1. **Brief the worker.** Hand it that group's tasks (`N.1`…`N.k`), the relevant spec excerpts, the binding design decisions / ADRs, and the gates below. Only that group — do not let it stray into later groups.
+2. **Worker implements the whole group.** Large groups may span multiple `worker` calls but remain **one commit**.
+3. **Audit.** Spawn `reviewer` on the group's diff (correctness, ADR compliance, OpenSpec scope, C# idiom, agentic-AI design quality, security).
+4. **Review loop.** Feed the reviewer's findings to the `worker`; worker fixes; `reviewer` re-audits. **Repeat until the reviewer signs off.**
+5. **Gates — all must pass before ticking any box:**
+   - `make build` clean (no errors; `TreatWarningsAsErrors` clean)
+   - `make test` (or `dotnet test -c Release`) green — new tests for the group **and** all existing tests
+   - `openspec validate <slug> --strict`
+
+   If a gate fails, it's back to step 4, not a commit.
+6. **Tick the boxes.** Mark every `- [x] N.M` for the group in `tasks.md`. Never rewrite `tasks.md` wholesale — only flip `[ ]→[x]`.
+7. **Commit — one conventional commit per group**, scoped to the component, with the change slug in the body (`Change: <slug>`).
+8. **Report and pause.** Tell the user what landed and ask before the next group — unless told to "apply all groups" / "apply without pausing".
+
+#### Stop and ask — do not improvise
+
+Stop immediately and ask the user when: a spec/design is **ambiguous** or two specs **contradict**; doing the task properly needs changes **outside this change's scope**; a task is **blocked by an unresolved Open Question** in `design.md`; implementation reveals the **spec itself is wrong**; or a task **requires human-in-the-loop verification** automated gates can't settle (give a precise, copy-pasteable verification recipe and wait for confirmation before ticking it).
+
+**On stopping mid-group:** leave the WIP **uncommitted**, do **not** tick the group, do **not** revert. Report the **exact task (`N.M`)** that stopped you and why.
+
+#### Done
+
+When every task is ticked and the final review is clean: report groups completed, commits made, and the test summary; push the `change/<slug>` branch (and open a PR) when the user asks; then **propose `/opsx:archive`** and **wait for confirmation**. Do not archive automatically.
 
 ### Archiving a change
 
@@ -74,17 +111,20 @@ Use `/opsx:archive` once all tasks are done and the code is merged. This moves t
 
 ## Build and test
 
-> These commands will be added once the project has a buildable solution. Update this section when the first `.sln` is added.
-
-Expected conventions (fill in when ready):
+The solution is `Dmon.slnx`; common tasks are wrapped in the `Makefile`.
 
 ```
-dotnet build          # build all projects
-dotnet test           # run all tests
-dotnet run --project src/Daemon.Console   # run the console host
+make build            # publish core, terminal, and extensions into build/
+make test             # dotnet test -c Release (all test projects)
+make clean            # remove build/
+
+dotnet build Dmon.slnx -c Release          # quick whole-solution compile check
+dotnet test -c Release                     # run all tests
+dotnet run --project src/Dmon.Terminal     # run the terminal host (spawns Dmon.Core)
+openspec validate <slug> --strict          # validate an OpenSpec change
 ```
 
-All code must build without warnings. Treat warnings as errors (`<TreatWarningsAsErrors>true</TreatWarningsAsErrors>`).
+All code must build without warnings — `TreatWarningsAsErrors` is on. Do not suppress warnings or disable analyzers to make the build pass.
 
 ---
 
