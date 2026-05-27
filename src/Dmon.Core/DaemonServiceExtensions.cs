@@ -2,10 +2,11 @@ using Dmon.Abstractions;
 using Dmon.Abstractions.Providers;
 using Dmon.Core.Auth;
 using Dmon.Core.Config;
+using Dmon.Core.Extensions;
+using Dmon.Core.Extensions.Security;
 using Dmon.Core.GitHub;
 using Dmon.Core.SystemPrompt;
 using Dmon.Core.Bootstrap;
-using Dmon.Core.Extensions;
 using Dmon.Core.Permissions;
 using Dmon.Protocol.Permissions;
 using Dmon.Core.Providers;
@@ -66,6 +67,13 @@ public static class DmonServiceExtensions
     {
         services.AddSingleton<IGhCliService, GhCliService>();
 
+        services.AddSingleton<IExtensionSourceFetcher>(sp =>
+            new ExtensionSourceFetcher(
+                sp.GetRequiredService<IHttpClientFactory>().CreateClient(),
+                sp.GetRequiredService<IGhCliService>()));
+        services.AddSingleton<IExtensionSecurityAnalyser>(sp =>
+            new ExtensionSecurityAnalyser(sp.GetRequiredService<IProviderRegistry>()));
+
         services.AddSingleton<IToolRegistry, ToolRegistry>();
         services.AddSingleton<CsxScriptLoader>();
         services.AddSingleton<NuGetExtensionLoader>();
@@ -118,7 +126,8 @@ public static class DmonServiceExtensions
         services.AddSingleton<IModelHandler, NullModelHandler>();
         services.AddSingleton<SessionHandler>();
         services.AddSingleton<ISessionHandler>(sp => sp.GetRequiredService<SessionHandler>());
-        services.AddSingleton<IExtensionHandler, NullExtensionHandler>();
+        services.AddSingleton<ConfigExtensionHandler>();
+        services.AddSingleton<IExtensionHandler>(sp => sp.GetRequiredService<ConfigExtensionHandler>());
         services.AddSingleton<IAuthHandler, NullAuthHandler>();
         services.AddSingleton<ThinkingHandler>();
         services.AddSingleton<IThinkingHandler>(sp => sp.GetRequiredService<ThinkingHandler>());

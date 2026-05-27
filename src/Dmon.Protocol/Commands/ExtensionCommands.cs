@@ -6,6 +6,13 @@ public sealed record ExtensionLoadCommand : Command
 {
     [JsonPropertyName("source")]
     public required string Source { get; init; }
+
+    /// <summary>
+    /// Target config scope: "project" (→ .dmon/config.yaml in CWD) or "user" (→ ~/.dmon/config.yaml).
+    /// Null/empty defaults to "project".
+    /// </summary>
+    [JsonPropertyName("scope")]
+    public string? Scope { get; init; }
 }
 
 /// <summary>

@@ -138,12 +138,12 @@ public static class SlashCommandParser
     private static ParseResult ParseLoad(string id, string[] args)
     {
         if (args.Length == 0)
-            return new ParseResult { IsSlashCommand = true, Error = "Usage: /load <source>" };
+            return new ParseResult { IsSlashCommand = true, Error = "Usage: /load <source> [project|user]" };
 
         return new ParseResult
         {
             IsSlashCommand = true,
-            Command = new ExtensionLoadCommand { Id = id, Source = args[0] }
+            Command = new ExtensionLoadCommand { Id = id, Source = args[0], Scope = args.Length > 1 ? args[1] : null }
         };
     }
 

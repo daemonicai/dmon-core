@@ -20,10 +20,10 @@
 
 ## 4. Add/Remove Surface (Edit-Only)
 
-- [ ] 4.1 Replace `NullExtensionHandler` with a handler that appends a source to a chosen config scope's `extensions` list and reports "reload required"
-- [ ] 4.2 Run the ADR-006 add-time gate (security analysis / approval) before writing the entry
-- [ ] 4.3 Update `ExtensionLoadTool` guidance to "add to config, then `/reload`" (no ephemeral runtime load)
-- [ ] 4.4 Unit test: add writes the entry to the correct scope and does not load into the running process
+- [x] 4.1 Replace `NullExtensionHandler` with a handler that appends a source to a chosen config scope's `extensions` list and reports "reload required"
+- [x] 4.2 Run the ADR-006 add-time gate (security analysis / approval) before writing the entry
+- [x] 4.3 Update `ExtensionLoadTool` guidance to "add to config, then `/reload`" (no ephemeral runtime load)
+- [x] 4.4 Unit test: add writes the entry to the correct scope and does not load into the running process
 
 ## 5. Terminal /reload + Restart
 
