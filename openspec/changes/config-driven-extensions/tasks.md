@@ -1,8 +1,8 @@
 ## 1. Config Schema
 
-- [ ] 1.1 Define the `extensions` list schema for `config.yaml` (entry = `source` + optional per-entry settings)
-- [ ] 1.2 Update the default-config template in `BootstrapService` with a commented `extensions` example
-- [ ] 1.3 Add a typed model + reader for the `extensions` list at a single scope
+- [x] 1.1 Define the `extensions` list schema for `config.yaml` (entry = `source` + optional per-entry settings)
+- [x] 1.2 Update the default-config template in `BootstrapService` with a commented `extensions` example
+- [x] 1.3 Add a typed model + reader for the `extensions` list at a single scope
 
 ## 2. Effective Set Resolution
 
