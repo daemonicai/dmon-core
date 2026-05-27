@@ -23,9 +23,8 @@ using CoreProcessManager coreProcess = new(corePathOverride);
 
 await coreProcess.StartAsync().ConfigureAwait(false);
 
-EventDispatcher dispatcher = new(coreProcess.StandardOutput);
+// Long-lived across restarts — created once, shared by all sessions.
 InputReader inputReader = new();
-
 TerminalRenderer renderer = new(() => inputReader.CurrentBuffer);
 renderer.PrintSeparator("dmon");
 
@@ -48,7 +47,15 @@ IReadOnlyList<IProviderFactory> providerFactories =
     new OllamaProviderFactory(),
 ];
 
-ConsoleEventHandler handler = new(renderer, inputReader, SendCommandAsync, cts, providerFactories);
+bool reloadRequested = false;
+
+ConsoleEventHandler handler = new(
+    renderer,
+    inputReader,
+    SendCommandAsync,
+    cts,
+    providerFactories,
+    requestReload: () => reloadRequested = true);
 
 Console.CancelKeyPress += (_, e) =>
 {
@@ -56,50 +63,105 @@ Console.CancelKeyPress += (_, e) =>
     cts.Cancel();
 };
 
-Task dispatchTask = dispatcher.RunAsync(cts.Token);
 Task inputTask = inputReader.RunAsync(cts.Token);
-
 
 IAsyncEnumerator<string> inputEnum = inputReader.ReadLinesAsync(cts.Token)
     .GetAsyncEnumerator(cts.Token);
+
+Task? dispatchTask = null;
+
 try
 {
     Task<bool> nextInputLine = inputEnum.MoveNextAsync().AsTask();
-    Task<bool> nextEvent = dispatcher.Events.WaitToReadAsync(cts.Token).AsTask();
 
-    while (!cts.IsCancellationRequested)
+    bool restart;
+    do
     {
-        Task completed = await Task.WhenAny(nextInputLine, nextEvent).ConfigureAwait(false);
+        // Build a per-session dispatcher on the current process's stdout.
+        EventDispatcher dispatcher = new(coreProcess.StandardOutput);
+        dispatchTask = dispatcher.RunAsync(cts.Token);
 
-        while (dispatcher.Events.TryRead(out Event? evt))
+        Task<bool> nextEvent = dispatcher.Events.WaitToReadAsync(cts.Token).AsTask();
+
+        // Returns true if a /reload was requested, false if the session ended normally.
+        async Task<bool> RunSessionAsync()
         {
-            await handler.HandleAsync(evt, cts.Token).ConfigureAwait(false);
+            while (!cts.IsCancellationRequested)
+            {
+                Task completed = await Task.WhenAny(nextInputLine, nextEvent).ConfigureAwait(false);
+
+                // Drain any events that arrived while we were waiting.
+                while (dispatcher.Events.TryRead(out Event? evt))
+                {
+                    await handler.HandleAsync(evt, cts.Token).ConfigureAwait(false);
+                }
+
+                if (completed == nextEvent)
+                {
+                    bool hasEvents;
+                    try { hasEvents = await nextEvent.ConfigureAwait(false); }
+                    catch (OperationCanceledException) { return false; }
+
+                    // Channel completed: the core process closed its output stream.
+                    if (!hasEvents) return false;
+
+                    nextEvent = dispatcher.Events.WaitToReadAsync(cts.Token).AsTask();
+                }
+                else
+                {
+                    bool hasLine;
+                    try { hasLine = await nextInputLine.ConfigureAwait(false); }
+                    catch (OperationCanceledException) { return false; }
+
+                    if (!hasLine) return false;
+
+                    string line = inputEnum.Current;
+                    await handler.HandleUserInputAsync(line, cts.Token).ConfigureAwait(false);
+                    nextInputLine = inputEnum.MoveNextAsync().AsTask();
+
+                    if (reloadRequested)
+                    {
+                        reloadRequested = false;
+                        return true;
+                    }
+                }
+            }
+
+            return false;
         }
 
-        if (completed == nextEvent)
+        restart = await RunSessionAsync().ConfigureAwait(false);
+
+        if (restart && !cts.IsCancellationRequested)
         {
-            bool hasEvents;
-            try { hasEvents = await nextEvent.ConfigureAwait(false); }
-            catch (OperationCanceledException) { break; }
+            // Drain any buffered events before tearing down the old dispatcher.
+            while (dispatcher.Events.TryRead(out Event? leftover))
+            {
+                await handler.HandleAsync(leftover, cts.Token).ConfigureAwait(false);
+            }
 
-            // Channel completed: the core process closed its output stream.
-            if (!hasEvents) break;
+            // Wait for the old dispatcher's RunAsync to finish (it completes on old stdout EOF
+            // after StopAsync closes the process).
+            await coreProcess.RestartAsync().ConfigureAwait(false);
+            try { await dispatchTask.ConfigureAwait(false); }
+            catch (OperationCanceledException) { }
 
-            nextEvent = dispatcher.Events.WaitToReadAsync(cts.Token).AsTask();
-        }
-        else
-        {
-            bool hasLine;
-            try { hasLine = await nextInputLine.ConfigureAwait(false); }
-            catch (OperationCanceledException) { break; }
+            // Re-open the active session on the fresh process so it re-acquires the lock.
+            if (handler.ActiveSessionId is not null)
+            {
+                SessionLoadCommand loadCmd = new()
+                {
+                    Id = Guid.NewGuid().ToString("N"),
+                    Path = handler.ActiveSessionId,
+                };
+                try { await SendCommandAsync(loadCmd, cts.Token).ConfigureAwait(false); }
+                catch (OperationCanceledException) { }
+            }
 
-            if (!hasLine) break;
-
-            string line = inputEnum.Current;
-            await handler.HandleUserInputAsync(line, cts.Token).ConfigureAwait(false);
-            nextInputLine = inputEnum.MoveNextAsync().AsTask();
+            renderer.AddSystemLine("[Reload] Core restarted.");
         }
     }
+    while (restart && !cts.IsCancellationRequested);
 }
 catch (OperationCanceledException) { }
 finally
@@ -117,6 +179,6 @@ renderer.PrintSeparator("goodbye");
 
 try
 {
-    await Task.WhenAll(dispatchTask, inputTask).ConfigureAwait(false);
+    await Task.WhenAll(dispatchTask ?? Task.CompletedTask, inputTask).ConfigureAwait(false);
 }
 catch (OperationCanceledException) { }

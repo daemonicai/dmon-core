@@ -83,6 +83,8 @@ public static class SlashCommandParser
 
             "thinking" => ParseThinking(id, args),
 
+            "reload" => ParseReload(args),
+
             _ => new ParseResult
             {
                 IsSlashCommand = true,
@@ -138,12 +140,12 @@ public static class SlashCommandParser
     private static ParseResult ParseLoad(string id, string[] args)
     {
         if (args.Length == 0)
-            return new ParseResult { IsSlashCommand = true, Error = "Usage: /load <source>" };
+            return new ParseResult { IsSlashCommand = true, Error = "Usage: /load <source> [project|user]" };
 
         return new ParseResult
         {
             IsSlashCommand = true,
-            Command = new ExtensionLoadCommand { Id = id, Source = args[0] }
+            Command = new ExtensionLoadCommand { Id = id, Source = args[0], Scope = args.Length > 1 ? args[1] : null }
         };
     }
 
@@ -192,6 +194,18 @@ public static class SlashCommandParser
         {
             IsSlashCommand = true,
             Command = new ThinkingSetCommand { Id = id, Level = level.Value }
+        };
+    }
+
+    private static ParseResult ParseReload(string[] args)
+    {
+        if (args.Length > 0)
+            return new ParseResult { IsSlashCommand = true, Error = "Usage: /reload (no arguments)" };
+
+        return new ParseResult
+        {
+            IsSlashCommand = true,
+            ClientCommand = new ReloadCommand()
         };
     }
 

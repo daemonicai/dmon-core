@@ -20,7 +20,7 @@ internal sealed class ExtensionLoadTool : IDmonExtension
         _function = AIFunctionFactory.Create(
             AnalyseAsync,
             "extension.analyze",
-            "Fetch and analyse the source code of a dmon extension before loading it. Returns a security analysis report. If the report is acceptable, use the extension.load RPC command to install the extension.");
+            "Fetch and analyse the source code of a dmon extension before adding it. Returns a security analysis report. If acceptable, tell the user to run `/load <source> [project|user]` to add the extension to config, then `/reload` to activate it. This does NOT load the extension into the running process.");
     }
 
     public string Name => "Extension Analyze Tool";

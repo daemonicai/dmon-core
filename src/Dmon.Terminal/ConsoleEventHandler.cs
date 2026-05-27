@@ -13,23 +13,32 @@ internal sealed class ConsoleEventHandler
     private readonly Func<Command, CancellationToken, Task> _sendCommand;
     private readonly CancellationTokenSource _cts;
     private readonly IReadOnlyList<IProviderFactory> _providerFactories;
+    private readonly Action _requestReload;
 
     private string _rawText = string.Empty;
     private string _modelName = string.Empty;
     private string _activeProvider = string.Empty;
+
+    /// <summary>
+    /// The id of the active session directory, set when the core reports a successful
+    /// session.create/load/fork/clone. Used to re-open the session after /reload.
+    /// </summary>
+    public string? ActiveSessionId { get; private set; }
 
     public ConsoleEventHandler(
         TerminalRenderer renderer,
         InputReader input,
         Func<Command, CancellationToken, Task> sendCommand,
         CancellationTokenSource cts,
-        IReadOnlyList<IProviderFactory> providerFactories)
+        IReadOnlyList<IProviderFactory> providerFactories,
+        Action requestReload)
     {
         _renderer = renderer;
         _input = input;
         _sendCommand = sendCommand;
         _cts = cts;
         _providerFactories = providerFactories;
+        _requestReload = requestReload;
     }
 
     public async Task HandleAsync(Event @event, CancellationToken cancellationToken)
@@ -129,6 +138,11 @@ internal sealed class ConsoleEventHandler
 
             case ModelModelsResultEvent modelsResult:
                 await RunModelPickerAsync(modelsResult, cancellationToken).ConfigureAwait(false);
+                break;
+
+            case ResponseEvent sessionResponse when sessionResponse.Success
+                && sessionResponse.Command is "session.create" or "session.load" or "session.fork" or "session.clone":
+                TrackActiveSession(sessionResponse);
                 break;
 
             case CompactionStartEvent:
@@ -316,6 +330,18 @@ internal sealed class ConsoleEventHandler
             return;
         }
 
+        if (result.ClientCommand is ReloadCommand)
+        {
+            if (_input.IsLocked)
+            {
+                _renderer.AddSystemLine("[Reload] Ignored — a turn is in progress.");
+                return;
+            }
+            _renderer.AddSystemLine("[Reload] Restarting core…");
+            _requestReload();
+            return;
+        }
+
         if (result.Command is ModelListCommand modelListCommand)
         {
             _input.IsLocked = true;
@@ -337,6 +363,15 @@ internal sealed class ConsoleEventHandler
             Message = input,
         };
         await _sendCommand(submitCommand, cancellationToken).ConfigureAwait(false);
+    }
+
+    private void TrackActiveSession(ResponseEvent response)
+    {
+        if (response.Data is not JsonElement element) return;
+        if (!element.TryGetProperty("id", out JsonElement idProp)) return;
+        string? id = idProp.GetString();
+        if (!string.IsNullOrEmpty(id))
+            ActiveSessionId = id;
     }
 
     private static string? ExtractDeltaText(object delta)
