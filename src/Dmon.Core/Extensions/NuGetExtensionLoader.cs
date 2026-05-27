@@ -8,11 +8,13 @@ namespace Dmon.Core.Extensions;
 
 /// <summary>
 /// Loads extensions from NuGet packages or local assembly .dll files.
-/// Uses collectible <see cref="AssemblyLoadContext"/> for isolation.
+/// Assemblies are loaded into <see cref="AssemblyLoadContext.Default"/> so that
+/// contract types (<c>IDmonExtension</c>, <c>IProviderExtension</c>,
+/// <c>Microsoft.Extensions.AI</c>) resolve to the same <see cref="Type"/> identity
+/// as the host, making reflection discovery correct by construction.
 /// </summary>
-public sealed class NuGetExtensionLoader : IExtensionLoader, IDisposable
+public sealed class NuGetExtensionLoader : IExtensionLoader
 {
-    private AssemblyLoadContext? _activeContext;
     private readonly IServiceProvider _serviceProvider;
 
     public NuGetExtensionLoader(IServiceProvider serviceProvider)
@@ -135,16 +137,6 @@ public sealed class NuGetExtensionLoader : IExtensionLoader, IDisposable
         };
     }
 
-    public void Dispose()
-    {
-        if (_activeContext is not null && _activeContext.IsCollectible)
-        {
-            _activeContext.Unload();
-        }
-
-        _activeContext = null;
-    }
-
     private async Task<Assembly> LoadNuGetPackageAsync(
         ParsedExtensionSource source,
         CancellationToken cancellationToken)
@@ -190,13 +182,9 @@ public sealed class NuGetExtensionLoader : IExtensionLoader, IDisposable
             throw new FileNotFoundException($"Assembly not found: {fullPath}");
         }
 
-        // Create a new collectible ALC for each load, isolating extension assemblies
-        // from the host and from each other.
-        _activeContext?.Unload();
-        _activeContext = new AssemblyLoadContext($"extension-{Path.GetFileNameWithoutExtension(fullPath)}", isCollectible: true);
-
-        // Load the assembly into the collectible ALC.
-        Assembly assembly = _activeContext.LoadFromAssemblyPath(fullPath);
+        // Load the assembly into the Default context so contract-type identity is
+        // shared with the host.  An already-loaded assembly is returned from cache.
+        Assembly assembly = AssemblyLoadContext.Default.LoadFromAssemblyPath(fullPath);
 
         await ValueTask.CompletedTask;
         return assembly;

@@ -1,9 +1,9 @@
 ## 1. NuGet/Assembly Loader — Default Context
 
-- [ ] 1.1 Remove the `_activeContext` field and all `Unload()` calls from `NuGetExtensionLoader`; drop its `IDisposable` ALC teardown
-- [ ] 1.2 Load extension assemblies into `AssemblyLoadContext.Default` (replace `new AssemblyLoadContext(...).LoadFromAssemblyPath`)
-- [ ] 1.3 Verify reflection discovery still finds `IDmonExtension`/`IProviderExtension` types with shared contract-type identity
-- [ ] 1.4 Verify loading a second extension leaves the first extension's tools registered and callable
+- [x] 1.1 Remove the `_activeContext` field and all `Unload()` calls from `NuGetExtensionLoader`; drop its `IDisposable` ALC teardown
+- [x] 1.2 Load extension assemblies into `AssemblyLoadContext.Default` (replace `new AssemblyLoadContext(...).LoadFromAssemblyPath`)
+- [x] 1.3 Verify reflection discovery still finds `IDmonExtension`/`IProviderExtension` types with shared contract-type identity
+- [x] 1.4 Verify loading a second extension leaves the first extension's tools registered and callable
 
 ## 2. Transitive Dependency Resolution
 
