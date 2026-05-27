@@ -25,12 +25,14 @@ When no model is active the block is 3 lines:
 
 The cursor rests at the natural end of the printed content. No ANSI cursor-repositioning sequences are emitted.
 
+`_promptBlockLines` tracks the number of lines above the cursor that must be erased during an interrupt. With a model active (status line present) the value is 4 (blank + top rule + status + bottom rule). Without a model active the value is 3 (blank + top rule + bottom rule).
+
 ## Interrupt behaviour
 
 If a system message arrives while the input block is active (e.g. an error event, retry notice, or extension event), the renderer:
 
-1. Erases the `❯` line (`\r\x1b[2K]`).
-2. Erases each chrome line above the cursor (`\x1b[1A\x1b[2K]` × `_promptBlockLines`).
+1. Erases the `❯` line (`\r\x1b[2K`).
+2. Erases each chrome line above the cursor (`\x1b[1A\x1b[2K` × `_promptBlockLines`).
 3. Prints the system message.
 4. Re-renders the input block.
 5. Re-echoes the partial input buffer at the cursor position.

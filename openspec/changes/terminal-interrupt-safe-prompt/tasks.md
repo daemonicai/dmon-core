@@ -20,4 +20,4 @@
 
 ## 4. Update standing spec
 
-- [ ] 4.1 Update `openspec/changes/terminal-interrupt-safe-prompt/specs/terminal-ui/spec.md` to reflect flipped layout and interrupt behaviour
+- [x] 4.1 Update `openspec/changes/terminal-interrupt-safe-prompt/specs/terminal-ui/spec.md` to reflect flipped layout and interrupt behaviour
