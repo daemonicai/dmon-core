@@ -6,10 +6,10 @@
 
 ## 2. Effective Set Resolution
 
-- [ ] 2.1 Read both project and user `extensions` lists explicitly (not via IConfiguration array layering)
-- [ ] 2.2 Union + deduplicate by normalized source (project wins for per-entry settings)
-- [ ] 2.3 Produce a deterministic load order (user entries then project entries, each in file order)
-- [ ] 2.4 Unit test: union/dedup/precedence and empty-config cases
+- [x] 2.1 Read both project and user `extensions` lists explicitly (not via IConfiguration array layering)
+- [x] 2.2 Union + deduplicate by normalized source (project wins for per-entry settings)
+- [x] 2.3 Produce a deterministic load order (user entries then project entries, each in file order)
+- [x] 2.4 Unit test: union/dedup/precedence and empty-config cases
 
 ## 3. Startup Loading
 
