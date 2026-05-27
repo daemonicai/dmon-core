@@ -1,7 +1,7 @@
 # ADR-002: Extension Tool Contract
 
 **Date:** 2026-05-22
-**Status:** Accepted
+**Status:** Accepted — *assembly-loading mechanism superseded by [ADR-008](./ADR-008-extension-load-context.md). The `IDmonExtension`/`AIFunction` contract, the `.csx` tier, the `promote` path, and permission-gated loading remain in force.*
 
 ## Context
 
