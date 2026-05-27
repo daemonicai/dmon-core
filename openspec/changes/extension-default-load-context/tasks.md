@@ -19,9 +19,9 @@
 
 ## 4. Unload Semantics
 
-- [ ] 4.1 Clarify `ExtensionService.Unload` doc comment: deregister-from-registry only; assemblies resident until restart
-- [ ] 4.2 Update the `extension.unload` protocol/UX wording (and terminal rendering note) to state code is not reclaimed until restart
-- [ ] 4.3 Verify unloaded tools are no longer offered and re-loading the same assembly in-process succeeds
+- [x] 4.1 Clarify `ExtensionService.Unload` doc comment: deregister-from-registry only; assemblies resident until restart
+- [x] 4.2 Update the `extension.unload` protocol/UX wording (and terminal rendering note) to state code is not reclaimed until restart
+- [x] 4.3 Verify unloaded tools are no longer offered and re-loading the same assembly in-process succeeds
 
 ## 5. Tests
 
