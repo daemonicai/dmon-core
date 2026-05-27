@@ -1,4 +1,3 @@
-using System.Runtime.Loader;
 using Dotnet.Script.Core;
 using Dotnet.Script.DependencyModel.Context;
 using Dotnet.Script.DependencyModel.Logging;
@@ -13,12 +12,11 @@ namespace Dmon.Core.Extensions;
 /// Scripts return <see cref="AIFunction"/> instances directly;
 /// they do not implement <see cref="IDmonExtension"/>.
 /// </summary>
-public sealed class CsxScriptLoader : IExtensionLoader, IDisposable
+public sealed class CsxScriptLoader : IExtensionLoader
 {
     private readonly LogFactory _logFactory;
     private readonly ScriptCompiler _compiler;
     private readonly ScriptConsole _scriptConsole;
-    private AssemblyLoadContext? _activeContext;
 
     public string SourceKind => "script";
 
@@ -116,10 +114,6 @@ public sealed class CsxScriptLoader : IExtensionLoader, IDisposable
             ScriptMode.Script,
             []);
 
-        // Use ScriptAssemblyLoadContext from Dotnet.Script.Core for collectible isolation.
-        ScriptAssemblyLoadContext alc = new("CsxScript", isCollectible: true);
-        _activeContext = alc;
-
         try
         {
             ScriptRunner runner = new(_compiler, _logFactory, _scriptConsole);
@@ -160,16 +154,6 @@ public sealed class CsxScriptLoader : IExtensionLoader, IDisposable
                 "execute",
                 $"Script execution failed: {ex.Message}");
         }
-    }
-
-    public void Dispose()
-    {
-        if (_activeContext is not null && _activeContext.IsCollectible)
-        {
-            _activeContext.Unload();
-        }
-
-        _activeContext = null;
     }
 
     private static List<string> ExtractNuGetDirectives(string scriptText)

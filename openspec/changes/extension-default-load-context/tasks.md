@@ -14,8 +14,8 @@
 
 ## 3. Script Loader Cleanup
 
-- [ ] 3.1 Remove the `ScriptAssemblyLoadContext` field, its assignment, and the `Dispose` unload from `CsxScriptLoader`
-- [ ] 3.2 Verify `.csx` script loading is unchanged (script returning `AIFunction`(s) still registers tools)
+- [x] 3.1 Remove the `ScriptAssemblyLoadContext` field, its assignment, and the `Dispose` unload from `CsxScriptLoader`
+- [x] 3.2 Verify `.csx` script loading is unchanged (script returning `AIFunction`(s) still registers tools)
 
 ## 4. Unload Semantics
 
