@@ -5,13 +5,13 @@
 
 ## 2. TerminalRenderer — interrupt-safe prompt
 
-- [ ] 2.1 Add `Func<string>? _getBuffer` field and optional constructor parameter
-- [ ] 2.2 Add `bool _promptActive` and `int _promptBlockLines` fields
-- [ ] 2.3 Add `private void InterruptPrompt()`: clear `❯` line + erase `_promptBlockLines` lines upward; set `_promptActive = false`
-- [ ] 2.4 Flip `PrintPrompt()` layout to chrome-above-cursor (blank → top rule → status → bottom rule → `❯ `); no ANSI repositioning; set `_promptActive = true` and `_promptBlockLines`
-- [ ] 2.5 Add `private void RepromptIfActive()`: calls `PrintPrompt()` + re-echoes `_getBuffer?.Invoke()`; called at the end of write methods that can fire mid-input
-- [ ] 2.6 Prefix all write methods (`AddSystemLine`, `AddUserLine`, `PrintSeparator`, `AppendToken`, `SettleTurn`) with `InterruptPrompt()`; suffix with `RepromptIfActive()` where appropriate (exclude paths that call `PrintPrompt()` explicitly)
-- [ ] 2.7 Build `Dmon.Terminal` without warnings
+- [x] 2.1 Add `Func<string>? _getBuffer` field and optional constructor parameter
+- [x] 2.2 Add `bool _promptActive` and `int _promptBlockLines` fields
+- [x] 2.3 Add `private void InterruptPrompt()`: clear `❯` line + erase `_promptBlockLines` lines upward; set `_promptActive = false`
+- [x] 2.4 Flip `PrintPrompt()` layout to chrome-above-cursor (blank → top rule → status → bottom rule → `❯ `); no ANSI repositioning; set `_promptActive = true` and `_promptBlockLines`
+- [x] 2.5 Add `private void RepromptIfActive()`: calls `PrintPrompt()` + re-echoes `_getBuffer?.Invoke()`; called at the end of write methods that can fire mid-input
+- [x] 2.6 Prefix all write methods (`AddSystemLine`, `AddUserLine`, `PrintSeparator`, `AppendToken`, `SettleTurn`) with `InterruptPrompt()`; suffix with `RepromptIfActive()` where appropriate (exclude paths that call `PrintPrompt()` explicitly)
+- [x] 2.7 Build `Dmon.Terminal` without warnings
 
 ## 3. Program.cs — wire buffer delegate
 
