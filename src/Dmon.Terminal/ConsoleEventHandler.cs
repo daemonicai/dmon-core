@@ -16,6 +16,7 @@ internal sealed class ConsoleEventHandler
 
     private string _rawText = string.Empty;
     private string _modelName = string.Empty;
+    private string _activeProvider = string.Empty;
 
     public ConsoleEventHandler(
         TerminalRenderer renderer,
@@ -85,6 +86,7 @@ internal sealed class ConsoleEventHandler
 
             case ProviderSwitchedEvent switched:
                 _modelName = switched.Model;
+                _activeProvider = switched.Name;
                 _renderer.SetStatus(_modelName, thinking: false);
                 _renderer.AddSystemLine($"[Provider] Switched to {switched.Name} / {switched.Model}");
                 break;
@@ -121,6 +123,14 @@ internal sealed class ConsoleEventHandler
                 await HandleAddProviderAsync(cancellationToken).ConfigureAwait(false);
                 break;
 
+            case ModelListResultEvent listResult:
+                await RunProviderPickerAsync(listResult, cancellationToken).ConfigureAwait(false);
+                break;
+
+            case ModelModelsResultEvent modelsResult:
+                await RunModelPickerAsync(modelsResult, cancellationToken).ConfigureAwait(false);
+                break;
+
             case CompactionStartEvent:
             case CompactionEndEvent:
             case MessageStartEvent:
@@ -136,7 +146,6 @@ internal sealed class ConsoleEventHandler
             case AuthLogoutCompleteEvent:
             case AuthLoginFailedEvent:
             case AuthStatusResultEvent:
-            case ModelListResultEvent:
             case CapabilityIgnoredEvent:
             case ResponseEvent:
             default:
@@ -212,6 +221,77 @@ internal sealed class ConsoleEventHandler
         _input.IsLocked = false;
     }
 
+    private async Task RunProviderPickerAsync(ModelListResultEvent evt, CancellationToken cancellationToken)
+    {
+        IReadOnlyList<string> names = evt.Models.Select(m => m.Provider).Distinct().ToList();
+        if (names.Count == 0)
+        {
+            _renderer.AddSystemLine("[Model] No providers available.");
+            _input.IsLocked = false;
+            return;
+        }
+
+        int preSelect = names
+            .Select((name, i) => (name, i))
+            .Where(t => string.Equals(t.name, evt.ActiveProvider, StringComparison.OrdinalIgnoreCase))
+            .Select(t => t.i)
+            .FirstOrDefault();
+
+        string? selected = await Task.Run(() => ConsolePicker.Run(names, preSelect), cancellationToken)
+            .ConfigureAwait(false);
+
+        if (selected is null)
+        {
+            _renderer.AddSystemLine("[Model] Cancelled.");
+            _input.IsLocked = false;
+            return;
+        }
+
+        _renderer.AddSystemLine($"[Model] Fetching models for {selected}…");
+        ModelModelsCommand cmd = new() { Id = Guid.NewGuid().ToString("N"), Provider = selected };
+        await _sendCommand(cmd, cancellationToken).ConfigureAwait(false);
+        // Stay locked — waiting for ModelModelsResultEvent
+    }
+
+    private async Task RunModelPickerAsync(ModelModelsResultEvent evt, CancellationToken cancellationToken)
+    {
+        IReadOnlyList<string> modelIds = evt.Models;
+
+        if (modelIds.Count == 0)
+        {
+            _renderer.AddSystemLine($"[Model] No models available for {evt.Provider}.");
+            _input.IsLocked = false;
+            return;
+        }
+
+        int preSelect = 0;
+        if (string.Equals(evt.Provider, _activeProvider, StringComparison.OrdinalIgnoreCase)
+            && evt.ActiveModelId is not null)
+        {
+            int idx = modelIds.ToList().IndexOf(evt.ActiveModelId);
+            if (idx >= 0) preSelect = idx;
+        }
+
+        string? selected = await Task.Run(() => ConsolePicker.Run(modelIds, preSelect), cancellationToken)
+            .ConfigureAwait(false);
+
+        if (selected is null)
+        {
+            _renderer.AddSystemLine("[Model] Cancelled.");
+            _input.IsLocked = false;
+            return;
+        }
+
+        ModelSetCommand cmd = new()
+        {
+            Id = Guid.NewGuid().ToString("N"),
+            Provider = evt.Provider,
+            ModelId = selected
+        };
+        await _sendCommand(cmd, cancellationToken).ConfigureAwait(false);
+        _input.IsLocked = false;
+    }
+
     public async Task HandleUserInputAsync(string input, CancellationToken cancellationToken)
     {
         SlashCommandParser.ParseResult result = SlashCommandParser.Parse(input);
@@ -231,6 +311,13 @@ internal sealed class ConsoleEventHandler
         if (result.ClientCommand is AddProviderCommand)
         {
             await HandleAddProviderAsync(cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
+        if (result.Command is ModelListCommand modelListCommand)
+        {
+            _input.IsLocked = true;
+            await _sendCommand(modelListCommand, cancellationToken).ConfigureAwait(false);
             return;
         }
 

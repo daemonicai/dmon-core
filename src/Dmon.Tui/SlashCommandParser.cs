@@ -94,7 +94,7 @@ public static class SlashCommandParser
     private static ParseResult ParseModel(string id, string[] args)
     {
         if (args.Length == 0)
-            return new ParseResult { IsSlashCommand = true, Command = new ModelCycleCommand { Id = id } };
+            return new ParseResult { IsSlashCommand = true, Command = new ModelListCommand { Id = id } };
 
         if (args.Length == 1)
             return new ParseResult { IsSlashCommand = true, Error = "Usage: /model <provider> <modelId>" };

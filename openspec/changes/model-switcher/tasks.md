@@ -22,8 +22,8 @@
 
 ## 4. Terminal — interactive two-step picker
 
-- [ ] 4.1 In `ConsoleEventHandler`, add `/model` to the command parser: send `ModelListCommand` and lock input (same mechanism as wizard)
-- [ ] 4.2 Handle `ModelListResultEvent` in `ConsoleEventHandler`: when received in response to a `/model` command (not a spontaneous event), display an arrow-key provider picker pre-selected on `ActiveProvider`; on confirm send `ModelModelsCommand { Provider }`; on Escape unlock input and cancel
-- [ ] 4.3 Show a loading indicator (e.g., "Fetching models…") in the terminal between provider selection and `ModelModelsResultEvent` arrival
-- [ ] 4.4 Handle `ModelModelsResultEvent` in `ConsoleEventHandler`: display an arrow-key model picker; pre-select the model matching `ActiveModelId` only if the selected provider equals the currently active provider (otherwise select index 0); on confirm send `ModelSetCommand { Provider, ModelId }`; on Escape unlock input and cancel
-- [ ] 4.5 Implement the arrow-key picker as a synchronous console loop (polling `Console.KeyAvailable`) inside `TerminalRenderer` or a new `ConsolePicker` helper — UpArrow/DownArrow move selection, Enter confirms, Escape cancels; render selected item highlighted
+- [x] 4.1 In `ConsoleEventHandler`, add `/model` to the command parser: send `ModelListCommand` and lock input (same mechanism as wizard)
+- [x] 4.2 Handle `ModelListResultEvent` in `ConsoleEventHandler`: when received in response to a `/model` command (not a spontaneous event), display an arrow-key provider picker pre-selected on `ActiveProvider`; on confirm send `ModelModelsCommand { Provider }`; on Escape unlock input and cancel
+- [x] 4.3 Show a loading indicator (e.g., "Fetching models…") in the terminal between provider selection and `ModelModelsResultEvent` arrival
+- [x] 4.4 Handle `ModelModelsResultEvent` in `ConsoleEventHandler`: display an arrow-key model picker; pre-select the model matching `ActiveModelId` only if the selected provider equals the currently active provider (otherwise select index 0); on confirm send `ModelSetCommand { Provider, ModelId }`; on Escape unlock input and cancel
+- [x] 4.5 Implement the arrow-key picker as a synchronous console loop (polling `Console.KeyAvailable`) inside `TerminalRenderer` or a new `ConsolePicker` helper — UpArrow/DownArrow move selection, Enter confirms, Escape cancels; render selected item highlighted
