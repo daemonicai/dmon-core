@@ -12,11 +12,18 @@ public sealed class CoreProcessManager : IDisposable
 {
     private Process? _process;
     private readonly string _corePath;
+    private readonly string? _workingDirectory;
+    private readonly Action<string>? _onStderrLine;
     private bool _disposed;
 
-    public CoreProcessManager(string? corePathOverride)
+    public CoreProcessManager(
+        string? corePathOverride,
+        string? workingDirectory = null,
+        Action<string>? onStderrLine = null)
     {
         _corePath = ResolveCorePath(corePathOverride);
+        _workingDirectory = workingDirectory;
+        _onStderrLine = onStderrLine;
     }
 
     /// <summary>
@@ -37,6 +44,11 @@ public sealed class CoreProcessManager : IDisposable
     public bool IsRunning => _process is { HasExited: false };
 
     /// <summary>
+    /// The OS process ID of the running core process, or null if not started.
+    /// </summary>
+    internal int? ProcessId => _process?.Id;
+
+    /// <summary>
     /// Starts the core process. Does not wait for <c>agentReady</c>.
     /// </summary>
     public Task StartAsync()
@@ -51,11 +63,18 @@ public sealed class CoreProcessManager : IDisposable
             CreateNoWindow = true
         };
 
+        if (_workingDirectory is not null)
+            psi.WorkingDirectory = _workingDirectory;
+
         _process = new Process { StartInfo = psi };
 
         // Drain stderr to prevent the child process blocking on a full pipe buffer.
         // Core logs are structured JSON on stderr; the terminal host does not forward them.
-        _process.ErrorDataReceived += (_, _) => { };
+        // When _onStderrLine is set (e.g. in tests), route each line to that callback instead.
+        if (_onStderrLine is not null)
+            _process.ErrorDataReceived += (_, e) => { if (e.Data is not null) _onStderrLine(e.Data); };
+        else
+            _process.ErrorDataReceived += (_, _) => { };
 
         _process.Start();
         _process.BeginErrorReadLine();
@@ -90,6 +109,18 @@ public sealed class CoreProcessManager : IDisposable
             try { _process.Kill(entireProcessTree: true); }
             catch { /* best effort */ }
         }
+    }
+
+    /// <summary>
+    /// Stops the current core process and spawns a fresh one.
+    /// The old process's session lock is released before the new process starts.
+    /// </summary>
+    public async Task RestartAsync()
+    {
+        await StopAsync().ConfigureAwait(false);
+        _process?.Dispose();
+        _process = null;
+        await StartAsync().ConfigureAwait(false);
     }
 
     public void Dispose()

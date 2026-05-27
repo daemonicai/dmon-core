@@ -27,12 +27,12 @@
 
 ## 5. Terminal /reload + Restart
 
-- [ ] 5.1 Add `RestartAsync` to `CoreProcessManager` (stop current process, spawn a fresh one)
-- [ ] 5.2 Re-bind the terminal's stdio read/write loop to the new process's `StandardOutput`/`StandardInput`
-- [ ] 5.3 Re-open the active session directory against the new process after restart
-- [ ] 5.4 Add `/reload` to `SlashCommandParser`; guard it to run only between turns
-- [ ] 5.5 Integration test: `/reload` produces a fresh process, re-binds stdio, and the active session re-opens with prior history intact
-- [ ] 5.6 Integration test: edited `config.yaml` is reflected in the effective set after `/reload`
+- [x] 5.1 Add `RestartAsync` to `CoreProcessManager` (stop current process, spawn a fresh one)
+- [x] 5.2 Re-bind the terminal's stdio read/write loop to the new process's `StandardOutput`/`StandardInput`
+- [x] 5.3 Re-open the active session directory against the new process after restart (send `session.load` for the tracked session so the fresh process re-acquires its lock; conversation-history rehydration is deferred to a follow-up change)
+- [x] 5.4 Add `/reload` to `SlashCommandParser`; guard it to run only between turns
+- [x] 5.5 Integration test: `/reload` produces a fresh process, re-binds stdio, and the active session directory re-opens (lock re-acquired) on the new process
+- [x] 5.6 Integration test: edited `config.yaml` is reflected in the effective set after `/reload`
 
 ## 6. Docs & ADR Cross-Reference
 
