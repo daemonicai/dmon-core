@@ -7,6 +7,7 @@ internal sealed class InputReader
 {
     private readonly Channel<string> _channel = Channel.CreateUnbounded<string>();
     private readonly List<string> _history = [];
+    private readonly StringBuilder _buffer = new();
     private int _historyIndex = -1;
     private volatile bool _isLocked;
 
@@ -16,13 +17,13 @@ internal sealed class InputReader
         set => _isLocked = value;
     }
 
+    public string CurrentBuffer => _buffer.ToString();
+
     public IAsyncEnumerable<string> ReadLinesAsync(CancellationToken cancellationToken)
         => _channel.Reader.ReadAllAsync(cancellationToken);
 
     public async Task RunAsync(CancellationToken cancellationToken)
     {
-        StringBuilder buffer = new();
-
         try
         {
             await Task.Run(() =>
@@ -46,7 +47,7 @@ internal sealed class InputReader
                         break;
                     }
 
-                    HandleKey(key, buffer);
+                    HandleKey(key);
                 }
             }, cancellationToken);
         }
@@ -56,14 +57,14 @@ internal sealed class InputReader
         }
     }
 
-    private void HandleKey(ConsoleKeyInfo key, StringBuilder buffer)
+    private void HandleKey(ConsoleKeyInfo key)
     {
         switch (key.Key)
         {
             case ConsoleKey.Enter:
             {
-                string line = buffer.ToString();
-                buffer.Clear();
+                string line = _buffer.ToString();
+                _buffer.Clear();
                 Console.Write('\n');
                 if (!IsLocked)
                 {
@@ -78,9 +79,9 @@ internal sealed class InputReader
             }
 
             case ConsoleKey.Backspace:
-                if (buffer.Length > 0 && !IsLocked)
+                if (_buffer.Length > 0 && !IsLocked)
                 {
-                    buffer.Remove(buffer.Length - 1, 1);
+                    _buffer.Remove(_buffer.Length - 1, 1);
                     Console.Write("\b \b");
                 }
                 break;
@@ -89,7 +90,7 @@ internal sealed class InputReader
                 if (_history.Count > 0 && !IsLocked)
                 {
                     _historyIndex = Math.Max(0, _historyIndex - 1);
-                    ReplaceBufferLine(buffer, _history[_historyIndex]);
+                    ReplaceBufferLine(_history[_historyIndex]);
                 }
                 break;
 
@@ -100,13 +101,13 @@ internal sealed class InputReader
                     string replacement = _historyIndex < _history.Count
                         ? _history[_historyIndex]
                         : string.Empty;
-                    ReplaceBufferLine(buffer, replacement);
+                    ReplaceBufferLine(replacement);
                 }
                 break;
 
             case ConsoleKey.Escape:
                 if (!IsLocked)
-                    ReplaceBufferLine(buffer, string.Empty);
+                    ReplaceBufferLine(string.Empty);
                 break;
 
             default:
@@ -114,7 +115,7 @@ internal sealed class InputReader
                 {
                     if (!IsLocked)
                     {
-                        buffer.Append(key.KeyChar);
+                        _buffer.Append(key.KeyChar);
                         Console.Write(key.KeyChar);
                     }
                 }
@@ -122,15 +123,15 @@ internal sealed class InputReader
         }
     }
 
-    private static void ReplaceBufferLine(StringBuilder buffer, string replacement)
+    private void ReplaceBufferLine(string replacement)
     {
-        int currentLength = buffer.Length;
+        int currentLength = _buffer.Length;
         Console.Write(new string('\b', currentLength));
         Console.Write(new string(' ', currentLength));
         Console.Write(new string('\b', currentLength));
 
-        buffer.Clear();
-        buffer.Append(replacement);
+        _buffer.Clear();
+        _buffer.Append(replacement);
         Console.Write(replacement);
     }
 }
