@@ -111,7 +111,7 @@ Provider capability differences (tool-calling support, context window, reasoning
 | `model.cycle` | — | |
 | `model.list` | — | Returns `Model[]` |
 | `extension.load` | `source` | Path or NuGet package id |
-| `extension.unload` | `name` | |
+| `extension.unload` | `name` | Deregisters the extension's tools; assemblies remain resident until the core process restarts |
 | `extension.promote` | `name` | Scaffolds .csx into csproj |
 | `thinking.set` | `level` (`off`/`low`/`medium`/`high`) | |
 | `thinking.cycle` | — | |

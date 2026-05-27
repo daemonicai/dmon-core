@@ -175,8 +175,10 @@ public sealed class ExtensionService
     }
 
     /// <summary>
-    /// Unloads a previously loaded extension by name.
-    /// Emits <see cref="ExtensionUnloadedEvent"/>.
+    /// Deregisters the named extension's tools from the tool registry so they are no longer
+    /// offered to the LLM, and emits <see cref="ExtensionUnloadedEvent"/>.
+    /// The extension's assembly is NOT unloaded — it remains resident in the process until
+    /// the core is restarted. To reclaim memory, restart the core process.
     /// Does not throw if the extension is not registered.
     /// </summary>
     public void Unload(string name)

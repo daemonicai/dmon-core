@@ -1,3 +1,5 @@
+using System.Reflection;
+using System.Runtime.Loader;
 using Dmon.Core.Extensions;
 
 namespace Dmon.Core.Tests.Extensions;
@@ -238,6 +240,55 @@ public sealed class CsxScriptLoaderTests : IDisposable
         ExtensionLoadResult result = await loader.LoadAsync(source);
 
         Assert.Equal("MyCoolExtension", result.Name);
+    }
+
+    /// <summary>
+    /// Spec: "Script extension loads and returns tools" and
+    /// "the loader holds no AssemblyLoadContext reference for the script".
+    /// CsxScriptLoader must not store any AssemblyLoadContext reference as an
+    /// instance field — scripts run in the Default ALC and no collectible context
+    /// should be created or retained by the loader.
+    /// </summary>
+    [Fact]
+    public async Task LoadAsync_Script_ProducesTools_AndLoaderHoldsNoAssemblyLoadContextField()
+    {
+        string scriptPath = WriteScriptFile("alccheck.csx", """
+            #r "nuget: Microsoft.Extensions.AI, 10.6.0"
+
+            using Microsoft.Extensions.AI;
+
+            var fn = AIFunctionFactory.Create(
+                () => "alc-check result",
+                "AlcCheckFunc",
+                "Function for ALC field test.");
+
+            return fn;
+            """);
+
+        CsxScriptLoader loader = new();
+        loader.ConfirmCallback = (_, _) => Task.FromResult(true);
+
+        ParsedExtensionSource source = new()
+        {
+            Kind = "script",
+            Value = scriptPath
+        };
+
+        ExtensionLoadResult result = await loader.LoadAsync(source);
+
+        // The script must produce at least one tool.
+        Assert.NotEmpty(result.Tools);
+        Assert.Contains(result.Tools, f => f.Name == "AlcCheckFunc");
+
+        // CsxScriptLoader must hold no instance field of type AssemblyLoadContext
+        // (or any subtype). Scripts run in the Default ALC — the loader must not
+        // retain a reference to any context.
+        FieldInfo[] alcFields = typeof(CsxScriptLoader)
+            .GetFields(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public)
+            .Where(f => typeof(AssemblyLoadContext).IsAssignableFrom(f.FieldType))
+            .ToArray();
+
+        Assert.Empty(alcFields);
     }
 
     private static readonly Func<ExtensionLoadConfirmRequest, CancellationToken, Task<bool>> AllowAll =

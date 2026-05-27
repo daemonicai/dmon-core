@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Reflection;
 using System.Runtime.Loader;
 using Dmon.Abstractions.Providers;
@@ -8,12 +9,30 @@ namespace Dmon.Core.Extensions;
 
 /// <summary>
 /// Loads extensions from NuGet packages or local assembly .dll files.
-/// Uses collectible <see cref="AssemblyLoadContext"/> for isolation.
+/// Assemblies are loaded into <see cref="AssemblyLoadContext.Default"/> so that
+/// contract types (<c>IDmonExtension</c>, <c>IProviderExtension</c>,
+/// <c>Microsoft.Extensions.AI</c>) resolve to the same <see cref="Type"/> identity
+/// as the host, making reflection discovery correct by construction.
 /// </summary>
-public sealed class NuGetExtensionLoader : IExtensionLoader, IDisposable
+public sealed class NuGetExtensionLoader : IExtensionLoader
 {
-    private AssemblyLoadContext? _activeContext;
     private readonly IServiceProvider _serviceProvider;
+
+    // Process-global registry: one resolver per distinct extension assembly path.
+    // Static because AssemblyLoadContext.Default and its Resolving event are
+    // process-global; instance-scoped state would cause stale captures and
+    // handler accumulation across multiple loader instances (e.g. in tests).
+    // ConcurrentDictionary because the Resolving handler fires on any thread.
+    // TryAdd enforces first-writer-wins; conflicting-version support is an
+    // explicit non-goal (see design.md D2 risks).
+    private static readonly ConcurrentDictionary<string, AssemblyDependencyResolver> _resolvers = new();
+
+    // Subscribed once per process (static ctor) so that multiple loader instances
+    // (e.g. in test runs) never accumulate duplicate handlers on the static event.
+    static NuGetExtensionLoader()
+    {
+        AssemblyLoadContext.Default.Resolving += ResolveExtensionDependency;
+    }
 
     public NuGetExtensionLoader(IServiceProvider serviceProvider)
     {
@@ -135,16 +154,6 @@ public sealed class NuGetExtensionLoader : IExtensionLoader, IDisposable
         };
     }
 
-    public void Dispose()
-    {
-        if (_activeContext is not null && _activeContext.IsCollectible)
-        {
-            _activeContext.Unload();
-        }
-
-        _activeContext = null;
-    }
-
     private async Task<Assembly> LoadNuGetPackageAsync(
         ParsedExtensionSource source,
         CancellationToken cancellationToken)
@@ -190,16 +199,58 @@ public sealed class NuGetExtensionLoader : IExtensionLoader, IDisposable
             throw new FileNotFoundException($"Assembly not found: {fullPath}");
         }
 
-        // Create a new collectible ALC for each load, isolating extension assemblies
-        // from the host and from each other.
-        _activeContext?.Unload();
-        _activeContext = new AssemblyLoadContext($"extension-{Path.GetFileNameWithoutExtension(fullPath)}", isCollectible: true);
+        // Register a resolver for this path before loading so that any
+        // transitive dependency probed during load can be found.
+        // TryAdd is a no-op if the path was already registered (task 2.3).
+        _resolvers.TryAdd(fullPath, new AssemblyDependencyResolver(fullPath));
 
-        // Load the assembly into the collectible ALC.
-        Assembly assembly = _activeContext.LoadFromAssemblyPath(fullPath);
+        // Load the assembly into the Default context so contract-type identity is
+        // shared with the host.  An already-loaded assembly is returned from cache.
+        Assembly assembly = AssemblyLoadContext.Default.LoadFromAssemblyPath(fullPath);
 
         await ValueTask.CompletedTask;
         return assembly;
+    }
+
+    // Static handler subscribed once per process (static ctor).  Iterates all
+    // accumulated resolvers so the event subscription count stays at exactly one
+    // regardless of how many loader instances exist.
+    // Note: when multiple resolvers match the same name, the first match wins;
+    // selection among them is unordered.  First-writer-wins is enforced by the
+    // runtime's assembly cache, not this method — conflicting-version coexistence
+    // is an explicit non-goal.
+    private static Assembly? ResolveExtensionDependency(AssemblyLoadContext context, AssemblyName name)
+    {
+        // Pass 1: consult each resolver's .deps.json metadata.
+        foreach (AssemblyDependencyResolver resolver in _resolvers.Values)
+        {
+            string? resolvedPath = resolver.ResolveAssemblyToPath(name);
+            if (resolvedPath is not null)
+            {
+                return AssemblyLoadContext.Default.LoadFromAssemblyPath(resolvedPath);
+            }
+        }
+
+        // Pass 2: probe each extension's own directory for a sibling .dll.
+        // Covers extensions that ship dependencies alongside the main assembly
+        // without a full .deps.json manifest.
+        if (name.Name is not null)
+        {
+            foreach (string extensionPath in _resolvers.Keys)
+            {
+                string siblingPath = Path.Combine(
+                    Path.GetDirectoryName(extensionPath)!,
+                    name.Name + ".dll");
+
+                if (File.Exists(siblingPath))
+                {
+                    return AssemblyLoadContext.Default.LoadFromAssemblyPath(siblingPath);
+                }
+            }
+        }
+
+        // Return null to let the runtime continue its normal probing chain.
+        return null;
     }
 
     private static (List<IDmonExtension> tools, List<IProviderExtension> providers)

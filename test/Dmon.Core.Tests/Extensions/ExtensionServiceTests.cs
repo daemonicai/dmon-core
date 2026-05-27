@@ -1,3 +1,5 @@
+using System.Reflection;
+using System.Runtime.Loader;
 using Dmon.Abstractions.Providers;
 using Dmon.Core.Extensions;
 using Dmon.Core.Providers;
@@ -389,6 +391,94 @@ public sealed class ExtensionServiceTests
         Assert.Empty(registry.GetSnapshot());
     }
 
+    /// <summary>
+    /// Spec: "Unloaded tools stop being offered" and
+    /// "Re-loading after unload does not require new type identity" (assembly stays resident).
+    /// Uses a freshly-emitted GUID-named assembly to prove that:
+    ///   1. After Unload(), tools are removed from the registry and the event fires.
+    ///   2. The assembly is STILL resident in the Default ALC after Unload() — the
+    ///      Default ALC never releases it, so GetLoadContext(emittedAsm) == Default holds.
+    ///   3. Re-loading the same path succeeds because the Default ALC's cache returns
+    ///      the already-resident assembly.
+    /// </summary>
+    [Fact]
+    public async Task Unload_RealAssembly_RemovesToolsEmitsEvent_AndReloadSucceeds()
+    {
+        // Emit a fresh GUID-named assembly so the result is not influenced by the
+        // test assembly already being permanently resident.
+        string guid = Guid.NewGuid().ToString("N");
+        string extName = $"ExtUnload{guid}";
+        string tempDir = Path.Combine(Path.GetTempPath(), $"dmon-unload-test-{guid}");
+        Directory.CreateDirectory(tempDir);
+        string dllPath = Path.Combine(tempDir, extName + ".dll");
+
+        try
+        {
+            TestAssemblyEmitter.EmitAssembly(
+                assemblyName: extName,
+                source: $$"""
+                    using System.Collections.Generic;
+                    using Dmon.Extensions;
+                    using Microsoft.Extensions.AI;
+
+                    public sealed class {{extName}}Extension : IDmonExtension
+                    {
+                        public string Name => "{{extName}}";
+                        public string Description => "unload test";
+                        public IEnumerable<AIFunction> Tools =>
+                            [AIFunctionFactory.Create(() => "hi", "{{extName}}_Tool", "tool")];
+                    }
+                    """,
+                outputPath: dllPath,
+                additionalRefs: []);
+
+            IToolRegistry registry = new ToolRegistry();
+            NuGetExtensionLoader loader = new(new NullSp());
+            ExtensionService service = new(registry, [loader], NullLogger<ExtensionService>.Instance);
+
+            ExtensionUnloadedEvent? unloadedEvent = null;
+            service.Unloaded += e => unloadedEvent = e;
+
+            // Load via the real loader so the assembly enters the Default ALC.
+            await service.LoadAsync(dllPath);
+
+            string extensionName = registry.GetSnapshot()[0].Name;
+            Assert.Equal(extName, extensionName);
+
+            // Locate the emitted assembly — it must be in the Default ALC at this point.
+            Assembly? emittedAsm = AppDomain.CurrentDomain.GetAssemblies()
+                .FirstOrDefault(a => string.Equals(a.GetName().Name, extName, StringComparison.Ordinal));
+            Assert.NotNull(emittedAsm);
+            Assert.Same(AssemblyLoadContext.Default, AssemblyLoadContext.GetLoadContext(emittedAsm));
+
+            // Unload: tools must disappear and event must fire.
+            service.Unload(extensionName);
+
+            Assert.NotNull(unloadedEvent);
+            Assert.Equal(extensionName, unloadedEvent!.Name);
+            Assert.Empty(registry.GetSnapshot());
+
+            // The assembly must still be resident in the Default ALC after Unload().
+            // Unload() only removes the registry entry — it never reclaims the assembly.
+            Assert.Same(AssemblyLoadContext.Default, AssemblyLoadContext.GetLoadContext(emittedAsm));
+
+            // Re-load: the Default ALC cache returns the same instance, so this succeeds.
+            ExtensionLoadedEvent? reloadEvent = null;
+            service.Loaded += e => reloadEvent = e;
+
+            await service.LoadAsync(dllPath);
+
+            Assert.NotNull(reloadEvent);
+            Assert.False(reloadEvent!.Name.StartsWith("__error__", StringComparison.Ordinal),
+                "Re-load failed — assembly should remain resident in the Default ALC after Unload().");
+            Assert.NotEmpty(registry.GetSnapshot());
+        }
+        finally
+        {
+            try { Directory.Delete(tempDir, recursive: true); } catch { /* best-effort */ }
+        }
+    }
+
     private sealed class FakeExtensionLoader : IExtensionLoader
     {
         public string SourceKind { get; }
@@ -452,4 +542,9 @@ public sealed class ExtensionServiceTests
         public bool CurrentSupportsToolCalling => false;
         public bool CurrentSupportsReasoning => false;
     }
+}
+
+file sealed class NullSp : IServiceProvider
+{
+    public object? GetService(Type serviceType) => null;
 }
