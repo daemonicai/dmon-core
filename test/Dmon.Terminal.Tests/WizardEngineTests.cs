@@ -1,13 +1,14 @@
+using Dcli;
 using Dmon.Abstractions.Providers;
 using Dmon.Abstractions.Wizard;
+using Dmon.Terminal.Tests.Fakes;
 using Microsoft.Extensions.AI;
 
 namespace Dmon.Terminal.Tests;
 
 /// <summary>
 /// Tests for WizardEngine navigation: cancel, back, and happy-path flows.
-/// The renderer delegate is replaced with a fake that drives the engine
-/// programmatically, so no real console is required.
+/// FakeTerminal scripts dialog responses so no real console is required.
 /// </summary>
 public sealed class WizardEngineTests
 {
@@ -18,9 +19,11 @@ public sealed class WizardEngineTests
     [Fact]
     public async Task RunAsync_CancelAtProviderSelection_ReturnsNull()
     {
-        WizardEngine engine = BuildEngine(
-            [new FakeProviderFactory("fake", "Fake")],
-            step => Task.FromResult(WizardStepOutcome.Cancel));
+        FakeTerminal fake = new();
+        fake.OnSelectAsync = (_, _) =>
+            Task.FromResult(new DialogResult<int>(DialogOutcome.Cancelled, default));
+
+        WizardEngine engine = new(fake, [new FakeProviderFactory("fake", "Fake")]);
 
         WizardResult? result = await engine.RunAsync(CancellationToken.None);
 
@@ -30,13 +33,33 @@ public sealed class WizardEngineTests
     [Fact]
     public async Task RunAsync_BackAtProviderSelection_ReturnsNull()
     {
-        WizardEngine engine = BuildEngine(
-            [new FakeProviderFactory("fake", "Fake")],
-            step => Task.FromResult(WizardStepOutcome.Back));
+        FakeTerminal fake = new();
+        fake.OnSelectAsync = (_, _) =>
+            Task.FromResult(new DialogResult<int>(DialogOutcome.Back, default));
+
+        WizardEngine engine = new(fake, [new FakeProviderFactory("fake", "Fake")]);
 
         WizardResult? result = await engine.RunAsync(CancellationToken.None);
 
         Assert.Null(result);
+    }
+
+    // ------------------------------------------------------------------ //
+    //  AllowBack = true on every wizard pick step
+    // ------------------------------------------------------------------ //
+
+    [Fact]
+    public async Task RunAsync_ProviderSelection_SelectRequestHasAllowBackTrue()
+    {
+        FakeTerminal fake = new();
+        fake.OnSelectAsync = (_, _) =>
+            Task.FromResult(new DialogResult<int>(DialogOutcome.Cancelled, default));
+
+        WizardEngine engine = new(fake, [new FakeProviderFactory("fake", "Fake")]);
+        await engine.RunAsync(CancellationToken.None);
+
+        SelectOpened call = Assert.IsType<SelectOpened>(fake.Calls[0]);
+        Assert.True(call.Request.AllowBack);
     }
 
     // ------------------------------------------------------------------ //
@@ -46,28 +69,64 @@ public sealed class WizardEngineTests
     [Fact]
     public async Task RunAsync_BackFromFirstFactoryStep_ReturnsToProviderSelection_ThenCancel()
     {
-        // Round 1: provider selection → Answered (pick index 0)
-        // Round 2: first factory step → Back
-        // Round 3: provider selection again → Cancel
-        int callCount = 0;
-        WizardEngine engine = BuildEngine(
-            [new FakeProviderFactory("fake", "Fake")],
-            step =>
-            {
-                callCount++;
-                return callCount switch
-                {
-                    1 => AnswerChooseOne(step, 0),           // pick provider
-                    2 => Task.FromResult(WizardStepOutcome.Back),  // back on first step
-                    3 => Task.FromResult(WizardStepOutcome.Cancel), // cancel at provider select
-                    _ => throw new InvalidOperationException($"Unexpected render call #{callCount}")
-                };
-            });
+        // Use ChooseOneFactory so the first factory step is a SelectAsync call (supports Back).
+        // Round 1: provider selection → Submitted (pick index 0)
+        // Round 2: first factory step (ChooseOneStep) → Back
+        // Round 3: provider selection again → Cancelled
+        ChooseOneFactory factory = new("fake", "Fake");
+        FakeTerminal fake = new();
 
+        int selectCount = 0;
+        fake.OnSelectAsync = (req, _) =>
+        {
+            selectCount++;
+            return selectCount switch
+            {
+                1 => Task.FromResult(new DialogResult<int>(DialogOutcome.Submitted, 0)), // pick provider
+                2 => Task.FromResult(new DialogResult<int>(DialogOutcome.Back, default)), // back on factory step
+                3 => Task.FromResult(new DialogResult<int>(DialogOutcome.Cancelled, default)), // cancel at re-shown provider select
+                _ => throw new InvalidOperationException($"Unexpected select call #{selectCount}")
+            };
+        };
+
+        WizardEngine engine = new(fake, [factory]);
         WizardResult? result = await engine.RunAsync(CancellationToken.None);
 
         Assert.Null(result);
-        Assert.Equal(3, callCount);
+        Assert.Equal(3, selectCount);
+    }
+
+    // ------------------------------------------------------------------ //
+    //  Back from factory step — engine trims state and re-renders adapter step
+    // ------------------------------------------------------------------ //
+
+    [Fact]
+    public async Task RunAsync_BackFromFactoryStep_SelectCalledTwice()
+    {
+        // Use ChooseOneFactory so the first factory step is a SelectAsync call (supports Back).
+        ChooseOneFactory factory = new("fake", "Fake");
+        FakeTerminal fake = new();
+
+        int selectCount = 0;
+        fake.OnSelectAsync = (req, _) =>
+        {
+            selectCount++;
+            return selectCount switch
+            {
+                1 => Task.FromResult(new DialogResult<int>(DialogOutcome.Submitted, 0)), // pick provider
+                2 => Task.FromResult(new DialogResult<int>(DialogOutcome.Back, default)), // back on factory step
+                _ => Task.FromResult(new DialogResult<int>(DialogOutcome.Cancelled, default))
+            };
+        };
+
+        WizardEngine engine = new(fake, [factory]);
+        WizardResult? result = await engine.RunAsync(CancellationToken.None);
+
+        Assert.Null(result);
+        // At minimum: adapter select, factory step (Back), adapter select again
+        Assert.True(selectCount >= 2);
+        IReadOnlyList<FakeCall> selectCalls = fake.Calls.OfType<SelectOpened>().ToList();
+        Assert.True(selectCalls.Count >= 2);
     }
 
     // ------------------------------------------------------------------ //
@@ -77,24 +136,41 @@ public sealed class WizardEngineTests
     [Fact]
     public async Task RunAsync_CancelDuringFactoryStep_ReturnsNull()
     {
-        // Pick the provider, then cancel on the first factory step.
-        int callCount = 0;
-        WizardEngine engine = BuildEngine(
-            [new FakeProviderFactory("fake", "Fake")],
-            step =>
-            {
-                callCount++;
-                return callCount switch
-                {
-                    1 => AnswerChooseOne(step, 0),
-                    2 => Task.FromResult(WizardStepOutcome.Cancel),
-                    _ => throw new InvalidOperationException($"Unexpected render call #{callCount}")
-                };
-            });
+        FakeProviderFactory factory = new("fake", "Fake");
+        FakeTerminal fake = new();
 
+        fake.OnSelectAsync = (_, _) =>
+            Task.FromResult(new DialogResult<int>(DialogOutcome.Submitted, 0));
+        fake.OnInputAsync = (_, _) =>
+            Task.FromResult(new DialogResult<string>(DialogOutcome.Cancelled, string.Empty));
+
+        WizardEngine engine = new(fake, [factory]);
         WizardResult? result = await engine.RunAsync(CancellationToken.None);
 
         Assert.Null(result);
+    }
+
+    // ------------------------------------------------------------------ //
+    //  Cancellation token
+    // ------------------------------------------------------------------ //
+
+    [Fact]
+    public async Task RunAsync_CancellationRequested_ThrowsOrReturnsNull()
+    {
+        using CancellationTokenSource cts = new();
+        FakeProviderFactory factory = new("fake", "Fake");
+        FakeTerminal fake = new();
+
+        fake.OnSelectAsync = (_, ct) =>
+        {
+            cts.Cancel();
+            ct.ThrowIfCancellationRequested();
+            return Task.FromResult(new DialogResult<int>(DialogOutcome.Cancelled, default));
+        };
+
+        WizardEngine engine = new(fake, [factory]);
+        await Assert.ThrowsAsync<OperationCanceledException>(
+            () => engine.RunAsync(cts.Token));
     }
 
     // ------------------------------------------------------------------ //
@@ -104,27 +180,10 @@ public sealed class WizardEngineTests
     [Fact]
     public async Task RunAsync_HappyPath_ReturnsWizardResultWithCorrectAdapter()
     {
-        // Factory returns:
-        //   Step 1 (api-key TextInputStep) → answered with "sk-test"
-        //   Step 2 (model ChooseOneStep)   → answered with index 0
-        //   Step 3 (WizardCompletedStep)   → engine returns result directly
         FakeProviderFactory factory = new("myprovider", "MyProvider");
+        FakeTerminal fake = BuildHappyPathFake(factory, apiKey: "sk-test", modelIndex: 0);
 
-        int callCount = 0;
-        WizardEngine engine = BuildEngine(
-            [factory],
-            step =>
-            {
-                callCount++;
-                return callCount switch
-                {
-                    1 => AnswerChooseOne(step, 0),              // pick provider
-                    2 => AnswerTextInput(step, "sk-test"),       // api-key
-                    3 => AnswerChooseOne(step, 0),              // model
-                    _ => throw new InvalidOperationException($"Unexpected render call #{callCount}")
-                };
-            });
-
+        WizardEngine engine = new(fake, [factory]);
         WizardResult? result = await engine.RunAsync(CancellationToken.None);
 
         Assert.NotNull(result);
@@ -135,22 +194,9 @@ public sealed class WizardEngineTests
     public async Task RunAsync_HappyPath_WizardResultModelIdMatchesSelectedOption()
     {
         FakeProviderFactory factory = new("myprovider", "MyProvider");
+        FakeTerminal fake = BuildHappyPathFake(factory, apiKey: "sk-test", modelIndex: 0);
 
-        int callCount = 0;
-        WizardEngine engine = BuildEngine(
-            [factory],
-            step =>
-            {
-                callCount++;
-                return callCount switch
-                {
-                    1 => AnswerChooseOne(step, 0),
-                    2 => AnswerTextInput(step, "sk-test"),
-                    3 => AnswerChooseOne(step, 0),
-                    _ => throw new InvalidOperationException($"Unexpected render call #{callCount}")
-                };
-            });
-
+        WizardEngine engine = new(fake, [factory]);
         WizardResult? result = await engine.RunAsync(CancellationToken.None);
 
         // FakeProviderFactory.ModelOptions[0] is "model-alpha"
@@ -159,33 +205,121 @@ public sealed class WizardEngineTests
     }
 
     // ------------------------------------------------------------------ //
+    //  AllowBack on factory ChooseOne steps
+    // ------------------------------------------------------------------ //
+
+    [Fact]
+    public async Task RunAsync_FactoryChooseOneStep_SelectRequestHasAllowBackTrue()
+    {
+        FakeProviderFactory factory = new("myprovider", "MyProvider");
+        FakeTerminal fake = BuildHappyPathFake(factory, apiKey: "sk-test", modelIndex: 0);
+
+        WizardEngine engine = new(fake, [factory]);
+        await engine.RunAsync(CancellationToken.None);
+
+        // All SelectAsync calls should have AllowBack = true.
+        foreach (SelectOpened call in fake.Calls.OfType<SelectOpened>())
+        {
+            Assert.True(call.Request.AllowBack, $"SelectRequest for step should have AllowBack = true");
+        }
+    }
+
+    // ------------------------------------------------------------------ //
+    //  Step ordering — multi-step factory flow calls Opened in order
+    // ------------------------------------------------------------------ //
+
+    [Fact]
+    public async Task RunAsync_HappyPath_StepOrderIsSelectThenInputThenSelect()
+    {
+        FakeProviderFactory factory = new("myprovider", "MyProvider");
+        FakeTerminal fake = BuildHappyPathFake(factory, apiKey: "sk-test", modelIndex: 0);
+
+        WizardEngine engine = new(fake, [factory]);
+        await engine.RunAsync(CancellationToken.None);
+
+        List<FakeCall> dialogCalls = fake.Calls
+            .Where(c => c is SelectOpened or InputOpened or ChoiceOpened)
+            .ToList();
+
+        // adapter select, api-key input, model select
+        Assert.Equal(3, dialogCalls.Count);
+        Assert.IsType<SelectOpened>(dialogCalls[0]);
+        Assert.IsType<InputOpened>(dialogCalls[1]);
+        Assert.IsType<SelectOpened>(dialogCalls[2]);
+    }
+
+    // ------------------------------------------------------------------ //
     //  Helpers
     // ------------------------------------------------------------------ //
 
-    private static WizardEngine BuildEngine(
-        IReadOnlyList<IProviderFactory> factories,
-        Func<WizardStep, Task<WizardStepOutcome>> renderer)
+    private static FakeTerminal BuildHappyPathFake(
+        FakeProviderFactory factory,
+        string apiKey,
+        int modelIndex)
     {
-        return new WizardEngine(factories, (step, _) => renderer(step));
-    }
+        FakeTerminal fake = new();
 
-    private static Task<WizardStepOutcome> AnswerChooseOne(WizardStep step, int index)
-    {
-        if (step is ChooseOneStep s)
-            s.SelectedIndex = index;
-        return Task.FromResult(WizardStepOutcome.Answered);
-    }
+        int selectCount = 0;
+        fake.OnSelectAsync = (req, _) =>
+        {
+            selectCount++;
+            // Round 1: adapter selection → pick index 0
+            // Round 2: model selection → pick modelIndex
+            return Task.FromResult(new DialogResult<int>(
+                DialogOutcome.Submitted,
+                selectCount == 1 ? 0 : modelIndex));
+        };
 
-    private static Task<WizardStepOutcome> AnswerTextInput(WizardStep step, string value)
-    {
-        if (step is TextInputStep s)
-            s.Value = value;
-        return Task.FromResult(WizardStepOutcome.Answered);
+        fake.OnInputAsync = (req, _) =>
+            Task.FromResult(new DialogResult<string>(DialogOutcome.Submitted, apiKey));
+
+        return fake;
     }
 
     // ------------------------------------------------------------------ //
     //  Test double
     // ------------------------------------------------------------------ //
+
+    /// <summary>
+    /// Factory whose first step is a ChooseOneStep (so SelectAsync/Back navigation is testable).
+    /// Completes after a single selection.
+    /// </summary>
+    private sealed class ChooseOneFactory(string adapterName, string displayName) : IProviderFactory
+    {
+        public string AdapterName    => adapterName;
+        public string DisplayName    => displayName;
+        public string DefaultModelId => "model-x";
+        public string DefaultEnvVar  => "FAKE_KEY";
+
+        public ChatClientCapabilities GetCapabilities(string modelId) =>
+            new() { SupportsToolCalling = false, SupportsReasoning = false };
+
+        public ValueTask<IChatClient> CreateAsync(
+            ProviderConfig config, string? apiKey, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public ValueTask<WizardStep> GetNextStepAsync(
+            WizardState state, CancellationToken cancellationToken = default)
+        {
+            ChooseOneStep? pick = state.Steps.OfType<ChooseOneStep>().FirstOrDefault(s => s.Id == "pick");
+            if (pick is null || !pick.IsAnswered)
+            {
+                return ValueTask.FromResult<WizardStep>(new ChooseOneStep
+                {
+                    Id      = "pick",
+                    Prompt  = "Pick something",
+                    Options = [new WizardOption("Option A", "a")],
+                });
+            }
+
+            return ValueTask.FromResult<WizardStep>(new WizardCompletedStep
+            {
+                Id      = "done",
+                Prompt  = string.Empty,
+                Message = "Done.",
+            });
+        }
+    }
 
     /// <summary>
     /// Minimal IProviderFactory that drives through a fixed two-step wizard:

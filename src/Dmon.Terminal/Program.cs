@@ -60,7 +60,8 @@ ConsoleEventHandler handler = new(
     SendCommandAsync,
     cts,
     providerFactories,
-    requestReload: () => reloadRequested = true);
+    requestReload: () => reloadRequested = true,
+    terminal: terminal);
 
 Console.CancelKeyPress += (_, e) =>
 {

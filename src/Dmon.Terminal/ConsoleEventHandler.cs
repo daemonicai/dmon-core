@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Dcli;
 using Dmon.Abstractions.Providers;
 using Dmon.Protocol.Commands;
 using Dmon.Protocol.Enums;
@@ -14,6 +15,7 @@ internal sealed class ConsoleEventHandler
     private readonly CancellationTokenSource _cts;
     private readonly IReadOnlyList<IProviderFactory> _providerFactories;
     private readonly Action _requestReload;
+    private readonly ITerminal _terminal;
 
     private string _rawText = string.Empty;
     private string _modelName = string.Empty;
@@ -31,7 +33,8 @@ internal sealed class ConsoleEventHandler
         Func<Command, CancellationToken, Task> sendCommand,
         CancellationTokenSource cts,
         IReadOnlyList<IProviderFactory> providerFactories,
-        Action requestReload)
+        Action requestReload,
+        ITerminal terminal)
     {
         _renderer = renderer;
         _input = input;
@@ -39,6 +42,7 @@ internal sealed class ConsoleEventHandler
         _cts = cts;
         _providerFactories = providerFactories;
         _requestReload = requestReload;
+        _terminal = terminal;
     }
 
     public async Task HandleAsync(Event @event, CancellationToken cancellationToken)
@@ -175,7 +179,7 @@ internal sealed class ConsoleEventHandler
         string riskText = confirm.Risk.ToString();
 
         ToolPermission? permission = await ToolConfirmPrompt.ShowAsync(
-            confirm.Name, argsText, riskText, cancellationToken).ConfigureAwait(false);
+            _terminal, confirm.Name, argsText, riskText, cancellationToken).ConfigureAwait(false);
 
         string? scope = permission switch
         {
@@ -198,14 +202,15 @@ internal sealed class ConsoleEventHandler
 
     private async Task HandleUiInputAsync(UiInputRequestEvent uiInput, CancellationToken cancellationToken)
     {
-        string? value = await InlinePrompt.ReadLineAsync(
-            uiInput.Prompt, secret: false, cancellationToken).ConfigureAwait(false);
+        DialogResult<string> inputResult = await _terminal.InputAsync(
+            new InputRequest(uiInput.Prompt, IsSecret: uiInput.Kind == UiInputKind.Secret),
+            cancellationToken).ConfigureAwait(false);
 
         UiInputResponseCommand response = new()
         {
             Id        = uiInput.EventId,
-            Value     = value,
-            Cancelled = value is null,
+            Value     = inputResult.Outcome == DialogOutcome.Submitted ? inputResult.Value : null,
+            Cancelled = inputResult.Outcome != DialogOutcome.Submitted,
         };
 
         await _sendCommand(response, cancellationToken).ConfigureAwait(false);
@@ -213,7 +218,7 @@ internal sealed class ConsoleEventHandler
 
     private async Task HandleAddProviderAsync(CancellationToken cancellationToken)
     {
-        WizardEngine engine = new(_providerFactories);
+        WizardEngine engine = new(_terminal, _providerFactories);
         WizardResult? result = await engine.RunAsync(cancellationToken).ConfigureAwait(false);
 
         if (result is null)

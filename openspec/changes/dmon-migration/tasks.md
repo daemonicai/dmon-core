@@ -10,15 +10,15 @@
 
 ## 2. Port dialog surfaces: `InlinePrompt` / `ToolConfirmPrompt` / `WizardEngine`
 
-- [ ] 2.1 Delete `src/Dmon.Terminal/WizardRenderer.cs` — its responsibilities collapse into the wizard's direct dialog calls
-- [ ] 2.2 Delete `src/Dmon.Terminal/InlinePrompt.cs` — its `ChooseAsync` callers move to `await terminal.SelectAsync(new SelectRequest(...))`; its `ReadLineAsync` callers move to `await terminal.InputAsync(new InputRequest(...))`
-- [ ] 2.3 Port `WizardEngine.cs`: drop the injected `Func<WizardStep, Outcome>` delegate parameter (the test-quarantine hack — no longer needed since `ITerminal` is fakeable); call `terminal.SelectAsync` / `terminal.InputAsync` directly inside the engine; preserve the back-stack list and all step-ordering logic byte-for-byte. Reference implementation: `dcli/samples/Dcli.Demo.DmonWizard/Engine/WizardEngine.cs`
-- [ ] 2.4 For multi-step pickers (adapter, model), construct `SelectRequest` with `AllowBack = true` so Backspace navigates back to the previous step (replaces the synthetic "← Back" item at index 0)
-- [ ] 2.5 Port `ToolConfirmPrompt.cs`: replace `InlinePrompt.ChooseAsync` with `await terminal.ChoiceAsync(new ChoiceRequest(promptLines, options, allowBack: false))`; compose the high-risk indicator as a `Line` inside the `ChoiceRequest`'s prompt content
-- [ ] 2.6 Update `WizardEngine` tests: drop the fake-`renderStep` delegate, use a tier-A `ITerminal` fake that returns scripted `DialogResult`s; assert back-stack behaviour, cancellation, step ordering, and `AllowBack`-driven back navigation
-- [ ] 2.7 New tier-A tests for tool-confirm + each input-request flow
-- [ ] 2.8 Manual smoke: run the provider-setup wizard end-to-end; trigger a tool confirm; verify visual + interaction parity with the pre-port behaviour
-- [ ] 2.9 Gates + reviewer + commit
+- [x] 2.1 Delete `src/Dmon.Terminal/WizardRenderer.cs` — its responsibilities collapse into the wizard's direct dialog calls
+- [x] 2.2 Delete `src/Dmon.Terminal/InlinePrompt.cs` — its `ChooseAsync` callers move to `await terminal.SelectAsync(new SelectRequest(...))`; its `ReadLineAsync` callers move to `await terminal.InputAsync(new InputRequest(...))`
+- [x] 2.3 Port `WizardEngine.cs`: drop the injected `Func<WizardStep, Outcome>` delegate parameter (the test-quarantine hack — no longer needed since `ITerminal` is fakeable); call `terminal.SelectAsync` / `terminal.InputAsync` directly inside the engine; preserve the back-stack list and all step-ordering logic byte-for-byte. Reference implementation: `dcli/samples/Dcli.Demo.DmonWizard/Engine/WizardEngine.cs`
+- [x] 2.4 For multi-step pickers (adapter, model), construct `SelectRequest` with `AllowBack = true` so Backspace navigates back to the previous step (replaces the synthetic "← Back" item at index 0)
+- [x] 2.5 Port `ToolConfirmPrompt.cs`: replace `InlinePrompt.ChooseAsync` with `await terminal.ChoiceAsync(new ChoiceRequest(promptLines, options, allowBack: false))`; compose the high-risk indicator as a `Line` inside the `ChoiceRequest`'s prompt content. **Implemented twice:** the initial pass shipped a scrollback workaround because dcli's `ChoiceRequest.Prompt` was `Line?` (single-line); after the dcli `multi-line-dialog-prompts` change shipped as `0.2.0-rc.2`, the workaround was dropped and the prompt lines now live inside `ChoiceRequest.Prompt` as the spec literally requires. See DEVLOG §2 Decisions for the full narrative.
+- [x] 2.6 Update `WizardEngine` tests: drop the fake-`renderStep` delegate, use a tier-A `ITerminal` fake that returns scripted `DialogResult`s; assert back-stack behaviour, cancellation, step ordering, and `AllowBack`-driven back navigation
+- [x] 2.7 New tier-A tests for tool-confirm + each input-request flow. **`UiInputRequestTests` deferred to Phase 3** — `ConsoleEventHandler` has no clean test seam until §3 introduces `HandleAsync(TerminalEvent)`. `ToolConfirmPromptTests.cs` shipped 12 cases (including the regression guard `ShowAsync_LowRisk_NoScrollbackCallsBeforeDialog`).
+- [x] 2.8 Manual smoke (Phase 2 limited scope, same constraint as §1.6): app continues to launch via `make build && build/dmon` without regression from Phase 1; Ctrl+C exits cleanly. **End-to-end wizard / tool-confirm / ui.inputRequest smoke remains deferred to Phase 4** until `Events.InputSubmitted` is wired into the dispatch path. New dialog code paths are verified by the tier-A tests in §2.6/§2.7.
+- [x] 2.9 Standard gates: `dotnet build`, `dotnet test`, `openspec validate dmon-migration --strict`; reviewer audit; commit
 
 ## 3. Adapter: `ConsoleEventHandler`
 

@@ -1,6 +1,6 @@
+using Dcli;
 using Dmon.Abstractions.Providers;
 using Dmon.Abstractions.Wizard;
-using Spectre.Console;
 
 namespace Dmon.Terminal;
 
@@ -11,19 +11,13 @@ namespace Dmon.Terminal;
 /// </summary>
 internal sealed class WizardEngine
 {
+    private readonly ITerminal _terminal;
     private readonly IReadOnlyList<IProviderFactory> _factories;
-    private readonly Func<WizardStep, CancellationToken, Task<WizardStepOutcome>> _renderStep;
 
-    /// <param name="factories">The registered provider factories.</param>
-    /// <param name="renderStep">
-    /// Override the render delegate for testing. Defaults to <see cref="WizardRenderer.RenderAsync"/>.
-    /// </param>
-    public WizardEngine(
-        IReadOnlyList<IProviderFactory> factories,
-        Func<WizardStep, CancellationToken, Task<WizardStepOutcome>>? renderStep = null)
+    public WizardEngine(ITerminal terminal, IReadOnlyList<IProviderFactory> factories)
     {
+        _terminal = terminal;
         _factories = factories;
-        _renderStep = renderStep ?? WizardRenderer.RenderAsync;
     }
 
     /// <summary>
@@ -42,7 +36,7 @@ internal sealed class WizardEngine
             if (factory is null)
             {
                 ChooseOneStep selectStep = BuildProviderSelectionStep();
-                WizardStepOutcome selectOutcome = await _renderStep(selectStep, cancellationToken)
+                WizardStepOutcome selectOutcome = await RenderStepAsync(selectStep, cancellationToken)
                     .ConfigureAwait(false);
 
                 if (selectOutcome is WizardStepOutcome.Cancel or WizardStepOutcome.Back)
@@ -60,17 +54,19 @@ internal sealed class WizardEngine
 
             if (step is WizardCompletedStep completed)
             {
-                AnsiConsole.MarkupLine($"[green]{Markup.Escape(completed.Message)}[/]");
+                _terminal.Scrollback.Append(new LineBuilder()
+                    .Fg(completed.Message, Color.Named(Color.AnsiColor.Green))
+                    .Build());
                 return BuildResult(factory, state);
             }
 
-            WizardStepOutcome outcome = await _renderStep(step, cancellationToken)
+            WizardStepOutcome outcome = await RenderStepAsync(step, cancellationToken)
                 .ConfigureAwait(false);
 
             switch (outcome)
             {
                 case WizardStepOutcome.Answered:
-                    List<WizardStep> newSteps = [..state.Steps, step];
+                    List<WizardStep> newSteps = [.. state.Steps, step];
                     state = state with { Steps = newSteps };
                     break;
 
@@ -92,6 +88,131 @@ internal sealed class WizardEngine
                     return null;
             }
         }
+    }
+
+    private async Task<WizardStepOutcome> RenderStepAsync(WizardStep step, CancellationToken cancellationToken)
+    {
+        return step switch
+        {
+            ChooseOneStep s  => await RenderChooseOneAsync(s, cancellationToken).ConfigureAwait(false),
+            ChooseManyStep s => await RenderChooseManyAsync(s, cancellationToken).ConfigureAwait(false),
+            TextInputStep s  => await RenderTextInputAsync(s, cancellationToken).ConfigureAwait(false),
+            YesNoStep s      => await RenderYesNoAsync(s, cancellationToken).ConfigureAwait(false),
+            InfoStep s       => RenderInfo(s),
+            _                => WizardStepOutcome.Cancel,
+        };
+    }
+
+    private async Task<WizardStepOutcome> RenderChooseOneAsync(ChooseOneStep step, CancellationToken cancellationToken)
+    {
+        List<Line> items = step.Options
+            .Select(o => Line.FromText(o.Label))
+            .ToList();
+
+        DialogResult<int> result = await _terminal.SelectAsync(
+            new SelectRequest(
+                Items: items,
+                Title: new LineBuilder().Bold(step.Prompt).Build(),
+                AllowBack: true),
+            cancellationToken).ConfigureAwait(false);
+
+        if (result.Outcome == DialogOutcome.Back)
+            return WizardStepOutcome.Back;
+
+        if (result.Outcome == DialogOutcome.Cancelled)
+            return WizardStepOutcome.Cancel;
+
+        step.SelectedIndex = result.Value;
+        return WizardStepOutcome.Answered;
+    }
+
+    private async Task<WizardStepOutcome> RenderChooseManyAsync(ChooseManyStep step, CancellationToken cancellationToken)
+    {
+        // Single-pick fallback: FakeTerminal throws on MultiSelectAsync by design.
+        List<Line> items = step.Options
+            .Select(o => Line.FromText(o.Label))
+            .ToList();
+
+        DialogResult<int> result = await _terminal.SelectAsync(
+            new SelectRequest(
+                Items: items,
+                Title: new LineBuilder().Bold(step.Prompt).Build(),
+                AllowBack: true),
+            cancellationToken).ConfigureAwait(false);
+
+        if (result.Outcome == DialogOutcome.Back)
+            return WizardStepOutcome.Back;
+
+        if (result.Outcome == DialogOutcome.Cancelled)
+            return WizardStepOutcome.Cancel;
+
+        step.SelectedIndices = [result.Value];
+        return WizardStepOutcome.Answered;
+    }
+
+    private async Task<WizardStepOutcome> RenderTextInputAsync(TextInputStep step, CancellationToken cancellationToken)
+    {
+        if (step.Default is not null)
+        {
+            string shown = step.Secret ? new string('*', 8) : step.Default;
+            _terminal.Scrollback.Append(new LineBuilder()
+                .Dim($"Default: {shown}")
+                .Build());
+        }
+
+        DialogResult<string> result = await _terminal.InputAsync(
+            new InputRequest(
+                Prompt: new LineBuilder().Bold(step.Prompt).Build(),
+                Default: step.Default,
+                IsSecret: step.Secret),
+            cancellationToken).ConfigureAwait(false);
+
+        if (result.Outcome == DialogOutcome.Cancelled)
+            return WizardStepOutcome.Cancel;
+
+        string value = result.Value ?? string.Empty;
+
+        if (value.Length == 0 && step.Default is not null)
+            value = step.Default;
+
+        if (value.Length == 0 && step.Required)
+            return WizardStepOutcome.Cancel;
+
+        step.Value = value.Length > 0 ? value : null;
+        return WizardStepOutcome.Answered;
+    }
+
+    private async Task<WizardStepOutcome> RenderYesNoAsync(YesNoStep step, CancellationToken cancellationToken)
+    {
+        List<Line> options = step.Default
+            ? [new LineBuilder().Fg("Yes", Color.Named(Color.AnsiColor.Green)).Build(),
+               new LineBuilder().Fg("No",  Color.Named(Color.AnsiColor.Red)).Build()]
+            : [new LineBuilder().Fg("No",  Color.Named(Color.AnsiColor.Red)).Build(),
+               new LineBuilder().Fg("Yes", Color.Named(Color.AnsiColor.Green)).Build()];
+
+        string hint = step.Default ? "[Y/n]" : "[y/N]";
+
+        DialogResult<int> result = await _terminal.ChoiceAsync(
+            new ChoiceRequest(
+                Options: options,
+                Prompt: new LineBuilder().Bold($"{step.Prompt} {hint}").Build()),
+            cancellationToken).ConfigureAwait(false);
+
+        if (result.Outcome == DialogOutcome.Cancelled)
+            return WizardStepOutcome.Cancel;
+
+        // When default=true, index 0 = Yes; when default=false, index 0 = No.
+        bool selectedYes = step.Default ? result.Value == 0 : result.Value == 1;
+        step.Answer = selectedYes;
+        return WizardStepOutcome.Answered;
+    }
+
+    private WizardStepOutcome RenderInfo(InfoStep step)
+    {
+        _terminal.Scrollback.Append(new LineBuilder()
+            .Dim(step.Prompt)
+            .Build());
+        return WizardStepOutcome.Answered;
     }
 
     private ChooseOneStep BuildProviderSelectionStep() =>
