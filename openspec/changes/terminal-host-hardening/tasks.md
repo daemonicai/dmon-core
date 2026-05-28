@@ -21,10 +21,10 @@
 
 ## 4. `HandleAsync` overload rename
 
-- [ ] 4.1 In `src/Dmon.Terminal/ConsoleEventHandler.cs`, rename `HandleAsync(Event @event, CancellationToken cancellationToken)` → `HandleRpcEventAsync` and `HandleAsync(TerminalEvent @event, CancellationToken cancellationToken)` → `HandleUiEventAsync`. Update the internal `DrainAsync` body to call `HandleUiEventAsync`.
-- [ ] 4.2 In `src/Dmon.Terminal/Program.cs`, update the session loop's RPC dispatch call site: `handler.HandleAsync(evt, ...)` → `handler.HandleRpcEventAsync(evt, ...)`.
-- [ ] 4.3 In `test/Dmon.Terminal.Tests/ConsoleEventHandlerTests.cs`, update every call to `handler.HandleAsync(...)` to the appropriate new name (each test currently dispatches either an `Event` subtype or a `TerminalEvent` subtype — the right rename is unambiguous per call site). Estimated ~25 method renames; all mechanical.
-- [ ] 4.4 Standard gates + reviewer + commit.
+- [x] 4.1 In `src/Dmon.Terminal/ConsoleEventHandler.cs`, rename `HandleAsync(Event @event, CancellationToken cancellationToken)` → `HandleRpcEventAsync` and `HandleAsync(TerminalEvent @event, CancellationToken cancellationToken)` → `HandleUiEventAsync`. Update the internal `DrainAsync` body to call `HandleUiEventAsync`.
+- [x] 4.2 In `src/Dmon.Terminal/Program.cs`, update the session loop's RPC dispatch call site: `handler.HandleAsync(evt, ...)` → `handler.HandleRpcEventAsync(evt, ...)`.
+- [x] 4.3 In `test/Dmon.Terminal.Tests/ConsoleEventHandlerTests.cs`, update every call to `handler.HandleAsync(...)` to the appropriate new name (each test currently dispatches either an `Event` subtype or a `TerminalEvent` subtype — the right rename is unambiguous per call site). Estimated ~25 method renames; all mechanical.
+- [x] 4.4 Standard gates + reviewer + commit.
 
 ## 5. Manual smoke + archive
 

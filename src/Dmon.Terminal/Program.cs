@@ -109,7 +109,7 @@ try
                 // Drain all available events.
                 while (dispatcher.Events.TryRead(out Event? evt))
                 {
-                    await handler.HandleAsync(evt, cts.Token).ConfigureAwait(false);
+                    await handler.HandleRpcEventAsync(evt, cts.Token).ConfigureAwait(false);
                 }
 
                 nextEvent = dispatcher.Events.WaitToReadAsync(cts.Token).AsTask();
@@ -125,7 +125,7 @@ try
             // Drain any buffered events before tearing down the old dispatcher.
             while (dispatcher.Events.TryRead(out Event? leftover))
             {
-                await handler.HandleAsync(leftover, cts.Token).ConfigureAwait(false);
+                await handler.HandleRpcEventAsync(leftover, cts.Token).ConfigureAwait(false);
             }
 
             // Wait for the old dispatcher's RunAsync to finish (it completes on old stdout EOF
