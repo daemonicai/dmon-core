@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Dcli;
 using Dmon.Abstractions.Providers;
 using Dmon.Protocol.Commands;
 using Dmon.Protocol.Events;
@@ -23,9 +24,13 @@ using CoreProcessManager coreProcess = new(corePathOverride);
 
 await coreProcess.StartAsync().ConfigureAwait(false);
 
+// Single ITerminal instance for the lifetime of the process; dcli owns the fixed region.
+await using ITerminal terminal = await Dcli.Terminal.StartAsync(
+    new TerminalOptions(), cts.Token).ConfigureAwait(false);
+
 // Long-lived across restarts — created once, shared by all sessions.
 InputReader inputReader = new();
-TerminalRenderer renderer = new(() => inputReader.CurrentBuffer);
+TerminalRenderer renderer = new(terminal);
 renderer.PrintSeparator("dmon");
 
 async Task SendCommandAsync(Command cmd, CancellationToken ct)

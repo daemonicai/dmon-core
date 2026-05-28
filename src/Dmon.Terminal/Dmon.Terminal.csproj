@@ -20,6 +20,7 @@
     <ProjectReference Include="..\Dmon.Abstractions\Dmon.Abstractions.csproj" />
     <ProjectReference Include="..\Dmon.Providers\Dmon.Providers.csproj" />
     <ProjectReference Include="..\Dmon.Providers.Ollama\Dmon.Providers.Ollama.csproj" />
+    <ProjectReference Include="..\..\..\dcli\src\Dcli\Dcli.csproj" />
   </ItemGroup>
 
 </Project>

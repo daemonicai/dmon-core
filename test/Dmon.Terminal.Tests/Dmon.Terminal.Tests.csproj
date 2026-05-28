@@ -21,6 +21,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Dmon.Terminal\Dmon.Terminal.csproj" />
+    <ProjectReference Include="..\..\..\dcli\src\Dcli\Dcli.csproj" />
+    <ProjectReference Include="..\..\..\dcli\src\Dcli.Testing\Dcli.Testing.csproj" />
   </ItemGroup>
 
 </Project>
