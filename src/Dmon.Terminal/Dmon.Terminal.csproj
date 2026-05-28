@@ -12,6 +12,7 @@
 
   <ItemGroup>
     <PackageReference Include="Markdig" Version="1.*" />
+    <PackageReference Include="Dcli" Version="0.2.0-rc.2" />
   </ItemGroup>
 
   <ItemGroup>
@@ -19,7 +20,6 @@
     <ProjectReference Include="..\Dmon.Abstractions\Dmon.Abstractions.csproj" />
     <ProjectReference Include="..\Dmon.Providers\Dmon.Providers.csproj" />
     <ProjectReference Include="..\Dmon.Providers.Ollama\Dmon.Providers.Ollama.csproj" />
-    <ProjectReference Include="..\..\..\dcli\src\Dcli\Dcli.csproj" />
   </ItemGroup>
 
 </Project>
