@@ -11,7 +11,10 @@ internal sealed class InputStateLayer
 
     private readonly LinkedList<string> _history = new();
 
-    public bool IsLocked { get; set; }
+    // volatile: written by the RPC-dispatch task (TurnStart/TurnEnd), read by the UI-dispatch
+    // task (DrainAsync on InputSubmitted) — guarantees cross-task visibility without reordering.
+    private volatile bool _isLocked;
+    public bool IsLocked { get => _isLocked; set => _isLocked = value; }
     public string CurrentBuffer { get; private set; } = string.Empty;
     public IReadOnlyCollection<string> History => _history;
 

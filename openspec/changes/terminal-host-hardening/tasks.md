@@ -8,10 +8,10 @@
 
 ## 2. `InputStateLayer.IsLocked` is `volatile bool`
 
-- [ ] 2.1 Refactor the backing field in `src/Dmon.Terminal/InputStateLayer.cs` from `private bool _isLocked` to `private volatile bool _isLocked` (or equivalent — if `IsLocked` is currently an auto-property, convert to a backing field + explicit get/set so the field can carry the `volatile` modifier).
-- [ ] 2.2 Confirm via comment that this matches the previous `InputReader._isLocked` contract — a one-line WHY-comment is enough since the rationale is non-obvious from the code.
-- [ ] 2.3 No new tests needed (volatility is unobservable from xUnit; existing `InputStateLayerTests` and `ConsoleEventHandlerTests` cover the lock behaviour at the API level). Document in the commit message that this is a memory-model correctness fix.
-- [ ] 2.4 Standard gates + reviewer + commit.
+- [x] 2.1 Refactor the backing field in `src/Dmon.Terminal/InputStateLayer.cs` from `private bool _isLocked` to `private volatile bool _isLocked` (or equivalent — if `IsLocked` is currently an auto-property, convert to a backing field + explicit get/set so the field can carry the `volatile` modifier).
+- [x] 2.2 Confirm via comment that this matches the previous `InputReader._isLocked` contract — a one-line WHY-comment is enough since the rationale is non-obvious from the code.
+- [x] 2.3 No new tests needed (volatility is unobservable from xUnit; existing `InputStateLayerTests` and `ConsoleEventHandlerTests` cover the lock behaviour at the API level). Document in the commit message that this is a memory-model correctness fix.
+- [x] 2.4 Standard gates + reviewer + commit.
 
 ## 3. `DrainAsync` exception handling
 
