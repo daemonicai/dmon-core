@@ -1,4 +1,6 @@
 using System.Text.Json;
+using System.Threading.Channels;
+using Dcli;
 using Dmon.Abstractions.Providers;
 using Dmon.Protocol.Commands;
 using Dmon.Protocol.Enums;
@@ -9,11 +11,12 @@ namespace Dmon.Terminal;
 internal sealed class ConsoleEventHandler
 {
     private readonly TerminalRenderer _renderer;
-    private readonly InputReader _input;
+    private readonly InputStateLayer _input;
     private readonly Func<Command, CancellationToken, Task> _sendCommand;
     private readonly CancellationTokenSource _cts;
     private readonly IReadOnlyList<IProviderFactory> _providerFactories;
     private readonly Action _requestReload;
+    private readonly ITerminal _terminal;
 
     private string _rawText = string.Empty;
     private string _modelName = string.Empty;
@@ -27,11 +30,12 @@ internal sealed class ConsoleEventHandler
 
     public ConsoleEventHandler(
         TerminalRenderer renderer,
-        InputReader input,
+        InputStateLayer input,
         Func<Command, CancellationToken, Task> sendCommand,
         CancellationTokenSource cts,
         IReadOnlyList<IProviderFactory> providerFactories,
-        Action requestReload)
+        Action requestReload,
+        ITerminal terminal)
     {
         _renderer = renderer;
         _input = input;
@@ -39,6 +43,57 @@ internal sealed class ConsoleEventHandler
         _cts = cts;
         _providerFactories = providerFactories;
         _requestReload = requestReload;
+        _terminal = terminal;
+    }
+
+    /// <summary>
+    /// Test seam: dispatches a single dcli terminal event without blocking on the channel.
+    /// </summary>
+    public Task HandleAsync(TerminalEvent @event, CancellationToken cancellationToken)
+    {
+        switch (@event)
+        {
+            case InputSubmitted submitted:
+                _input.OnInputSubmitted(submitted.Text);
+                // Drop the submission while a turn is in progress — the state layer already
+                // skipped the History append above; here we skip forwarding to core as well.
+                if (_input.IsLocked)
+                    return Task.CompletedTask;
+                return HandleUserInputAsync(submitted.Text, cancellationToken);
+
+            case InputChanged changed:
+                _input.OnInputChanged(changed.Text);
+                return Task.CompletedTask;
+
+            case KeyPressed kp:
+                if ((kp.Key.Modifiers & Modifiers.Ctrl) != Modifiers.None
+                    && kp.Key.Code.Kind == KeyCode.KeyCodeKind.UnicodeScalar
+                    && kp.Key.Code.RuneValue.Value == 'c')
+                {
+                    _cts.Cancel();
+                }
+                return Task.CompletedTask;
+
+            case Resized:
+            default:
+                return Task.CompletedTask;
+        }
+    }
+
+    /// <summary>
+    /// Production drain: reads dcli terminal events from <paramref name="reader"/> and
+    /// dispatches each via <see cref="HandleAsync(TerminalEvent, CancellationToken)"/>.
+    /// </summary>
+    public async Task DrainAsync(
+        ChannelReader<TerminalEvent> reader,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await foreach (TerminalEvent ev in reader.ReadAllAsync(cancellationToken).ConfigureAwait(false))
+                await HandleAsync(ev, cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) { }
     }
 
     public async Task HandleAsync(Event @event, CancellationToken cancellationToken)
@@ -62,12 +117,10 @@ internal sealed class ConsoleEventHandler
                 break;
 
             case TurnEndEvent:
-                string spectreMarkup = MarkdownRenderer.Render(_rawText);
-                _renderer.SettleTurn(spectreMarkup);
+                _renderer.SettleTurn(_rawText);
                 _rawText = string.Empty;
                 _input.IsLocked = false;
                 _renderer.SetStatus(_modelName, thinking: false);
-                _renderer.PrintPrompt();
                 break;
 
             case ErrorEvent error:
@@ -86,7 +139,6 @@ internal sealed class ConsoleEventHandler
             case AgentReadyEvent ready:
                 _renderer.AddSystemLine(
                     $"[Ready] dmon core v{ready.CoreVersion} (protocol {ready.ProtocolVersion})");
-                _renderer.PrintPrompt();
                 break;
 
             case BootstrapNoticeEvent bootstrap:
@@ -175,7 +227,7 @@ internal sealed class ConsoleEventHandler
         string riskText = confirm.Risk.ToString();
 
         ToolPermission? permission = await ToolConfirmPrompt.ShowAsync(
-            confirm.Name, argsText, riskText, cancellationToken).ConfigureAwait(false);
+            _terminal, confirm.Name, argsText, riskText, cancellationToken).ConfigureAwait(false);
 
         string? scope = permission switch
         {
@@ -198,14 +250,15 @@ internal sealed class ConsoleEventHandler
 
     private async Task HandleUiInputAsync(UiInputRequestEvent uiInput, CancellationToken cancellationToken)
     {
-        string? value = await InlinePrompt.ReadLineAsync(
-            uiInput.Prompt, secret: false, cancellationToken).ConfigureAwait(false);
+        DialogResult<string> inputResult = await _terminal.InputAsync(
+            new InputRequest(uiInput.Prompt, IsSecret: uiInput.Kind == UiInputKind.Secret),
+            cancellationToken).ConfigureAwait(false);
 
         UiInputResponseCommand response = new()
         {
             Id        = uiInput.EventId,
-            Value     = value,
-            Cancelled = value is null,
+            Value     = inputResult.Outcome == DialogOutcome.Submitted ? inputResult.Value : null,
+            Cancelled = inputResult.Outcome != DialogOutcome.Submitted,
         };
 
         await _sendCommand(response, cancellationToken).ConfigureAwait(false);
@@ -213,7 +266,7 @@ internal sealed class ConsoleEventHandler
 
     private async Task HandleAddProviderAsync(CancellationToken cancellationToken)
     {
-        WizardEngine engine = new(_providerFactories);
+        WizardEngine engine = new(_terminal, _providerFactories);
         WizardResult? result = await engine.RunAsync(cancellationToken).ConfigureAwait(false);
 
         if (result is null)
@@ -247,22 +300,19 @@ internal sealed class ConsoleEventHandler
             return;
         }
 
-        int preSelect = names
-            .Select((name, i) => (name, i))
-            .Where(t => string.Equals(t.name, evt.ActiveProvider, StringComparison.OrdinalIgnoreCase))
-            .Select(t => t.i)
-            .FirstOrDefault();
+        Line title = new LineBuilder().Bold("Select provider").Build();
+        DialogResult<int> result = await _terminal.SelectAsync(
+            new SelectRequest(names, title, allowBack: true),
+            cancellationToken).ConfigureAwait(false);
 
-        string? selected = await Task.Run(() => ConsolePicker.Run(names, preSelect), cancellationToken)
-            .ConfigureAwait(false);
-
-        if (selected is null)
+        if (result.Outcome != DialogOutcome.Submitted)
         {
             _renderer.AddSystemLine("[Model] Cancelled.");
             _input.IsLocked = false;
             return;
         }
 
+        string selected = names[result.Value];
         _renderer.AddSystemLine($"[Model] Fetching models for {selected}…");
         ModelModelsCommand cmd = new() { Id = Guid.NewGuid().ToString("N"), Provider = selected };
         await _sendCommand(cmd, cancellationToken).ConfigureAwait(false);
@@ -280,18 +330,12 @@ internal sealed class ConsoleEventHandler
             return;
         }
 
-        int preSelect = 0;
-        if (string.Equals(evt.Provider, _activeProvider, StringComparison.OrdinalIgnoreCase)
-            && evt.ActiveModelId is not null)
-        {
-            int idx = modelIds.ToList().IndexOf(evt.ActiveModelId);
-            if (idx >= 0) preSelect = idx;
-        }
+        Line title = new LineBuilder().Bold($"Select model ({evt.Provider})").Build();
+        DialogResult<int> result = await _terminal.SelectAsync(
+            new SelectRequest(modelIds, title, allowBack: true),
+            cancellationToken).ConfigureAwait(false);
 
-        string? selected = await Task.Run(() => ConsolePicker.Run(modelIds, preSelect), cancellationToken)
-            .ConfigureAwait(false);
-
-        if (selected is null)
+        if (result.Outcome != DialogOutcome.Submitted)
         {
             _renderer.AddSystemLine("[Model] Cancelled.");
             _input.IsLocked = false;
@@ -302,7 +346,7 @@ internal sealed class ConsoleEventHandler
         {
             Id = Guid.NewGuid().ToString("N"),
             Provider = evt.Provider,
-            ModelId = selected
+            ModelId = modelIds[result.Value]
         };
         await _sendCommand(cmd, cancellationToken).ConfigureAwait(false);
         _input.IsLocked = false;
@@ -324,13 +368,13 @@ internal sealed class ConsoleEventHandler
             return;
         }
 
-        if (result.ClientCommand is AddProviderCommand)
+        if (result.ClientCommand == SlashCommandParser.ClientCommandKind.AddProvider)
         {
             await HandleAddProviderAsync(cancellationToken).ConfigureAwait(false);
             return;
         }
 
-        if (result.ClientCommand is ReloadCommand)
+        if (result.ClientCommand == SlashCommandParser.ClientCommandKind.Reload)
         {
             if (_input.IsLocked)
             {

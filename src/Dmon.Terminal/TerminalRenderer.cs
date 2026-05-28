@@ -1,126 +1,107 @@
-using Spectre.Console;
+using Dcli;
 
 namespace Dmon.Terminal;
 
 internal sealed class TerminalRenderer
 {
-    private readonly Func<string>? _getBuffer;
-
-    private int _currentLineLength;
-    private int _streamedLineCount;
+    private readonly ITerminal _terminal;
     private string _modelName = string.Empty;
     private bool _thinking;
-    private bool _promptActive;
-    private int _promptBlockLines;
+    private ILiveBlock? _liveBlock;
 
-    public TerminalRenderer(Func<string>? getBuffer = null)
+    // Grey used for system lines, separators, and status indicator text.
+    private static readonly Style GreyStyle =
+        new(Foreground: Color.Named(Color.AnsiColor.BrightBlack));
+
+    // Bold used for the user-echo prefix.
+    private static readonly Style BoldStyle =
+        new(Format: Format.Bold);
+
+    public TerminalRenderer(ITerminal terminal)
     {
-        _getBuffer = getBuffer;
+        _terminal = terminal;
     }
 
     public void AppendToken(string token)
     {
-        InterruptPrompt();
-        Console.Write(token);
-        foreach (char c in token)
-        {
-            if (c == '\n')
-            {
-                _streamedLineCount++;
-                _currentLineLength = 0;
-            }
-            else
-            {
-                _currentLineLength++;
-            }
-        }
-        Console.Out.Flush();
+        if (string.IsNullOrEmpty(token)) return;
+
+        _liveBlock ??= _terminal.Scrollback.BeginLive();
+        _liveBlock.AppendText(token);
     }
 
-    public void SettleTurn(string spectreMarkup)
+    public void SettleTurn(string markdownSource)
     {
-        InterruptPrompt();
-        Console.Write("\r\x1b[2K");
-        for (int i = 0; i < _streamedLineCount; i++)
-        {
-            Console.Write("\x1b[1A\x1b[2K");
-        }
+        if (_liveBlock is null) return;
 
-        AnsiConsole.MarkupLine(spectreMarkup);
+        IReadOnlyList<Line> lines = MarkdownRenderer.Render(markdownSource);
+        if (lines.Count > 0)
+            _liveBlock.SetContent(lines);
 
-        _streamedLineCount = 0;
-        _currentLineLength = 0;
+        _liveBlock.Commit();
+        _liveBlock = null;
     }
 
     public void PrintSeparator(string? label = null)
     {
-        bool wasActive = _promptActive;
-        InterruptPrompt();
-        string ruleLabel = label ?? BuildStatusLabel();
-        if (string.IsNullOrEmpty(ruleLabel))
-            AnsiConsole.Write(new Rule());
-        else
-            AnsiConsole.Write(new Rule($"[grey]{Markup.Escape(ruleLabel)}[/]").LeftJustified());
-        RestorePromptIfWasActive(wasActive);
-    }
+        (int columns, _) = _terminal.GetTerminalSize();
+        int width = Math.Max(columns, 1);
 
-    public void PrintPrompt()
-    {
-        _promptActive = false;
-        Console.WriteLine();
-        AnsiConsole.Write(new Rule());
-        bool hasStatus = !string.IsNullOrEmpty(_modelName);
-        if (hasStatus)
-            AnsiConsole.MarkupLine($"[grey]{Markup.Escape(_modelName)}[/]");
-        AnsiConsole.Write(new Rule());
-        AnsiConsole.Markup("[bold]❯ [/]");
-        _promptBlockLines = hasStatus ? 4 : 3;
-        _promptActive = true;
-        _currentLineLength = 2;
-        _streamedLineCount = 0;
+        if (string.IsNullOrEmpty(label))
+        {
+            _terminal.Scrollback.Append(Line.FromText(new string('─', width), GreyStyle));
+        }
+        else
+        {
+            // ── grey-styled-label ───────
+            // Two dashes + space on each side; fill remainder with ─ on the right.
+            const string leftRun = "── ";
+            const string rightPad = " ";
+            int labelLen = label.Length;
+            int fixedChars = leftRun.Length + labelLen + rightPad.Length;
+            int rightRun = Math.Max(0, width - fixedChars);
+
+            Line separatorLine = new(new Segment[]
+            {
+                new(leftRun, GreyStyle),
+                new(label, GreyStyle),
+                new(rightPad + new string('─', rightRun), GreyStyle),
+            });
+            _terminal.Scrollback.Append(separatorLine);
+        }
     }
 
     public void AddUserLine(string text)
     {
-        InterruptPrompt();
-        AnsiConsole.MarkupLine($"[bold]❯ {Markup.Escape(text)}[/]");
+        Line line = new(new Segment[]
+        {
+            new("❯ ", BoldStyle),
+            new(text),
+        });
+        _terminal.Scrollback.Append(line);
     }
 
     public void AddSystemLine(string text)
     {
-        bool wasActive = _promptActive;
-        InterruptPrompt();
-        AnsiConsole.MarkupLine($"[grey]{Markup.Escape(text)}[/]");
-        RestorePromptIfWasActive(wasActive);
+        _terminal.Scrollback.Append(Line.FromText(text, GreyStyle));
     }
 
     public void SetStatus(string modelName, bool thinking)
     {
         _modelName = modelName;
         _thinking = thinking;
+        RefreshStatus();
     }
 
-    private void InterruptPrompt()
+    private void RefreshStatus()
     {
-        if (!_promptActive) return;
-        Console.Write("\r\x1b[2K");
-        for (int i = 0; i < _promptBlockLines; i++)
-            Console.Write("\x1b[1A\x1b[2K");
-        _promptActive = false;
-    }
+        if (string.IsNullOrEmpty(_modelName))
+        {
+            _terminal.Status.SetRows([]);
+            return;
+        }
 
-    private void RestorePromptIfWasActive(bool wasActive)
-    {
-        if (!wasActive) return;
-        PrintPrompt();
-        string buffer = _getBuffer?.Invoke() ?? string.Empty;
-        if (buffer.Length > 0)
-            Console.Write(buffer);
-    }
-
-    private string BuildStatusLabel()
-    {
-        if (string.IsNullOrEmpty(_modelName)) return string.Empty;
-        return _thinking ? $"{_modelName} · thinking…" : _modelName;
+        string label = _thinking ? $"{_modelName} · thinking…" : _modelName;
+        _terminal.Status.SetRows(Line.FromText(label, GreyStyle));
     }
 }

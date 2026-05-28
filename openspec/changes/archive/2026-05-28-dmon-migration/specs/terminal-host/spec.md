@@ -1,7 +1,44 @@
-## Purpose
+## ADDED Requirements
 
-Defines the terminal (console) host: how it renders streaming output, accepts user input and slash commands, supervises the `Dmon.Core` process over JSONL/stdio, and applies configuration changes by restarting the core via `/reload`.
-## Requirements
+### Requirement: Terminal substrate is `dcli`
+
+The terminal host SHALL use the `dcli` library's `ITerminal` façade (and `Dcli.Testing.HeadlessTerminal` for tests) as the substrate for all rendering, input handling, dialog presentation, and status display. The terminal host SHALL NOT depend on `Spectre.Console` and SHALL NOT call `System.Console.ReadKey` / `Console.Write` / `Console.SetCursorPosition` directly in any code that renders or accepts user input.
+
+The mapping of terminal-host concerns to `dcli` surfaces SHALL be:
+
+- Streaming token output → `ITerminal.Scrollback.BeginLive` + `AppendText` + `Commit`.
+- Settled markdown render → `ITerminal.Scrollback.Append(Line)` with lines produced by the markdown renderer.
+- Horizontal separator lines → `ITerminal.Scrollback.Append(Line)` with the rule glyph composed inline (until a future `Scrollback.AppendRule` surfaces in `dcli`).
+- Status indicator (model name, mode, working/idle state) → `ITerminal.Status.SetRows`.
+- Wizard step prompts (`SelectAdapter`, `SelectModel`, free-text auth) → `await ITerminal.SelectAsync` / `await ITerminal.InputAsync`.
+- Tool confirmation prompt → `await ITerminal.ChoiceAsync`.
+- User input → subscribe to `ITerminal.Events` for `InputSubmitted` and `InputChanged` events.
+- Locked-input semantics (while a turn is in flight) SHALL be implemented in dmon as a state layer above `dcli.Input` — the terminal host SHALL drop or flash a notice for `InputSubmitted` events received while its `IsLocked` flag is `true`. Once `dcli.Input.ReadOnly` ships, the terminal host SHOULD migrate to that primitive.
+
+The terminal host SHALL be unit-testable by substituting `ITerminal` with either a hand-rolled tier-A fake or `Dcli.Testing.HeadlessTerminal`.
+
+#### Scenario: No Spectre.Console dependency
+
+- **WHEN** the `Dmon.Terminal` project is built
+- **THEN** its package graph (including transitive dependencies pulled by `Dmon.Terminal` itself) SHALL NOT include `Spectre.Console`
+
+#### Scenario: Tier-A fake drives the renderer
+
+- **WHEN** a unit test substitutes a hand-rolled `ITerminal` fake for the live terminal
+- **THEN** every command the renderer issues (scrollback append, status set, dialog open) is recorded on the fake and assertable, without spinning a real terminal or a real render loop
+
+#### Scenario: Headless harness drives integration tests
+
+- **WHEN** an integration test uses `Dcli.Testing.HeadlessTerminal` to host the renderer
+- **THEN** the real `dcli` render loop, layout, and overlay routing run against the test's scripted input and produce assertable frame snapshots
+
+#### Scenario: Locked input dropped during a turn
+
+- **WHEN** the terminal host's `IsLocked` flag is `true` and `ITerminal.Events` emits an `InputSubmitted` event
+- **THEN** the host drops the submission, does not forward it to the core, and optionally surfaces a "still working" indicator via `Status.SetRows`
+
+## MODIFIED Requirements
+
 ### Requirement: Streaming output renders in real time
 
 The terminal host SHALL display `messageDelta` tokens to the user as they arrive without buffering, by streaming them into a `dcli` live scrollback block (`Scrollback.BeginLive` → `AppendText` per token). The input prompt SHALL remain responsive (accepting keystrokes for display, with `InputSubmitted` events dropped while `IsLocked=true`) while a turn is active.
@@ -111,21 +148,6 @@ The terminal host SHALL present provider setup and `/add-provider` wizard steps 
 - **WHEN** the user presses Escape during a wizard step
 - **THEN** the dialog returns `DialogOutcome.Cancelled`, the wizard is cancelled, a notice is shown, and the input prompt is restored
 
-### Requirement: WizardState carries a transient resolved API key
-`Dmon.Terminal`'s `WizardState` SHALL include a `string? ResolvedApiKey` property. The auth configuration step (step 2) SHALL resolve the actual API key value from the environment variable name the user entered and store it in `ResolvedApiKey`. This field SHALL NOT be written to any config file or persistent store; it exists only in-memory for the duration of the wizard run.
-
-#### Scenario: ResolvedApiKey set after auth step
-- **WHEN** the user completes the auth configuration step with an env var name that is set in the environment
-- **THEN** `WizardState.ResolvedApiKey` contains the value of that env var
-
-#### Scenario: ResolvedApiKey null when env var not set
-- **WHEN** the env var name the user entered is not set in the environment
-- **THEN** `WizardState.ResolvedApiKey` is null and the model step falls back to the static list
-
-#### Scenario: ResolvedApiKey not persisted
-- **WHEN** the wizard completes and the provider config is written
-- **THEN** the written config file contains no `ResolvedApiKey` field
-
 ### Requirement: Inline tool confirmation prompt
 
 The terminal host SHALL present `tool.confirmRequest` via `dcli`'s `await ITerminal.ChoiceAsync` with four options: Allow once / Allow for project / Allow globally / Deny. The prompt SHALL show the tool name, arguments, and risk level; high-risk prompts SHALL include a styled `⚠ HIGH RISK` line as part of the request's prompt content.
@@ -144,64 +166,3 @@ The terminal host SHALL present `tool.confirmRequest` via `dcli`'s `await ITermi
 
 - **WHEN** the user submits an option via the dialog
 - **THEN** the dialog's `DialogResult<int>.Value` selects the appropriate `confirmed` flag and `scope`, and the host sends `tool.confirmResponse` to the core
-
-### Requirement: /reload restarts the core to re-read config
-The terminal host SHALL provide a `/reload` command that restarts the core process via `CoreProcessManager.RestartAsync`: stop the current core, spawn a fresh one, re-bind the host's stdio read/write loop to the new process's standard output/input, and re-open the active session directory on the fresh process (re-acquiring that directory's session lock). The fresh core re-reads `config.yaml` and loads the effective extension set. `/reload` SHALL run only between turns, never during an active streaming call.
-
-Rehydrating the running conversation's message history into the fresh process is OUT OF SCOPE for this change: the core does not yet persist the active turn history to the session's `messages.jsonl` nor rehydrate `TurnHandler` state on `session.load`. The restart re-binds to the session directory; restoring prior conversation history across a restart is deferred to a follow-up change (it requires core/agent-core turn-persistence work).
-
-#### Scenario: /reload spawns a fresh core and re-binds stdio
-- **WHEN** the user issues `/reload` while idle
-- **THEN** the previous core process is stopped and a new one is started
-- **AND** the host reads subsequent events from the new process's standard output and writes commands to its standard input
-
-#### Scenario: Active session directory is re-opened after /reload
-- **WHEN** `/reload` is issued while a session is active
-- **THEN** the new core re-opens the same session directory
-- **AND** the fresh process holds that directory's session lock
-
-#### Scenario: Config changes take effect after /reload
-- **WHEN** the user adds or removes an extension in `config.yaml` and then issues `/reload`
-- **THEN** the effective extension set on the fresh core reflects the edited config
-
-#### Scenario: /reload is rejected during streaming
-- **WHEN** `/reload` is issued during an active streaming turn
-- **THEN** the restart does not occur until the turn completes
-
-### Requirement: Terminal substrate is `dcli`
-
-The terminal host SHALL use the `dcli` library's `ITerminal` façade (and `Dcli.Testing.HeadlessTerminal` for tests) as the substrate for all rendering, input handling, dialog presentation, and status display. The terminal host SHALL NOT depend on `Spectre.Console` and SHALL NOT call `System.Console.ReadKey` / `Console.Write` / `Console.SetCursorPosition` directly in any code that renders or accepts user input.
-
-The mapping of terminal-host concerns to `dcli` surfaces SHALL be:
-
-- Streaming token output → `ITerminal.Scrollback.BeginLive` + `AppendText` + `Commit`.
-- Settled markdown render → `ITerminal.Scrollback.Append(Line)` with lines produced by the markdown renderer.
-- Horizontal separator lines → `ITerminal.Scrollback.Append(Line)` with the rule glyph composed inline (until a future `Scrollback.AppendRule` surfaces in `dcli`).
-- Status indicator (model name, mode, working/idle state) → `ITerminal.Status.SetRows`.
-- Wizard step prompts (`SelectAdapter`, `SelectModel`, free-text auth) → `await ITerminal.SelectAsync` / `await ITerminal.InputAsync`.
-- Tool confirmation prompt → `await ITerminal.ChoiceAsync`.
-- User input → subscribe to `ITerminal.Events` for `InputSubmitted` and `InputChanged` events.
-- Locked-input semantics (while a turn is in flight) SHALL be implemented in dmon as a state layer above `dcli.Input` — the terminal host SHALL drop or flash a notice for `InputSubmitted` events received while its `IsLocked` flag is `true`. Once `dcli.Input.ReadOnly` ships, the terminal host SHOULD migrate to that primitive.
-
-The terminal host SHALL be unit-testable by substituting `ITerminal` with either a hand-rolled tier-A fake or `Dcli.Testing.HeadlessTerminal`.
-
-#### Scenario: No Spectre.Console dependency
-
-- **WHEN** the `Dmon.Terminal` project is built
-- **THEN** its package graph (including transitive dependencies pulled by `Dmon.Terminal` itself) SHALL NOT include `Spectre.Console`
-
-#### Scenario: Tier-A fake drives the renderer
-
-- **WHEN** a unit test substitutes a hand-rolled `ITerminal` fake for the live terminal
-- **THEN** every command the renderer issues (scrollback append, status set, dialog open) is recorded on the fake and assertable, without spinning a real terminal or a real render loop
-
-#### Scenario: Headless harness drives integration tests
-
-- **WHEN** an integration test uses `Dcli.Testing.HeadlessTerminal` to host the renderer
-- **THEN** the real `dcli` render loop, layout, and overlay routing run against the test's scripted input and produce assertable frame snapshots
-
-#### Scenario: Locked input dropped during a turn
-
-- **WHEN** the terminal host's `IsLocked` flag is `true` and `ITerminal.Events` emits an `InputSubmitted` event
-- **THEN** the host drops the submission, does not forward it to the core, and optionally surfaces a "still working" indicator via `Status.SetRows`
-

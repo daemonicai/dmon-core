@@ -12,7 +12,7 @@
 
   <ItemGroup>
     <PackageReference Include="Markdig" Version="1.*" />
-    <PackageReference Include="Spectre.Console" Version="0.55.2" />
+    <PackageReference Include="Dcli" Version="0.2.0-rc.2" />
   </ItemGroup>
 
   <ItemGroup>

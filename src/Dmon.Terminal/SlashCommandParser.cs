@@ -9,14 +9,17 @@ namespace Dmon.Terminal;
 /// </summary>
 public static class SlashCommandParser
 {
+    /// <summary>Client-side dispatch tags — not sent to the core process.</summary>
+    public enum ClientCommandKind { None, AddProvider, Reload }
+
     public sealed class ParseResult
     {
         public Command? Command { get; init; }
 
         /// <summary>
-        /// A client-side-only command (not sent to core). Check this before <see cref="Command"/>.
+        /// A client-side-only dispatch tag. Check this before <see cref="Command"/>.
         /// </summary>
-        public object? ClientCommand { get; init; }
+        public ClientCommandKind ClientCommand { get; init; }
 
         public string? Error { get; init; }
 
@@ -205,7 +208,7 @@ public static class SlashCommandParser
         return new ParseResult
         {
             IsSlashCommand = true,
-            ClientCommand = new ReloadCommand()
+            ClientCommand = ClientCommandKind.Reload
         };
     }
 
@@ -217,7 +220,7 @@ public static class SlashCommandParser
         return new ParseResult
         {
             IsSlashCommand = true,
-            ClientCommand = new AddProviderCommand()
+            ClientCommand = ClientCommandKind.AddProvider
         };
     }
 }
