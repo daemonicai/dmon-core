@@ -15,9 +15,9 @@
 
 ## 3. `DrainAsync` exception handling
 
-- [ ] 3.1 In `src/Dmon.Terminal/ConsoleEventHandler.cs`, extend the `try` block in `DrainAsync` to catch non-cancellation exceptions: log via `_renderer.AddSystemLine($"[Drain Error] {ex.GetType().Name}: {ex.Message}")`, call `_cts.Cancel()`, return normally (do not rethrow). Keep the existing `catch (OperationCanceledException) { }` arm.
-- [ ] 3.2 Tier-A test in `ConsoleEventHandlerTests.cs`: `DrainAsync_NonCancelException_LogsAndCancels`. Construct a `Channel<TerminalEvent>`, write one event, then complete the writer with `Writer.Complete(new InvalidOperationException("synthetic"))`. Assert `_renderer`'s call log contains an `AddSystemLine` with "[Drain Error]" prefix and that the supplied `cts.IsCancellationRequested` is `true` after `DrainAsync` returns.
-- [ ] 3.3 Standard gates + reviewer + commit.
+- [x] 3.1 In `src/Dmon.Terminal/ConsoleEventHandler.cs`, extend the `try` block in `DrainAsync` to catch non-cancellation exceptions: log via `_renderer.AddSystemLine($"[Drain Error] {ex.GetType().Name}: {ex.Message}")`, call `_cts.Cancel()`, return normally (do not rethrow). Keep the existing `catch (OperationCanceledException) { }` arm.
+- [x] 3.2 Tier-A test in `ConsoleEventHandlerTests.cs`: `DrainAsync_NonCancelException_LogsAndCancels`. Construct a `Channel<TerminalEvent>`, write one event, then complete the writer with `Writer.Complete(new InvalidOperationException("synthetic"))`. Assert `_renderer`'s call log contains an `AddSystemLine` with "[Drain Error]" prefix and that the supplied `cts.IsCancellationRequested` is `true` after `DrainAsync` returns.
+- [x] 3.3 Standard gates + reviewer + commit.
 
 ## 4. `HandleAsync` overload rename
 

@@ -677,6 +677,33 @@ public sealed class ConsoleEventHandlerTests
     // ── DrainAsync ───────────────────────────────────────────────────────────
 
     [Fact]
+    public async Task DrainAsync_NonCancelException_LogsAndCancels()
+    {
+        FakeTerminal fake = new();
+        List<Command> sentCommands = [];
+        using CancellationTokenSource cts = new();
+        ConsoleEventHandler handler = BuildHandler(fake, sentCommands, cts);
+
+        Channel<TerminalEvent> channel = Channel.CreateUnbounded<TerminalEvent>();
+        channel.Writer.TryWrite(new InputChanged("x"));
+        channel.Writer.Complete(new InvalidOperationException("synthetic"));
+
+        // Must return normally — no exception escapes.
+        await handler.DrainAsync(channel.Reader, cts.Token);
+
+        IEnumerable<string> lines = fake.Calls
+            .OfType<ScrollbackAppendLine>()
+            .Select(c => LineText(c.Line));
+
+        Assert.Contains(lines, l =>
+            l.StartsWith("[Drain Error]", StringComparison.Ordinal)
+            && l.Contains("InvalidOperationException")
+            && l.Contains("synthetic"));
+
+        Assert.True(cts.IsCancellationRequested);
+    }
+
+    [Fact]
     public async Task DrainAsync_ProcessesAllEventsThenCompletes()
     {
         FakeTerminal fake = new();

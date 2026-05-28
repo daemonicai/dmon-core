@@ -94,6 +94,11 @@ internal sealed class ConsoleEventHandler
                 await HandleAsync(ev, cancellationToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException) { }
+        catch (Exception ex)
+        {
+            _renderer.AddSystemLine($"[Drain Error] {ex.GetType().Name}: {ex.Message}");
+            _cts.Cancel();
+        }
     }
 
     public async Task HandleAsync(Event @event, CancellationToken cancellationToken)
