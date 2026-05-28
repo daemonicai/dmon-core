@@ -67,12 +67,6 @@ internal sealed class TerminalRenderer
         }
     }
 
-    // PrintPrompt: input zone is now dcli's fixed region; only refresh the status row.
-    public void PrintPrompt()
-    {
-        RefreshStatus();
-    }
-
     public void AddUserLine(string text)
     {
         Line line = new(new Segment[]

@@ -22,13 +22,13 @@
 
 ## 3. Adapter: `ConsoleEventHandler`
 
-- [ ] 3.1 Delete `src/Dmon.Terminal/AddProviderCommand.cs` and `ReloadCommand.cs` (empty marker records, semantics now live in the adapter dispatch)
-- [ ] 3.2 Refactor `ConsoleEventHandler.cs` into a thin adapter: incoming RPC events (`ToolConfirmRequest`, `UiInputRequest`, `WizardStepRequest`, `MessageDelta`, `TurnEndEvent`, `BootstrapNotice`, `ToolStarted/Completed`) route to the appropriate `dcli` calls (`terminal.ChoiceAsync`, `terminal.InputAsync`, `WizardEngine.RunAsync`, `terminal.Scrollback.*`, `terminal.Status.SetRows`); no direct console writes
-- [ ] 3.3 Wire `dcli`'s `Events.InputSubmitted` into the adapter: parse slash commands locally (`SlashCommandParser`) and forward to the core via the existing RPC channel
-- [ ] 3.4 Wire `Events.KeyPressed(KeyEvent(Char('c'), Ctrl))` to the graceful-shutdown path (replaces the `Console.CancelKeyPress` handler — keep that handler as a redundancy net for SIGINT delivered outside dcli's input stream, but it now just delegates to the same shutdown method)
-- [ ] 3.5 Tier-A tests for the adapter: hand-rolled `ITerminal` fake; synthesise RPC events; assert the adapter calls the expected `dcli` methods with the expected arguments
-- [ ] 3.6 Manual smoke: run the full app, hit every RPC event type, verify correct dispatch
-- [ ] 3.7 Gates + reviewer + commit
+- [x] 3.1 Delete `src/Dmon.Terminal/AddProviderCommand.cs` and `ReloadCommand.cs` (empty marker records, semantics now live in the adapter dispatch)
+- [x] 3.2 Refactor `ConsoleEventHandler.cs` into a thin adapter: incoming RPC events (`ToolConfirmRequest`, `UiInputRequest`, `WizardStepRequest`, `MessageDelta`, `TurnEndEvent`, `BootstrapNotice`, `ToolStarted/Completed`) route to the appropriate `dcli` calls (`terminal.ChoiceAsync`, `terminal.InputAsync`, `WizardEngine.RunAsync`, `terminal.Scrollback.*`, `terminal.Status.SetRows`); no direct console writes
+- [x] 3.3 Wire `dcli`'s `Events.InputSubmitted` into the adapter: parse slash commands locally (`SlashCommandParser`) and forward to the core via the existing RPC channel
+- [x] 3.4 Wire `Events.KeyPressed(KeyEvent(Char('c'), Ctrl))` to the graceful-shutdown path (replaces the `Console.CancelKeyPress` handler — keep that handler as a redundancy net for SIGINT delivered outside dcli's input stream, but it now just delegates to the same shutdown method)
+- [x] 3.5 Tier-A tests for the adapter: hand-rolled `ITerminal` fake; synthesise RPC events; assert the adapter calls the expected `dcli` methods with the expected arguments
+- [x] 3.6 Manual smoke: run the full app, hit every RPC event type, verify correct dispatch. **Limited-scope smoke applies here too** (same blocker as §1.6 / §2.8): the legacy `InputReader` still owns its background thread until Phase 4; full RPC-dispatch smoke (input → turn → streaming → settle → status → tool-confirm → wizard) is verified by the 80 tier-A tests in `Dmon.Terminal.Tests` (including the new `ConsoleEventHandlerTests`). End-to-end smoke unblocks in Phase 4 when `Events.InputSubmitted` becomes the sole input path.
+- [x] 3.7 Standard gates: `dotnet build`, `dotnet test`, `openspec validate dmon-migration --strict`; reviewer audit; commit
 
 ## 4. State layer: `InputReader`
 

@@ -70,6 +70,7 @@ Console.CancelKeyPress += (_, e) =>
 };
 
 Task inputTask = inputReader.RunAsync(cts.Token);
+Task drainTask = handler.DrainAsync(terminal.Events, cts.Token);
 
 IAsyncEnumerator<string> inputEnum = inputReader.ReadLinesAsync(cts.Token)
     .GetAsyncEnumerator(cts.Token);
@@ -185,6 +186,6 @@ renderer.PrintSeparator("goodbye");
 
 try
 {
-    await Task.WhenAll(dispatchTask ?? Task.CompletedTask, inputTask).ConfigureAwait(false);
+    await Task.WhenAll(dispatchTask ?? Task.CompletedTask, inputTask, drainTask).ConfigureAwait(false);
 }
 catch (OperationCanceledException) { }

@@ -10,10 +10,10 @@
 ## How to resume
 
 - Branch: **`change/dmon-migration`** (created from `main`). Stay on it.
-- Working tree state: **CLEAN** (Phase 2 committed).
+- Working tree state: **CLEAN** (Phase 3 committed).
 - Sanity check command:
   `make build && make test && openspec validate dmon-migration --strict`
-- Resume point: **§3 — `ConsoleEventHandler` adapter refactor** (first unticked: `3.1`).
+- Resume point: **§4 — `InputReader` state-layer refactor** (first unticked: `4.1`).
 - The fake-`ITerminal` test substrate (`test/Dmon.Terminal.Tests/Fakes/`) is in place and reviewer-signed-off; Phase 2's WizardEngine tests consume it directly via scripted `OnSelectAsync` / `OnInputAsync` handlers; Phase 3's `ConsoleEventHandler` tests get the new `HandleAsync(TerminalEvent)` seam (see Decisions §1).
 - The local `<ProjectReference>` to `/Users/emmz/github/emmz/dcli/src/Dcli/Dcli.csproj` stays during development; dcli is now at `0.2.0-rc.2` (multi-line-dialog-prompts shipped); swap to `<PackageReference>` before the migration PR opens.
 - Check the memory files listed at the bottom before briefing — they encode hard-won constraints across this and prior changes.
@@ -23,7 +23,8 @@
 | § | Section | Commit | Tests after | Notes |
 |---|---------|--------|-------------|-------|
 | 1 | Wire up dcli; port TerminalRenderer | `6d81191` | 41 in `Dmon.Terminal.Tests` (17 Fakes + 10 WizardEngine + 13 new tier-A + 1 tier-B) | Chunked across 3 worker calls (substrate, substrate fixes, renderer port). One reviewer-loop iteration on the substrate (empty-string `AppendText` drift fix); renderer port passed first review. `SettleTurn` styled re-render explicitly deferred to Phase 5. §1.6 smoke reframed to a limited scope — see Decisions. |
-| 2 | Port dialog surfaces | (this commit) | 58 in `Dmon.Terminal.Tests` (+17 net since Phase 1: rewritten `WizardEngineTests` + new `ToolConfirmPromptTests`) | Chunked across 2 worker calls (initial port + workaround removal once dcli rc.2 landed). The initial port shipped a scrollback workaround in `ToolConfirmPrompt` because dcli's `ChoiceRequest.Prompt` was single-line; user drove a separate dcli `multi-line-dialog-prompts` change (now archived) and the second worker call dropped the workaround. `WizardRenderer` + `InlinePrompt` deleted; `WizardEngine` ports with back-stack byte-for-byte from the dcli reference; `ConsoleEventHandler` got the minimal shape-preserving updates (+19 lines: `ITerminal` field, ctor param, three call-site updates) — Phase 3 will refactor it into a thin adapter. `UiInputRequestTests` deferred to Phase 3 because `ConsoleEventHandler` has no clean test seam yet. §2.8 smoke remains a limited scope per the §1.6 decision. |
+| 2 | Port dialog surfaces | `fccf86b` | 58 in `Dmon.Terminal.Tests` (+17 net since Phase 1: rewritten `WizardEngineTests` + new `ToolConfirmPromptTests`) | Chunked across 2 worker calls (initial port + workaround removal once dcli rc.2 landed). The initial port shipped a scrollback workaround in `ToolConfirmPrompt` because dcli's `ChoiceRequest.Prompt` was single-line; user drove a separate dcli `multi-line-dialog-prompts` change (now archived) and the second worker call dropped the workaround. `WizardRenderer` + `InlinePrompt` deleted; `WizardEngine` ports with back-stack byte-for-byte from the dcli reference; `ConsoleEventHandler` got the minimal shape-preserving updates (+19 lines: `ITerminal` field, ctor param, three call-site updates) — Phase 3 will refactor it into a thin adapter. `UiInputRequestTests` deferred to Phase 3 because `ConsoleEventHandler` has no clean test seam yet. §2.8 smoke remains a limited scope per the §1.6 decision. |
+| 3 | Adapter: `ConsoleEventHandler` | (this commit) | 80 in `Dmon.Terminal.Tests` (+22 net since Phase 2: new `ConsoleEventHandlerTests` covering the `HandleAsync(TerminalEvent)` seam, Ctrl+C detection ±negative cases, picker `SelectAsync` migration, deferred-from-Phase-2 `UiInputRequest`, RPC-dispatch smoke, `DrainAsync` happy path) | Chunked across 3 worker calls (source refactor + `PrintPrompt` cleanup + tier-A tests). Reviewer approved first audit with 0 blockers + 6 nits; addressed nits 1/3/4 (parameter naming symmetry, no-side-effect snapshots on KeyPressed negative tests, Ctrl+C-while-locked spec scenario test); nits 2/5/6 deferred (see Decisions §3). `AddProviderCommand` / `ReloadCommand` marker records replaced with `SlashCommandParser.ClientCommandKind` enum; `ConsolePicker.cs` deleted (both picker call sites migrated to `_terminal.SelectAsync` with `AllowBack=true`); `PrintPrompt` stub + redundant `RefreshStatus` call after `TurnEndEvent`/`AgentReadyEvent` removed. §3.6 smoke remains limited-scope per the §1.6 decision; full end-to-end smoke unblocks in Phase 4. |
 
 ## Decisions & deviations
 
@@ -38,6 +39,16 @@ Today's `SettleTurn(string spectreMarkup)` calls `AnsiConsole.MarkupLine` on Spe
 ### §1 — `ConsoleEventHandler.HandleAsync(TerminalEvent)` will be public in Phase 3
 
 Settled during the FakeTerminal design discussion: when Phase 3 refactors `ConsoleEventHandler` into a thin dcli adapter, it will expose `public Task HandleAsync(TerminalEvent ev, CancellationToken ct)` as the test seam, with a thin `DrainAsync(ChannelReader)` wrapper for production. Tests then call `HandleAsync` directly — deterministic, no "wait for the consumer to drain" timing. Captured here so Phase 3's worker brief inherits the constraint.
+
+### §3 — Reviewer nits 2, 5, 6 deferred (with rationale)
+
+After the Phase 3 group passed the reviewer audit (verdict APPROVE, 0 blockers, 6 nits), three nits were explicitly **not** addressed in this commit:
+
+- **Nit 2 — strict vs. tolerant Ctrl+C modifier check.** Implementation uses `(Modifiers & Ctrl) != None`, which accepts `Ctrl|Alt+C`. The spec text says only `KeyEvent(Char('c'), Modifiers.Ctrl)`. Per dcli's `Modifiers` doc-comment, Shift is never reported with Ctrl, so the only realistic combo is Ctrl+Alt+C — which a user typing for shutdown intent should still see honoured. Defensible; no change.
+- **Nit 5 — `AgentReadyEvent` no longer self-refreshes status.** The deleted `PrintPrompt()` call after `[Ready]` used to invoke `RefreshStatus()`. At that point `_modelName` is empty so the refresh wrote an empty row anyway, and dcli's frame loop keeps the fixed region painted independently. No behaviour regression; nothing to fix.
+- **Nit 6 — picker pre-selection UX lost.** `RunProviderPickerAsync` / `RunModelPickerAsync` previously computed a `preSelect` index and passed it to `ConsolePicker.Run` so the cursor opened on the active provider/model. dcli's `SelectRequest` has no `InitialIndex` / `PreSelect` field today. Spec doesn't require it; matches `WizardEngine`'s `SelectAsync` calls which also don't pre-select. **Tracked as a follow-up** for either a dcli ergonomics pass or a dmon-side restore once dcli adds the surface — see Open follow-ups below.
+
+Why deferred rather than fixed: per `feedback-workaround-as-substrate-signal` reasoning, nit 6 wants a dcli API addition rather than a dmon workaround; nit 2 codifies a spec edge-case that doesn't yet matter; nit 5 is a documentation-only artefact of the deletion. Capturing them here ensures the next reviewer round (or future-me) can see why each was left in place.
 
 ### §2 — Resolved: dcli widened `ChoiceRequest.Prompt`, workaround dropped
 
@@ -67,14 +78,18 @@ A follow-up dmon worker call dropped the scrollback workaround in `ToolConfirmPr
   - Command: `make build && build/dmon` then Ctrl+C.
   - Expected: app launches without crash (no regression from Phase 1); Ctrl+C exits cleanly. Full wizard / tool-confirm / ui.inputRequest smoke remains deferred to Phase 4.
   - Status: **deferred to Phase 4** (input path not yet wired — same blocker as §1.6).
-- **§3.6 — Phase 3 limited smoke** (when Phase 3 lands): same caveat as §2.8.
+- **§3.6 — Phase 3 limited smoke.**
+  - Command: `make build && build/dmon` then Ctrl+C.
+  - Expected: app launches without crash; legacy `Console.CancelKeyPress` net still works; new dcli `KeyPressed(Ctrl+C)` path is exercisable by tier-A tests. Full RPC dispatch smoke (input → turn → streaming → tool-confirm → wizard) remains deferred to Phase 4 — the 80 tier-A tests in `Dmon.Terminal.Tests` (including the new `ConsoleEventHandlerTests`) cover the adapter's wiring.
+  - Status: **deferred to Phase 4** (input path not yet wired — same blocker as §1.6 and §2.8).
 
 ## Open follow-ups / known gaps (after this change lands — NOT in scope here)
 
 - **Local `<ProjectReference>` to dcli must swap to `<PackageReference Version="0.2.0-rc.x" />` before opening the migration PR.** Tracked as a reviewer nit on §1.1.
 - **`SettleTurn` parameter name `spectreMarkup`** will be misleading once Phase 5 changes its semantic (now markdown source, not Spectre markup). Rename then; not now (avoids churn).
-- **`PrintPrompt` stub + `RefreshStatus()` redundancy on `TurnEndEvent`** — `ConsoleEventHandler.cs:69-70` triggers `Status.SetRows` twice with identical payload. Cosmetic; dcli's frame loop collapses them. Phase 3 deletes both the stub and the call sites.
-- **`Console.CancelKeyPress` handler in `Program.cs:65-69` will collide with dcli's Ctrl+C semantics** unless Phase 3 (§3.4) treats it as a redundancy net. Tracked for Phase 3 brief.
+- **Picker pre-selection regressed.** Phase 3's `RunProviderPickerAsync` / `RunModelPickerAsync` migrated from `ConsolePicker.Run(items, preSelect)` to `_terminal.SelectAsync(SelectRequest(..., AllowBack: true))`. dcli's `SelectRequest` has no `InitialIndex` field today, so the `/model` picker now opens with the cursor at the top rather than on the active provider/model. Spec doesn't require pre-selection; matches the wizard's pickers; not user-blocking. Restore when dcli adds the surface (likely a future ergonomics pass).
+- **`DrainAsync` only swallows `OperationCanceledException`.** Other exceptions from `ReadAllAsync` (e.g. if dcli ever calls `Writer.Complete(exception)`) propagate out and fault `Task.WhenAll` in `Program.cs`. dcli does not signal channel faults today, so the surface is dormant. Hardening note for a follow-up.
+- **`HandleAsync` overload pair** — `ConsoleEventHandler` now has `HandleAsync(Event @event, ...)` for RPC inbound and `HandleAsync(TerminalEvent @event, ...)` for UI inbound. Overload resolution disambiguates cleanly but a reader new to the file has to look twice. Rename to `HandleRpcEventAsync` / `HandleUiEventAsync` if Phase 4 consolidates the adapter surface.
 - **Turn-history persistence across `/reload`** — out of scope for this change; needs a separate core turn-persistence change. Memory file: `[[followup-turn-persistence-across-restart]]`.
 
 ## Memory files (indexed by `~/.claude/projects/-Users-emmz-github-emmz-dmon-core/memory/MEMORY.md`)
@@ -86,4 +101,4 @@ A follow-up dmon worker call dropped the scrollback workaround in `ToolConfirmPr
 
 ## Resume point
 
-> **Currently at §3 — `ConsoleEventHandler` adapter refactor (first unticked task: `3.1`).** Phase 2 committed. The fake substrate + `HandleAsync(TerminalEvent)` test-seam pattern (settled in Phase 1 design discussion, see Decisions above) is the substrate for §3. Next worker call: delete `AddProviderCommand.cs` and `ReloadCommand.cs` (§3.1); refactor `ConsoleEventHandler` into a thin adapter (§3.2) — RPC events → dcli calls, no direct console writes; expose `public Task HandleAsync(TerminalEvent ev, CancellationToken ct)` with a thin `DrainAsync(ChannelReader)` wrapper; wire `Events.InputSubmitted` (§3.3 — slash command parsing local, forward to core via existing RPC); wire `KeyPressed(Ctrl+C)` to graceful shutdown (§3.4 — the existing `Console.CancelKeyPress` handler stays as a redundancy net per `[[feedback-workaround-as-substrate-signal]]`-adjacent reasoning about the unwiring being explicit). `ConsolePicker` call sites in `ConsoleEventHandler.cs:256, 291` (provider/model picker for `/model`) should migrate to `SelectAsync` calls during this refactor. The `UiInputRequestTests` deferred from Phase 2 land here.
+> **Currently at §4 — `InputReader` state-layer refactor (first unticked task: `4.1`).** Phase 3 committed. The adapter (`ConsoleEventHandler.HandleAsync(TerminalEvent)` + `DrainAsync(ChannelReader)`) is now wired in `Program.cs` alongside the legacy `InputReader.RunAsync` background thread (which starves harmlessly because dcli owns raw mode). Next worker call: refactor `InputReader` to subscribe to dcli's `Events.InputChanged` / `InputSubmitted` instead of polling stdin (§4.1); preserve `History`, `IsLocked`, `CurrentBuffer` (§4.2); implement locked-input enforcement — drop `InputSubmitted` while `IsLocked=true` (§4.3) per `design.md` Decision 5 and `terminal-host` "Locked input dropped during a turn" scenario. The new dcli path will then own input fully; the legacy thread can be deleted. Tier-A tests script the dcli events stream + IsLocked transitions (§4.4). §4.5 manual smoke unblocks here — Phase 4 closes the input loop end-to-end, so the deferred §1.6 / §2.8 / §3.6 smokes can all be exercised.
