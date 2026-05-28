@@ -1,19 +1,13 @@
 # DEVLOG — `dmon-migration`
 
-> **Status: in-flight.** Maintained while applying the change per the OpenSpec apply
-> workflow (see `CLAUDE.md` § "OpenSpec workflow"). Captures per-section narrative the
-> spec files don't carry: decisions under uncertainty, deviations, surfaced bugs, HITL
-> verifications. On archive this file moves with the change to
-> `openspec/changes/archive/YYYY-MM-DD-dmon-migration/DEVLOG.md` and the status flips
-> to **shipped** (see `/devlog freeze`).
+> **Status: shipped.** Archived `2026-05-28` as `openspec/changes/archive/2026-05-28-dmon-migration/`. Final commit on `change/dmon-migration`: `c49c11d` (Phase 5 — MarkdownRenderer rewrite + Spectre.Console drop). Six commits across five phases: `6d81191` (Phase 1), `fccf86b` (Phase 2), `0dc843f` (Phase 3), `a068bfd` + `9d4a3fb` (Phase 4 + §4.5 sign-off), `c49c11d` (Phase 5). Standing specs synced into `openspec/specs/terminal-host/spec.md` and `openspec/specs/console-host/spec.md` by the archive step. Follow-ups live in separate OpenSpec changes (see "Open follow-ups" below).
 
-## How to resume
+## Final state at archive
 
-- Branch: **`change/dmon-migration`** (created from `main`). Stay on it.
-- Working tree state: **CLEAN** (Phase 5 committed; all 5 phases ticked).
-- Sanity check command:
-  `make build && make test && openspec validate dmon-migration --strict`
-- Resume point: **archive** — propose `/opsx:archive` and wait for user confirmation. See "How to archive" at the bottom.
+- Branch: **`change/dmon-migration`** (off `main`). Six commits as listed above.
+- Final test count: 118 in `Dmon.Terminal.Tests` (started near 24); full suite green.
+- Sanity check command (still valid against the post-archive standing specs):
+  `make build && make test && openspec validate terminal-host --strict && openspec validate console-host --strict`
 - The fake-`ITerminal` test substrate (`test/Dmon.Terminal.Tests/Fakes/`) is in place and reviewer-signed-off; Phase 2's WizardEngine tests consume it directly via scripted `OnSelectAsync` / `OnInputAsync` handlers; Phase 3's `ConsoleEventHandler` tests get the new `HandleAsync(TerminalEvent)` seam (see Decisions §1).
 - The local `<ProjectReference>` to `/Users/emmz/github/emmz/dcli/src/Dcli/Dcli.csproj` stays during development; dcli is now at `0.2.0-rc.2` (multi-line-dialog-prompts shipped); swap to `<PackageReference>` before the migration PR opens.
 - Check the memory files listed at the bottom before briefing — they encode hard-won constraints across this and prior changes.
@@ -130,19 +124,17 @@ A follow-up dmon worker call dropped the scrollback workaround in `ToolConfirmPr
 - `followup-turn-persistence-across-restart` — conversation history is lost on `/reload`; separate core turn-persistence change needed.
 - `feedback-workaround-as-substrate-signal` — workarounds in dmon for dcli API gaps are signals to fix dcli; the migration is a vehicle for proving and improving dcli.
 
-## How to archive
+## Shipped
 
-> **All 5 phases ticked, all gates green, reviewer signed off on every phase.** Recap:
+> **All 5 phases ticked, all gates green, reviewer signed off on every phase, archived `2026-05-28`.** Recap:
 > - Phase 1 (`6d81191`) wired up dcli and ported `TerminalRenderer`.
 > - Phase 2 (`fccf86b`) ported the dialog surfaces.
 > - Phase 3 (`0dc843f`) adapter-shaped `ConsoleEventHandler`.
 > - Phase 4 (`a068bfd` + `9d4a3fb`) retired the stdin thread and the InputReader state-layer port.
-> - Phase 5 (this commit) rewrote MarkdownRenderer onto `Line` and dropped Spectre.
+> - Phase 5 (`c49c11d`) rewrote MarkdownRenderer onto `Line` and dropped Spectre.Console.
 >
-> Next steps for the orchestrator:
-> 1. Run `/opsx:archive dmon-migration` (or `openspec archive dmon-migration -y`) — propose this and **wait for user confirmation** per `CLAUDE.md`. The archive command moves this change into `openspec/changes/archive/YYYY-MM-DD-dmon-migration/` and syncs the change's `specs/terminal-host/spec.md` MODIFIED + ADDED requirements into the standing `openspec/specs/terminal-host/spec.md`. The `/devlog freeze` flow stamps DEVLOG status to **shipped**.
-> 2. Before opening the migration PR: swap the dcli `<ProjectReference>` → `<PackageReference Include="dcli" Version="0.2.0-rc.2" />` (the Phase 1 nit, also captured in Open follow-ups).
-> 3. Fix the pre-existing Dmon.Core MCP/M.E.AI binding crash in a separate change before relying on dmon for any real LLM work.
-> 4. Address the goodbye-separator cosmetic if it bothers anyone.
->
-> The change is otherwise shippable.
+> Follow-ups (each in its own future OpenSpec change, not this one):
+> 1. Swap the dcli `<ProjectReference>` → `<PackageReference Include="dcli" Version="0.2.0-rc.2" />` before opening the migration PR (Phase 1 nit; captured in Open follow-ups).
+> 2. Fix the pre-existing Dmon.Core MCP/M.E.AI binding crash in a separate change before relying on dmon for any real LLM work.
+> 3. Address the goodbye-separator cosmetic if it bothers anyone.
+> 4. Reviewer architectural notes across Phases 3–5 (picker pre-selection regression; `reloadSignal` double-restart window; `InputStateLayer.IsLocked` not declared `volatile`; `InputStateLayer.History` is currently dead from production; nested-emphasis style compounding; LinkInline rich-label fidelity).
