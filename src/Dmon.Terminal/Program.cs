@@ -29,7 +29,7 @@ await using ITerminal terminal = await Dcli.Terminal.StartAsync(
     new TerminalOptions(), cts.Token).ConfigureAwait(false);
 
 // Long-lived across restarts — created once, shared by all sessions.
-InputReader inputReader = new();
+InputStateLayer inputStateLayer = new();
 TerminalRenderer renderer = new(terminal);
 renderer.PrintSeparator("dmon");
 
@@ -52,15 +52,16 @@ IReadOnlyList<IProviderFactory> providerFactories =
     new OllamaProviderFactory(),
 ];
 
-bool reloadRequested = false;
+// Signals the session loop to restart when /reload is submitted via DrainAsync.
+TaskCompletionSource<bool> reloadSignal = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
 ConsoleEventHandler handler = new(
     renderer,
-    inputReader,
+    inputStateLayer,
     SendCommandAsync,
     cts,
     providerFactories,
-    requestReload: () => reloadRequested = true,
+    requestReload: () => reloadSignal.TrySetResult(true),
     terminal: terminal);
 
 Console.CancelKeyPress += (_, e) =>
@@ -69,18 +70,12 @@ Console.CancelKeyPress += (_, e) =>
     cts.Cancel();
 };
 
-Task inputTask = inputReader.RunAsync(cts.Token);
 Task drainTask = handler.DrainAsync(terminal.Events, cts.Token);
-
-IAsyncEnumerator<string> inputEnum = inputReader.ReadLinesAsync(cts.Token)
-    .GetAsyncEnumerator(cts.Token);
 
 Task? dispatchTask = null;
 
 try
 {
-    Task<bool> nextInputLine = inputEnum.MoveNextAsync().AsTask();
-
     bool restart;
     do
     {
@@ -91,47 +86,35 @@ try
         Task<bool> nextEvent = dispatcher.Events.WaitToReadAsync(cts.Token).AsTask();
 
         // Returns true if a /reload was requested, false if the session ended normally.
+        // Input flows exclusively through DrainAsync (dcli events); /reload unblocks the loop
+        // via reloadSignal rather than through the RPC event channel.
         async Task<bool> RunSessionAsync()
         {
             while (!cts.IsCancellationRequested)
             {
-                Task completed = await Task.WhenAny(nextInputLine, nextEvent).ConfigureAwait(false);
+                Task completed = await Task.WhenAny(nextEvent, reloadSignal.Task).ConfigureAwait(false);
 
-                // Drain any events that arrived while we were waiting.
+                if (completed == reloadSignal.Task)
+                {
+                    // Reset for the next session.
+                    reloadSignal = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+                    return true;
+                }
+
+                bool hasEvents;
+                try { hasEvents = await nextEvent.ConfigureAwait(false); }
+                catch (OperationCanceledException) { return false; }
+
+                // Channel completed: the core process closed its output stream.
+                if (!hasEvents) return false;
+
+                // Drain all available events.
                 while (dispatcher.Events.TryRead(out Event? evt))
                 {
                     await handler.HandleAsync(evt, cts.Token).ConfigureAwait(false);
                 }
 
-                if (completed == nextEvent)
-                {
-                    bool hasEvents;
-                    try { hasEvents = await nextEvent.ConfigureAwait(false); }
-                    catch (OperationCanceledException) { return false; }
-
-                    // Channel completed: the core process closed its output stream.
-                    if (!hasEvents) return false;
-
-                    nextEvent = dispatcher.Events.WaitToReadAsync(cts.Token).AsTask();
-                }
-                else
-                {
-                    bool hasLine;
-                    try { hasLine = await nextInputLine.ConfigureAwait(false); }
-                    catch (OperationCanceledException) { return false; }
-
-                    if (!hasLine) return false;
-
-                    string line = inputEnum.Current;
-                    await handler.HandleUserInputAsync(line, cts.Token).ConfigureAwait(false);
-                    nextInputLine = inputEnum.MoveNextAsync().AsTask();
-
-                    if (reloadRequested)
-                    {
-                        reloadRequested = false;
-                        return true;
-                    }
-                }
+                nextEvent = dispatcher.Events.WaitToReadAsync(cts.Token).AsTask();
             }
 
             return false;
@@ -171,21 +154,12 @@ try
     while (restart && !cts.IsCancellationRequested);
 }
 catch (OperationCanceledException) { }
-finally
-{
-    // ChannelReader<T>.ReadAllAsync in .NET 10 throws NotSupportedException from
-    // DisposeAsync when the enumerator is still suspended at WaitToReadAsync.
-    // OperationCanceledException is also expected here on normal shutdown.
-    try { await inputEnum.DisposeAsync().ConfigureAwait(false); }
-    catch (NotSupportedException) { }
-    catch (OperationCanceledException) { }
-}
 
 await coreProcess.StopAsync().ConfigureAwait(false);
 renderer.PrintSeparator("goodbye");
 
 try
 {
-    await Task.WhenAll(dispatchTask ?? Task.CompletedTask, inputTask, drainTask).ConfigureAwait(false);
+    await Task.WhenAll(dispatchTask ?? Task.CompletedTask, drainTask).ConfigureAwait(false);
 }
 catch (OperationCanceledException) { }

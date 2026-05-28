@@ -27,7 +27,8 @@ public sealed class ConsoleEventHandlerTests
         List<Command> sentCommands,
         CancellationTokenSource cts,
         Action? requestReload = null,
-        IReadOnlyList<IProviderFactory>? providerFactories = null)
+        IReadOnlyList<IProviderFactory>? providerFactories = null,
+        InputStateLayer? inputLayer = null)
     {
         Func<Command, CancellationToken, Task> send = (cmd, _) =>
         {
@@ -36,7 +37,7 @@ public sealed class ConsoleEventHandlerTests
         };
 
         TerminalRenderer renderer = new(fake);
-        InputReader input = new();
+        InputStateLayer input = inputLayer ?? new();
         return new ConsoleEventHandler(
             renderer,
             input,
@@ -126,18 +127,22 @@ public sealed class ConsoleEventHandlerTests
     // ── HandleAsync(TerminalEvent) — no-op events ────────────────────────────
 
     [Fact]
-    public async Task HandleAsync_InputChanged_NoOp()
+    public async Task HandleAsync_InputChanged_MirrorsCurrentBuffer()
     {
         FakeTerminal fake = new();
         List<Command> sentCommands = [];
         using CancellationTokenSource cts = new();
-        ConsoleEventHandler handler = BuildHandler(fake, sentCommands, cts);
+        InputStateLayer layer = new();
+        ConsoleEventHandler handler = BuildHandler(fake, sentCommands, cts, inputLayer: layer);
 
         int callsBefore = fake.Calls.Count;
         await handler.HandleAsync(new InputChanged("partial"), CancellationToken.None);
 
+        // No dcli calls — InputChanged does not cause any terminal interaction.
         Assert.Equal(callsBefore, fake.Calls.Count);
         Assert.Empty(sentCommands);
+        // State layer mirrors the editor text.
+        Assert.Equal("partial", layer.CurrentBuffer);
     }
 
     [Fact]
@@ -539,6 +544,81 @@ public sealed class ConsoleEventHandlerTests
 
         StatusSet? afterEnd = fake.Calls.OfType<StatusSet>().LastOrDefault();
         Assert.NotNull(afterEnd);
+    }
+
+    // ── Locked-input drop (spec scenario: "Locked input dropped during a turn") ─
+
+    [Fact]
+    public async Task HandleAsync_InputSubmitted_WhileLocked_DropsAndDoesNotForward()
+    {
+        FakeTerminal fake = new();
+        List<Command> sentCommands = [];
+        using CancellationTokenSource cts = new();
+        InputStateLayer layer = new();
+        ConsoleEventHandler handler = BuildHandler(fake, sentCommands, cts, inputLayer: layer);
+
+        // Set buffer text via InputChanged so we can verify it is NOT cleared by the locked submit.
+        await handler.HandleAsync(new InputChanged("hello"), CancellationToken.None);
+
+        // Lock via the production path.
+        await handler.HandleAsync((Event)new TurnStartEvent(), CancellationToken.None);
+        sentCommands.Clear(); // discard any commands from TurnStart
+
+        await handler.HandleAsync(new InputSubmitted("hello"), CancellationToken.None);
+
+        // No TurnSubmitCommand (or any other command) forwarded to core.
+        Assert.Empty(sentCommands);
+        // State layer did not append to History.
+        Assert.Empty(layer.History);
+        // InputSubmitted does not touch CurrentBuffer — only InputChanged does.
+        // The buffer remains what InputChanged last set it to.
+        Assert.Equal("hello", layer.CurrentBuffer);
+    }
+
+    [Fact]
+    public async Task HandleAsync_InputSubmitted_WhileLocked_StateLayerHistoryNotAppended()
+    {
+        // Dedicated History invariant test so a regression that only breaks one assertion is obvious.
+        FakeTerminal fake = new();
+        List<Command> sentCommands = [];
+        using CancellationTokenSource cts = new();
+        InputStateLayer layer = new();
+        ConsoleEventHandler handler = BuildHandler(fake, sentCommands, cts, inputLayer: layer);
+
+        await handler.HandleAsync((Event)new TurnStartEvent(), CancellationToken.None);
+
+        await handler.HandleAsync(new InputSubmitted("dropped"), CancellationToken.None);
+
+        Assert.Empty(layer.History);
+    }
+
+    [Fact]
+    public async Task HandleAsync_InputSubmitted_AfterTurnEnd_ForwardsAgain()
+    {
+        FakeTerminal fake = new();
+        List<Command> sentCommands = [];
+        using CancellationTokenSource cts = new();
+        InputStateLayer layer = new();
+        ConsoleEventHandler handler = BuildHandler(fake, sentCommands, cts, inputLayer: layer);
+
+        // Lock via TurnStart, then release via TurnEnd.
+        await handler.HandleAsync((Event)new TurnStartEvent(), CancellationToken.None);
+
+        TurnEndEvent turnEnd = new()
+        {
+            Message     = System.Text.Json.JsonSerializer.SerializeToElement(new { }),
+            ToolResults = [],
+        };
+        await handler.HandleAsync((Event)turnEnd, CancellationToken.None);
+
+        sentCommands.Clear(); // discard anything from the lifecycle events
+
+        await handler.HandleAsync(new InputSubmitted("ready now"), CancellationToken.None);
+
+        TurnSubmitCommand cmd = Assert.Single(sentCommands.OfType<TurnSubmitCommand>());
+        Assert.Equal("ready now", cmd.Message);
+        // State layer also appended to History now that the lock is released.
+        Assert.Contains("ready now", layer.History);
     }
 
     // ── DrainAsync ───────────────────────────────────────────────────────────

@@ -11,7 +11,7 @@ namespace Dmon.Terminal;
 internal sealed class ConsoleEventHandler
 {
     private readonly TerminalRenderer _renderer;
-    private readonly InputReader _input;
+    private readonly InputStateLayer _input;
     private readonly Func<Command, CancellationToken, Task> _sendCommand;
     private readonly CancellationTokenSource _cts;
     private readonly IReadOnlyList<IProviderFactory> _providerFactories;
@@ -30,7 +30,7 @@ internal sealed class ConsoleEventHandler
 
     public ConsoleEventHandler(
         TerminalRenderer renderer,
-        InputReader input,
+        InputStateLayer input,
         Func<Command, CancellationToken, Task> sendCommand,
         CancellationTokenSource cts,
         IReadOnlyList<IProviderFactory> providerFactories,
@@ -54,7 +54,16 @@ internal sealed class ConsoleEventHandler
         switch (@event)
         {
             case InputSubmitted submitted:
+                _input.OnInputSubmitted(submitted.Text);
+                // Drop the submission while a turn is in progress — the state layer already
+                // skipped the History append above; here we skip forwarding to core as well.
+                if (_input.IsLocked)
+                    return Task.CompletedTask;
                 return HandleUserInputAsync(submitted.Text, cancellationToken);
+
+            case InputChanged changed:
+                _input.OnInputChanged(changed.Text);
+                return Task.CompletedTask;
 
             case KeyPressed kp:
                 if ((kp.Key.Modifiers & Modifiers.Ctrl) != Modifiers.None
@@ -65,7 +74,6 @@ internal sealed class ConsoleEventHandler
                 }
                 return Task.CompletedTask;
 
-            case InputChanged:
             case Resized:
             default:
                 return Task.CompletedTask;

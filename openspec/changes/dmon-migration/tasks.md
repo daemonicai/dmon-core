@@ -32,12 +32,12 @@
 
 ## 4. State layer: `InputReader`
 
-- [ ] 4.1 Refactor `src/Dmon.Terminal/InputReader.cs` (or rename to something like `InputStateLayer.cs`): remove the dedicated input thread and the `stdin` polling; remove the internal `ChannelReader<string>` (callers subscribe to dcli's `Events` instead, or to a thin dmon-side wrapper)
-- [ ] 4.2 Preserve: the `History` deque (capacity-bounded), the `IsLocked` flag, and any `CurrentBuffer` mirror used by other parts of dmon. `History` is updated on `InputSubmitted` (when not locked); `CurrentBuffer` is updated on `InputChanged`
-- [ ] 4.3 Implement locked-input enforcement: when `IsLocked && InputSubmitted` arrives, drop the submission (do not forward to the core); optionally call `Status.SetRows` with a "still working" indicator that auto-clears on `TurnEndEvent`
-- [ ] 4.4 Tier-A tests: scripted `Events` stream + `IsLocked` transitions; assert history is appended only on accepted submissions, locked submissions are dropped, `CurrentBuffer` mirrors `InputChanged`
-- [ ] 4.5 Manual smoke: turn in flight + typing → echo visible, submit on Enter blocked; turn ends → submit re-enabled
-- [ ] 4.6 Gates + reviewer + commit
+- [x] 4.1 Refactor `src/Dmon.Terminal/InputReader.cs` (or rename to something like `InputStateLayer.cs`): remove the dedicated input thread and the `stdin` polling; remove the internal `ChannelReader<string>` (callers subscribe to dcli's `Events` instead, or to a thin dmon-side wrapper). **Renamed** `InputReader` → `InputStateLayer`; the legacy `inputTask` / `inputEnum` / `ReadLinesAsync` plumbing in `Program.cs` is gone (the session loop now awaits `Task.WhenAny(nextEvent, reloadSignal.Task)` — `/reload` signals a `TaskCompletionSource<bool>` that unblocks the loop since input no longer flows through it).
+- [x] 4.2 Preserve: the `History` deque (capacity-bounded), the `IsLocked` flag, and any `CurrentBuffer` mirror used by other parts of dmon. `History` is updated on `InputSubmitted` (when not locked); `CurrentBuffer` is updated on `InputChanged`. **Cap: 100** entries (`LinkedList<string>` with FIFO eviction); `CurrentBuffer` mirrors regardless of lock state so the user sees their typing during a turn (spec scenario "Input discarded during streaming").
+- [x] 4.3 Implement locked-input enforcement: when `IsLocked && InputSubmitted` arrives, drop the submission (do not forward to the core); optionally call `Status.SetRows` with a "still working" indicator that auto-clears on `TurnEndEvent`. Belt-and-braces: state layer drops the History append AND dispatch layer drops the core forward; "still working" flash skipped (renderer's `model · thinking…` row already paints throughout the lock).
+- [x] 4.4 Tier-A tests: scripted `Events` stream + `IsLocked` transitions; assert history is appended only on accepted submissions, locked submissions are dropped, `CurrentBuffer` mirrors `InputChanged`. **+16 tests** (`InputStateLayerTests` 13 new + `ConsoleEventHandlerTests` 3 net new); `Dmon.Terminal.Tests` 80 → 96.
+- [ ] 4.5 Manual smoke: turn in flight + typing → echo visible, submit on Enter blocked; turn ends → submit re-enabled. **Pending user verification** — Phase 4 unblocks the deferred §1.6 / §2.8 / §3.6 smokes; recipe is in DEVLOG "Human-in-the-loop verifications" / §4.5.
+- [x] 4.6 Gates + reviewer + commit
 
 ## 5. `MarkdownRenderer` rewrite + drop `Spectre.Console`
 
