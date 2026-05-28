@@ -30,11 +30,15 @@ internal sealed class TerminalRenderer
         _liveBlock.AppendText(token);
     }
 
-    // Phase 1 trade-off: the committed live block (raw streamed tokens) IS the final rendered turn.
-    // Phase 5 will call SetContent(Line[]) before Commit to restore rich Markdown rendering.
-    public void SettleTurn(string spectreMarkup)
+    public void SettleTurn(string markdownSource)
     {
-        _liveBlock?.Commit();
+        if (_liveBlock is null) return;
+
+        IReadOnlyList<Line> lines = MarkdownRenderer.Render(markdownSource);
+        if (lines.Count > 0)
+            _liveBlock.SetContent(lines);
+
+        _liveBlock.Commit();
         _liveBlock = null;
     }
 

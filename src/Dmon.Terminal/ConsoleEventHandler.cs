@@ -117,8 +117,7 @@ internal sealed class ConsoleEventHandler
                 break;
 
             case TurnEndEvent:
-                string spectreMarkup = MarkdownRenderer.Render(_rawText);
-                _renderer.SettleTurn(spectreMarkup);
+                _renderer.SettleTurn(_rawText);
                 _rawText = string.Empty;
                 _input.IsLocked = false;
                 _renderer.SetStatus(_modelName, thinking: false);

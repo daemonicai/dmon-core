@@ -234,4 +234,65 @@ public sealed class TerminalRendererTests
 
         Assert.Empty(fake.Calls);
     }
+
+    // ── 8. SettleTurn markdown rendering ─────────────────────────────────────
+
+    [Fact]
+    public void SettleTurn_WithStreamedRawText_CallsSetContentBeforeCommit()
+    {
+        FakeTerminal fake = new();
+        TerminalRenderer renderer = new(fake);
+
+        renderer.AppendToken("# Hello\n");
+        renderer.SettleTurn("# Hello\n");
+
+        // Call log: LiveBegun, LiveAppendText, LiveSetContent, LiveCommitted.
+        Assert.Equal(4, fake.Calls.Count);
+        LiveBegun begun = Assert.IsType<LiveBegun>(fake.Calls[0]);
+        Assert.IsType<LiveAppendText>(fake.Calls[1]);
+        LiveSetContent setContent = Assert.IsType<LiveSetContent>(fake.Calls[2]);
+        LiveCommitted committed = Assert.IsType<LiveCommitted>(fake.Calls[3]);
+
+        // All three post-stream calls share the same block id.
+        Assert.Equal(begun.BlockId, setContent.BlockId);
+        Assert.Equal(begun.BlockId, committed.BlockId);
+
+        // SetContent carries the markdown-rendered lines; heading text is "Hello".
+        Assert.True(setContent.Lines.Count >= 1);
+        string firstLineText = string.Concat(setContent.Lines[0].Segments.Select(s => s.Text));
+        Assert.Equal("Hello", firstLineText);
+    }
+
+    [Fact]
+    public void SettleTurn_NoStreamedTokens_NoSetContent()
+    {
+        // No AppendToken call — _liveBlock is null — SettleTurn returns early.
+        FakeTerminal fake = new();
+        TerminalRenderer renderer = new(fake);
+
+        renderer.SettleTurn("anything");
+
+        Assert.Empty(fake.Calls);
+        Assert.Empty(fake.Calls.OfType<LiveSetContent>());
+        Assert.Empty(fake.Calls.OfType<LiveCommitted>());
+    }
+
+    [Fact]
+    public void SettleTurn_EmptyMarkdownSource_CommitsWithoutSetContent()
+    {
+        // Open a live block, then settle with empty markdown.
+        // Render("") returns [] → SetContent is skipped; Commit still fires.
+        FakeTerminal fake = new();
+        TerminalRenderer renderer = new(fake);
+
+        renderer.AppendToken("a");
+        renderer.SettleTurn(string.Empty);
+
+        // Calls: LiveBegun, LiveAppendText, LiveCommitted — no LiveSetContent.
+        Assert.Equal(3, fake.Calls.Count);
+        Assert.IsType<LiveBegun>(fake.Calls[0]);
+        Assert.IsType<LiveAppendText>(fake.Calls[1]);
+        Assert.IsType<LiveCommitted>(fake.Calls[2]);
+        Assert.Empty(fake.Calls.OfType<LiveSetContent>());
+    }
 }

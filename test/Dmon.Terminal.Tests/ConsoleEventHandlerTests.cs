@@ -546,6 +546,59 @@ public sealed class ConsoleEventHandlerTests
         Assert.NotNull(afterEnd);
     }
 
+    [Fact]
+    public async Task HandleAsync_TurnEnd_SettlesWithMarkdownRenderBeforeCommit()
+    {
+        FakeTerminal fake = new();
+        List<Command> sentCommands = [];
+        using CancellationTokenSource cts = new();
+        ConsoleEventHandler handler = BuildHandler(fake, sentCommands, cts);
+
+        // Establish model so TurnStart status call succeeds.
+        await handler.HandleAsync(
+            (Event)new ProviderSwitchedEvent { Name = "anthropic", Model = "claude-3-7-sonnet" },
+            CancellationToken.None);
+
+        await handler.HandleAsync((Event)new TurnStartEvent(), CancellationToken.None);
+
+        // Append a heading token.
+        JsonElement delta = System.Text.Json.JsonSerializer.SerializeToElement(
+            new { type = "textDelta", delta = "# Result" });
+        MessageDeltaEvent deltaEvt = new()
+        {
+            Message = System.Text.Json.JsonSerializer.SerializeToElement(new { }),
+            Delta   = delta,
+        };
+        await handler.HandleAsync((Event)deltaEvt, CancellationToken.None);
+
+        TurnEndEvent turnEnd = new()
+        {
+            Message     = System.Text.Json.JsonSerializer.SerializeToElement(new { }),
+            ToolResults = [],
+        };
+        await handler.HandleAsync((Event)turnEnd, CancellationToken.None);
+
+        // TurnEnd calls: SetContent, Committed (from SettleTurn), then SetStatus.
+        LiveSetContent setContent = Assert.Single(fake.Calls.OfType<LiveSetContent>());
+        LiveCommitted committed = Assert.Single(fake.Calls.OfType<LiveCommitted>());
+
+        // SetContent arrives before Committed — use positional index via ToList.
+        List<FakeCall> callList = fake.Calls.ToList();
+        int setContentIdx = callList.IndexOf(setContent);
+        int committedIdx  = callList.IndexOf(committed);
+        Assert.True(setContentIdx < committedIdx, "SetContent must precede Committed.");
+
+        // The rendered heading has text "Result" with Bold + Underline.
+        Assert.True(setContent.Lines.Count >= 1);
+        string headingText = string.Concat(setContent.Lines[0].Segments.Select(s => s.Text));
+        Assert.Equal("Result", headingText);
+        Assert.All(setContent.Lines[0].Segments, seg =>
+        {
+            Assert.True(seg.Style.Format.HasFlag(Format.Bold));
+            Assert.True(seg.Style.Format.HasFlag(Format.Underline));
+        });
+    }
+
     // ── Locked-input drop (spec scenario: "Locked input dropped during a turn") ─
 
     [Fact]

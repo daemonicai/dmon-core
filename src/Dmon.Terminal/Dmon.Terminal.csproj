@@ -12,7 +12,6 @@
 
   <ItemGroup>
     <PackageReference Include="Markdig" Version="1.*" />
-    <PackageReference Include="Spectre.Console" Version="0.55.2" />
   </ItemGroup>
 
   <ItemGroup>

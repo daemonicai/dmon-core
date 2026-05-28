@@ -1,129 +1,227 @@
-using System.Text;
+using Dcli;
 using Markdig;
 using Markdig.Syntax;
 using Markdig.Syntax.Inlines;
-using Spectre.Console;
 
 namespace Dmon.Terminal;
 
 internal static class MarkdownRenderer
 {
-    public static string Render(string markdown)
+    private static readonly Style HeadingStyle =
+        new(Format: Format.Bold | Format.Underline);
+
+    private static readonly Style CodeStyle =
+        new(Foreground: Color.Named(Color.AnsiColor.Yellow), Format: Format.Bold);
+
+    private static readonly Style CodeBorderStyle =
+        new(Foreground: Color.Named(Color.AnsiColor.BrightBlack));
+
+    private static readonly Style LangLabelStyle =
+        new(Format: Format.Italic | Format.Dim);
+
+    private static readonly Style LinkStyle =
+        new(Foreground: Color.Named(Color.AnsiColor.Blue), Format: Format.Underline);
+
+    private static readonly Style BulletStyle =
+        new(Format: Format.Dim);
+
+    public static IReadOnlyList<Line> Render(string markdown)
     {
+        if (string.IsNullOrEmpty(markdown))
+            return [];
+
         MarkdownDocument doc = Markdown.Parse(markdown);
-        var sb = new StringBuilder();
+        List<Line> lines = [];
         foreach (Block block in doc)
-            RenderBlock(block, sb);
-        return sb.ToString();
+            RenderBlock(block, lines, indent: 0);
+        return lines;
     }
 
-    private static void RenderBlock(Block block, StringBuilder sb)
+    private static void RenderBlock(Block block, List<Line> lines, int indent)
     {
         switch (block)
         {
             case HeadingBlock heading:
-                sb.Append("[bold underline]");
-                sb.Append(RenderInlines(heading.Inline));
-                sb.AppendLine("[/]");
+            {
+                LineAccumulator acc = new();
+                RenderInlines(heading.Inline, acc);
+                // Re-apply heading style to all accumulated segments.
+                Line headingLine = new(acc.Finish().SelectMany(l => l.Segments)
+                    .Select(s => new Segment(s.Text, HeadingStyle)));
+                lines.Add(headingLine);
                 break;
+            }
 
             case ParagraphBlock paragraph:
-                sb.Append(RenderInlines(paragraph.Inline));
-                sb.Append('\n');
+            {
+                LineAccumulator acc = new();
+                RenderInlines(paragraph.Inline, acc);
+                lines.AddRange(acc.Finish());
                 break;
+            }
 
             case FencedCodeBlock fenced:
             {
                 string lang = fenced.Info ?? string.Empty;
                 if (!string.IsNullOrEmpty(lang))
-                    sb.AppendLine($"[italic dim]{Markup.Escape(lang)}[/]");
-                RenderCodeLines(fenced.Lines.ToString(), sb);
-                sb.Append('\n');
+                    lines.Add(Line.FromText(lang, LangLabelStyle));
+                RenderCodeLines(fenced.Lines.ToString(), lines);
                 break;
             }
 
             case CodeBlock indented:
-                RenderCodeLines(indented.Lines.ToString(), sb);
-                sb.Append('\n');
+                RenderCodeLines(indented.Lines.ToString(), lines);
                 break;
 
             case ListBlock list:
                 foreach (Block child in list)
-                    RenderBlock(child, sb);
+                    RenderBlock(child, lines, indent);
                 break;
 
             case ListItemBlock listItem:
+            {
+                string bulletPrefix = new string(' ', indent * 2) + "  • ";
                 foreach (Block child in listItem)
                 {
                     if (child is ParagraphBlock para)
                     {
-                        sb.Append("  • ");
-                        sb.Append(RenderInlines(para.Inline));
-                        sb.Append('\n');
+                        LineAccumulator acc = new();
+                        RenderInlines(para.Inline, acc);
+                        IReadOnlyList<Line> paraLines = acc.Finish();
+                        for (int i = 0; i < paraLines.Count; i++)
+                        {
+                            string prefix = i == 0 ? bulletPrefix : new string(' ', bulletPrefix.Length);
+                            IEnumerable<Segment> segments = new Segment[] { new(prefix, BulletStyle) }
+                                .Concat(paraLines[i].Segments);
+                            lines.Add(new Line(segments));
+                        }
+                    }
+                    else if (child is ListBlock nestedList)
+                    {
+                        foreach (Block nestedChild in nestedList)
+                            RenderBlock(nestedChild, lines, indent + 1);
                     }
                     else
                     {
-                        RenderBlock(child, sb);
+                        RenderBlock(child, lines, indent);
                     }
                 }
                 break;
+            }
 
             case ContainerBlock container:
                 foreach (Block child in container)
-                    RenderBlock(child, sb);
+                    RenderBlock(child, lines, indent);
                 break;
 
             default:
+            {
                 string raw = block.ToString() ?? string.Empty;
                 if (!string.IsNullOrEmpty(raw))
-                    sb.AppendLine(Markup.Escape(raw));
+                    lines.Add(Line.FromText(raw));
                 break;
+            }
         }
     }
 
-    private static void RenderCodeLines(string content, StringBuilder sb)
+    private static void RenderCodeLines(string content, List<Line> lines)
     {
-        string[] lines = content.TrimEnd('\n', '\r').Split('\n');
-        foreach (string line in lines)
-            sb.AppendLine($"[bold yellow on grey35] │ {Markup.Escape(line)}[/]");
+        string[] codeLines = content.TrimEnd('\n', '\r').Split('\n');
+        foreach (string codeLine in codeLines)
+        {
+            lines.Add(new Line(new Segment[]
+            {
+                new(" │ ", CodeBorderStyle),
+                new(codeLine, CodeStyle),
+            }));
+        }
     }
 
-    private static string RenderInlines(ContainerInline? container)
+    private static void RenderInlines(ContainerInline? container, LineAccumulator acc)
     {
-        if (container is null) return string.Empty;
-        var sb = new StringBuilder();
+        if (container is null) return;
+
         foreach (Inline inline in container)
         {
             switch (inline)
             {
                 case LiteralInline literal:
-                    sb.Append(Markup.Escape(literal.Content.ToString()));
+                    acc.AppendSegment(new Segment(literal.Content.ToString(), default));
                     break;
 
                 case EmphasisInline emphasis:
                 {
-                    string inner = RenderInlines(emphasis);
-                    if (emphasis.DelimiterCount == 2)
-                        sb.Append($"[bold]{inner}[/]");
-                    else
-                        sb.Append($"[italic]{inner}[/]");
+                    Format fmt = emphasis.DelimiterCount == 2 ? Format.Bold : Format.Italic;
+                    Style emphasisStyle = new(Format: fmt);
+                    // Collect inner text via a sub-accumulator, then re-style each segment.
+                    LineAccumulator inner = new();
+                    RenderInlines(emphasis, inner);
+                    IReadOnlyList<Line> innerLines = inner.Finish();
+                    for (int i = 0; i < innerLines.Count; i++)
+                    {
+                        foreach (Segment seg in innerLines[i].Segments)
+                            acc.AppendSegment(new Segment(seg.Text, emphasisStyle));
+                        // Emit a line break between lines but not after the last.
+                        if (i < innerLines.Count - 1)
+                            acc.BreakLine();
+                    }
                     break;
                 }
 
                 case CodeInline code:
-                    sb.Append($"[bold yellow on grey35]{Markup.Escape(code.Content)}[/]");
+                    acc.AppendSegment(new Segment(code.Content, CodeStyle));
                     break;
 
                 case LineBreakInline:
-                    sb.Append('\n');
+                    acc.BreakLine();
                     break;
+
+                case LinkInline link:
+                {
+                    string linkText = link.FirstChild is LiteralInline lit
+                        ? lit.Content.ToString()
+                        : link.Url ?? string.Empty;
+                    acc.AppendSegment(new Segment(linkText, LinkStyle));
+                    break;
+                }
 
                 default:
                     if (inline is ContainerInline container2)
-                        sb.Append(RenderInlines(container2));
+                        RenderInlines(container2, acc);
                     break;
             }
         }
-        return sb.ToString();
+    }
+
+    // Accumulates Segments into Lines, splitting on LineBreakInline.
+    private sealed class LineAccumulator
+    {
+        private readonly List<Line> _lines = [];
+        private List<Segment> _current = [];
+
+        public void AppendSegment(Segment segment)
+        {
+            if (segment.Text.Length > 0)
+                _current.Add(segment);
+        }
+
+        public void BreakLine()
+        {
+            if (_current.Count > 0)
+            {
+                _lines.Add(new Line(_current));
+                _current = [];
+            }
+        }
+
+        public IReadOnlyList<Line> Finish()
+        {
+            if (_current.Count > 0)
+            {
+                _lines.Add(new Line(_current));
+                _current = [];
+            }
+            return _lines;
+        }
     }
 }
