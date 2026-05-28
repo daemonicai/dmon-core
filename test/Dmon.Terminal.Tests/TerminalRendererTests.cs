@@ -131,6 +131,26 @@ public sealed class TerminalRendererTests
         Assert.True(fullText.Length <= 80);
     }
 
+    [Fact]
+    public void PrintSeparator_GoodbyeLabel_EmbedsLabelInScrollback()
+    {
+        // Verifies the renderer output for the goodbye separator — the ordering fix
+        // (before StopAsync rather than after) is enforced in Program.cs where no unit-test
+        // seam exists without a host refactor that exceeds this change's scope.
+        FakeTerminal fake = new() { Size = (80, 24) };
+        TerminalRenderer renderer = new(fake);
+
+        renderer.PrintSeparator("goodbye");
+
+        ScrollbackAppendLine call = Assert.IsType<ScrollbackAppendLine>(Assert.Single(fake.Calls));
+        string fullText = string.Concat(call.Line.Segments.Select(s => s.Text));
+        Assert.Contains("goodbye", fullText);
+        // Separator rule characters must be present on both sides.
+        Assert.Contains("─", fullText);
+        Assert.All(call.Line.Segments, seg =>
+            Assert.Equal(Color.Named(Color.AnsiColor.BrightBlack), seg.Style.Foreground));
+    }
+
     // ── 5. Status update ─────────────────────────────────────────────────────
 
     [Fact]

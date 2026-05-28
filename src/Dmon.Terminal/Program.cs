@@ -96,8 +96,6 @@ try
 
                 if (completed == reloadSignal.Task)
                 {
-                    // Reset for the next session.
-                    reloadSignal = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
                     return true;
                 }
 
@@ -133,6 +131,9 @@ try
             // Wait for the old dispatcher's RunAsync to finish (it completes on old stdout EOF
             // after StopAsync closes the process).
             await coreProcess.RestartAsync().ConfigureAwait(false);
+            // Recreate here (point B) so a second /reload during the restart window hits the
+            // already-completed TCS and is a no-op, rather than lighting up the freshly-reset one.
+            reloadSignal = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
             try { await dispatchTask.ConfigureAwait(false); }
             catch (OperationCanceledException) { }
 
@@ -155,8 +156,8 @@ try
 }
 catch (OperationCanceledException) { }
 
-await coreProcess.StopAsync().ConfigureAwait(false);
 renderer.PrintSeparator("goodbye");
+await coreProcess.StopAsync().ConfigureAwait(false);
 
 try
 {
