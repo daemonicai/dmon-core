@@ -8,6 +8,8 @@ namespace Dmon.Memory.Meko.Tests.Meko;
 /// 4.3 — Opt-in capture policy via <see cref="MekoCaptureMode"/> (D8).
 /// Default keeps nothing; opted-in mode calls <c>memory_add</c>.
 /// <see cref="MekoLongTermMemory.AddFactAsync"/> always asserts regardless of policy.
+/// Note: <c>conversation_create</c> is called lazily before the first memory op — tests
+/// that enable capture count it and assert by tool name, not raw call index.
 /// </summary>
 public sealed class MekoCapturePolicyTests
 {
@@ -15,12 +17,12 @@ public sealed class MekoCapturePolicyTests
     public async Task RecordAsync_DefaultCapture_MakesNoInvokerCall()
     {
         var fake = new FakeMekoToolInvoker();
-        // Default options use MekoCaptureMode.None.
         var memory = MekoTestHelpers.BuildMemory(fake, MekoCaptureMode.None);
 
         var turns = new List<ChatMessage> { new(ChatRole.User, "hello") };
         await memory.RecordAsync(turns);
 
+        // CaptureMode.None must short-circuit before EnsureConversationAsync — no calls.
         Assert.Equal(0, fake.CallCount);
     }
 
@@ -31,12 +33,11 @@ public sealed class MekoCapturePolicyTests
         var memory = MekoTestHelpers.BuildMemory(fake, MekoCaptureMode.None);
 
         var turns = new List<ChatMessage> { new(ChatRole.User, "anything") };
-        // Must not throw — "nothing kept" is a normal outcome, not an error.
         await memory.RecordAsync(turns);
     }
 
     [Fact]
-    public async Task RecordAsync_EveryTurnCapture_CallsMemoryAdd()
+    public async Task RecordAsync_EveryTurnCapture_CallsConversationCreateThenMemoryAdd()
     {
         var fake = new FakeMekoToolInvoker();
         var memory = MekoTestHelpers.BuildMemory(fake, MekoCaptureMode.EveryTurn);
@@ -48,22 +49,23 @@ public sealed class MekoCapturePolicyTests
         };
         await memory.RecordAsync(turns);
 
-        Assert.Equal(1, fake.CallCount);
-        Assert.Equal("memory_add", fake.Calls[0].Tool);
+        Assert.Equal(2, fake.CallCount);
+        Assert.Equal("conversation_create", fake.Calls[0].Tool);
+        Assert.Equal("memory_add", fake.Calls[1].Tool);
     }
 
     [Fact]
     public async Task AddFactAsync_AlwaysCallsMemoryAdd_RegardlessOfCaptureModeNone()
     {
         var fake = new FakeMekoToolInvoker();
-        // CaptureMode.None should NOT gate AddFactAsync.
         var memory = MekoTestHelpers.BuildMemory(fake, MekoCaptureMode.None);
 
         await memory.AddFactAsync("an explicit fact");
 
-        Assert.Equal(1, fake.CallCount);
-        Assert.Equal("memory_add", fake.Calls[0].Tool);
-        Assert.Equal("an explicit fact", fake.Calls[0].Args["text"]);
+        Assert.Equal(2, fake.CallCount);
+        Assert.Equal("conversation_create", fake.Calls[0].Tool);
+        Assert.Equal("memory_add", fake.Calls[1].Tool);
+        Assert.Equal("an explicit fact", fake.Calls[1].Args["text"]);
     }
 
     [Fact]
@@ -74,12 +76,11 @@ public sealed class MekoCapturePolicyTests
 
         await memory.AddFactAsync("another fact");
 
-        // AddFactAsync is separate from RecordAsync; still calls memory_add(text).
-        Assert.Equal(1, fake.CallCount);
-        Assert.Equal("memory_add", fake.Calls[0].Tool);
-        Assert.Equal("another fact", fake.Calls[0].Args["text"]);
-        // And it must NOT include a "messages" key.
-        Assert.False(fake.Calls[0].Args.ContainsKey("messages"));
+        Assert.Equal(2, fake.CallCount);
+        Assert.Equal("conversation_create", fake.Calls[0].Tool);
+        Assert.Equal("memory_add", fake.Calls[1].Tool);
+        Assert.Equal("another fact", fake.Calls[1].Args["text"]);
+        Assert.False(fake.Calls[1].Args.ContainsKey("messages"));
     }
 
     [Fact]
@@ -96,8 +97,7 @@ public sealed class MekoCapturePolicyTests
     [Fact]
     public async Task RecordAsync_EmptyTurns_EveryTurnMode_CompletesWithoutCall()
     {
-        // Even when capture is opted in, an empty turn list must make no network call
-        // (avoids a wasted hosted call with an empty messages array — N2).
+        // Empty turn list short-circuits before EnsureConversationAsync — no calls.
         var fake = new FakeMekoToolInvoker();
         var memory = MekoTestHelpers.BuildMemory(fake, MekoCaptureMode.EveryTurn);
 

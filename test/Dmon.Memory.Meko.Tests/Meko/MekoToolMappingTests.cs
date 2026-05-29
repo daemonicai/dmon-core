@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Dmon.Abstractions.Memory;
 using Dmon.Memory.Meko;
 using Microsoft.Extensions.AI;
@@ -5,28 +6,37 @@ using Microsoft.Extensions.AI;
 namespace Dmon.Memory.Meko.Tests.Meko;
 
 /// <summary>
-/// 4.1 — Each <see cref="MekoLongTermMemory"/> method calls the expected
-/// <c>memory_*</c> MCP tool with the expected arguments.
+/// 4.1 / 6.1 / 6.4 — Each <see cref="MekoLongTermMemory"/> method calls the expected
+/// <c>memory_*</c> MCP tool with the expected arguments (revised args per live-verified
+/// schema: <c>scope="admin"</c>, <c>conversation_id</c> from <c>conversation_create</c>,
+/// <c>messages</c>/<c>metadata</c> as JSON strings).
 /// </summary>
 public sealed class MekoToolMappingTests
 {
+    // Returns the first non-conversation_create call.
+    private static (string Tool, IReadOnlyDictionary<string, object?> Args) FirstMemoryCall(FakeMekoToolInvoker fake)
+    {
+        return fake.Calls.First(c => !string.Equals(c.Tool, "conversation_create", StringComparison.Ordinal));
+    }
+
     [Fact]
-    public async Task AddFactAsync_Calls_MemoryAdd_With_Text()
+    public async Task AddFactAsync_Calls_MemoryAdd_With_Text_And_AdminScope()
     {
         var fake = new FakeMekoToolInvoker();
         var memory = MekoTestHelpers.BuildMemory(fake);
 
         await memory.AddFactAsync("the sky is blue");
 
-        Assert.Equal(1, fake.CallCount);
-        (string tool, IReadOnlyDictionary<string, object?> args) = fake.Calls[0];
+        var (tool, args) = FirstMemoryCall(fake);
         Assert.Equal("memory_add", tool);
         Assert.Equal("the sky is blue", args["text"]);
+        Assert.Equal("admin", args["scope"]);
+        Assert.Equal(FakeMekoToolInvoker.FakeConversationId, args["conversation_id"]);
         Assert.False(args.ContainsKey("messages"), "memory_add(text) must not include messages");
     }
 
     [Fact]
-    public async Task RecordAsync_OptedIn_Calls_MemoryAdd_With_Messages()
+    public async Task RecordAsync_OptedIn_Calls_MemoryAdd_With_MessagesAsJsonString()
     {
         var fake = new FakeMekoToolInvoker();
         var memory = MekoTestHelpers.BuildMemory(fake, MekoCaptureMode.EveryTurn);
@@ -38,15 +48,31 @@ public sealed class MekoToolMappingTests
         };
         await memory.RecordAsync(turns);
 
-        Assert.Equal(1, fake.CallCount);
-        (string tool, IReadOnlyDictionary<string, object?> args) = fake.Calls[0];
+        var (tool, args) = FirstMemoryCall(fake);
         Assert.Equal("memory_add", tool);
+        Assert.Equal("admin", args["scope"]);
+        Assert.Equal(FakeMekoToolInvoker.FakeConversationId, args["conversation_id"]);
         Assert.True(args.ContainsKey("messages"), "RecordAsync must include messages arg");
         Assert.False(args.ContainsKey("text"), "memory_add(messages) must not include text");
+
+        // messages must be a JSON string (6.4), not a structured object.
+        string messagesArg = Assert.IsType<string>(args["messages"]);
+        using JsonDocument doc = JsonDocument.Parse(messagesArg);
+        JsonElement root = doc.RootElement;
+        Assert.Equal(JsonValueKind.Array, root.ValueKind);
+        Assert.Equal(2, root.GetArrayLength());
+
+        JsonElement first = root[0];
+        Assert.Equal("user", first.GetProperty("role").GetString());
+        Assert.Equal("hello", first.GetProperty("content").GetString());
+
+        JsonElement second = root[1];
+        Assert.Equal("assistant", second.GetProperty("role").GetString());
+        Assert.Equal("hi there", second.GetProperty("content").GetString());
     }
 
     [Fact]
-    public async Task SearchAsync_Calls_MemorySearch_With_QueryAndLimit()
+    public async Task SearchAsync_Calls_MemorySearch_With_QueryAndLimit_And_AdminScope()
     {
         var fake = new FakeMekoToolInvoker();
         fake.EnqueueJsonResult("{\"results\":[]}");
@@ -54,15 +80,16 @@ public sealed class MekoToolMappingTests
 
         await memory.SearchAsync("find me something", limit: 5);
 
-        Assert.Equal(1, fake.CallCount);
-        (string tool, IReadOnlyDictionary<string, object?> args) = fake.Calls[0];
+        var (tool, args) = FirstMemoryCall(fake);
         Assert.Equal("memory_search", tool);
         Assert.Equal("find me something", args["query"]);
         Assert.Equal(5, args["limit"]);
+        Assert.Equal("admin", args["scope"]);
+        Assert.Equal(FakeMekoToolInvoker.FakeConversationId, args["conversation_id"]);
     }
 
     [Fact]
-    public async Task GetAsync_Calls_MemoryGetById_With_MemoryId()
+    public async Task GetAsync_Calls_MemoryGetById_With_MemoryId_And_AdminScope()
     {
         var fake = new FakeMekoToolInvoker();
         fake.EnqueueJsonResult("{\"id\":\"abc\",\"memory\":\"some text\",\"score\":0.9}");
@@ -70,14 +97,15 @@ public sealed class MekoToolMappingTests
 
         await memory.GetAsync("abc");
 
-        Assert.Equal(1, fake.CallCount);
-        (string tool, IReadOnlyDictionary<string, object?> args) = fake.Calls[0];
+        var (tool, args) = FirstMemoryCall(fake);
         Assert.Equal("memory_get_by_id", tool);
         Assert.Equal("abc", args["memory_id"]);
+        Assert.Equal("admin", args["scope"]);
+        Assert.Equal(FakeMekoToolInvoker.FakeConversationId, args["conversation_id"]);
     }
 
     [Fact]
-    public async Task ListAsync_Calls_MemoryGetAll_With_Scope()
+    public async Task ListAsync_Calls_MemoryGetAll_With_AdminScope()
     {
         var fake = new FakeMekoToolInvoker();
         fake.EnqueueJsonResult("{\"results\":[]}");
@@ -85,50 +113,67 @@ public sealed class MekoToolMappingTests
 
         await memory.ListAsync(MemoryScope.User);
 
-        Assert.Equal(1, fake.CallCount);
-        (string tool, IReadOnlyDictionary<string, object?> args) = fake.Calls[0];
+        var (tool, args) = FirstMemoryCall(fake);
         Assert.Equal("memory_get_all", tool);
-        Assert.Equal("user", args["scope"]);
+        Assert.Equal("admin", args["scope"]);
+        Assert.Equal(FakeMekoToolInvoker.FakeConversationId, args["conversation_id"]);
     }
 
     [Fact]
-    public async Task UpdateAsync_Calls_MemoryUpdate_With_IdAndText()
+    public async Task UpdateAsync_Calls_MemoryUpdate_With_IdAndText_And_AdminScope()
     {
         var fake = new FakeMekoToolInvoker();
         var memory = MekoTestHelpers.BuildMemory(fake);
 
         await memory.UpdateAsync("id-1", "new text");
 
-        Assert.Equal(1, fake.CallCount);
-        (string tool, IReadOnlyDictionary<string, object?> args) = fake.Calls[0];
+        var (tool, args) = FirstMemoryCall(fake);
         Assert.Equal("memory_update", tool);
         Assert.Equal("id-1", args["memory_id"]);
         Assert.Equal("new text", args["text"]);
+        Assert.Equal("admin", args["scope"]);
+        Assert.Equal(FakeMekoToolInvoker.FakeConversationId, args["conversation_id"]);
     }
 
     [Fact]
-    public async Task DeleteAsync_Calls_MemoryDeleteById_With_MemoryId()
+    public async Task DeleteAsync_Calls_MemoryDeleteById_With_MemoryId_And_AdminScope()
     {
         var fake = new FakeMekoToolInvoker();
         var memory = MekoTestHelpers.BuildMemory(fake);
 
         await memory.DeleteAsync("id-to-delete");
 
-        Assert.Equal(1, fake.CallCount);
-        (string tool, IReadOnlyDictionary<string, object?> args) = fake.Calls[0];
+        var (tool, args) = FirstMemoryCall(fake);
         Assert.Equal("memory_delete_by_id", tool);
         Assert.Equal("id-to-delete", args["memory_id"]);
+        Assert.Equal("admin", args["scope"]);
+        Assert.Equal(FakeMekoToolInvoker.FakeConversationId, args["conversation_id"]);
     }
 
     [Fact]
-    public async Task FlushAsync_Calls_FlushPendingMemoryCandidates()
+    public async Task FlushAsync_Calls_FlushPendingMemoryCandidates_With_AdminScope()
     {
         var fake = new FakeMekoToolInvoker();
         var memory = MekoTestHelpers.BuildMemory(fake);
 
         await memory.FlushAsync().AsTask();
 
-        Assert.Equal(1, fake.CallCount);
-        Assert.Equal("flush_pending_memory_candidates", fake.Calls[0].Tool);
+        var (tool, args) = FirstMemoryCall(fake);
+        Assert.Equal("flush_pending_memory_candidates", tool);
+        Assert.Equal("admin", args["scope"]);
+        Assert.Equal(FakeMekoToolInvoker.FakeConversationId, args["conversation_id"]);
+    }
+
+    [Fact]
+    public async Task ConversationCreate_IsSentFirst_BeforeMemoryAdd()
+    {
+        var fake = new FakeMekoToolInvoker();
+        var memory = MekoTestHelpers.BuildMemory(fake);
+
+        await memory.AddFactAsync("fact");
+
+        Assert.Equal(2, fake.CallCount);
+        Assert.Equal("conversation_create", fake.Calls[0].Tool);
+        Assert.Equal("memory_add", fake.Calls[1].Tool);
     }
 }

@@ -8,12 +8,18 @@ namespace Dmon.Memory.Meko.Tests.Meko;
 /// </summary>
 internal static class MekoTestHelpers
 {
+    // A deterministic hyphenated GUID used as the test session id.
+    // MekoScopeMapping.ToRunId normalises it to "N" format (pure hex) for Meko's
+    // int(run_id, 16) server-side validation.
+    public const string TestSessionId = "a1b2c3d4-e5f6-7890-abcd-ef1234567890";
+    public const string TestSessionIdNFormat = "a1b2c3d4e5f67890abcdef1234567890";
+
     public static MekoLongTermOptions DefaultOptions(MekoCaptureMode captureMode = MekoCaptureMode.None) =>
         new()
         {
             ApiKey = "mko_tkn_test",
             DatapackId = "dp-test",
-            SessionId = "sess-test",
+            SessionId = TestSessionId,
             CaptureMode = captureMode,
         };
 

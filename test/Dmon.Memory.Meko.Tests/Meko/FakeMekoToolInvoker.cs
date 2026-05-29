@@ -11,6 +11,21 @@ namespace Dmon.Memory.Meko.Tests.Meko;
 /// </summary>
 internal sealed class FakeMekoToolInvoker : IMekoToolInvoker
 {
+    /// <summary>
+    /// A fixed fake Meko conversation UUID returned for every <c>conversation_create</c>
+    /// call that has no pre-enqueued result. Tests that need to assert the value passed
+    /// as <c>conversation_id</c> on subsequent calls should compare against this constant.
+    /// </summary>
+    public const string FakeConversationId = "00000000-0000-0000-0000-000000000001";
+
+    private static readonly CallToolResult DefaultConversationCreateResult = new()
+    {
+        Content =
+        [
+            new TextContentBlock { Text = $"{{\"id\":\"{FakeConversationId}\"}}" },
+        ],
+    };
+
     private readonly Queue<CallToolResult> _results = new();
     private readonly List<(string Tool, IReadOnlyDictionary<string, object?> Args)> _calls = new();
 
@@ -23,6 +38,7 @@ internal sealed class FakeMekoToolInvoker : IMekoToolInvoker
     /// <summary>
     /// Enqueues a result to be returned for the next call, in FIFO order.
     /// If the queue is empty when a call arrives, an empty <see cref="CallToolResult"/> is returned.
+    /// (Exception: <c>conversation_create</c> returns <see cref="DefaultConversationCreateResult"/>.)
     /// </summary>
     public void EnqueueResult(CallToolResult result) => _results.Enqueue(result);
 
@@ -47,7 +63,33 @@ internal sealed class FakeMekoToolInvoker : IMekoToolInvoker
         CancellationToken cancellationToken = default)
     {
         _calls.Add((tool, args));
-        CallToolResult result = _results.Count > 0 ? _results.Dequeue() : new CallToolResult { Content = [] };
+
+        CallToolResult result;
+        if (string.Equals(tool, "conversation_create", StringComparison.Ordinal))
+        {
+            // conversation_create always uses its fixed default unless a result was
+            // specifically pre-enqueued for it. Pre-queued non-conversation_create
+            // results are reserved for memory_* calls only (never consumed here).
+            result = _conversationCreateResult ?? DefaultConversationCreateResult;
+        }
+        else if (_results.Count > 0)
+        {
+            result = _results.Dequeue();
+        }
+        else
+        {
+            result = new CallToolResult { Content = [] };
+        }
+
         return Task.FromResult(result);
     }
+
+    /// <summary>
+    /// Overrides the result returned for <c>conversation_create</c> calls.
+    /// If not set, <see cref="DefaultConversationCreateResult"/> is used.
+    /// </summary>
+    public void SetConversationCreateResult(CallToolResult result) =>
+        _conversationCreateResult = result;
+
+    private CallToolResult? _conversationCreateResult;
 }

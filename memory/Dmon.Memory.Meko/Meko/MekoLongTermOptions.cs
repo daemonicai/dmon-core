@@ -26,7 +26,9 @@ public sealed class MekoLongTermOptions
     public string DatapackId { get; set; } = string.Empty;
 
     /// <summary>
-    /// The session identifier, used as Meko's <c>conversation_id</c>.
+    /// The dmon session identifier. Used as Meko's <c>run_id</c> when scope is
+    /// <see cref="MemoryScope.Session"/>. The Meko <c>conversation_id</c>
+    /// UUID is obtained separately via <c>conversation_create</c>.
     /// Set once per session by the host; never auto-generated here.
     /// </summary>
     public string SessionId { get; set; } = string.Empty;

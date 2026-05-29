@@ -6,11 +6,13 @@ namespace Dmon.Memory.Meko;
 /// Constructs and holds the ambient <see cref="MemoryContext"/> for a Meko session.
 /// Bound once per session from <see cref="MekoLongTermOptions"/>:
 /// <list type="bullet">
-///   <item><description><c>DatapackId</c> — from <see cref="MekoLongTermOptions.DatapackId"/>.</description></item>
+///   <item><description><c>DatapackId</c> — from <see cref="MekoLongTermOptions.DatapackId"/> (sent only when it is a valid UUID).</description></item>
 ///   <item><description><c>AgentId</c> — hardcoded to <c>"dmon"</c>.</description></item>
-///   <item><description><c>ConversationId</c> — from <see cref="MekoLongTermOptions.SessionId"/>.</description></item>
+///   <item><description><c>ConversationId</c> — the dmon session id from <see cref="MekoLongTermOptions.SessionId"/>.
+///     Used as Meko's <c>run_id</c> when scope is <see cref="MemoryScope.Session"/>; the Meko
+///     <c>conversation_id</c> UUID is obtained separately via <c>conversation_create</c> and
+///     cached in <see cref="MekoLongTermMemory"/>.</description></item>
 /// </list>
-/// <c>run_id</c> is NEVER set (D9).
 /// </summary>
 internal sealed class MekoMemoryContext
 {

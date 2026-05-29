@@ -7,37 +7,44 @@ namespace Dmon.Memory.Meko;
 
 /// <summary>
 /// Parses raw <see cref="CallToolResult"/> values returned by Meko MCP tools into
-/// <see cref="MemoryHit"/> records (D13). All <c>CallToolResult</c> handling is
-/// confined here — nothing outside this class inspects a <c>CallToolResult</c>
-/// or <c>ContentBlock</c> directly.
+/// <see cref="MemoryHit"/> records. All <c>CallToolResult</c> handling is confined here —
+/// nothing outside this class inspects a <c>CallToolResult</c> or <c>ContentBlock</c>
+/// directly.
 /// </summary>
 /// <remarks>
-/// Meko's output is tuned for LLM consumption (loose structure, early-access).
-/// Assumed JSON shape (mem0-style, task 5.2 — verify on Discord):
-/// <code>
-/// { "results": [ { "id": "…", "memory": "…", "score": 0.9,
-///                  "metadata": {…}, "relations": [ { "source": "…", "relation": "…", "target": "…" } ] } ] }
-/// </code>
-/// For single-item responses (get/update/delete) the shape is assumed to be one object at
-/// the top level or a single-element results array. Missing/extra fields are non-fatal.
+/// Real response envelopes (live-captured 2026-05-29):
+/// <para><b>memory_search / memory_get_all:</b>
+/// <c>{ "results": [ { "id": "…", "memory": "…", "score": 0.9, "metadata": {…} } ],
+///   "relations": [ { "source": "…", "relationship": "…", "target": "…" } ],
+///   "promoted_relations": [ … ] }</c></para>
+/// <para><b>memory_add:</b>
+/// <c>{ "results": [ { "id": "…", "memory": "…", "event": "ADD" } ],
+///   "relations": { "added_entities": …, "graph_nodes": …, "deleted_entities": … } }</c>
+/// Note: <c>relations</c> is an <em>object</em> on add but an <em>array</em> on search —
+/// handle both; never throw.</para>
+/// <para><b>conversation_create:</b>
+/// <c>{ "id": "…", "agent_id": "…", "title": "…", … }</c></para>
+/// Missing/extra fields are non-fatal.
 /// </remarks>
 internal static class MekoResultParser
 {
-    // Field name assumptions — all live here so a single edit adjusts all mappings.
-    // Verify on Discord (task 5.2) and update only these constants.
+    // Field name constants — the single source of truth for all Meko result-side mappings.
+    // Adjust only here when Meko changes its wire format.
     private const string FieldResults = "results";
-    private const string FieldMemory = "memory";   // primary text field (mem0 style)
-    private const string FieldText = "text";        // fallback text field
+    private const string FieldMemory = "memory";         // primary text field (mem0/Meko style)
+    private const string FieldText = "text";              // fallback text field
     private const string FieldId = "id";
     private const string FieldScore = "score";
     private const string FieldMetadata = "metadata";
-    private const string FieldRelations = "relations";
+    private const string FieldRelations = "relations";    // top-level array (search) or object (add)
     private const string FieldRelSource = "source";
-    private const string FieldRelRelation = "relation";
+    private const string FieldRelRelationship = "relationship"; // wire predicate field name (NOT "relation")
     private const string FieldRelTarget = "target";
 
     /// <summary>
     /// Extracts a list of <see cref="MemoryHit"/> records from a Meko tool result.
+    /// Reads <c>TextContentBlock.Text</c> as JSON; falls back to unwrapping
+    /// <c>StructuredContent.result</c> when no text block is present.
     /// Returns an empty list on any parse failure — never throws.
     /// </summary>
     public static IReadOnlyList<MemoryHit> ParseHits(
@@ -55,25 +62,34 @@ internal static class MekoResultParser
             using JsonDocument doc = JsonDocument.Parse(raw);
             JsonElement root = doc.RootElement;
 
-            // Top-level "results" array (mem0/Meko assumed shape).
+            // Top-level "results" array — the canonical Meko/mem0 shape.
             if (root.ValueKind == JsonValueKind.Object &&
                 root.TryGetProperty(FieldResults, out JsonElement resultsEl) &&
                 resultsEl.ValueKind == JsonValueKind.Array)
             {
-                return ParseHitsFromArray(resultsEl, logger);
+                // Top-level "relations" array (search path) — attach to all hits.
+                IReadOnlyList<MemoryRelation>? topLevelRelations = null;
+                if (root.TryGetProperty(FieldRelations, out JsonElement relationsEl) &&
+                    relationsEl.ValueKind == JsonValueKind.Array)
+                {
+                    topLevelRelations = ParseRelationsFromArray(relationsEl, logger);
+                }
+                // relations is an object on the add path — silently ignore (no relations to attach).
+
+                return ParseHitsFromArray(resultsEl, topLevelRelations, logger);
             }
 
-            // Single-item object at root.
+            // Single-item object at root (e.g. memory_get_by_id returning bare object).
             if (root.ValueKind == JsonValueKind.Object)
             {
-                MemoryHit? single = TryParseHit(root, logger);
+                MemoryHit? single = TryParseHit(root, relations: null, logger);
                 return single is not null ? [single] : [];
             }
 
             // Bare array at root.
             if (root.ValueKind == JsonValueKind.Array)
             {
-                return ParseHitsFromArray(root, logger);
+                return ParseHitsFromArray(root, topLevelRelations: null, logger);
             }
 
             return [];
@@ -108,14 +124,14 @@ internal static class MekoResultParser
             {
                 foreach (JsonElement el in arr.EnumerateArray())
                 {
-                    return TryParseHit(el, logger);
+                    return TryParseHit(el, relations: null, logger);
                 }
                 return null;
             }
 
             if (root.ValueKind == JsonValueKind.Object)
             {
-                return TryParseHit(root, logger);
+                return TryParseHit(root, relations: null, logger);
             }
 
             return null;
@@ -127,39 +143,112 @@ internal static class MekoResultParser
         }
     }
 
-    // --- private helpers ---
-
     /// <summary>
-    /// Concatenates the text of all <see cref="TextContentBlock"/> items in the result.
-    /// Returns <see langword="null"/> when there is no text content.
-    /// All <c>ContentBlock</c> handling is confined here.
+    /// Extracts the created memory id from a <c>memory_add</c> response
+    /// (<c>results[0].id</c>). Returns <see langword="null"/> when absent or on
+    /// parse failure — never throws.
     /// </summary>
-    private static string? ExtractText(CallToolResult result)
+    public static string? ParseAddedId(CallToolResult result, ILogger logger)
     {
-        if (result.Content is null || result.Content.Count == 0)
+        string? raw = ExtractText(result);
+        if (raw is null)
         {
             return null;
         }
 
-        var parts = new System.Text.StringBuilder();
-        foreach (ContentBlock block in result.Content)
+        try
         {
-            if (block is TextContentBlock textBlock && textBlock.Text is not null)
+            using JsonDocument doc = JsonDocument.Parse(raw);
+            JsonElement root = doc.RootElement;
+
+            if (root.ValueKind == JsonValueKind.Object &&
+                root.TryGetProperty(FieldResults, out JsonElement resultsEl) &&
+                resultsEl.ValueKind == JsonValueKind.Array)
             {
-                parts.Append(textBlock.Text);
+                foreach (JsonElement item in resultsEl.EnumerateArray())
+                {
+                    if (item.ValueKind == JsonValueKind.Object &&
+                        item.TryGetProperty(FieldId, out JsonElement idEl))
+                    {
+                        return idEl.GetString();
+                    }
+                }
+            }
+
+            return null;
+        }
+        catch (JsonException ex)
+        {
+            logger.LogDebug(ex, "MekoResultParser: failed to parse memory_add id; returning null.");
+            return null;
+        }
+    }
+
+    // --- private helpers ---
+
+    /// <summary>
+    /// Extracts JSON text from the result.
+    /// Prefers the first non-empty <see cref="TextContentBlock.Text"/>.
+    /// Falls back to unwrapping <c>StructuredContent.result</c> (a JSON string) when
+    /// no text block is present — Meko sometimes double-encodes responses this way.
+    /// Returns <see langword="null"/> when no text can be extracted.
+    /// All <c>ContentBlock</c> and <c>StructuredContent</c> handling is confined here.
+    /// </summary>
+    private static string? ExtractText(CallToolResult result)
+    {
+        if (result.Content is not null && result.Content.Count > 0)
+        {
+            var parts = new System.Text.StringBuilder();
+            foreach (ContentBlock block in result.Content)
+            {
+                if (block is TextContentBlock textBlock && textBlock.Text is not null)
+                {
+                    parts.Append(textBlock.Text);
+                }
+            }
+
+            string text = parts.ToString().Trim();
+            if (text.Length > 0)
+            {
+                return text;
             }
         }
 
-        string text = parts.ToString().Trim();
-        return text.Length > 0 ? text : null;
+        // Fallback: StructuredContent envelope { "result": "<json string>" }.
+        if (result.StructuredContent.HasValue)
+        {
+            try
+            {
+                JsonElement sc = result.StructuredContent.Value;
+                if (sc.ValueKind == JsonValueKind.Object &&
+                    sc.TryGetProperty("result", out JsonElement resultEl) &&
+                    resultEl.ValueKind == JsonValueKind.String)
+                {
+                    string? unwrapped = resultEl.GetString();
+                    if (!string.IsNullOrWhiteSpace(unwrapped))
+                    {
+                        return unwrapped;
+                    }
+                }
+            }
+            catch (InvalidOperationException)
+            {
+                // StructuredContent was not a valid JSON object — fall through.
+            }
+        }
+
+        return null;
     }
 
-    private static IReadOnlyList<MemoryHit> ParseHitsFromArray(JsonElement array, ILogger logger)
+    private static IReadOnlyList<MemoryHit> ParseHitsFromArray(
+        JsonElement array,
+        IReadOnlyList<MemoryRelation>? topLevelRelations,
+        ILogger logger)
     {
         var hits = new List<MemoryHit>();
         foreach (JsonElement el in array.EnumerateArray())
         {
-            MemoryHit? hit = TryParseHit(el, logger);
+            MemoryHit? hit = TryParseHit(el, topLevelRelations, logger);
             if (hit is not null)
             {
                 hits.Add(hit);
@@ -168,7 +257,10 @@ internal static class MekoResultParser
         return hits;
     }
 
-    private static MemoryHit? TryParseHit(JsonElement el, ILogger logger)
+    private static MemoryHit? TryParseHit(
+        JsonElement el,
+        IReadOnlyList<MemoryRelation>? relations,
+        ILogger logger)
     {
         if (el.ValueKind != JsonValueKind.Object)
         {
@@ -204,7 +296,7 @@ internal static class MekoResultParser
             ? s
             : 0.0;
 
-        // metadata — all extra fields (including metadata sub-object if present)
+        // metadata — from the per-item metadata sub-object if present
         Dictionary<string, JsonElement>? metadata = null;
         if (el.TryGetProperty(FieldMetadata, out JsonElement metaEl) &&
             metaEl.ValueKind == JsonValueKind.Object)
@@ -216,33 +308,29 @@ internal static class MekoResultParser
             }
         }
 
-        // relations — Meko AGE graph edges
-        IReadOnlyList<MemoryRelation>? relations = null;
-        if (el.TryGetProperty(FieldRelations, out JsonElement relsEl) &&
-            relsEl.ValueKind == JsonValueKind.Array)
-        {
-            var list = new List<MemoryRelation>();
-            foreach (JsonElement rel in relsEl.EnumerateArray())
-            {
-                MemoryRelation? r = TryParseRelation(rel, logger);
-                if (r is not null)
-                {
-                    list.Add(r);
-                }
-            }
-            if (list.Count > 0)
-            {
-                relations = list;
-            }
-        }
-
         return new MemoryHit(
             Id: id,
             Text: text,
             Source: MemorySource.LongTerm,
             Score: score,
             Metadata: metadata,
-            Relations: relations);
+            Relations: relations is { Count: > 0 } ? relations : null);
+    }
+
+    private static IReadOnlyList<MemoryRelation> ParseRelationsFromArray(
+        JsonElement array,
+        ILogger logger)
+    {
+        var list = new List<MemoryRelation>();
+        foreach (JsonElement rel in array.EnumerateArray())
+        {
+            MemoryRelation? r = TryParseRelation(rel, logger);
+            if (r is not null)
+            {
+                list.Add(r);
+            }
+        }
+        return list;
     }
 
     private static MemoryRelation? TryParseRelation(JsonElement el, ILogger logger)
@@ -253,15 +341,16 @@ internal static class MekoResultParser
         }
 
         string? src = el.TryGetProperty(FieldRelSource, out JsonElement se) ? se.GetString() : null;
-        string? relation = el.TryGetProperty(FieldRelRelation, out JsonElement re) ? re.GetString() : null;
+        // Wire field is "relationship" (not "relation") — confirmed from live response.
+        string? relationship = el.TryGetProperty(FieldRelRelationship, out JsonElement re) ? re.GetString() : null;
         string? target = el.TryGetProperty(FieldRelTarget, out JsonElement te) ? te.GetString() : null;
 
-        if (src is null || relation is null || target is null)
+        if (src is null || relationship is null || target is null)
         {
-            logger.LogDebug("MekoResultParser: skipping relation with missing source/relation/target.");
+            logger.LogDebug("MekoResultParser: skipping relation with missing source/relationship/target.");
             return null;
         }
 
-        return new MemoryRelation(Source: src, Relation: relation, Target: target);
+        return new MemoryRelation(Source: src, Relation: relationship, Target: target);
     }
 }
