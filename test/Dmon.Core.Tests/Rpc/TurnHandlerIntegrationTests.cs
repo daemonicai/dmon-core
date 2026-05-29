@@ -239,10 +239,21 @@ internal sealed class StubSystemPromptBuilder : ISystemPromptBuilder
 
 internal static class TurnHandlerFactory
 {
-    public static (TurnHandler handler, TestEventEmitter emitter) Create(IChatClient client)
+    public static (TurnHandler handler, TestEventEmitter emitter) Create(
+        IChatClient client,
+        IActiveModelStore? store = null)
     {
         TestEventEmitter emitter = new();
         StubProviderRegistry providers = new(client);
+        return Create(providers, emitter, store);
+    }
+
+    public static (TurnHandler handler, TestEventEmitter emitter) Create(
+        IProviderRegistry providers,
+        TestEventEmitter? emitter = null,
+        IActiveModelStore? store = null)
+    {
+        emitter ??= new TestEventEmitter();
         EmptyToolRegistry tools = new();
         PermitAllPolicy policy = new();
         NoopThinkingHandler thinking = new();
@@ -250,9 +261,11 @@ internal static class TurnHandlerFactory
         StubAttachmentStore attachmentStore = new();
         StubSystemPromptBuilder systemPromptBuilder = new();
         IConfiguration configuration = new ConfigurationBuilder().Build();
+        store ??= new NoopActiveModelStore();
 
         TurnHandler handler = new(
             providers,
+            store,
             tools,
             emitter,
             policy,
@@ -265,6 +278,106 @@ internal static class TurnHandlerFactory
 
         return (handler, emitter);
     }
+}
+
+/// <summary>
+/// IActiveModelStore that discards all saves and returns null on load.
+/// </summary>
+internal sealed class NoopActiveModelStore : IActiveModelStore
+{
+    public ActiveSelection? Load() => null;
+
+    public Task SaveAsync(ActiveSelection selection, CancellationToken cancellationToken = default)
+        => Task.CompletedTask;
+}
+
+/// <summary>
+/// IActiveModelStore that captures the last saved selection for assertion.
+/// </summary>
+internal sealed class CapturingActiveModelStore : IActiveModelStore
+{
+    public ActiveSelection? LastSaved { get; private set; }
+    public int SaveCount { get; private set; }
+
+    public ActiveSelection? Load() => null;
+
+    public Task SaveAsync(ActiveSelection selection, CancellationToken cancellationToken = default)
+    {
+        LastSaved = selection;
+        SaveCount++;
+        return Task.CompletedTask;
+    }
+}
+
+/// <summary>
+/// IProviderRegistry with two clients — starts on <c>first</c>, returns
+/// <c>second</c> once a pending switch is committed. Records which client
+/// was resolved by <see cref="GetCurrentAsync"/>.
+/// </summary>
+internal sealed class SwitchableStubProviderRegistry : IProviderRegistry
+{
+    private readonly IChatClient _first;
+    private readonly IChatClient _second;
+    private readonly string _secondName;
+    private readonly string _secondModel;
+
+    private bool _switchPending;
+    private bool _switched;
+
+    public IChatClient? LastResolved { get; private set; }
+
+    public SwitchableStubProviderRegistry(
+        IChatClient first,
+        IChatClient second,
+        string secondName = "second-provider",
+        string secondModel = "second-model")
+    {
+        _first = first;
+        _second = second;
+        _secondName = secondName;
+        _secondModel = secondModel;
+    }
+
+    public void QueueSwitch() => _switchPending = true;
+
+    public ValueTask<IChatClient> GetCurrentAsync(CancellationToken cancellationToken = default)
+    {
+        IChatClient resolved = _switched ? _second : _first;
+        LastResolved = resolved;
+        return ValueTask.FromResult(resolved);
+    }
+
+    public ProviderConfig GetCurrentConfig() => _switched
+        ? new ProviderConfig { Name = _secondName, Adapter = "stub", Auth = new ProviderAuthConfig { Type = "none" } }
+        : new ProviderConfig { Name = "first-provider", Adapter = "stub", Auth = new ProviderAuthConfig { Type = "none" } };
+
+    public IReadOnlyList<ProviderConfig> GetAll() => [GetCurrentConfig()];
+
+    public void SetProvider(string name) => _switchPending = true;
+
+    public void SetModel(string modelId) { }
+
+    public void CycleProvider() { }
+
+    public Task RegisterExtensionAsync(IProviderExtension extension, CancellationToken cancellationToken = default)
+        => Task.CompletedTask;
+
+    public void AddDynamicProvider(ProviderConfig config) { }
+
+    public string? GetCurrentModelId() => _switched ? _secondModel : null;
+
+    public ProviderSwitchResult? CommitPendingSwitch()
+    {
+        if (!_switchPending)
+            return null;
+        _switchPending = false;
+        _switched = true;
+        return new ProviderSwitchResult(_secondName, _secondModel);
+    }
+
+    public bool CurrentSupportsToolCalling => false;
+
+    public bool CurrentSupportsReasoning => false;
 }
 
 // ---------------------------------------------------------------------------
@@ -351,5 +464,79 @@ public sealed class TurnHandlerIntegrationTests
         await handler.SubmitAsync(cmd, CancellationToken.None);
 
         Assert.Contains(emitter.Events, e => e is MessageDeltaEvent);
+    }
+
+    [Fact]
+    public async Task Submit_CommitsPendingSwitchBeforeResolvingClient()
+    {
+        // Arrange: registry has a pending switch to second-provider queued before the turn starts.
+        StubChatClient first = new("response from first");
+        StubChatClient second = new("response from second");
+        SwitchableStubProviderRegistry providers = new(first, second, "second-provider", "second-model");
+        providers.QueueSwitch();
+
+        TestEventEmitter emitter = new();
+        (TurnHandler handler, _) = TurnHandlerFactory.Create(providers, emitter);
+
+        TurnSubmitCommand cmd = new() { Id = "req-1", Message = "Hello" };
+        await handler.SubmitAsync(cmd, CancellationToken.None);
+
+        // The turn must have resolved the second (switched-to) client.
+        Assert.True(ReferenceEquals(providers.LastResolved, second),
+            "GetCurrentAsync should return the switched-to client after commit-at-start.");
+    }
+
+    [Fact]
+    public async Task Submit_EmitsProviderSwitchedEvent_WithEffectiveNextTurnFalse()
+    {
+        StubChatClient first = new("first");
+        StubChatClient second = new("second");
+        SwitchableStubProviderRegistry providers = new(first, second, "second-provider", "second-model");
+        providers.QueueSwitch();
+
+        TestEventEmitter emitter = new();
+        (TurnHandler handler, _) = TurnHandlerFactory.Create(providers, emitter);
+
+        TurnSubmitCommand cmd = new() { Id = "req-1", Message = "Hello" };
+        await handler.SubmitAsync(cmd, CancellationToken.None);
+
+        ProviderSwitchedEvent? switched = emitter.Events.OfType<ProviderSwitchedEvent>().FirstOrDefault();
+        Assert.NotNull(switched);
+        Assert.Equal("second-provider", switched.Name);
+        Assert.False(switched.EffectiveNextTurn,
+            "EffectiveNextTurn must be false — the switch applies to the turn now starting.");
+    }
+
+    [Fact]
+    public async Task Submit_PersistsActiveSelectionAfterCommit()
+    {
+        StubChatClient first = new("first");
+        StubChatClient second = new("second");
+        SwitchableStubProviderRegistry providers = new(first, second, "second-provider", "second-model");
+        providers.QueueSwitch();
+
+        CapturingActiveModelStore store = new();
+        (TurnHandler handler, _) = TurnHandlerFactory.Create(providers, store: store);
+
+        TurnSubmitCommand cmd = new() { Id = "req-1", Message = "Hello" };
+        await handler.SubmitAsync(cmd, CancellationToken.None);
+
+        Assert.Equal(1, store.SaveCount);
+        Assert.NotNull(store.LastSaved);
+        Assert.Equal("second-provider", store.LastSaved.Provider);
+        Assert.Equal("second-model", store.LastSaved.Model);
+    }
+
+    [Fact]
+    public async Task Submit_NoPendingSwitch_DoesNotCallSaveAsync()
+    {
+        StubChatClient client = new("hello");
+        CapturingActiveModelStore store = new();
+        (TurnHandler handler, _) = TurnHandlerFactory.Create(client, store);
+
+        TurnSubmitCommand cmd = new() { Id = "req-1", Message = "Hello" };
+        await handler.SubmitAsync(cmd, CancellationToken.None);
+
+        Assert.Equal(0, store.SaveCount);
     }
 }

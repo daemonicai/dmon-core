@@ -29,7 +29,15 @@ public sealed class ModelListHandlerTests
             configs,
             [new FakeProviderFactory()],
             new NullCredentialResolver(),
+            new NullActiveModelStore(),
             NullLogger<ProviderRegistry>.Instance);
+    }
+
+    private sealed class NullActiveModelStore : IActiveModelStore
+    {
+        public ActiveSelection? Load() => null;
+        public Task SaveAsync(ActiveSelection selection, CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
     }
 
     private static ModelListHandler CreateHandler(IProviderRegistry registry, IProviderFactory? factory = null)

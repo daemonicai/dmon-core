@@ -20,14 +20,17 @@ public sealed class ProviderRegistryTests
     private static IProviderRegistry CreateRegistry(
         IEnumerable<ProviderConfig> configs,
         IProviderFactory? factory = null,
-        ICredentialResolver? resolver = null)
+        ICredentialResolver? resolver = null,
+        IActiveModelStore? store = null)
     {
         resolver ??= new FakeCredentialResolver();
         factory ??= new FakeProviderFactory();
+        store ??= new NullActiveModelStore();
         return new ProviderRegistry(
             configs,
             [factory],
             resolver,
+            store,
             NullLogger<ProviderRegistry>.Instance);
     }
 
@@ -407,5 +410,70 @@ public sealed class ProviderRegistryTests
         Assert.Equal(2, all.Count);
         ProviderConfig extConfig = Assert.Single(all, c => c.Name == "ext-provider");
         Assert.Equal("model-v2", extConfig.DefaultModelId);
+    }
+
+    // --- restore-from-store tests ---
+
+    [Fact]
+    public void Constructor_Store_RestoresConfiguredProvider()
+    {
+        ProviderConfig alpha = MakeConfig("alpha");
+        ProviderConfig beta = MakeConfig("beta");
+        FixedActiveModelStore store = new(new ActiveSelection("beta", "beta-override-model"));
+
+        IProviderRegistry registry = CreateRegistry([alpha, beta], store: store);
+
+        Assert.Equal("beta", registry.GetCurrentConfig().Name);
+        Assert.Equal("beta-override-model", registry.GetCurrentModelId());
+    }
+
+    [Fact]
+    public void Constructor_Store_CaseInsensitiveProviderMatch()
+    {
+        ProviderConfig alpha = MakeConfig("Alpha");
+        FixedActiveModelStore store = new(new ActiveSelection("ALPHA", "some-model"));
+
+        IProviderRegistry registry = CreateRegistry([alpha], store: store);
+
+        Assert.Equal("Alpha", registry.GetCurrentConfig().Name);
+        Assert.Equal("some-model", registry.GetCurrentModelId());
+    }
+
+    [Fact]
+    public void Constructor_Store_FallsBackToIndexZero_WhenProviderNotConfigured()
+    {
+        ProviderConfig alpha = MakeConfig("alpha");
+        FixedActiveModelStore store = new(new ActiveSelection("nonexistent-provider", "some-model"));
+
+        IProviderRegistry registry = CreateRegistry([alpha], store: store);
+
+        // Must not throw; falls back to index 0.
+        Assert.Equal("alpha", registry.GetCurrentConfig().Name);
+    }
+
+    [Fact]
+    public void Constructor_Store_ReturnsNull_DefaultsToIndexZero()
+    {
+        ProviderConfig alpha = MakeConfig("alpha");
+        ProviderConfig beta = MakeConfig("beta");
+
+        IProviderRegistry registry = CreateRegistry([alpha, beta]);
+
+        Assert.Equal("alpha", registry.GetCurrentConfig().Name);
+        Assert.Null(registry.GetCurrentModelId());
+    }
+
+    private sealed class NullActiveModelStore : IActiveModelStore
+    {
+        public ActiveSelection? Load() => null;
+        public Task SaveAsync(ActiveSelection selection, CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
+    }
+
+    private sealed class FixedActiveModelStore(ActiveSelection? selection) : IActiveModelStore
+    {
+        public ActiveSelection? Load() => selection;
+        public Task SaveAsync(ActiveSelection selection, CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
     }
 }

@@ -27,3 +27,28 @@ When a provider/model switch is committed, the new active provider name and mode
 
 - **WHEN** no `state.yaml` exists, or it is unreadable, or the persisted provider is no longer configured
 - **THEN** the registry uses the default first configured provider (index 0) and does not throw
+
+## MODIFIED Requirements
+
+### Requirement: ProviderRegistry tracks and commits pending provider and model switches
+`ProviderRegistry` SHALL maintain a pending provider index and pending model ID, each independently nullable (set by `SetProvider` and `SetModel` respectively). `CommitPendingSwitch` SHALL apply both pending values atomically, dispose the previous `IChatClient`, and return a `ProviderSwitchResult?` (null if nothing was pending). `TurnHandler` is responsible for mapping `ProviderSwitchResult` to `ProviderSwitchedEvent` before emitting.
+
+#### Scenario: Provider switch committed between turns
+- **WHEN** `SetProvider("openai")` is called during a turn and `CommitPendingSwitch` is called after the turn ends
+- **THEN** the previous client is disposed, a new client is created via `OpenAiProviderFactory`, and a non-null `ProviderSwitchResult` is returned
+
+#### Scenario: Model switch committed independently
+- **WHEN** `SetModel("claude-haiku-4-5-20251001")` is called and `CommitPendingSwitch` is called
+- **THEN** the provider stays the same, the client is recreated with the new model ID, and a `ProviderSwitchResult` is returned
+
+#### Scenario: No pending change returns null
+- **WHEN** `CommitPendingSwitch` is called with no pending provider or model change
+- **THEN** it returns null and the active client is not disposed
+
+#### Scenario: Mid-turn switch defers to next turn
+- **WHEN** the host sends `model.set` while a turn is in flight
+- **THEN** the current LLM call completes on the previous provider, the queued switch is committed at the start of the next turn before the provider client is resolved, and a single `providerSwitched {..., effectiveNextTurn: false}` is emitted at that point (no `providerSwitched` is emitted while the in-flight turn is still running)
+
+#### Scenario: Cycle through providers
+- **WHEN** the host sends `model.cycle`
+- **THEN** the active provider advances to the next in the configured list

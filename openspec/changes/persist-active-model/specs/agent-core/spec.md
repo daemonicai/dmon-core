@@ -12,7 +12,7 @@ The agent core SHALL commit any pending provider/model switch at the start of a 
 #### Scenario: Mid-turn switch still defers
 
 - **WHEN** the host sends `model.set` while a turn is in flight
-- **THEN** the in-flight turn completes on the previous provider and the new selection takes effect on the next turn, with `providerSwitched {..., effectiveNextTurn: true}` emitted
+- **THEN** the in-flight turn completes on the previous provider, and the queued switch is committed at the start of the next turn and emitted there as `providerSwitched {..., effectiveNextTurn: false}` (no `providerSwitched` is emitted while the turn is still in flight)
 
 #### Scenario: No pending switch leaves the active provider unchanged
 

@@ -22,6 +22,7 @@ public sealed class ProviderRegistry : IProviderRegistry
         IEnumerable<ProviderConfig> configs,
         IEnumerable<IProviderFactory> factories,
         ICredentialResolver credentials,
+        IActiveModelStore store,
         ILogger<ProviderRegistry> logger)
     {
         _builtIn = configs.ToList();
@@ -43,6 +44,38 @@ public sealed class ProviderRegistry : IProviderRegistry
         }
 
         _activeIndex = 0;
+
+        // Restore the last active selection persisted across restarts.
+        // NOTE: Extension/dynamic providers registered after construction are not restorable here —
+        // they are not yet in GetAll() at ctor time. That is a known limitation.
+        ActiveSelection? saved = store.Load();
+        if (saved is not null)
+        {
+            IReadOnlyList<ProviderConfig> all = GetAll();
+            int found = -1;
+            for (int i = 0; i < all.Count; i++)
+            {
+                if (string.Equals(all[i].Name, saved.Provider, StringComparison.OrdinalIgnoreCase))
+                {
+                    found = i;
+                    break;
+                }
+            }
+
+            if (found >= 0)
+            {
+                _activeIndex = found;
+                _activeModelId = saved.Model;
+                _logger.LogDebug("Restored active provider '{Provider}' (model: {Model}) from state.",
+                    saved.Provider, saved.Model ?? "(default)");
+            }
+            else
+            {
+                _logger.LogDebug(
+                    "Persisted provider '{Provider}' is not configured; keeping default (index 0).",
+                    saved.Provider);
+            }
+        }
     }
 
     public IReadOnlyList<ProviderConfig> GetAll()
