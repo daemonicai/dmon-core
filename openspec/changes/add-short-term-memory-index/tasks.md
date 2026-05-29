@@ -6,11 +6,11 @@
 
 ## 2. Local embedding generator
 
-- [ ] 2.1 Add `LlamaSharp` + `LLamaSharp.Backend.Cpu`; choose and pin the GGUF model + dimension (decide the model — see design Open Questions)
-- [ ] 2.2 Implement a long-lived singleton `IEmbeddingGenerator<string, Embedding<float>>` over `LLamaEmbedder` (`PoolingType.Mean`, `Embeddings = true`)
-- [ ] 2.3 L2-normalize all output vectors (LlamaSharp does not normalize by default)
-- [ ] 2.4 Apply nomic task prefixes at the call sites (`search_document:` on store, `search_query:` on query) — above the generator, not inside it
-- [ ] 2.5 Serialize/pool embedder access (the context is not thread-safe); add a batched ingest path
+- [x] 2.1 Add `LlamaSharp` + `LLamaSharp.Backend.Cpu`; choose and pin the GGUF model + dimension (decide the model — see design Open Questions)
+- [x] 2.2 Implement a long-lived singleton `IEmbeddingGenerator<string, Embedding<float>>` over `LLamaEmbedder` (`PoolingType.Mean`, `Embeddings = true`)
+- [x] 2.3 L2-normalize all output vectors (LlamaSharp does not normalize by default)
+- [x] 2.4 Apply nomic task prefixes at the call sites (`search_document:` on store, `search_query:` on query) — above the generator, not inside it
+- [x] 2.5 Serialize/pool embedder access (the context is not thread-safe); add a batched ingest path
 - [ ] 2.6 First-run model acquisition/caching [needs human verification — first-run download + cache cannot be settled by automated gates]
 
 ## 3. Short-term hybrid index (index.db)
@@ -33,5 +33,5 @@
 ## 5. Assumed defaults / decisions to confirm
 
 - [ ] 5.1 Proceed with an application-level upsert in one transaction for `index.db` (content + `vec0` + FTS5); revisit SQLite triggers only if it bottlenecks. (Local-only — settled.)
-- [ ] 5.2 Decide the GGUF embedding model + dimension (and whether to use nomic v1.5 Matryoshka truncation to shrink `index.db`). (Local choice — no external dependency.)
+- [x] 5.2 Decide the GGUF embedding model + dimension (and whether to use nomic v1.5 Matryoshka truncation to shrink `index.db`). (Local choice — no external dependency.)
 - [ ] 5.3 Confirm and document the supported RID matrix for the `sqlite-vec` loadable + LlamaSharp CPU backend, and how the loadable is resolved at runtime. (Local choice.)
