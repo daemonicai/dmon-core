@@ -1,5 +1,6 @@
 using System.Text.Json;
-using Anthropic.SDK;
+using Anthropic;
+using Anthropic.Core;
 using Dmon.Abstractions.Providers;
 using Dmon.Abstractions.Wizard;
 using Microsoft.Extensions.AI;
@@ -134,12 +135,13 @@ public sealed class AnthropicProviderFactory : IProviderFactory
     public ValueTask<IChatClient> CreateAsync(ProviderConfig config, string? apiKey, CancellationToken cancellationToken = default)
     {
         string modelId = config.DefaultModelId ?? string.Empty;
-        AnthropicClient client = string.IsNullOrWhiteSpace(apiKey)
-            ? new AnthropicClient()
-            : new AnthropicClient(apiKey);
+        ClientOptions options = new();
+        if (!string.IsNullOrWhiteSpace(apiKey))
+            options.ApiKey = apiKey;
         if (config.BaseUrl is not null)
-            client.ApiUrlFormat = $"{config.BaseUrl.TrimEnd('/')}/{{0}}/{{1}}";
+            options.BaseUrl = config.BaseUrl;
+        AnthropicClient client = new(options);
         ChatClientCapabilities caps = GetCapabilities(modelId);
-        return ValueTask.FromResult<IChatClient>(new CapabilitiesDecorator(client.Messages, caps));
+        return ValueTask.FromResult<IChatClient>(new CapabilitiesDecorator(client.AsIChatClient(modelId), caps));
     }
 }

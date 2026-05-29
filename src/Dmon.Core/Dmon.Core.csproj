@@ -13,7 +13,8 @@
   <ItemGroup>
     <PackageReference Include="Dotnet.Script.Core" Version="2.0.0" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.8" />
-    <PackageReference Include="Microsoft.Extensions.AI" Version="10.6.0" />
+    <!-- M.E.AI pinned to the abstractions version Anthropic 12.x targets; re-validate when bumping Anthropic. -->
+    <PackageReference Include="Microsoft.Extensions.AI" Version="10.5.1" />
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.8" />
     <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.8" />
     <PackageReference Include="NetEscapades.Configuration.Yaml" Version="3.1.0" />
