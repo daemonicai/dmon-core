@@ -2,7 +2,7 @@
 
 ## 1. Project setup
 
-- [ ] 1.1 Confirm the home-project decision (D7): create a new `Dmon.Memory` project referencing `Dmon.Abstractions` + `Dmon.Core` (recommended), or extend `Dmon.Core/Session`. Add the project (and a `test/Dmon.Memory.Tests` project) to `Dmon.slnx` and the `Makefile`; verify `make build` picks them up.
+- [x] 1.1 Confirm the home-project decision (D7): create a new `Dmon.Memory` project referencing `Dmon.Abstractions` + `Dmon.Core` (recommended), or extend `Dmon.Core/Session`. Add the project (and a `test/Dmon.Memory.Tests` project) to `Dmon.slnx` and the `Makefile`; verify `make build` picks them up.
 
 ## 2. Local embedding generator
 

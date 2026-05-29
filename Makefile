@@ -1,4 +1,4 @@
-.PHONY: all build build-terminal build-core build-extensions test clean
+.PHONY: all build build-terminal build-core build-extensions build-memory test clean
 
 CONFIG            ?= Release
 CORE_OUT          := build/dmoncore
@@ -7,7 +7,7 @@ EXTENSIONS_OUT    := build/extensions
 
 all: build test
 
-build: build-core build-terminal build-extensions
+build: build-core build-terminal build-extensions build-memory
 
 build-core:
 	dotnet publish src/Dmon.Core/Dmon.Core.csproj \
@@ -30,6 +30,9 @@ build-extensions:
 			-o "$(EXTENSIONS_OUT)/$$name" \
 			--no-self-contained; \
 	done
+
+build-memory:
+	dotnet build src/Dmon.Memory/Dmon.Memory.csproj -c $(CONFIG)
 
 test:
 	dotnet test -c $(CONFIG)
