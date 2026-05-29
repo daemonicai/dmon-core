@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <!-- TODO: swap to PackageReference once Dmon.Abstractions is published to NuGet -->
+    <ProjectReference Include="..\..\..\dmon-core\src\Dmon.Abstractions\Dmon.Abstractions.csproj" />
+  </ItemGroup>
+
+</Project>
