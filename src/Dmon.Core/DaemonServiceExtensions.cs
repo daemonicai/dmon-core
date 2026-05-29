@@ -107,6 +107,8 @@ public static class DmonServiceExtensions
         // Permission runtime dependencies
         services.AddSingleton<IPermissionSettings>(_ =>
             PermissionSettingsLoader.LoadProject(Directory.GetCurrentDirectory()));
+        services.AddSingleton<IActiveModelStore>(_ =>
+            ActiveModelStore.LoadProject(Directory.GetCurrentDirectory()));
         services.AddSingleton<IPermissionPolicy>(sp =>
         {
             IPermissionSettings project = sp.GetRequiredService<IPermissionSettings>();
