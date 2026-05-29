@@ -35,8 +35,8 @@ public sealed class ModelListHandlerTests
 
     private sealed class NullActiveModelStore : IActiveModelStore
     {
-        public ActiveSelection? Load() => null;
-        public Task SaveAsync(ActiveSelection selection, CancellationToken cancellationToken = default)
+        public ModelRef? Load() => null;
+        public Task SaveAsync(ModelRef selection, CancellationToken cancellationToken = default)
             => Task.CompletedTask;
     }
 

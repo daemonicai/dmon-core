@@ -1,4 +1,6 @@
+using Dmon.Abstractions.Providers;
 using Dmon.Core.Providers;
+using Microsoft.Extensions.Configuration;
 
 namespace Dmon.Core.Tests.Providers;
 
@@ -13,25 +15,69 @@ public sealed class ActiveModelStoreTests
         return dir;
     }
 
-    // --- round-trip ---
+    private static IConfiguration BuildConfig(string activeModel)
+    {
+        return new ConfigurationBuilder()
+            .AddInMemoryCollection([new KeyValuePair<string, string?>("activeModel", activeModel)])
+            .Build();
+    }
+
+    // --- Load reads from IConfiguration ---
 
     [Fact]
-    public async Task SaveAsync_ThenLoad_ReturnsOriginalSelection()
+    public void Load_ReadsActiveModelFromConfiguration()
+    {
+        IConfiguration config = BuildConfig("gemini/gemini-2.0-flash-lite");
+        ActiveModelStore store = new(config, Path.GetTempPath());
+
+        ModelRef? result = store.Load();
+
+        Assert.NotNull(result);
+        Assert.Equal("gemini", result.Provider);
+        Assert.Equal("gemini-2.0-flash-lite", result.Model);
+    }
+
+    [Fact]
+    public void Load_AbsentKey_ReturnsNull()
+    {
+        IConfiguration config = new ConfigurationBuilder().Build();
+        ActiveModelStore store = new(config, Path.GetTempPath());
+
+        ModelRef? result = store.Load();
+
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public void Load_ProviderOnly_ReturnsModelRefWithNullModel()
+    {
+        IConfiguration config = BuildConfig("anthropic");
+        ActiveModelStore store = new(config, Path.GetTempPath());
+
+        ModelRef? result = store.Load();
+
+        Assert.NotNull(result);
+        Assert.Equal("anthropic", result.Provider);
+        Assert.Null(result.Model);
+    }
+
+    // --- SaveAsync writes config.local.yaml ---
+
+    [Fact]
+    public async Task SaveAsync_WritesActiveModelToConfigLocalYaml()
     {
         string tempDir = CreateTempDir();
         try
         {
-            Directory.CreateDirectory(Path.Combine(tempDir, ".dmon"));
-            ActiveModelStore store = ActiveModelStore.LoadProject(tempDir);
-            ActiveSelection original = new("gemini", "gemini-2.0-flash-lite");
+            IConfiguration config = BuildConfig("gemini/x");
+            ActiveModelStore store = new(config, tempDir);
 
-            await store.SaveAsync(original);
+            await store.SaveAsync(new ModelRef("gemini", "gemini-2.0-flash-lite"));
 
-            ActiveSelection? loaded = store.Load();
-
-            Assert.NotNull(loaded);
-            Assert.Equal("gemini", loaded.Provider);
-            Assert.Equal("gemini-2.0-flash-lite", loaded.Model);
+            string filePath = Path.Combine(tempDir, ".dmon", "config.local.yaml");
+            Assert.True(File.Exists(filePath));
+            string content = await File.ReadAllTextAsync(filePath);
+            Assert.Contains("activeModel: gemini/gemini-2.0-flash-lite", content, StringComparison.Ordinal);
         }
         finally
         {
@@ -39,140 +85,32 @@ public sealed class ActiveModelStoreTests
         }
     }
 
-    // --- project scope ---
-
     [Fact]
-    public async Task SaveAsync_ProjectDmonExists_WritesToProjectStateYaml()
+    public async Task SaveAsync_CreatesConfigLocalYaml_ThenReadableViaNewConfiguration()
     {
         string tempDir = CreateTempDir();
         try
         {
-            string dmonDir = Path.Combine(tempDir, ".dmon");
-            Directory.CreateDirectory(dmonDir);
+            // Use a real IConfiguration backed by the file we are about to write.
+            string localYaml = Path.Combine(tempDir, ".dmon", "config.local.yaml");
+            IConfiguration config = new ConfigurationBuilder()
+                .AddYamlFile(localYaml, optional: true, reloadOnChange: false)
+                .Build();
 
-            ActiveModelStore store = ActiveModelStore.LoadProject(tempDir);
-            await store.SaveAsync(new ActiveSelection("anthropic", "claude-3-5-sonnet"));
+            ActiveModelStore store = new(config, tempDir);
+            await store.SaveAsync(new ModelRef("openai", "gpt-4o"));
 
-            string expectedPath = Path.Combine(dmonDir, "state.yaml");
-            Assert.Equal(expectedPath, store.FilePath);
-            Assert.True(File.Exists(expectedPath));
-        }
-        finally
-        {
-            Directory.Delete(tempDir, recursive: true);
-        }
-    }
+            // Build a fresh IConfiguration from the written file.
+            IConfiguration reloaded = new ConfigurationBuilder()
+                .AddYamlFile(localYaml, optional: false, reloadOnChange: false)
+                .Build();
 
-    // --- global fallback resolution (no real write to ~/. dmon) ---
-
-    [Fact]
-    public void LoadProject_NoDmonDir_ResolvesToGlobalPath()
-    {
-        string tempDir = CreateTempDir();
-        try
-        {
-            // No .dmon directory under tempDir — must fall back to global.
-            ActiveModelStore store = ActiveModelStore.LoadProject(tempDir);
-
-            string expectedGlobalPath = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-                ".dmon",
-                "state.yaml");
-
-            Assert.Equal(expectedGlobalPath, store.FilePath);
-        }
-        finally
-        {
-            Directory.Delete(tempDir, recursive: true);
-        }
-    }
-
-    [Fact]
-    public void LoadGlobal_AlwaysResolvesToHomeDirectory()
-    {
-        ActiveModelStore store = ActiveModelStore.LoadGlobal();
-
-        string expectedGlobalPath = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-            ".dmon",
-            "state.yaml");
-
-        Assert.Equal(expectedGlobalPath, store.FilePath);
-    }
-
-    // --- absent file ---
-
-    [Fact]
-    public void Load_AbsentFile_ReturnsNull()
-    {
-        string tempDir = CreateTempDir();
-        try
-        {
-            string dmonDir = Path.Combine(tempDir, ".dmon");
-            Directory.CreateDirectory(dmonDir);
-
-            ActiveModelStore store = ActiveModelStore.LoadProject(tempDir);
-            // No state.yaml written yet.
-            ActiveSelection? result = store.Load();
-
-            Assert.Null(result);
-        }
-        finally
-        {
-            Directory.Delete(tempDir, recursive: true);
-        }
-    }
-
-    // --- garbage file ---
-
-    [Fact]
-    public void Load_GarbageFile_ReturnsNullWithoutThrowing()
-    {
-        string tempDir = CreateTempDir();
-        try
-        {
-            string dmonDir = Path.Combine(tempDir, ".dmon");
-            Directory.CreateDirectory(dmonDir);
-            File.WriteAllText(Path.Combine(dmonDir, "state.yaml"), "this is not yaml: [[[{{{}}}");
-
-            ActiveModelStore store = ActiveModelStore.LoadProject(tempDir);
-
-            // Must not throw; garbage values don't supply a valid provider.
-            ActiveSelection? result = store.Load();
-
-            Assert.Null(result);
-        }
-        finally
-        {
-            Directory.Delete(tempDir, recursive: true);
-        }
-    }
-
-    // --- activeModel absent ---
-
-    [Fact]
-    public async Task Load_NoModelKey_ReturnsSelectionWithNullModel()
-    {
-        string tempDir = CreateTempDir();
-        try
-        {
-            string dmonDir = Path.Combine(tempDir, ".dmon");
-            Directory.CreateDirectory(dmonDir);
-
-            // Write a state.yaml with only activeProvider (no activeModel key).
-            File.WriteAllText(Path.Combine(dmonDir, "state.yaml"), "activeProvider: openai\n");
-
-            ActiveModelStore store = ActiveModelStore.LoadProject(tempDir);
-            ActiveSelection? result = store.Load();
+            ActiveModelStore reloadedStore = new(reloaded, tempDir);
+            ModelRef? result = reloadedStore.Load();
 
             Assert.NotNull(result);
             Assert.Equal("openai", result.Provider);
-            Assert.Null(result.Model);
-
-            // Also confirm SaveAsync omits the model key when Model is null.
-            await store.SaveAsync(new ActiveSelection("openai", null));
-            string content = File.ReadAllText(store.FilePath);
-            Assert.DoesNotContain("activeModel", content, StringComparison.Ordinal);
+            Assert.Equal("gpt-4o", result.Model);
         }
         finally
         {
@@ -180,27 +118,97 @@ public sealed class ActiveModelStoreTests
         }
     }
 
-    // --- fresh reload from disk ---
-
     [Fact]
-    public async Task SaveAsync_FreshLoadFromDisk_PreservesValues()
+    public async Task SaveAsync_PreservesOtherTopLevelKeys()
     {
         string tempDir = CreateTempDir();
         try
         {
             string dmonDir = Path.Combine(tempDir, ".dmon");
             Directory.CreateDirectory(dmonDir);
+            string filePath = Path.Combine(dmonDir, "config.local.yaml");
 
-            ActiveModelStore store = ActiveModelStore.LoadProject(tempDir);
-            await store.SaveAsync(new ActiveSelection("gemini", "gemini-2.0-flash-lite"));
+            // Pre-populate with another key.
+            await File.WriteAllTextAsync(filePath, "someOtherKey: someValue\n");
 
-            // Load with a new store instance (simulates restart).
-            ActiveModelStore reloaded = ActiveModelStore.LoadProject(tempDir);
-            ActiveSelection? result = reloaded.Load();
+            IConfiguration config = new ConfigurationBuilder().Build();
+            ActiveModelStore store = new(config, tempDir);
+            await store.SaveAsync(new ModelRef("anthropic", "claude-opus-4-5"));
 
-            Assert.NotNull(result);
-            Assert.Equal("gemini", result.Provider);
-            Assert.Equal("gemini-2.0-flash-lite", result.Model);
+            string content = await File.ReadAllTextAsync(filePath);
+            Assert.Contains("someOtherKey: someValue", content, StringComparison.Ordinal);
+            Assert.Contains("activeModel: anthropic/claude-opus-4-5", content, StringComparison.Ordinal);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task SaveAsync_OverwritesExistingActiveModelLine()
+    {
+        string tempDir = CreateTempDir();
+        try
+        {
+            string dmonDir = Path.Combine(tempDir, ".dmon");
+            Directory.CreateDirectory(dmonDir);
+            string filePath = Path.Combine(dmonDir, "config.local.yaml");
+
+            await File.WriteAllTextAsync(filePath, "activeModel: oldProvider/oldModel\n");
+
+            IConfiguration config = new ConfigurationBuilder().Build();
+            ActiveModelStore store = new(config, tempDir);
+            await store.SaveAsync(new ModelRef("gemini", "gemini-2.0-flash-lite"));
+
+            string content = await File.ReadAllTextAsync(filePath);
+            // New value present, old value absent.
+            Assert.Contains("activeModel: gemini/gemini-2.0-flash-lite", content, StringComparison.Ordinal);
+            Assert.DoesNotContain("oldProvider", content, StringComparison.Ordinal);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task SaveAsync_ModelRefWithNullModel_WritesProviderOnlyString()
+    {
+        string tempDir = CreateTempDir();
+        try
+        {
+            IConfiguration config = new ConfigurationBuilder().Build();
+            ActiveModelStore store = new(config, tempDir);
+
+            await store.SaveAsync(new ModelRef("anthropic", null));
+
+            string filePath = Path.Combine(tempDir, ".dmon", "config.local.yaml");
+            string content = await File.ReadAllTextAsync(filePath);
+            Assert.Contains("activeModel: anthropic", content, StringComparison.Ordinal);
+            Assert.DoesNotContain("anthropic/", content, StringComparison.Ordinal);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task SaveAsync_CreatesDmonDirectory_IfAbsent()
+    {
+        string tempDir = CreateTempDir();
+        try
+        {
+            // No .dmon directory pre-created.
+            IConfiguration config = new ConfigurationBuilder().Build();
+            ActiveModelStore store = new(config, tempDir);
+
+            // Must not throw even when .dmon is absent.
+            await store.SaveAsync(new ModelRef("gemini", "gemini-2.0-flash-lite"));
+
+            Assert.True(Directory.Exists(Path.Combine(tempDir, ".dmon")));
+            Assert.True(File.Exists(Path.Combine(tempDir, ".dmon", "config.local.yaml")));
         }
         finally
         {

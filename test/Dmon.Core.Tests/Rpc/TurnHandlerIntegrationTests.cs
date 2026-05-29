@@ -285,9 +285,9 @@ internal static class TurnHandlerFactory
 /// </summary>
 internal sealed class NoopActiveModelStore : IActiveModelStore
 {
-    public ActiveSelection? Load() => null;
+    public ModelRef? Load() => null;
 
-    public Task SaveAsync(ActiveSelection selection, CancellationToken cancellationToken = default)
+    public Task SaveAsync(ModelRef selection, CancellationToken cancellationToken = default)
         => Task.CompletedTask;
 }
 
@@ -296,12 +296,12 @@ internal sealed class NoopActiveModelStore : IActiveModelStore
 /// </summary>
 internal sealed class CapturingActiveModelStore : IActiveModelStore
 {
-    public ActiveSelection? LastSaved { get; private set; }
+    public ModelRef? LastSaved { get; private set; }
     public int SaveCount { get; private set; }
 
-    public ActiveSelection? Load() => null;
+    public ModelRef? Load() => null;
 
-    public Task SaveAsync(ActiveSelection selection, CancellationToken cancellationToken = default)
+    public Task SaveAsync(ModelRef selection, CancellationToken cancellationToken = default)
     {
         LastSaved = selection;
         SaveCount++;
@@ -508,7 +508,7 @@ public sealed class TurnHandlerIntegrationTests
     }
 
     [Fact]
-    public async Task Submit_PersistsActiveSelectionAfterCommit()
+    public async Task Submit_PersistsModelRefAfterCommit()
     {
         StubChatClient first = new("first");
         StubChatClient second = new("second");

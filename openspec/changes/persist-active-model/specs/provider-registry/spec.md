@@ -2,33 +2,52 @@
 
 ### Requirement: Active provider and model selection is persisted
 
-The system SHALL persist the active provider name and active model id so the selection survives a restart. Persistence SHALL use a dedicated `state.yaml` file resolved to **project scope** (`<cwd>/.dmon/state.yaml`) when a project `.dmon` directory exists, otherwise **global scope** (`~/.dmon/state.yaml`). Writes SHALL be atomic (temp file then move) and SHALL NOT require an external YAML library.
+The system SHALL persist the active selection as a single `{provider}/{model}` model reference so it survives a restart. The provider key is the substring before the first `/`; the model id is everything after the first `/`, taken verbatim (it may itself contain `/`). Persistence uses a git-ignored, app-managed `config.local.yaml` at **project scope** (`./.dmon/config.local.yaml`), participating as the highest-precedence `IConfiguration` layer, with the selection under the top-level `activeModel` key.
 
-At startup, `ProviderRegistry` SHALL initialise its active provider index and active model id from the persisted selection when the persisted provider is currently configured. When no selection is persisted, the file is absent or unreadable, or the persisted provider is not configured, the registry SHALL fall back to the default (first configured provider, index 0) without throwing.
+The active selection SHALL be read through `IConfiguration` (i.e. `activeModel` resolved across the config-layer stack) and parsed into a model reference. When a provider/model switch is committed, the new `{provider}/{model}` SHALL be written to `./.dmon/config.local.yaml` atomically (temp file then move), preserving any other top-level keys present.
 
-When a provider/model switch is committed, the new active provider name and model id SHALL be written to the store.
+At startup `ProviderRegistry` SHALL initialise its active provider index and active model id from the parsed `activeModel` when the referenced provider is currently configured. When `activeModel` is absent, unparseable, or names a provider that is not configured, the registry SHALL fall back to the default (first configured provider, index 0) without throwing.
 
 #### Scenario: Selection saved when a switch is committed
 
 - **WHEN** a pending provider/model switch is committed
-- **THEN** the active provider name and model id are written to `state.yaml` (project scope if a project `.dmon` exists, else global)
+- **THEN** `./.dmon/config.local.yaml` is written with `activeModel: {provider}/{model}` for the newly active selection
 
 #### Scenario: Selection restored at startup
 
-- **WHEN** the agent core starts and `state.yaml` records an active provider that is currently configured
-- **THEN** `ProviderRegistry` makes that provider active and sets `GetCurrentModelId()` to the persisted model id, instead of defaulting to the first configured provider
+- **WHEN** the agent core starts and `IConfiguration` resolves `activeModel` to a `{provider}/{model}` whose provider is configured
+- **THEN** `ProviderRegistry` makes that provider active and sets `GetCurrentModelId()` to the referenced model id, instead of defaulting to the first configured provider
 
-#### Scenario: Project scope overrides global
+#### Scenario: Model reference splits on the first slash
 
-- **WHEN** both `<cwd>/.dmon/state.yaml` and `~/.dmon/state.yaml` exist and a project `.dmon` directory is present
-- **THEN** the project-scope `state.yaml` is used for both load and save
+- **WHEN** `activeModel` is `ollama/deepseek/deepseek-v4-pro`
+- **THEN** it resolves to provider `ollama` and model id `deepseek/deepseek-v4-pro` (everything after the first slash is the provider-owned model id, passed through unmolested)
 
 #### Scenario: Absent or stale selection falls back to default
 
-- **WHEN** no `state.yaml` exists, or it is unreadable, or the persisted provider is no longer configured
+- **WHEN** no `activeModel` is configured, or it is unparseable, or the referenced provider is no longer configured
 - **THEN** the registry uses the default first configured provider (index 0) and does not throw
 
 ## MODIFIED Requirements
+
+### Requirement: Config-driven provider registry
+The system SHALL maintain a registry of named LLM providers, each resolved to an `IChatClient` instance from configuration. Providers are defined in `~/.dmon/config.yaml` (user-global) and `./.dmon/config.yaml` (project). Configuration is layered via `IConfiguration` with precedence, lowest to highest: `~/.dmon/config.yaml` < `./.dmon/config.yaml` < `./.dmon/config.local.yaml` (the git-ignored, app-managed local layer). A later layer overrides the same key in an earlier layer.
+
+#### Scenario: Provider resolved at startup
+- **WHEN** the agent core starts
+- **THEN** all providers defined in config are validated and their `IChatClient` factories are registered
+
+#### Scenario: Unknown adapter at startup
+- **WHEN** a config entry specifies an adapter type with no registered `IProviderFactory`
+- **THEN** `ProviderRegistry` throws `InvalidOperationException` at construction with a message naming the unknown adapter
+
+#### Scenario: Project config overrides global
+- **WHEN** the same configuration key is set in both `~/.dmon/config.yaml` and `./.dmon/config.yaml`
+- **THEN** the project value takes precedence over the global value
+
+#### Scenario: Local layer overrides project and global
+- **WHEN** a key (e.g. `activeModel`) is set in `./.dmon/config.local.yaml`
+- **THEN** it overrides the same key in `./.dmon/config.yaml` and `~/.dmon/config.yaml`
 
 ### Requirement: ProviderRegistry tracks and commits pending provider and model switches
 `ProviderRegistry` SHALL maintain a pending provider index and pending model ID, each independently nullable (set by `SetProvider` and `SetModel` respectively). `CommitPendingSwitch` SHALL apply both pending values atomically, dispose the previous `IChatClient`, and return a `ProviderSwitchResult?` (null if nothing was pending). `TurnHandler` is responsible for mapping `ProviderSwitchResult` to `ProviderSwitchedEvent` before emitting.

@@ -72,3 +72,6 @@ notes/
 
 # dmon session data
 .dmon/sessions/
+
+# dmon local overrides (git-ignored; not for shared config)
+.dmon/config.local.yaml

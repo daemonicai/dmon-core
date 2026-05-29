@@ -14,8 +14,20 @@
 - [x] 2.4 Tier-A tests: registry restores active provider + model from a stubbed `IActiveModelStore`; restore falls back to index 0 when the persisted provider is absent; `TurnHandler` commits the pending switch before resolving the provider client (assert the turn uses the switched-to client — extend the existing `TurnHandler` test harness / capturing client). Confirm existing `ProviderRegistry`/`TurnHandler` tests still pass (adjust any that asserted end-of-turn commit timing, if present).
 - [x] 2.5 Standard gates: `make build`, `dotnet test -c Release`, `openspec validate persist-active-model --strict`; reviewer audit; commit.
 
-## 3. Verify + archive
+> Note: Groups 1–2 above shipped an interim `state.yaml` store with separate `activeProvider`/`activeModel` keys. Group 3 supersedes that design — single `{provider}/{model}` ref via a git-ignored `config.local.yaml` IConfiguration layer (project scope), plus a `ModelRef` primitive and corrected layer precedence.
 
-- [ ] 3.1 Manual smoke (HITL — provide the recipe and wait for confirmation before ticking): `dotnet run --project src/Dmon.Terminal`; `/model` → pick Gemini + a Gemini model; send a prompt → confirm the turn uses **Gemini immediately** (no Anthropic/other-provider call, no `Model ID must be specified`). Quit and relaunch → confirm the active provider/model is still the Gemini selection (restored from `state.yaml`). Inspect the written `.dmon/state.yaml`.
-- [ ] 3.2 Standard gates: build, test, `openspec validate persist-active-model --strict`.
-- [ ] 3.3 Propose `/opsx:archive persist-active-model` and wait for user confirmation. Do not archive automatically.
+## 3. Adopt `{provider}/{model}` ModelRef + `config.local.yaml` layer
+
+- [x] 3.1 Add `ModelRef` value type in `src/Dmon.Abstractions/Providers/`: `public sealed record ModelRef(string Provider, string? Model)`. `static ModelRef? Parse(string?)` (or `TryParse`) splits on the **first** `/` — provider = before (non-empty), model = after taken verbatim (may contain `/`); no `/` → provider-only (`Model == null`); empty/whitespace or empty provider → null (never throws). `ToString()` → `Model is null ? Provider : $"{Provider}/{Model}"`. Tier-A tests: `gemini/gemini-3.1-flash-lite`, multi-slash `ollama/deepseek/deepseek-v4-pro`, provider-only, empty/invalid, round-trip `Parse(x).ToString() == x`.
+- [x] 3.2 Add the `config.local.yaml` IConfiguration layer and fix precedence in `src/Dmon.Core/Program.cs`: order the YAML layers `~/.dmon/config.yaml` (lowest) → `./.dmon/config.yaml` → `./.dmon/config.local.yaml` (highest), all `optional: true`. This makes project override global and the local layer override both.
+- [x] 3.3 Retarget the active-model store to `config.local.yaml` + `ModelRef`: `Load()` returns `ModelRef?` from `IConfiguration["activeModel"]` via `ModelRef.Parse` (inject `IConfiguration`); `SaveAsync(ModelRef, ct)` writes `activeModel: {ref}` to `./.dmon/config.local.yaml` atomically (temp + `File.Move(overwrite)`), creating `.dmon` if needed and **preserving any other top-level keys** present. Remove the old `state.yaml` read/parse path and the `ActiveSelection` record (replaced by `ModelRef`). Update the DI registration accordingly.
+- [x] 3.4 Update `ProviderRegistry` restore and `TurnHandler` save to use `ModelRef` (`new ModelRef(result.ProviderName, emptyToNull(result.ModelId))` on save; restore reads `store.Load()` → `ModelRef`, matches provider case-insensitively, sets `_activeModelId = ref.Model`).
+- [x] 3.5 Add `config.local.yaml` to `.gitignore` (check existing `.dmon` handling first; ensure project `config.yaml` is NOT ignored if it is intended to be committed).
+- [x] 3.6 Update/replace the Group 1–2 tests for the new design: store round-trips a `ModelRef` through `config.local.yaml`; `Load()` reads from a built `IConfiguration` containing `activeModel`; registry restore from a `ModelRef`-returning stub; precedence test if feasible. Remove obsolete `state.yaml`/`ActiveSelection` tests. Do not write into the real `~/.dmon` or repo root — use temp dirs.
+- [x] 3.7 Standard gates: `make build`, `dotnet test -c Release`, `openspec validate persist-active-model --strict`; reviewer audit; commit.
+
+## 4. Verify + archive
+
+- [ ] 4.1 Manual smoke (HITL — provide the recipe and wait for confirmation before ticking): `dotnet run --project src/Dmon.Terminal`; `/model` → pick Gemini + a Gemini model; send a prompt → confirm the turn uses **Gemini immediately** (no Anthropic/other-provider call, no `Model ID must be specified`). Quit and relaunch → confirm the active provider/model is still the Gemini selection (restored from `config.local.yaml`). Inspect `./.dmon/config.local.yaml` (`activeModel: gemini/<model>`) and confirm it is git-ignored.
+- [ ] 4.2 Standard gates: build, test, `openspec validate persist-active-model --strict`.
+- [ ] 4.3 Propose `/opsx:archive persist-active-model` and wait for user confirmation. Do not archive automatically.

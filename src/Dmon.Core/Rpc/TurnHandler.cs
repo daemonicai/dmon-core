@@ -217,7 +217,7 @@ public sealed class TurnHandler : ITurnHandler
         {
             string? savedModelId = string.IsNullOrEmpty(switchResult.ModelId) ? null : switchResult.ModelId;
             await _activeModelStore.SaveAsync(
-                new ActiveSelection(switchResult.ProviderName, savedModelId),
+                new ModelRef(switchResult.ProviderName, savedModelId),
                 CancellationToken.None).ConfigureAwait(false);
 
             await _emitter.EmitAsync(new ProviderSwitchedEvent

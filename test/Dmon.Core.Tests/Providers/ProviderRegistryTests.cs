@@ -1,6 +1,7 @@
 using Dmon.Abstractions.Providers;
 using Dmon.Abstractions.Wizard;
 using Dmon.Core.Providers;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -419,7 +420,7 @@ public sealed class ProviderRegistryTests
     {
         ProviderConfig alpha = MakeConfig("alpha");
         ProviderConfig beta = MakeConfig("beta");
-        FixedActiveModelStore store = new(new ActiveSelection("beta", "beta-override-model"));
+        FixedActiveModelStore store = new(new ModelRef("beta", "beta-override-model"));
 
         IProviderRegistry registry = CreateRegistry([alpha, beta], store: store);
 
@@ -431,7 +432,7 @@ public sealed class ProviderRegistryTests
     public void Constructor_Store_CaseInsensitiveProviderMatch()
     {
         ProviderConfig alpha = MakeConfig("Alpha");
-        FixedActiveModelStore store = new(new ActiveSelection("ALPHA", "some-model"));
+        FixedActiveModelStore store = new(new ModelRef("ALPHA", "some-model"));
 
         IProviderRegistry registry = CreateRegistry([alpha], store: store);
 
@@ -443,7 +444,7 @@ public sealed class ProviderRegistryTests
     public void Constructor_Store_FallsBackToIndexZero_WhenProviderNotConfigured()
     {
         ProviderConfig alpha = MakeConfig("alpha");
-        FixedActiveModelStore store = new(new ActiveSelection("nonexistent-provider", "some-model"));
+        FixedActiveModelStore store = new(new ModelRef("nonexistent-provider", "some-model"));
 
         IProviderRegistry registry = CreateRegistry([alpha], store: store);
 
@@ -465,15 +466,15 @@ public sealed class ProviderRegistryTests
 
     private sealed class NullActiveModelStore : IActiveModelStore
     {
-        public ActiveSelection? Load() => null;
-        public Task SaveAsync(ActiveSelection selection, CancellationToken cancellationToken = default)
+        public ModelRef? Load() => null;
+        public Task SaveAsync(ModelRef selection, CancellationToken cancellationToken = default)
             => Task.CompletedTask;
     }
 
-    private sealed class FixedActiveModelStore(ActiveSelection? selection) : IActiveModelStore
+    private sealed class FixedActiveModelStore(ModelRef? selection) : IActiveModelStore
     {
-        public ActiveSelection? Load() => selection;
-        public Task SaveAsync(ActiveSelection selection, CancellationToken cancellationToken = default)
+        public ModelRef? Load() => selection;
+        public Task SaveAsync(ModelRef selection, CancellationToken cancellationToken = default)
             => Task.CompletedTask;
     }
 }

@@ -1,92 +1,96 @@
 ## Context
 
-`ProviderRegistry` (`src/Dmon.Core/Providers/ProviderRegistry.cs`) holds the active provider as `_activeIndex` (default 0) and the active model as `_activeModelId`, both in memory. `SetProvider`/`SetModel` queue `_pendingIndex`/`_pendingModelId`; `CommitPendingSwitch()` applies them, disposes the old `IChatClient`, and returns a `ProviderSwitchResult?`. `TurnHandler.RunTurnAsync` calls `CommitPendingSwitch()` at the **end** of the turn (`TurnHandler.cs:341`) and emits `ProviderSwitchedEvent { EffectiveNextTurn = true }`.
+`ProviderRegistry` (`src/Dmon.Core/Providers/ProviderRegistry.cs`) holds the active provider as `_activeIndex` (default 0) and the active model as `_activeModelId`, in memory only. `SetProvider`/`SetModel` queue pending values; `CommitPendingSwitch()` applies them and returns `ProviderSwitchResult?`. `TurnHandler.RunTurnAsync` originally called the commit at the *end* of the turn. Config is layered via `IConfiguration` in `Program.cs`:
 
-Config is read-only: `Program.cs` adds `<cwd>/.dmon/config.yaml` then `~/.dmon/config.yaml` via `AddYamlFile`. The only existing write-back pattern is `PermissionSettingsLoader`, which loads/saves `.dmon/settings.yaml` (project) or `~/.dmon/settings.yaml` (global) using a minimal line-based serialiser and an atomic temp-file move — no external YAML library (the project avoids one for writes). DI is wired in `DaemonServiceExtensions.cs` (registry at line 43; `IPermissionSettings` resolved project-scope at 108).
+```csharp
+builder.Configuration.AddYamlFile(Path.Combine(cwd,  ".dmon", "config.yaml"), optional: true);
+builder.Configuration.AddYamlFile(Path.Combine(home, ".dmon", "config.yaml"), optional: true);
+```
 
-Two consequences: the active selection is lost on restart, and (because the commit runs after the LLM call) a selection made between turns takes effect one turn late — the reported "picked Gemini, but the turn used Anthropic."
+Two consequences motivated the change: the active selection is lost on restart, and a between-turns selection took effect one turn late. A first implementation persisted to a dedicated `state.yaml` with separate `activeProvider`/`activeModel` keys (committed in Groups 1–2). It was then superseded by the design below: a single `{provider}/{model}` ref persisted to a git-ignored `config.local.yaml` IConfiguration layer.
+
+Note the original layer order adds project first then global, so — since the last `AddYamlFile` wins — **global currently overrides project**, which is backwards.
 
 ## Goals / Non-Goals
 
 **Goals:**
 
-- Persist the active provider name + model id and restore it at startup (project scope, global fallback).
-- A selection made between turns is used on the very next turn.
-- No external YAML dependency; safe atomic writes; no clobbering of hand-authored `config.yaml` or the permissions `settings.yaml`.
+- A canonical `ModelRef` (`{provider}/{model}`) primitive in `Dmon.Abstractions`, reusable by later model-handling work.
+- Persist/restore the active selection through `config.local.yaml` as a git-ignored, app-managed IConfiguration layer (project scope), reading for free via `IConfiguration`.
+- A between-turns selection is used on the very next turn.
+- Correct, intuitive layer precedence: global < project < local.
 
 **Non-Goals:**
 
-- Not writing into `config.yaml` (hand-authored, comment-bearing, round-trip-unsafe without a YAML library).
-- Not changing the terminal `model-switcher` picker UI (it already pre-selects `ActiveProvider`/`ActiveModelId`).
-- Not changing mid-turn switch semantics (a switch issued during a turn still defers to the next turn).
-- Not correcting the stale `.daemon/` / "Anthropic.SDK" wording in the standing `provider-registry` spec (separate follow-up).
+- Not changing the RPC/protocol surface (`ModelSetCommand` stays `{Provider, ModelId}`); `ModelRef` is the internal/persisted canonical form, parsed/formatted at the boundary.
+- Not a global `config.local.yaml` layer (project scope only).
+- Not changing mid-turn switch semantics (a mid-turn switch still defers to the next turn).
+- Not adding an external YAML library; the `config.local.yaml` writer is app-owned and may rewrite the file wholesale.
 
 ## Decisions
 
-### 1. Dedicated `state.yaml`, project-then-global
+### 1. `ModelRef` value type
 
-Persist to `.dmon/state.yaml`:
+`public sealed record ModelRef(string Provider, string? Model)` in `Dmon.Abstractions.Providers`.
+
+- **Parse** splits on the **first** `/`: provider = substring before it (must be non-empty), model = substring after it, taken **verbatim** (may contain `/`). A string with no `/` parses to provider-only (`Model == null`). Empty/whitespace input, or an empty provider, is not a valid ref.
+- **`ToString()`** → `Model is null ? Provider : $"{Provider}/{Model}"`.
+- Provide `static ModelRef? Parse(string?)` (null on invalid) — or `TryParse` — for the read/restore path which must never throw.
+
+### 2. Persist via a git-ignored `config.local.yaml` IConfiguration layer (project scope)
+
+`config.local.yaml` is an **app-managed, git-ignored** config file at `./.dmon/config.local.yaml`. It carries one top-level key today:
 
 ```yaml
-activeProvider: gemini
-activeModel: gemini-2.0-flash-lite
+activeModel: gemini/gemini-3.1-flash-lite
 ```
 
-Scope resolution: use the project file (`<cwd>/.dmon/state.yaml`) when a project `.dmon` directory exists; otherwise the global file (`~/.dmon/state.yaml`). This mirrors how a project `.dmon` already overrides global config, and keeps per-project model choices.
+- **Read** is free: add `config.local.yaml` to the `IConfiguration` layer stack (`Program.cs`), and the active model is `IConfiguration["activeModel"]` resolved through the layers. No custom read parser. (A user may even set a default `activeModel` in `config.yaml`, overridden by the app-written `config.local.yaml`.)
+- **Write** is app code: on a committed switch, write `activeModel: {provider}/{model}` to `./.dmon/config.local.yaml` atomically (temp file + `File.Move(overwrite)`), creating `.dmon` if needed. Because the file is app-owned and git-ignored, a whole-file rewrite is acceptable — no hand-authored comments to preserve. (The writer should still preserve any other top-level keys it finds, so the file can grow into a general local-override layer; a minimal key-preserving rewrite suffices.)
+- **`.gitignore`** gets `config.local.yaml` (or `.dmon/config.local.yaml`).
 
-A dedicated file (not `config.yaml`, not `settings.yaml`) avoids two minimal writers fighting over one file and keeps runtime state separate from declarative config. Reading uses `IConfiguration`-style or a tiny parser; writing mirrors `PermissionSettingsLoader.SaveAsync` (temp file + `File.Move(overwrite)`).
+The active-model store therefore reduces to: `ModelRef? Load()` (delegates to `IConfiguration["activeModel"]` → `ModelRef.Parse`) and `Task SaveAsync(ModelRef, ct)` (writes `config.local.yaml`). It is injected with `IConfiguration` and the working directory.
 
-### 2. `IActiveModelStore` abstraction
+### 3. Fix layer precedence: global < project < local
+
+Reorder `Program.cs` so the last-wins `IConfiguration` semantics give the intuitive precedence:
 
 ```csharp
-public sealed record ActiveSelection(string Provider, string? Model);
-
-public interface IActiveModelStore
-{
-    ActiveSelection? Load();
-    Task SaveAsync(ActiveSelection selection, CancellationToken cancellationToken = default);
-}
+AddYamlFile(home/.dmon/config.yaml,        optional)   // lowest
+AddYamlFile(cwd /.dmon/config.yaml,        optional)   // project overrides global
+AddYamlFile(cwd /.dmon/config.local.yaml,  optional)   // local overrides both (highest)
 ```
 
-Implementation resolves the file path (project-then-global) once at construction, like `PermissionSettingsLoader.LoadProject`/`LoadGlobal`. Registered as a singleton in `DaemonServiceExtensions`.
+This changes resolution for *all* config keys (project now beats global). Small blast radius; intentional and called out in the proposal.
 
-### 3. Restore at startup in `ProviderRegistry`
+### 4. Restore at startup from IConfiguration
 
-Inject `IActiveModelStore` into `ProviderRegistry`. After the existing adapter validation in the constructor, if `store.Load()` returns a selection whose provider is configured, set `_activeIndex` to that provider's index and `_activeModelId` to the persisted model. If the persisted provider is no longer configured (or the file is absent), keep `_activeIndex = 0` and log at debug. Restoration must not throw on a stale/garbage file — treat load failure as "no selection."
+`ProviderRegistry` (already injected with the store after Group 2) calls `store.Load()` in its constructor, after adapter validation. `Load()` returns a `ModelRef?` from `IConfiguration["activeModel"]`. If the ref's provider is a configured provider (case-insensitive), set `_activeIndex` to it and `_activeModelId` to `ref.Model`; otherwise keep index 0. Never throws. (Known limitation, unchanged: extension/dynamic providers registered after construction are not restorable here.)
 
-Note `GetAll()` ordering: extension/dynamic providers are appended after built-ins, and may not be registered at construction time. Restoration resolves against the providers known at construction; a persisted *extension* provider that registers later is a known limitation (document it; do not block on it).
+### 5. Save on commit; commit at turn start
 
-### 4. Save on commit
+Unchanged from the committed Group 2 except the saved shape is now a `ModelRef`:
 
-When a switch is committed, persist the new active provider + model. `CommitPendingSwitch()` is synchronous and returns the `ProviderSwitchResult`; file I/O should not block inside it. Prefer persisting from the async commit path: have `TurnHandler` (which already receives the `ProviderSwitchResult`) call `await _activeModelStore.SaveAsync(new ActiveSelection(result.ProviderName, result.ModelId))`. The store is the single owner of the file; the registry restores from it, the turn loop saves through it. (If the worker finds a cleaner seam to keep both load and save in the registry without sync-over-async, that is acceptable provided no blocking I/O occurs inside `CommitPendingSwitch`.)
+- `TurnHandler` commits any pending switch at the **start** of `RunTurnAsync` (before resolving the provider client), emitting a single `ProviderSwitchedEvent { EffectiveNextTurn = false }`, then `await store.SaveAsync(new ModelRef(result.ProviderName, emptyToNull(result.ModelId)))`.
+- A mid-turn switch defers to the next turn's start (so the in-flight turn finishes on the old provider).
 
-### 5. Commit the pending switch at the start of the turn
+### 6. Supersede the interim `state.yaml`/two-property design
 
-Move the `CommitPendingSwitch()` call (and its `ProviderSwitchedEvent` emission + the new persistence save) from the end of `RunTurnAsync` to the **start**, before `GetCurrentAsync()` resolves the provider client (currently `TurnHandler.cs:214`). Effect:
-
-- A switch queued **between** turns is committed at the start of the next turn → that turn uses the new provider/model. Fixes the reported bug.
-- A switch queued **during** a turn (the loop is mid-flight) is committed at the start of the **following** turn → still "effective next turn," preserving the mid-turn-defers contract.
-
-The `ProviderSwitchedEvent.EffectiveNextTurn` flag becomes `false` for the between-turns case (it is now effective this turn). Keep emitting the event so the host can update its model indicator; set the flag to reflect reality.
-
-Rejected: committing at both start and end — redundant and risks double-emitting the event.
+Groups 1–2 shipped a `state.yaml` store with `activeProvider`/`activeModel`. Group 3 (below) replaces it: rename/retarget the file to `config.local.yaml`, collapse the two keys into one `{provider}/{model}` ref, move reads onto `IConfiguration`, and introduce `ModelRef`. Obsolete `state.yaml` parsing/tests are removed.
 
 ## Risks / Trade-offs
 
-- **Risk: moving the commit changes `ProviderSwitchedEvent` timing/flag and could surprise the terminal host.** *Mitigation:* the host treats the event as "active model changed"; verify the model indicator still updates. The `model-switcher` picker pre-selection reads `ActiveProvider`/`ActiveModelId`, which now reflect the committed (and persisted) state — more correct, not less.
-- **Risk: persisted provider no longer configured (config edited, extension not loaded).** *Mitigation:* restoration falls back to default index 0 and logs; never throws.
-- **Risk: concurrent writers / partial writes.** *Mitigation:* atomic temp-file + `File.Move(overwrite)`, as `PermissionSettingsLoader` does.
-- **Trade-off: a dedicated `state.yaml` rather than the user-imagined "config."** Chosen for write-safety; documented in the proposal so it can be redirected.
+- **Risk: precedence reorder changes existing config resolution** (project now overrides global). *Mitigation:* intended; the previous order was the bug. Existing tests/specs that assumed global-wins (if any) are updated.
+- **Risk: `config.local.yaml` rewrite clobbers other keys a user added.** *Mitigation:* the writer preserves unrecognised top-level keys (minimal key-preserving rewrite); the file is git-ignored and app-managed by intent.
+- **Risk: `IConfiguration` is built once at startup, so a same-session write isn't re-read.** *Mitigation:* the registry is the in-session source of truth after a switch; `IConfiguration` is only consulted at startup. No reload needed.
+- **Risk: `ModelRef` parsing of provider-owned ids with slashes.** *Mitigation:* split on the *first* `/` only; everything after is opaque. Covered by tests (`ollama/deepseek/deepseek-v4-pro`).
 
 ## Migration Plan
 
-Branch `change/persist-active-model` off `main`. Task groups:
-1. `IActiveModelStore` + implementation + DI wiring + store tests.
-2. `ProviderRegistry` restore-on-startup + save-on-commit seam; `TurnHandler` commit-at-turn-start; registry/turn tests.
-3. Gates + manual smoke (pick Gemini → used immediately; restart → still Gemini) + archive.
+Revise the in-flight (unmerged) `persist-active-model`. Group 3 adopts `ModelRef` + `config.local.yaml`; Group 4 verifies + archives. Branch `change/persist-active-model`.
 
-Rollback: revert the three commits; selection returns to in-memory-only + end-of-turn commit.
+Rollback: revert the Group 3 commit to fall back to the `state.yaml`/two-property form; revert all to drop persistence.
 
 ## Open Questions
 
-None blocking. The `state.yaml` filename and the save-from-TurnHandler seam are recorded above; the worker may choose an equivalent non-blocking seam.
+None. `ModelRef.Model` is nullable to represent a provider-only ref; the writer is key-preserving; precedence is global < project < local.

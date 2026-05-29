@@ -1,147 +1,89 @@
+using Dmon.Abstractions.Providers;
+using Microsoft.Extensions.Configuration;
+
 namespace Dmon.Core.Providers;
 
 /// <summary>
-/// Persists the active provider/model selection to .dmon/state.yaml.
-/// Scope: project file (<workingDirectory>/.dmon/state.yaml) when a project .dmon
-/// directory exists; otherwise global (~/.dmon/state.yaml). Mirrors
-/// PermissionSettingsLoader's construction and write pattern — no external YAML
-/// library, atomic temp-file + File.Move(overwrite).
+/// Persists the active provider/model selection via IConfiguration (reads) and by writing
+/// the "activeModel" key to .dmon/config.local.yaml in the working directory (saves).
+/// No external YAML library — minimal line-based key-preserving rewrite.
 /// </summary>
 public sealed class ActiveModelStore : IActiveModelStore
 {
-    private readonly string _filePath;
+    private readonly IConfiguration _configuration;
+    private readonly string _workingDirectory;
 
-    private ActiveModelStore(string filePath)
+    public ActiveModelStore(IConfiguration configuration, string workingDirectory)
     {
-        _filePath = filePath;
-    }
-
-    public string FilePath => _filePath;
-
-    /// <summary>
-    /// Returns a store scoped to the project at <paramref name="workingDirectory"/>:
-    /// uses <c>&lt;workingDirectory&gt;/.dmon/state.yaml</c> when a project .dmon
-    /// directory exists there, otherwise falls back to the global path.
-    /// </summary>
-    public static ActiveModelStore LoadProject(string workingDirectory)
-    {
-        string projectDmonDir = Path.Combine(workingDirectory, ".dmon");
-        if (Directory.Exists(projectDmonDir))
-        {
-            return new ActiveModelStore(Path.Combine(projectDmonDir, "state.yaml"));
-        }
-
-        return LoadGlobal();
-    }
-
-    /// <summary>
-    /// Returns a store scoped to the global ~/.dmon/state.yaml.
-    /// </summary>
-    public static ActiveModelStore LoadGlobal()
-    {
-        string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        return new ActiveModelStore(Path.Combine(home, ".dmon", "state.yaml"));
+        _configuration = configuration;
+        _workingDirectory = workingDirectory;
     }
 
     /// <inheritdoc/>
-    public ActiveSelection? Load()
+    public ModelRef? Load()
     {
         try
         {
-            if (!File.Exists(_filePath))
-            {
-                return null;
-            }
-
-            string[] lines = File.ReadAllLines(_filePath);
-            return Parse(lines);
+            return ModelRef.Parse(_configuration["activeModel"]);
         }
         catch
         {
-            // Absent or unreadable file must never surface as an exception.
             return null;
         }
     }
 
     /// <inheritdoc/>
-    public async Task SaveAsync(ActiveSelection selection, CancellationToken cancellationToken = default)
+    public async Task SaveAsync(ModelRef selection, CancellationToken cancellationToken = default)
     {
-        string dir = Path.GetDirectoryName(_filePath)!;
-        Directory.CreateDirectory(dir);
+        string dmonDir = Path.Combine(_workingDirectory, ".dmon");
+        Directory.CreateDirectory(dmonDir);
 
-        string temp = _filePath + ".tmp";
-        await File.WriteAllTextAsync(temp, Serialise(selection), cancellationToken);
-        File.Move(temp, _filePath, overwrite: true);
-    }
+        string filePath = Path.Combine(dmonDir, "config.local.yaml");
+        string newLine = $"activeModel: {selection}";
 
-    // --- Parser ---
+        // Read existing lines so other top-level keys are preserved.
+        string[] existing = File.Exists(filePath)
+            ? await File.ReadAllLinesAsync(filePath, cancellationToken).ConfigureAwait(false)
+            : [];
 
-    private static ActiveSelection? Parse(IEnumerable<string> lines)
-    {
-        string? provider = null;
-        string? model = null;
+        List<string> output = new(existing.Length + 1);
+        bool replaced = false;
 
-        foreach (string rawLine in lines)
+        foreach (string line in existing)
         {
-            // Strip inline # comments (not in quotes) — same spirit as PermissionSettingsLoader.
-            string line = StripComment(rawLine);
-            if (string.IsNullOrWhiteSpace(line))
+            // Match only top-level (non-indented) activeModel: lines; indented occurrences are left untouched.
+            if (!replaced && IsActiveModelLine(line))
             {
-                continue;
+                output.Add(newLine);
+                replaced = true;
             }
-
-            int colon = line.IndexOf(':', StringComparison.Ordinal);
-            if (colon < 0)
+            else
             {
-                continue;
-            }
-
-            string key = line[..colon].Trim();
-            string value = line[(colon + 1)..].Trim();
-
-            if (key == "activeProvider")
-            {
-                provider = string.IsNullOrWhiteSpace(value) ? null : value;
-            }
-            else if (key == "activeModel")
-            {
-                model = string.IsNullOrWhiteSpace(value) ? null : value;
+                output.Add(line);
             }
         }
 
-        // A selection is only meaningful when the provider is present.
-        return provider is null ? null : new ActiveSelection(provider, model);
+        if (!replaced)
+        {
+            output.Add(newLine);
+        }
+
+        string temp = filePath + ".tmp";
+        await File.WriteAllLinesAsync(temp, output, cancellationToken).ConfigureAwait(false);
+        File.Move(temp, filePath, overwrite: true);
     }
 
-    private static string StripComment(string line)
+    // Matches a top-level YAML line whose key is "activeModel", e.g. "activeModel: ..."
+    // The raw (unmodified) line is passed; any leading whitespace means the key is nested and is NOT matched.
+    private static bool IsActiveModelLine(string rawLine)
     {
-        char quote = '\0';
-        for (int i = 0; i < line.Length; i++)
+        const string key = "activeModel";
+        if (!rawLine.StartsWith(key, StringComparison.Ordinal))
         {
-            char c = line[i];
-            if (quote == '\0')
-            {
-                if (c == '"' || c == '\'') quote = c;
-                else if (c == '#') return line[..i];
-            }
-            else if (c == quote)
-            {
-                quote = '\0';
-            }
+            return false;
         }
-        return line;
-    }
-
-    // --- Serialiser ---
-
-    private static string Serialise(ActiveSelection selection)
-    {
-        System.Text.StringBuilder sb = new();
-        sb.Append("activeProvider: ").AppendLine(selection.Provider);
-        if (selection.Model is not null)
-        {
-            sb.Append("activeModel: ").AppendLine(selection.Model);
-        }
-        return sb.ToString();
+        // Must be immediately followed by ':' to distinguish from e.g. "activeModelOverride:".
+        int next = key.Length;
+        return next < rawLine.Length && rawLine[next] == ':';
     }
 }

@@ -48,7 +48,7 @@ public sealed class ProviderRegistry : IProviderRegistry
         // Restore the last active selection persisted across restarts.
         // NOTE: Extension/dynamic providers registered after construction are not restorable here —
         // they are not yet in GetAll() at ctor time. That is a known limitation.
-        ActiveSelection? saved = store.Load();
+        ModelRef? saved = store.Load();
         if (saved is not null)
         {
             IReadOnlyList<ProviderConfig> all = GetAll();
@@ -66,7 +66,7 @@ public sealed class ProviderRegistry : IProviderRegistry
             {
                 _activeIndex = found;
                 _activeModelId = saved.Model;
-                _logger.LogDebug("Restored active provider '{Provider}' (model: {Model}) from state.",
+                _logger.LogDebug("Restored active provider '{Provider}' (model: {Model}) from config.",
                     saved.Provider, saved.Model ?? "(default)");
             }
             else
