@@ -25,10 +25,10 @@
 
 ## 4. Tests
 
-- [ ] 4.1 Embedding: L2-normalization (unit norm), prefix application (document vs. query), determinism
-- [ ] 4.2 Short-term hybrid: single-modality recall, no-match → empty list, rebuild-from-JSONL parity, model/dimension-mismatch rebuild
-- [ ] 4.3 Flush barrier: recorded turns are searchable after `FlushAsync`
-- [ ] 4.4 Record path: transactional consistency (a failed mid-ingest leaves the index consistent); verbatim `ReadMessagesAsync` matches the canonical JSONL
+- [x] 4.1 Embedding: L2-normalization (unit norm), prefix application (document vs. query), determinism
+- [x] 4.2 Short-term hybrid: single-modality recall, no-match → empty list, rebuild-from-JSONL parity, model/dimension-mismatch rebuild
+- [x] 4.3 Flush barrier: recorded turns are searchable after `FlushAsync`
+- [x] 4.4 Record path: transactional consistency (a failed mid-ingest leaves the index consistent); verbatim `ReadMessagesAsync` matches the canonical JSONL
 
 ## 5. Assumed defaults / decisions to confirm
 

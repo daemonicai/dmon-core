@@ -44,10 +44,18 @@ internal sealed class IndexConnection : IDisposable
         CancellationToken cancellationToken)
     {
         string dbPath = Path.Combine(sessionDir, "index.db");
+        // Pooling=false: each IndexConnection owns its physical connection exclusively.
+        // Pooled connections would not have vec0 loaded, causing "malformed" errors when
+        // vec0 shadow tables are accessed on a reused connection that skipped LoadVec0.
+        // The principled alternative is to re-load vec0 on every physical connection open
+        // (e.g. via a SqliteConnection StateChange/Open hook); Pooling=false is acceptable
+        // here because ShortTermMemory opens one IndexConnection at initialization and holds
+        // it for the lifetime of the session — there is no reuse across calls.
         string connectionString = new SqliteConnectionStringBuilder
         {
             DataSource = dbPath,
             Mode = SqliteOpenMode.ReadWriteCreate,
+            Pooling = false,
         }.ToString();
 
         SqliteConnection connection = new(connectionString);
@@ -236,20 +244,35 @@ internal sealed class IndexConnection : IDisposable
         SqliteTransaction tx,
         CancellationToken cancellationToken)
     {
-        // FTS5 content-table: delete stale then re-insert (handles both insert and update).
-        await using SqliteCommand delCmd = _connection.CreateCommand();
-        delCmd.Transaction = tx;
-        delCmd.CommandText = IndexSchema.DeleteFts;
-        delCmd.Parameters.AddWithValue("@rowid", rowid);
-        delCmd.Parameters.AddWithValue("@text",  text);
-        await delCmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
-
+        // memory_content is append-only (never updated or deleted in place), so each
+        // rowid is unique and there is never a stale FTS shadow row to remove.
+        // Omitting the FTS5 'delete' command is safe: no row is ever re-inserted under
+        // the same rowid, so no stale FTS shadow row can exist.
+        // (The 'delete' command also triggers an internal read from memory_content
+        // while vec0 shadow-table writes are pending in the same transaction, which
+        // has been observed to cause errors; the append-only invariant makes it
+        // unnecessary regardless.)
         await using SqliteCommand insCmd = _connection.CreateCommand();
         insCmd.Transaction = tx;
         insCmd.CommandText = IndexSchema.InsertFts;
         insCmd.Parameters.AddWithValue("@rowid", rowid);
         insCmd.Parameters.AddWithValue("@text",  text);
         await insCmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    // ── Diagnostics ──────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Returns the number of rows in <c>memory_content</c>.
+    /// Used by <see cref="ShortTermMemory.InitializeAsync"/> to detect an empty index
+    /// after <c>index.db</c> was deleted, which requires a JSONL rebuild.
+    /// </summary>
+    internal async Task<int> CountContentRowsAsync(CancellationToken cancellationToken)
+    {
+        await using SqliteCommand cmd = _connection.CreateCommand();
+        cmd.CommandText = "SELECT COUNT(*) FROM memory_content";
+        object? result = await cmd.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+        return result is long l ? (int)l : Convert.ToInt32(result);
     }
 
     // ── Hybrid search ────────────────────────────────────────────────────────

@@ -19,4 +19,7 @@
     <ProjectReference Include="..\Dmon.Abstractions\Dmon.Abstractions.csproj" />
     <ProjectReference Include="..\Dmon.Core\Dmon.Core.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Dmon.Memory.Tests" />
+  </ItemGroup>
 </Project>

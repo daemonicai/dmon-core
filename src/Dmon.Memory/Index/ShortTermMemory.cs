@@ -66,6 +66,29 @@ public sealed class ShortTermMemory : IShortTermMemory, IAsyncDisposable
             rebuildFromJsonl: RebuildFromJsonlAsync,
             logger:           _logger,
             cancellationToken: cancellationToken).ConfigureAwait(false);
+
+        // Recover from a deleted index.db: if the index is empty but messages.jsonl
+        // has content, rebuild the index from JSONL so that SearchAsync works correctly.
+        // This handles the case where index.db was manually deleted or lost, which
+        // OpenAsync treats as a fresh db (no model mismatch) without triggering rebuild.
+        string jsonlPath = Path.Combine(_sessionDir, "messages.jsonl");
+        if (File.Exists(jsonlPath))
+        {
+            int contentRows = await _index.CountContentRowsAsync(cancellationToken).ConfigureAwait(false);
+            if (contentRows == 0)
+            {
+                // Check if there is any indexable content in messages.jsonl.
+                string[] lines = await File.ReadAllLinesAsync(jsonlPath, cancellationToken).ConfigureAwait(false);
+                bool hasIndexableContent = lines.Any(l => !string.IsNullOrWhiteSpace(l));
+                if (hasIndexableContent)
+                {
+                    _logger?.LogInformation(
+                        "index.db is empty but messages.jsonl has content — rebuilding index for session '{SessionDir}'.",
+                        _sessionDir);
+                    await RebuildFromJsonlAsync(_index, cancellationToken).ConfigureAwait(false);
+                }
+            }
+        }
     }
 
     // ── IShortTermMemory ─────────────────────────────────────────────────────

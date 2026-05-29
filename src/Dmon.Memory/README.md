@@ -34,7 +34,10 @@ resolution logic in `SqliteVecLoader` is unaffected).
 `SqliteVecLoader` probes candidate paths in this order (first existing file wins):
 
 1. `<assembly-dir>/runtimes/<RuntimeInformation.RuntimeIdentifier>/native/<loadable>` —
-   primary location for a plain `dotnet build` or `dotnet test` output.
+   primary location under a plain `dotnet build` or `dotnet test`.  Note: the native asset
+   materializes in the **consuming runnable project's** output directory (test project or
+   host executable), not in a library-only build of `Dmon.Memory` itself — NuGet copies
+   `runtimes/<rid>/native/` assets only when building an executable or test runner.
 2. `<assembly-dir>/runtimes/<computed-os-arch-rid>/native/<loadable>` — fallback when the
    runtime identifier is a portable or shortened form.
 3. Same two RID-qualified paths under the current working directory.
