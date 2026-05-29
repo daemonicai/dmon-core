@@ -13,6 +13,6 @@
 
 ## 2. Verify + archive
 
-- [ ] 2.1 Manual smoke (HITL — provide the recipe and wait for confirmation before ticking): with the Gemini provider active and `GEMINI_API_KEY` set, run `dotnet run --project src/Dmon.Terminal`, submit a prompt, and confirm the turn completes with no `Model ID must be specified` error. Regression check: confirm an OpenAI and/or Anthropic turn still completes (use the `adopt-official-anthropic-sdk` branch or a merge of both for the Anthropic check).
-- [ ] 2.2 Standard gates: build, test, `openspec validate set-turn-model-id --strict`.
+- [x] 2.1 Manual smoke (HITL — provide the recipe and wait for confirmation before ticking): with the Gemini provider active and `GEMINI_API_KEY` set, run `dotnet run --project src/Dmon.Terminal`, submit a prompt, and confirm the turn completes with no `Model ID must be specified` error. Regression check: confirm an OpenAI and/or Anthropic turn still completes (use the `adopt-official-anthropic-sdk` branch or a merge of both for the Anthropic check).
+- [x] 2.2 Standard gates: build, test, `openspec validate set-turn-model-id --strict`.
 - [ ] 2.3 Propose `/opsx:archive set-turn-model-id` and wait for user confirmation. Do not archive automatically.
