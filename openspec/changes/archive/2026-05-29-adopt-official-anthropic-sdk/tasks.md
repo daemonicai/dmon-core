@@ -21,4 +21,4 @@
   - a reasoning/thinking request is honoured (model with `SupportsReasoning`).
 - [ ] 2.2 (Opportunistic) With the crash unblocked, complete the deferred `markdown-fidelity-pass` task 3.2 visual smoke (nested emphasis + rich link) if convenient — not required for this change.
 - [x] 2.3 Standard gates: build, test, `openspec validate adopt-official-anthropic-sdk --strict`.
-- [ ] 2.4 Propose `/opsx:archive adopt-official-anthropic-sdk` and wait for user confirmation. Do not archive automatically.
+- [x] 2.4 Propose `/opsx:archive adopt-official-anthropic-sdk` and wait for user confirmation. Do not archive automatically.

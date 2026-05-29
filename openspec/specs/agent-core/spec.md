@@ -1,5 +1,7 @@
-## ADDED Requirements
+## Purpose
 
+Define how the dmon agent core executes turns — running as an isolated JSONL/stdio process that drives the active `IChatClient` turn loop with tool invocation through the permission gate, message queuing, context compaction, transient-error retry, and thinking-level control — so hosts can submit turns and observe streamed results without embedding the agent loop.
+## Requirements
 ### Requirement: Agent runs as an isolated process
 The agent core SHALL run as a standalone process, communicating with host frontends exclusively via JSONL-over-stdio (ADR-003). No in-process embedding of the agent loop by hosts is supported.
 
@@ -92,3 +94,56 @@ The agent core SHALL accept `thinking.set {level}` where `level ∈ {off, low, m
 #### Scenario: Capability ignored on incapable provider
 - **WHEN** the host sends `thinking.set` and the active model does not support reasoning
 - **THEN** the core emits `capabilityIgnored {capability: "thinking", requestedValue, reason}` and proceeds without the parameter
+
+### Requirement: Provider SDK ABI consistency
+
+The agent core's resolved runtime dependency closure SHALL be binary-compatible with the active provider SDK, such that a turn can be initiated against the configured provider without a runtime `MissingMethodException` / `MethodAccessException`. Specifically, the `Microsoft.Extensions.AI` family version SHALL match the `Microsoft.Extensions.AI.Abstractions` version that the bundled Anthropic provider SDK was compiled against. This version pin SHALL be documented at the dependency declaration so it is not bumped without re-validating provider SDK compatibility.
+
+#### Scenario: First Anthropic turn does not fault on a missing SDK member
+
+- **WHEN** the core executes the first `turn.submit` of a session with the Anthropic provider active
+- **THEN** the provider call completes the turn-execution loop (emitting `turnStart` … `turnEnd`) without throwing a runtime `MissingMethodException` originating from a `Microsoft.Extensions.AI` type version mismatch
+
+#### Scenario: M.E.AI version stays aligned with the Anthropic SDK
+
+- **WHEN** the solution is built
+- **THEN** the resolved `Microsoft.Extensions.AI.Abstractions` version equals the version declared by the bundled Anthropic provider SDK package, so no member referenced by the SDK is absent at runtime
+
+### Requirement: Turn specifies the active model id
+
+On each provider call, the agent core SHALL set `ChatOptions.ModelId` to the active model id before invoking the chat pipeline, so model resolution does not depend on a provider-specific baked-in default. The active model id SHALL be the registry's current model (`IProviderRegistry.GetCurrentModelId()`), falling back to the active provider's configured default model. When no model id is resolvable (both null or empty), the core SHALL leave `ChatOptions.ModelId` unset and rely on the provider client's default.
+
+#### Scenario: Model id set on each turn
+
+- **WHEN** the core executes a turn against the active provider
+- **THEN** the `ChatOptions` passed to the provider call has `ModelId` set to the active model id, so providers whose adapter requires an explicit model (e.g. Gemini) complete the turn without throwing `Model ID must be specified`
+
+#### Scenario: In-session model switch honoured on the next turn
+
+- **WHEN** the host switches the model mid-session and then submits a new turn
+- **THEN** the `ChatOptions.ModelId` for that turn reflects the switched-to model (`GetCurrentModelId()`), not only the static configured default
+
+#### Scenario: No model configured leaves ModelId unset
+
+- **WHEN** neither the registry's current model nor the configured default model resolves to a non-empty value
+- **THEN** the core leaves `ChatOptions.ModelId` unset, preserving the provider client's baked-in default behaviour
+
+### Requirement: Pending provider/model switch is committed before the turn runs
+
+The agent core SHALL commit any pending provider/model switch at the start of a turn, before the active provider's `IChatClient` is resolved for that turn. As a result, a switch queued between turns SHALL take effect on the next turn (the turn uses the newly selected provider and model), while a switch queued during an in-flight turn SHALL defer to the following turn. When a switch is committed, the core SHALL emit `providerSwitched` with `effectiveNextTurn` reflecting whether the switch applies to the turn now starting (`false`) or a later turn.
+
+#### Scenario: Between-turns selection used on the next turn
+
+- **WHEN** the host sends `model.set` (provider and/or model) while no turn is running, and then submits a turn
+- **THEN** the submitted turn resolves and calls the newly selected provider's client — not the previously active provider — because the pending switch is committed before the provider client is resolved
+
+#### Scenario: Mid-turn switch still defers
+
+- **WHEN** the host sends `model.set` while a turn is in flight
+- **THEN** the in-flight turn completes on the previous provider, and the queued switch is committed at the start of the next turn and emitted there as `providerSwitched {..., effectiveNextTurn: false}` (no `providerSwitched` is emitted while the turn is still in flight)
+
+#### Scenario: No pending switch leaves the active provider unchanged
+
+- **WHEN** a turn starts and no provider/model switch is pending
+- **THEN** the turn resolves the already-active provider client and no `providerSwitched` event is emitted
+
