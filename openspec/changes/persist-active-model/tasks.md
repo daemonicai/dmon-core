@@ -28,6 +28,6 @@
 
 ## 4. Verify + archive
 
-- [ ] 4.1 Manual smoke (HITL — provide the recipe and wait for confirmation before ticking): `dotnet run --project src/Dmon.Terminal`; `/model` → pick Gemini + a Gemini model; send a prompt → confirm the turn uses **Gemini immediately** (no Anthropic/other-provider call, no `Model ID must be specified`). Quit and relaunch → confirm the active provider/model is still the Gemini selection (restored from `config.local.yaml`). Inspect `./.dmon/config.local.yaml` (`activeModel: gemini/<model>`) and confirm it is git-ignored.
-- [ ] 4.2 Standard gates: build, test, `openspec validate persist-active-model --strict`.
+- [x] 4.1 Manual smoke (HITL — provide the recipe and wait for confirmation before ticking): `dotnet run --project src/Dmon.Terminal`; `/model` → pick Gemini + a Gemini model; send a prompt → confirm the turn uses **Gemini immediately** (no Anthropic/other-provider call, no `Model ID must be specified`). Quit and relaunch → confirm the active provider/model is still the Gemini selection (restored from `config.local.yaml`). Inspect `./.dmon/config.local.yaml` (`activeModel: gemini/<model>`) and confirm it is git-ignored.
+- [x] 4.2 Standard gates: build, test, `openspec validate persist-active-model --strict`.
 - [ ] 4.3 Propose `/opsx:archive persist-active-model` and wait for user confirmation. Do not archive automatically.
