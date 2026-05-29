@@ -83,6 +83,7 @@ public sealed class TurnHandlerSystemPromptTests
 
         TurnHandler handler = new(
             providers,
+            new NoopActiveModelStore(),
             tools,
             emitter,
             policy,

@@ -20,10 +20,13 @@ HostApplicationBuilder builder = Host.CreateApplicationBuilder(args);
 string cwd = Directory.GetCurrentDirectory();
 string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
 
+// Layer precedence (last wins): global < project < local.
+builder.Configuration.AddYamlFile(
+    Path.Combine(home, ".dmon", "config.yaml"), optional: true);
 builder.Configuration.AddYamlFile(
     Path.Combine(cwd, ".dmon", "config.yaml"), optional: true);
 builder.Configuration.AddYamlFile(
-    Path.Combine(home, ".dmon", "config.yaml"), optional: true);
+    Path.Combine(cwd, ".dmon", "config.local.yaml"), optional: true);
 
 builder.Logging.ClearProviders();
 builder.Logging.AddConsole(o =>

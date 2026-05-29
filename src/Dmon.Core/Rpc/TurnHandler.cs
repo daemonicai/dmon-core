@@ -21,6 +21,7 @@ namespace Dmon.Core.Rpc;
 public sealed class TurnHandler : ITurnHandler
 {
     private readonly IProviderRegistry _providers;
+    private readonly IActiveModelStore _activeModelStore;
     private readonly IToolRegistry _tools;
     private readonly IEventEmitter _emitter;
     private readonly IPermissionPolicy _policy;
@@ -49,6 +50,7 @@ public sealed class TurnHandler : ITurnHandler
 
     public TurnHandler(
         IProviderRegistry providers,
+        IActiveModelStore activeModelStore,
         IToolRegistry tools,
         IEventEmitter emitter,
         IPermissionPolicy policy,
@@ -60,6 +62,7 @@ public sealed class TurnHandler : ITurnHandler
         ILogger<TurnHandler> logger)
     {
         _providers = providers;
+        _activeModelStore = activeModelStore;
         _tools = tools;
         _emitter = emitter;
         _policy = policy;
@@ -188,6 +191,8 @@ public sealed class TurnHandler : ITurnHandler
         using Activity? turnActivity = DmonTelemetry.Source.StartActivity("turn");
 
         string stopReason = "completed";
+        // Intentionally captured before CommitPendingSwitch — these reflect the pre-switch provider/model
+        // for this turn's telemetry; reconciling telemetry across mid-turn switches is deferred.
         string provider = _providers.GetCurrentConfig().Name;
         string model = _providers.GetCurrentConfig().DefaultModelId ?? "unknown";
         string thinkingLevel = _thinking.CurrentLevel.ToString();
@@ -202,6 +207,27 @@ public sealed class TurnHandler : ITurnHandler
         }
 
         Stopwatch turnTimer = Stopwatch.StartNew();
+
+        // Commit any pending provider switch queued between turns, before the turn resolves its
+        // client. A switch queued during an in-flight turn is committed at the start of the
+        // following turn (it arrives after this point and is picked up next time RunTurnAsync runs).
+        // Use CancellationToken.None — these emits must reach the host even when the prior turn aborted.
+        ProviderSwitchResult? switchResult = _providers.CommitPendingSwitch();
+        if (switchResult is not null)
+        {
+            string? savedModelId = string.IsNullOrEmpty(switchResult.ModelId) ? null : switchResult.ModelId;
+            await _activeModelStore.SaveAsync(
+                new ModelRef(switchResult.ProviderName, savedModelId),
+                CancellationToken.None).ConfigureAwait(false);
+
+            await _emitter.EmitAsync(new ProviderSwitchedEvent
+            {
+                Name = switchResult.ProviderName,
+                Model = switchResult.ModelId,
+                EffectiveNextTurn = false
+            }, CancellationToken.None).ConfigureAwait(false);
+        }
+
         await _emitter.EmitAsync(new TurnStartEvent(), cancellationToken).ConfigureAwait(false);
 
         List<object> toolResults = [];
@@ -335,19 +361,6 @@ public sealed class TurnHandler : ITurnHandler
 
         DmonTelemetry.RecordTurn(provider, model, stopReason);
         DmonTelemetry.RecordTurnDuration(turnTimer.Elapsed.TotalMilliseconds, provider, model, stopReason);
-
-        // Commit any pending provider switch between turns.
-        // Use CancellationToken.None — these emits must succeed even if the turn was aborted.
-        ProviderSwitchResult? switchResult = _providers.CommitPendingSwitch();
-        if (switchResult is not null)
-        {
-            await _emitter.EmitAsync(new ProviderSwitchedEvent
-            {
-                Name = switchResult.ProviderName,
-                Model = switchResult.ModelId,
-                EffectiveNextTurn = true
-            }, CancellationToken.None).ConfigureAwait(false);
-        }
 
         await _emitter.EmitAsync(new TurnEndEvent
         {
