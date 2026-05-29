@@ -1,43 +1,57 @@
 # dmon provider configuration
 # See docs/adrs/ADR-001-llm-provider-abstraction.md for provider adapter types.
 #
-# Provider entries:
-#   provider:   Unique name for this provider (used in /model commands)
-#   adapter:    IChatClient adapter — openai, anthropic, or gemini
-#   model:      Default model ID for this provider
-#   baseUrl:    Optional custom endpoint (Ollama, llama.cpp, oMLX)
-#   apiKey:     Optional inline API key (prefer env vars or credentials store)
+# `providers` is a MAP keyed by provider name (the name shown in /model).
+# Each entry:
+#   adapter:        IChatClient adapter — anthropic, openai, or gemini
+#   defaultModelId: Default model ID for this provider
+#   baseUrl:        Optional custom endpoint (Ollama, llama.cpp, oMLX)
+#   auth:
+#     type:         envVar | none
+#     envVar:       Name of the env var holding the API key (when type is envVar)
 
 providers:
-  - provider: anthropic
+  anthropic:
     adapter: anthropic
-    model: claude-sonnet-4-6
-    # baseUrl: https://api.anthropic.com  # default
+    defaultModelId: claude-sonnet-4-6
+    auth:
+      type: envVar
+      envVar: ANTHROPIC_API_KEY
 
-  - provider: openai
+  openai:
     adapter: openai
-    model: gpt-4o
-    # baseUrl: https://api.openai.com/v1  # default
+    defaultModelId: gpt-4o
+    auth:
+      type: envVar
+      envVar: OPENAI_API_KEY
 
-  - provider: gemini
+  gemini:
     adapter: gemini
-    model: gemini-2.5-pro
-    # baseUrl: https://generativelanguage.googleapis.com  # default
+    defaultModelId: gemini-2.5-pro
+    auth:
+      type: envVar
+      envVar: GEMINI_API_KEY
 
-  - provider: ollama
+  ollama:
     adapter: openai
-    model: llama3.2
+    defaultModelId: llama3.2
     baseUrl: http://localhost:11434/v1
+    auth:
+      type: none
 
-  - provider: llama.cpp
+  llama.cpp:
     adapter: openai
-    model: llama3.2
+    defaultModelId: llama3.2
     baseUrl: http://localhost:8080/v1
+    auth:
+      type: none
 
-  - provider: oMLX
+  oMLX:
     adapter: openai
-    model: mlx-community/Meta-Llama-3.1-8B-Instruct-4bit
+    defaultModelId: mlx-community/Meta-Llama-3.1-8B-Instruct-4bit
     baseUrl: http://localhost:8080/v1
+    auth:
+      type: none
 
 # Session storage settings
 Dmon:
