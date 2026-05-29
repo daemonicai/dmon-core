@@ -48,7 +48,7 @@ public sealed class ConsoleEventHandlerTests
             fake);
     }
 
-    // ── HandleAsync(TerminalEvent) — InputSubmitted ─────────────────────────
+    // ── HandleUiEventAsync — InputSubmitted ─────────────────────────────────
 
     [Fact]
     public async Task HandleAsync_InputSubmitted_ForwardsPlainMessageAsTurnSubmit()
@@ -58,7 +58,7 @@ public sealed class ConsoleEventHandlerTests
         using CancellationTokenSource cts = new();
         ConsoleEventHandler handler = BuildHandler(fake, sentCommands, cts);
 
-        await handler.HandleAsync(new InputSubmitted("hello world"), CancellationToken.None);
+        await handler.HandleUiEventAsync(new InputSubmitted("hello world"), CancellationToken.None);
 
         TurnSubmitCommand cmd = Assert.Single(sentCommands.OfType<TurnSubmitCommand>());
         Assert.Equal("hello world", cmd.Message);
@@ -72,7 +72,7 @@ public sealed class ConsoleEventHandlerTests
         using CancellationTokenSource cts = new();
         ConsoleEventHandler handler = BuildHandler(fake, sentCommands, cts);
 
-        await handler.HandleAsync(new InputSubmitted("/new"), CancellationToken.None);
+        await handler.HandleUiEventAsync(new InputSubmitted("/new"), CancellationToken.None);
 
         Assert.Single(sentCommands.OfType<SessionCreateCommand>());
     }
@@ -87,7 +87,7 @@ public sealed class ConsoleEventHandlerTests
 
         ConsoleEventHandler handler = BuildHandler(fake, sentCommands, cts, requestReload: () => reloadCalled = true);
 
-        await handler.HandleAsync(new InputSubmitted("/reload"), CancellationToken.None);
+        await handler.HandleUiEventAsync(new InputSubmitted("/reload"), CancellationToken.None);
 
         Assert.True(reloadCalled);
         Assert.Empty(sentCommands);
@@ -101,7 +101,7 @@ public sealed class ConsoleEventHandlerTests
         using CancellationTokenSource cts = new();
         ConsoleEventHandler handler = BuildHandler(fake, sentCommands, cts);
 
-        await handler.HandleAsync(new InputSubmitted("/quit"), CancellationToken.None);
+        await handler.HandleUiEventAsync(new InputSubmitted("/quit"), CancellationToken.None);
 
         Assert.True(cts.IsCancellationRequested);
     }
@@ -114,7 +114,7 @@ public sealed class ConsoleEventHandlerTests
         using CancellationTokenSource cts = new();
         ConsoleEventHandler handler = BuildHandler(fake, sentCommands, cts);
 
-        await handler.HandleAsync(new InputSubmitted("/bogus"), CancellationToken.None);
+        await handler.HandleUiEventAsync(new InputSubmitted("/bogus"), CancellationToken.None);
 
         IEnumerable<string> lines = fake.Calls
             .OfType<ScrollbackAppendLine>()
@@ -124,7 +124,7 @@ public sealed class ConsoleEventHandlerTests
         Assert.Empty(sentCommands);
     }
 
-    // ── HandleAsync(TerminalEvent) — no-op events ────────────────────────────
+    // ── HandleUiEventAsync — no-op events ───────────────────────────────────
 
     [Fact]
     public async Task HandleAsync_InputChanged_MirrorsCurrentBuffer()
@@ -136,7 +136,7 @@ public sealed class ConsoleEventHandlerTests
         ConsoleEventHandler handler = BuildHandler(fake, sentCommands, cts, inputLayer: layer);
 
         int callsBefore = fake.Calls.Count;
-        await handler.HandleAsync(new InputChanged("partial"), CancellationToken.None);
+        await handler.HandleUiEventAsync(new InputChanged("partial"), CancellationToken.None);
 
         // No dcli calls — InputChanged does not cause any terminal interaction.
         Assert.Equal(callsBefore, fake.Calls.Count);
@@ -154,13 +154,13 @@ public sealed class ConsoleEventHandlerTests
         ConsoleEventHandler handler = BuildHandler(fake, sentCommands, cts);
 
         int callsBefore = fake.Calls.Count;
-        await handler.HandleAsync(new Resized(120, 40), CancellationToken.None);
+        await handler.HandleUiEventAsync(new Resized(120, 40), CancellationToken.None);
 
         Assert.Equal(callsBefore, fake.Calls.Count);
         Assert.Empty(sentCommands);
     }
 
-    // ── HandleAsync(TerminalEvent) — Ctrl+C ──────────────────────────────────
+    // ── HandleUiEventAsync — Ctrl+C ─────────────────────────────────────────
 
     [Fact]
     public async Task HandleAsync_KeyPressedCtrlC_CancelsCts()
@@ -171,7 +171,7 @@ public sealed class ConsoleEventHandlerTests
         ConsoleEventHandler handler = BuildHandler(fake, sentCommands, cts);
 
         KeyEvent key = new(KeyCode.FromRune(new Rune('c')), Modifiers.Ctrl);
-        await handler.HandleAsync(new KeyPressed(key), CancellationToken.None);
+        await handler.HandleUiEventAsync(new KeyPressed(key), CancellationToken.None);
 
         Assert.True(cts.IsCancellationRequested);
     }
@@ -187,10 +187,10 @@ public sealed class ConsoleEventHandlerTests
         ConsoleEventHandler handler = BuildHandler(fake, sentCommands, cts);
 
         // Drive IsLocked=true via the same path production uses.
-        await handler.HandleAsync((Event)new TurnStartEvent(), CancellationToken.None);
+        await handler.HandleRpcEventAsync((Event)new TurnStartEvent(), CancellationToken.None);
 
         KeyEvent key = new(KeyCode.FromRune(new Rune('c')), Modifiers.Ctrl);
-        await handler.HandleAsync(new KeyPressed(key), CancellationToken.None);
+        await handler.HandleUiEventAsync(new KeyPressed(key), CancellationToken.None);
 
         Assert.True(cts.IsCancellationRequested);
     }
@@ -205,7 +205,7 @@ public sealed class ConsoleEventHandlerTests
 
         int callsBefore = fake.Calls.Count;
         KeyEvent key = new(KeyCode.FromRune(new Rune('d')), Modifiers.Ctrl);
-        await handler.HandleAsync(new KeyPressed(key), CancellationToken.None);
+        await handler.HandleUiEventAsync(new KeyPressed(key), CancellationToken.None);
 
         Assert.False(cts.IsCancellationRequested);
         Assert.Equal(callsBefore, fake.Calls.Count);
@@ -222,7 +222,7 @@ public sealed class ConsoleEventHandlerTests
 
         int callsBefore = fake.Calls.Count;
         KeyEvent key = new(KeyCode.FromRune(new Rune('c')), Modifiers.None);
-        await handler.HandleAsync(new KeyPressed(key), CancellationToken.None);
+        await handler.HandleUiEventAsync(new KeyPressed(key), CancellationToken.None);
 
         Assert.False(cts.IsCancellationRequested);
         Assert.Equal(callsBefore, fake.Calls.Count);
@@ -240,14 +240,14 @@ public sealed class ConsoleEventHandlerTests
         // Ctrl+Enter — named key, not a UnicodeScalar 'c'
         int callsBefore = fake.Calls.Count;
         KeyEvent key = new(KeyCode.Named(NamedKey.Enter), Modifiers.Ctrl);
-        await handler.HandleAsync(new KeyPressed(key), CancellationToken.None);
+        await handler.HandleUiEventAsync(new KeyPressed(key), CancellationToken.None);
 
         Assert.False(cts.IsCancellationRequested);
         Assert.Equal(callsBefore, fake.Calls.Count);
         Assert.Empty(sentCommands);
     }
 
-    // ── HandleAsync(Event) — provider picker (RunProviderPickerAsync) ────────
+    // ── HandleRpcEventAsync — provider picker (RunProviderPickerAsync) ───────
 
     [Fact]
     public async Task HandleAsync_ModelListResult_OpensProviderSelectAsyncWithAllowBack()
@@ -273,7 +273,7 @@ public sealed class ConsoleEventHandlerTests
             ActiveModelId  = "gpt-4o",
         };
 
-        await handler.HandleAsync((Event)evt, CancellationToken.None);
+        await handler.HandleRpcEventAsync((Event)evt, CancellationToken.None);
 
         SelectOpened call = Assert.Single(fake.Calls.OfType<SelectOpened>());
         Assert.Equal(2, call.Request.Items.Count);
@@ -304,7 +304,7 @@ public sealed class ConsoleEventHandlerTests
             ActiveModelId  = "claude-3",
         };
 
-        await handler.HandleAsync((Event)evt, CancellationToken.None);
+        await handler.HandleRpcEventAsync((Event)evt, CancellationToken.None);
 
         Assert.Empty(sentCommands.OfType<ModelModelsCommand>());
 
@@ -329,7 +329,7 @@ public sealed class ConsoleEventHandlerTests
             ActiveModelId  = string.Empty,
         };
 
-        await handler.HandleAsync((Event)evt, CancellationToken.None);
+        await handler.HandleRpcEventAsync((Event)evt, CancellationToken.None);
 
         Assert.Empty(fake.Calls.OfType<SelectOpened>());
         Assert.Empty(sentCommands);
@@ -340,7 +340,7 @@ public sealed class ConsoleEventHandlerTests
         Assert.Contains(lines, l => l.Contains("No providers available"));
     }
 
-    // ── HandleAsync(Event) — model picker (RunModelPickerAsync) ─────────────
+    // ── HandleRpcEventAsync — model picker (RunModelPickerAsync) ────────────
 
     [Fact]
     public async Task HandleAsync_ModelModelsResult_OpensModelSelectAsync()
@@ -362,7 +362,7 @@ public sealed class ConsoleEventHandlerTests
             ActiveModelId = "gpt-4o",
         };
 
-        await handler.HandleAsync((Event)evt, CancellationToken.None);
+        await handler.HandleRpcEventAsync((Event)evt, CancellationToken.None);
 
         Assert.Single(fake.Calls.OfType<SelectOpened>());
 
@@ -371,7 +371,7 @@ public sealed class ConsoleEventHandlerTests
         Assert.Equal("gpt-4o-mini", cmd.ModelId);
     }
 
-    // ── HandleAsync(Event) — UiInputRequest (deferred from Phase 2) ──────────
+    // ── HandleRpcEventAsync — UiInputRequest (deferred from Phase 2) ─────────
 
     [Fact]
     public async Task HandleAsync_UiInputRequest_ForwardsValueOnSubmit()
@@ -392,7 +392,7 @@ public sealed class ConsoleEventHandlerTests
             Kind    = UiInputKind.Text,
         };
 
-        await handler.HandleAsync((Event)evt, CancellationToken.None);
+        await handler.HandleRpcEventAsync((Event)evt, CancellationToken.None);
 
         InputOpened call = Assert.Single(fake.Calls.OfType<InputOpened>());
         string promptText = string.Concat(call.Request.Prompt?.Select(LineText) ?? []);
@@ -424,7 +424,7 @@ public sealed class ConsoleEventHandlerTests
             Kind    = UiInputKind.Secret,
         };
 
-        await handler.HandleAsync((Event)evt, CancellationToken.None);
+        await handler.HandleRpcEventAsync((Event)evt, CancellationToken.None);
 
         InputOpened call = Assert.Single(fake.Calls.OfType<InputOpened>());
         Assert.True(call.Request.IsSecret);
@@ -449,14 +449,14 @@ public sealed class ConsoleEventHandlerTests
             Kind    = UiInputKind.Text,
         };
 
-        await handler.HandleAsync((Event)evt, CancellationToken.None);
+        await handler.HandleRpcEventAsync((Event)evt, CancellationToken.None);
 
         UiInputResponseCommand cmd = Assert.Single(sentCommands.OfType<UiInputResponseCommand>());
         Assert.True(cmd.Cancelled);
         Assert.Null(cmd.Value);
     }
 
-    // ── HandleAsync(Event) — ToolConfirmRequest smoke test ───────────────────
+    // ── HandleRpcEventAsync — ToolConfirmRequest smoke test ─────────────────
 
     [Fact]
     public async Task HandleAsync_ToolConfirmRequest_OpensChoiceAndForwardsResponse()
@@ -479,7 +479,7 @@ public sealed class ConsoleEventHandlerTests
             Risk      = RiskLevel.Low,
         };
 
-        await handler.HandleAsync((Event)evt, CancellationToken.None);
+        await handler.HandleRpcEventAsync((Event)evt, CancellationToken.None);
 
         Assert.Single(fake.Calls.OfType<ChoiceOpened>());
 
@@ -489,7 +489,7 @@ public sealed class ConsoleEventHandlerTests
         Assert.Equal("once", cmd.Scope);
     }
 
-    // ── HandleAsync(Event) — turn lifecycle smoke test ───────────────────────
+    // ── HandleRpcEventAsync — turn lifecycle smoke test ─────────────────────
 
     [Fact]
     public async Task HandleAsync_TurnStartThenEnd_UpdatesStatusAndCommitsLiveBlock()
@@ -505,10 +505,10 @@ public sealed class ConsoleEventHandlerTests
             Name  = "anthropic",
             Model = "claude-3-7-sonnet",
         };
-        await handler.HandleAsync((Event)providerSwitched, CancellationToken.None);
+        await handler.HandleRpcEventAsync((Event)providerSwitched, CancellationToken.None);
 
         // TurnStart — status should get thinking=true
-        await handler.HandleAsync((Event)new TurnStartEvent(), CancellationToken.None);
+        await handler.HandleRpcEventAsync((Event)new TurnStartEvent(), CancellationToken.None);
 
         StatusSet? afterStart = fake.Calls.OfType<StatusSet>().LastOrDefault();
         Assert.NotNull(afterStart);
@@ -524,7 +524,7 @@ public sealed class ConsoleEventHandlerTests
             Message = JsonSerializer.SerializeToElement(new { }),
             Delta   = delta,
         };
-        await handler.HandleAsync((Event)deltaEvt, CancellationToken.None);
+        await handler.HandleRpcEventAsync((Event)deltaEvt, CancellationToken.None);
 
         // Confirm live-block open + text appended
         Assert.NotEmpty(fake.Calls.OfType<LiveBegun>());
@@ -538,7 +538,7 @@ public sealed class ConsoleEventHandlerTests
             Message     = JsonSerializer.SerializeToElement(new { }),
             ToolResults = [],
         };
-        await handler.HandleAsync((Event)turnEnd, CancellationToken.None);
+        await handler.HandleRpcEventAsync((Event)turnEnd, CancellationToken.None);
 
         Assert.NotEmpty(fake.Calls.OfType<LiveCommitted>());
 
@@ -555,11 +555,11 @@ public sealed class ConsoleEventHandlerTests
         ConsoleEventHandler handler = BuildHandler(fake, sentCommands, cts);
 
         // Establish model so TurnStart status call succeeds.
-        await handler.HandleAsync(
+        await handler.HandleRpcEventAsync(
             (Event)new ProviderSwitchedEvent { Name = "anthropic", Model = "claude-3-7-sonnet" },
             CancellationToken.None);
 
-        await handler.HandleAsync((Event)new TurnStartEvent(), CancellationToken.None);
+        await handler.HandleRpcEventAsync((Event)new TurnStartEvent(), CancellationToken.None);
 
         // Append a heading token.
         JsonElement delta = System.Text.Json.JsonSerializer.SerializeToElement(
@@ -569,14 +569,14 @@ public sealed class ConsoleEventHandlerTests
             Message = System.Text.Json.JsonSerializer.SerializeToElement(new { }),
             Delta   = delta,
         };
-        await handler.HandleAsync((Event)deltaEvt, CancellationToken.None);
+        await handler.HandleRpcEventAsync((Event)deltaEvt, CancellationToken.None);
 
         TurnEndEvent turnEnd = new()
         {
             Message     = System.Text.Json.JsonSerializer.SerializeToElement(new { }),
             ToolResults = [],
         };
-        await handler.HandleAsync((Event)turnEnd, CancellationToken.None);
+        await handler.HandleRpcEventAsync((Event)turnEnd, CancellationToken.None);
 
         // TurnEnd calls: SetContent, Committed (from SettleTurn), then SetStatus.
         LiveSetContent setContent = Assert.Single(fake.Calls.OfType<LiveSetContent>());
@@ -611,13 +611,13 @@ public sealed class ConsoleEventHandlerTests
         ConsoleEventHandler handler = BuildHandler(fake, sentCommands, cts, inputLayer: layer);
 
         // Set buffer text via InputChanged so we can verify it is NOT cleared by the locked submit.
-        await handler.HandleAsync(new InputChanged("hello"), CancellationToken.None);
+        await handler.HandleUiEventAsync(new InputChanged("hello"), CancellationToken.None);
 
         // Lock via the production path.
-        await handler.HandleAsync((Event)new TurnStartEvent(), CancellationToken.None);
+        await handler.HandleRpcEventAsync((Event)new TurnStartEvent(), CancellationToken.None);
         sentCommands.Clear(); // discard any commands from TurnStart
 
-        await handler.HandleAsync(new InputSubmitted("hello"), CancellationToken.None);
+        await handler.HandleUiEventAsync(new InputSubmitted("hello"), CancellationToken.None);
 
         // No TurnSubmitCommand (or any other command) forwarded to core.
         Assert.Empty(sentCommands);
@@ -638,9 +638,9 @@ public sealed class ConsoleEventHandlerTests
         InputStateLayer layer = new();
         ConsoleEventHandler handler = BuildHandler(fake, sentCommands, cts, inputLayer: layer);
 
-        await handler.HandleAsync((Event)new TurnStartEvent(), CancellationToken.None);
+        await handler.HandleRpcEventAsync((Event)new TurnStartEvent(), CancellationToken.None);
 
-        await handler.HandleAsync(new InputSubmitted("dropped"), CancellationToken.None);
+        await handler.HandleUiEventAsync(new InputSubmitted("dropped"), CancellationToken.None);
 
         Assert.Empty(layer.History);
     }
@@ -655,18 +655,18 @@ public sealed class ConsoleEventHandlerTests
         ConsoleEventHandler handler = BuildHandler(fake, sentCommands, cts, inputLayer: layer);
 
         // Lock via TurnStart, then release via TurnEnd.
-        await handler.HandleAsync((Event)new TurnStartEvent(), CancellationToken.None);
+        await handler.HandleRpcEventAsync((Event)new TurnStartEvent(), CancellationToken.None);
 
         TurnEndEvent turnEnd = new()
         {
             Message     = System.Text.Json.JsonSerializer.SerializeToElement(new { }),
             ToolResults = [],
         };
-        await handler.HandleAsync((Event)turnEnd, CancellationToken.None);
+        await handler.HandleRpcEventAsync((Event)turnEnd, CancellationToken.None);
 
         sentCommands.Clear(); // discard anything from the lifecycle events
 
-        await handler.HandleAsync(new InputSubmitted("ready now"), CancellationToken.None);
+        await handler.HandleUiEventAsync(new InputSubmitted("ready now"), CancellationToken.None);
 
         TurnSubmitCommand cmd = Assert.Single(sentCommands.OfType<TurnSubmitCommand>());
         Assert.Equal("ready now", cmd.Message);
@@ -675,6 +675,33 @@ public sealed class ConsoleEventHandlerTests
     }
 
     // ── DrainAsync ───────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task DrainAsync_NonCancelException_LogsAndCancels()
+    {
+        FakeTerminal fake = new();
+        List<Command> sentCommands = [];
+        using CancellationTokenSource cts = new();
+        ConsoleEventHandler handler = BuildHandler(fake, sentCommands, cts);
+
+        Channel<TerminalEvent> channel = Channel.CreateUnbounded<TerminalEvent>();
+        channel.Writer.TryWrite(new InputChanged("x"));
+        channel.Writer.Complete(new InvalidOperationException("synthetic"));
+
+        // Must return normally — no exception escapes.
+        await handler.DrainAsync(channel.Reader, cts.Token);
+
+        IEnumerable<string> lines = fake.Calls
+            .OfType<ScrollbackAppendLine>()
+            .Select(c => LineText(c.Line));
+
+        Assert.Contains(lines, l =>
+            l.StartsWith("[Drain Error]", StringComparison.Ordinal)
+            && l.Contains("InvalidOperationException")
+            && l.Contains("synthetic"));
+
+        Assert.True(cts.IsCancellationRequested);
+    }
 
     [Fact]
     public async Task DrainAsync_ProcessesAllEventsThenCompletes()

@@ -49,7 +49,7 @@ internal sealed class ConsoleEventHandler
     /// <summary>
     /// Test seam: dispatches a single dcli terminal event without blocking on the channel.
     /// </summary>
-    public Task HandleAsync(TerminalEvent @event, CancellationToken cancellationToken)
+    public Task HandleUiEventAsync(TerminalEvent @event, CancellationToken cancellationToken)
     {
         switch (@event)
         {
@@ -82,7 +82,7 @@ internal sealed class ConsoleEventHandler
 
     /// <summary>
     /// Production drain: reads dcli terminal events from <paramref name="reader"/> and
-    /// dispatches each via <see cref="HandleAsync(TerminalEvent, CancellationToken)"/>.
+    /// dispatches each via <see cref="HandleUiEventAsync(TerminalEvent, CancellationToken)"/>.
     /// </summary>
     public async Task DrainAsync(
         ChannelReader<TerminalEvent> reader,
@@ -91,12 +91,17 @@ internal sealed class ConsoleEventHandler
         try
         {
             await foreach (TerminalEvent ev in reader.ReadAllAsync(cancellationToken).ConfigureAwait(false))
-                await HandleAsync(ev, cancellationToken).ConfigureAwait(false);
+                await HandleUiEventAsync(ev, cancellationToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException) { }
+        catch (Exception ex)
+        {
+            _renderer.AddSystemLine($"[Drain Error] {ex.GetType().Name}: {ex.Message}");
+            _cts.Cancel();
+        }
     }
 
-    public async Task HandleAsync(Event @event, CancellationToken cancellationToken)
+    public async Task HandleRpcEventAsync(Event @event, CancellationToken cancellationToken)
     {
         switch (@event)
         {
