@@ -28,6 +28,6 @@
 
 ## 5. Manual smoke + archive
 
-- [ ] 5.1 Manual smoke: `make build && build/dmon` then exercise the no-LLM recipe from the `dmon-migration` DEVLOG (typing, `/reload` end-to-end, Ctrl+C). Confirm: (a) `── goodbye ──` renders on Ctrl+C exit, (b) mashing `/reload` twice in quick succession produces only one `[Reload] Core restarted.` not two. (This step unblocks only after both the `Dmon.Core` MCP/M.E.AI crash is resolved AND the user has API keys configured; until then, the gates above are the verification.)
-- [ ] 5.2 Standard gates + reviewer + commit (gates were already run per-section; this section runs the final sweep).
-- [ ] 5.3 Propose `/opsx:archive terminal-host-hardening` and wait for user confirmation. Do not archive automatically.
+- [ ] 5.1 **DEFERRED (HITL — blocked).** Manual smoke: `make build && build/dmon` then exercise the no-LLM recipe from the `dmon-migration` DEVLOG (typing, `/reload` end-to-end, Ctrl+C). Confirm: (a) `── goodbye ──` renders on Ctrl+C exit, (b) mashing `/reload` twice in quick succession produces only one `[Reload] Core restarted.` not two. (This step unblocks only after both the `Dmon.Core` MCP/M.E.AI crash is resolved AND the user has API keys configured; until then, the gates above are the verification.) Left unticked pending the human smoke run; the automated gates (build/test/validate, all green) are the stand-in verification.
+- [x] 5.2 Standard gates + reviewer + commit (gates were already run per-section; this section runs the final sweep).
+- [x] 5.3 Propose `/opsx:archive terminal-host-hardening` and wait for user confirmation. Do not archive automatically.
