@@ -153,18 +153,9 @@ internal static class MarkdownRenderer
                 {
                     Format fmt = emphasis.DelimiterCount == 2 ? Format.Bold : Format.Italic;
                     Style emphasisStyle = new(Format: fmt);
-                    // Collect inner text via a sub-accumulator, then re-style each segment.
                     LineAccumulator inner = new();
                     RenderInlines(emphasis, inner);
-                    IReadOnlyList<Line> innerLines = inner.Finish();
-                    for (int i = 0; i < innerLines.Count; i++)
-                    {
-                        foreach (Segment seg in innerLines[i].Segments)
-                            acc.AppendSegment(new Segment(seg.Text, emphasisStyle));
-                        // Emit a line break between lines but not after the last.
-                        if (i < innerLines.Count - 1)
-                            acc.BreakLine();
-                    }
+                    AppendWithOverlayStyle(acc, inner.Finish(), emphasisStyle);
                     break;
                 }
 
@@ -178,10 +169,21 @@ internal static class MarkdownRenderer
 
                 case LinkInline link:
                 {
-                    string linkText = link.FirstChild is LiteralInline lit
-                        ? lit.Content.ToString()
-                        : link.Url ?? string.Empty;
-                    acc.AppendSegment(new Segment(linkText, LinkStyle));
+                    LineAccumulator inner = new();
+                    RenderInlines(link, inner);
+                    IReadOnlyList<Line> innerLines = inner.Finish();
+                    bool hasContent = innerLines.Count > 0 && innerLines.Any(l => l.Segments.Count > 0);
+                    if (hasContent)
+                    {
+                        AppendWithOverlayStyle(acc, innerLines, LinkStyle);
+                    }
+                    else
+                    {
+                        // Empty label — fall back to the URL as visible text.
+                        string fallback = link.Url ?? string.Empty;
+                        if (fallback.Length > 0)
+                            acc.AppendSegment(new Segment(fallback, LinkStyle));
+                    }
                     break;
                 }
 
@@ -190,6 +192,25 @@ internal static class MarkdownRenderer
                         RenderInlines(container2, acc);
                     break;
             }
+        }
+    }
+
+    private static Style ComposeStyle(Style inner, Style overlay) =>
+        new(
+            Foreground: overlay.Foreground ?? inner.Foreground,
+            Background: overlay.Background ?? inner.Background,
+            Format: inner.Format | overlay.Format);
+
+    // Appends all segments from innerLines into acc, applying overlay to each segment.
+    // A BreakLine() is emitted between logical lines but not after the last.
+    private static void AppendWithOverlayStyle(LineAccumulator acc, IReadOnlyList<Line> innerLines, Style overlay)
+    {
+        for (int i = 0; i < innerLines.Count; i++)
+        {
+            foreach (Segment seg in innerLines[i].Segments)
+                acc.AppendSegment(new Segment(seg.Text, ComposeStyle(seg.Style, overlay)));
+            if (i < innerLines.Count - 1)
+                acc.BreakLine();
         }
     }
 
