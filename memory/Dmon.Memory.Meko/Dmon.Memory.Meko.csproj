@@ -1,6 +1,20 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
+    <!--
+      ModelContextProtocol.Core 1.3.0 (net10.0 TFM) requires M.E.AI.Abstractions >= 10.5.2.
+      dmon-core pins at 10.5.1; 10.5.2 is a backwards-compatible patch release — we accept
+      the upgrade here. Pin explicitly so future transitive pulls don't silently advance further.
+    -->
+    <PackageReference Include="Microsoft.Extensions.AI.Abstractions" Version="10.5.2" />
+    <PackageReference Include="ModelContextProtocol" Version="1.3.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Dmon.Memory.Meko.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- TODO: swap to PackageReference once Dmon.Abstractions is published to NuGet -->
     <ProjectReference Include="..\..\..\dmon-core\src\Dmon.Abstractions\Dmon.Abstractions.csproj" />
   </ItemGroup>
