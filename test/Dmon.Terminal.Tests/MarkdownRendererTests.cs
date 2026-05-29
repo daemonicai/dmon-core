@@ -355,6 +355,72 @@ public sealed class MarkdownRendererTests
         Assert.True(linkSeg.Style.Format.HasFlag(Format.Underline));
     }
 
+    [Fact]
+    public void Render_Link_BoldLabel_StylePreserved()
+    {
+        // [**bold link**](https://x) — inner emphasis compounds with link style.
+        IReadOnlyList<Line> result = MarkdownRenderer.Render("[**bold link**](https://x)");
+
+        Line line = Assert.Single(result);
+        Segment seg = Assert.Single(line.Segments);
+        Assert.Equal("bold link", seg.Text);
+        Assert.True(seg.Style.Format.HasFlag(Format.Bold));
+        Assert.True(seg.Style.Format.HasFlag(Format.Underline));
+        Assert.Equal(Color.Named(Color.AnsiColor.Blue), seg.Style.Foreground);
+    }
+
+    [Fact]
+    public void Render_Link_PlainLabel_UnchangedFromBaseline()
+    {
+        // Regression: plain-label link must not be affected by the recursion change.
+        IReadOnlyList<Line> result = MarkdownRenderer.Render("[home](https://x)");
+
+        Line line = Assert.Single(result);
+        Segment seg = Assert.Single(line.Segments);
+        Assert.Equal("home", seg.Text);
+        Assert.Equal(Color.Named(Color.AnsiColor.Blue), seg.Style.Foreground);
+        Assert.True(seg.Style.Format.HasFlag(Format.Underline));
+        Assert.False(seg.Style.Format.HasFlag(Format.Bold));
+    }
+
+    [Fact]
+    public void Render_Link_EmptyLabel_RendersUrl()
+    {
+        // [](https://x) — no children → fall back to URL text with LinkStyle.
+        IReadOnlyList<Line> result = MarkdownRenderer.Render("[](https://x)");
+
+        Line line = Assert.Single(result);
+        Segment seg = Assert.Single(line.Segments);
+        Assert.Equal("https://x", seg.Text);
+        Assert.Equal(Color.Named(Color.AnsiColor.Blue), seg.Style.Foreground);
+        Assert.True(seg.Style.Format.HasFlag(Format.Underline));
+    }
+
+    [Fact]
+    public void Render_Link_MultiInlineLabel_RecursesAll()
+    {
+        // [a **b** c](https://x) — three segments with correct styles.
+        IReadOnlyList<Line> result = MarkdownRenderer.Render("[a **b** c](https://x)");
+
+        Line line = Assert.Single(result);
+        Assert.Equal(3, line.Segments.Count);
+
+        Segment before = line.Segments.Single(s => s.Text == "a ");
+        Assert.Equal(Color.Named(Color.AnsiColor.Blue), before.Style.Foreground);
+        Assert.True(before.Style.Format.HasFlag(Format.Underline));
+        Assert.False(before.Style.Format.HasFlag(Format.Bold));
+
+        Segment bold = line.Segments.Single(s => s.Text == "b");
+        Assert.Equal(Color.Named(Color.AnsiColor.Blue), bold.Style.Foreground);
+        Assert.True(bold.Style.Format.HasFlag(Format.Underline));
+        Assert.True(bold.Style.Format.HasFlag(Format.Bold));
+
+        Segment after = line.Segments.Single(s => s.Text == " c");
+        Assert.Equal(Color.Named(Color.AnsiColor.Blue), after.Style.Foreground);
+        Assert.True(after.Style.Format.HasFlag(Format.Underline));
+        Assert.False(after.Style.Format.HasFlag(Format.Bold));
+    }
+
     // ── hard line break ────────────────────────────────────────────────────────
 
     [Fact]

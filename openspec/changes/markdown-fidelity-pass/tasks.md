@@ -10,15 +10,15 @@
 
 ## 2. `LinkInline` rich-label recursion
 
-- [ ] 2.1 In `src/Dmon.Terminal/MarkdownRenderer.cs`, change the `case LinkInline link:` branch to treat the link as a `ContainerInline` and recurse through its children via the existing inline-rendering accumulator. Apply the link's Style (underline + blue Foreground) as a base, OR-ing the inner Style's `Format` flags on top and preserving non-null `Foreground`/`Background` from the overlay.
-- [ ] 2.2 Handle the empty-label edge case (`[](url)` — `link.FirstChild` is null or the recursive descent yields no segments): preserve the existing URL-string fallback. Render the URL as the visible text with the link Style applied.
-- [ ] 2.3 If both this section and §1 produced near-identical "apply overlay Style, OR-ing Format" loops, extract a private `ComposeStyle(Style inner, Style overlay)` helper (and optionally an `AppendWithOverlayStyle` helper) within `MarkdownRenderer.cs`. Skip the helper if the two branches end up shape-different enough that abstraction adds noise.
-- [ ] 2.4 Tier-A tests in `MarkdownRendererTests.cs`:
+- [x] 2.1 In `src/Dmon.Terminal/MarkdownRenderer.cs`, change the `case LinkInline link:` branch to treat the link as a `ContainerInline` and recurse through its children via the existing inline-rendering accumulator. Apply the link's Style (underline + blue Foreground) as a base, OR-ing the inner Style's `Format` flags on top and preserving non-null `Foreground`/`Background` from the overlay.
+- [x] 2.2 Handle the empty-label edge case (`[](url)` — `link.FirstChild` is null or the recursive descent yields no segments): preserve the existing URL-string fallback. Render the URL as the visible text with the link Style applied.
+- [x] 2.3 If both this section and §1 produced near-identical "apply overlay Style, OR-ing Format" loops, extract a private `ComposeStyle(Style inner, Style overlay)` helper (and optionally an `AppendWithOverlayStyle` helper) within `MarkdownRenderer.cs`. Skip the helper if the two branches end up shape-different enough that abstraction adds noise.
+- [x] 2.4 Tier-A tests in `MarkdownRendererTests.cs`:
   - `Render_Link_BoldLabel_StylePreserved` — `Render("[**bold link**](https://x)")` produces a Segment whose Style has `Format.Bold | Format.Underline` AND `Foreground == Color.Named(Color.AnsiColor.Blue)`.
   - `Render_Link_PlainLabel_UnchangedFromBaseline` — regression guard: `Render("[home](https://x)")` still renders underline+blue (no behavioural drift from §1's change).
   - `Render_Link_EmptyLabel_RendersUrl` — `Render("[](https://x)")` renders `https://x` as the visible text with link Style.
   - `Render_Link_MultiInlineLabel_RecursesAll` — `Render("[a **b** c](https://x)")` produces three Segments: `"a "` underline+blue, `"b"` bold+underline+blue, `" c"` underline+blue.
-- [ ] 2.5 Standard gates + reviewer audit + commit.
+- [x] 2.5 Standard gates + reviewer audit + commit.
 
 ## 3. Final gates + archive
 
