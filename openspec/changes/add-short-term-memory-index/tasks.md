@@ -11,7 +11,7 @@
 - [x] 2.3 L2-normalize all output vectors (LlamaSharp does not normalize by default)
 - [x] 2.4 Apply nomic task prefixes at the call sites (`search_document:` on store, `search_query:` on query) — above the generator, not inside it
 - [x] 2.5 Serialize/pool embedder access (the context is not thread-safe); add a batched ingest path
-- [ ] 2.6 First-run model acquisition/caching [needs human verification — first-run download + cache cannot be settled by automated gates]
+- [x] 2.6 First-run model acquisition/caching [needs human verification — first-run download + cache cannot be settled by automated gates]
 
 ## 3. Short-term hybrid index (index.db)
 
