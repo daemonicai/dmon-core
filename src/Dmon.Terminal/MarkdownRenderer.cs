@@ -160,7 +160,9 @@ internal static class MarkdownRenderer
                     for (int i = 0; i < innerLines.Count; i++)
                     {
                         foreach (Segment seg in innerLines[i].Segments)
-                            acc.AppendSegment(new Segment(seg.Text, emphasisStyle));
+                            acc.AppendSegment(new Segment(
+                                seg.Text,
+                                seg.Style with { Format = seg.Style.Format | emphasisStyle.Format }));
                         // Emit a line break between lines but not after the last.
                         if (i < innerLines.Count - 1)
                             acc.BreakLine();

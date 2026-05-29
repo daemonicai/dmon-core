@@ -131,6 +131,63 @@ public sealed class MarkdownRendererTests
         Assert.Equal(default, line.Segments[2].Style);
     }
 
+    // ── nested emphasis ────────────────────────────────────────────────────────
+
+    [Fact]
+    public void Render_NestedEmphasis_BoldPlusItalic_Compounds()
+    {
+        // "**bold *and italic***" — outer bold wraps inner italic.
+        // Markdig produces: EmphasisInline(2) containing LiteralInline("bold ")
+        // and EmphasisInline(1) containing LiteralInline("and italic").
+        IReadOnlyList<Line> result = MarkdownRenderer.Render("**bold *and italic***");
+
+        Line line = Assert.Single(result);
+        Assert.Equal("bold and italic", LineText(line));
+
+        Segment outerOnly = line.Segments.Single(s => s.Text == "bold ");
+        Assert.Equal(Format.Bold, outerOnly.Style.Format);
+        Assert.False(outerOnly.Style.Format.HasFlag(Format.Italic));
+
+        Segment inner = line.Segments.Single(s => s.Text == "and italic");
+        Assert.True(inner.Style.Format.HasFlag(Format.Bold));
+        Assert.True(inner.Style.Format.HasFlag(Format.Italic));
+    }
+
+    [Fact]
+    public void Render_NestedEmphasis_ItalicPlusBold_Compounds()
+    {
+        // "*italic **and bold***" — outer italic wraps inner bold.
+        IReadOnlyList<Line> result = MarkdownRenderer.Render("*italic **and bold***");
+
+        Line line = Assert.Single(result);
+        Assert.Equal("italic and bold", LineText(line));
+
+        Segment outerOnly = line.Segments.Single(s => s.Text == "italic ");
+        Assert.Equal(Format.Italic, outerOnly.Style.Format);
+        Assert.False(outerOnly.Style.Format.HasFlag(Format.Bold));
+
+        Segment inner = line.Segments.Single(s => s.Text == "and bold");
+        Assert.True(inner.Style.Format.HasFlag(Format.Italic));
+        Assert.True(inner.Style.Format.HasFlag(Format.Bold));
+    }
+
+    [Fact]
+    public void Render_TripleEmphasis_BoldAndItalic()
+    {
+        // "***triple***" — Markdig parses as nested EmphasisInline (count 2 wrapping count 1).
+        IReadOnlyList<Line> result = MarkdownRenderer.Render("***triple***");
+
+        Line line = Assert.Single(result);
+        Assert.Equal("triple", LineText(line));
+
+        // All segments for the content must carry both Bold and Italic.
+        Assert.All(line.Segments, seg =>
+        {
+            Assert.True(seg.Style.Format.HasFlag(Format.Bold));
+            Assert.True(seg.Style.Format.HasFlag(Format.Italic));
+        });
+    }
+
     // ── inline code ────────────────────────────────────────────────────────────
 
     [Fact]
