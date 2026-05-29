@@ -226,6 +226,10 @@ public sealed class TurnHandler : ITurnHandler
 
             ApplyThinkingToOptions(options);
 
+            string? activeModelId = _providers.GetCurrentModelId() ?? _providers.GetCurrentConfig().DefaultModelId;
+            if (!string.IsNullOrWhiteSpace(activeModelId))
+                options.ModelId = activeModelId;
+
             try
             {
                 // Apply any pending steer before the LLM call.
