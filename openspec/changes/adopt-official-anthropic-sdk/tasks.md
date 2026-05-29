@@ -15,10 +15,10 @@
 
 ## 2. Verify the crash is gone + archive
 
-- [ ] 2.1 Manual smoke (HITL — provide the recipe and wait for confirmation before ticking): with `ANTHROPIC_API_KEY` set, run `dotnet run --project src/Dmon.Terminal` and confirm against a live key:
+- [x] 2.1 Manual smoke (HITL — provide the recipe and wait for confirmation before ticking): with `ANTHROPIC_API_KEY` set, run `dotnet run --project src/Dmon.Terminal` and confirm against a live key:
   - a streamed turn completes (`turnStart` … `turnEnd`) with **no** `Method not found: ... HostedMcpServerTool.get_AuthorizationToken()` error;
   - a tool call executes end-to-end;
   - a reasoning/thinking request is honoured (model with `SupportsReasoning`).
 - [ ] 2.2 (Opportunistic) With the crash unblocked, complete the deferred `markdown-fidelity-pass` task 3.2 visual smoke (nested emphasis + rich link) if convenient — not required for this change.
-- [ ] 2.3 Standard gates: build, test, `openspec validate adopt-official-anthropic-sdk --strict`.
+- [x] 2.3 Standard gates: build, test, `openspec validate adopt-official-anthropic-sdk --strict`.
 - [ ] 2.4 Propose `/opsx:archive adopt-official-anthropic-sdk` and wait for user confirmation. Do not archive automatically.
