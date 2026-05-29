@@ -22,7 +22,7 @@
 
 ## 3. Final gates + archive
 
-- [ ] 3.1 Re-run the full `MarkdownRendererTests` suite and confirm all 22+ tests pass (the new ones from §1 and §2 plus the existing baseline).
-- [ ] 3.2 Manual smoke if available (gated by the `Dmon.Core` MCP/M.E.AI crash unblock + API keys configured): trigger an LLM response that uses nested emphasis and a richly-labeled link; visually confirm the rendering matches the assertions. If not yet available, the tier-A tests are the verification.
-- [ ] 3.3 Standard gates: build, test, `openspec validate markdown-fidelity-pass --strict`.
-- [ ] 3.4 Propose `/opsx:archive markdown-fidelity-pass` and wait for user confirmation. Do not archive automatically.
+- [x] 3.1 Re-run the full `MarkdownRendererTests` suite and confirm all 22+ tests pass (the new ones from §1 and §2 plus the existing baseline).
+- [x] 3.2 Manual smoke if available (gated by the `Dmon.Core` MCP/M.E.AI crash unblock + API keys configured): trigger an LLM response that uses nested emphasis and a richly-labeled link; visually confirm the rendering matches the assertions. If not yet available, the tier-A tests are the verification.
+- [x] 3.3 Standard gates: build, test, `openspec validate markdown-fidelity-pass --strict`.
+- [x] 3.4 Propose `/opsx:archive markdown-fidelity-pass` and wait for user confirmation. Do not archive automatically.
