@@ -31,5 +31,11 @@ public sealed class MekoLongTermOptions
     /// </summary>
     public string SessionId { get; set; } = string.Empty;
 
-    // Capture-policy fields are added in section 3.
+    /// <summary>
+    /// Controls when <see cref="ILongTermMemory.RecordAsync"/> forwards turns to Meko.
+    /// Defaults to <see cref="MekoCaptureMode.None"/> so that no distillation cost is
+    /// incurred unless explicitly opted in.
+    /// <see cref="ILongTermMemory.AddFactAsync"/> is NOT affected by this setting.
+    /// </summary>
+    public MekoCaptureMode CaptureMode { get; set; } = MekoCaptureMode.None;
 }

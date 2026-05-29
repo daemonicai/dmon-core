@@ -80,11 +80,14 @@ internal sealed class MekoToolInvoker : IMekoToolInvoker, IAsyncDisposable
         }
 
         _disposed = true;
-        _initLock.Dispose();
 
         if (_client is not null)
         {
             await _client.DisposeAsync().ConfigureAwait(false);
         }
+
+        // Dispose the lock after the client so no in-flight init can access a
+        // disposed semaphore.
+        _initLock.Dispose();
     }
 }
