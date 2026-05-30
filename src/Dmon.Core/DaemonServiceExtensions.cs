@@ -76,6 +76,7 @@ public static class DmonServiceExtensions
 
         services.AddSingleton<IToolRegistry, ToolRegistry>();
         services.AddSingleton<IMiddlewareRegistry, MiddlewareRegistry>();
+        services.AddSingleton<MiddlewarePipelineBuilder>();
         services.AddSingleton<CsxScriptLoader>();
         services.AddSingleton<NuGetExtensionLoader>();
         services.AddSingleton<IExtensionLoader>(sp => sp.GetRequiredService<CsxScriptLoader>());

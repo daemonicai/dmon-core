@@ -13,10 +13,10 @@
 
 ## 3. Pipeline Construction
 
-- [ ] 3.1 Add `EffectivePriority` resolution: read `middleware:<ClassName>:priority` from `IConfigurationRoot`; fall back to attribute value
-- [ ] 3.2 Implement pipeline fold: `middlewares.OrderBy(m => m.EffectivePriority).Aggregate(baseClient, (inner, m) => m.Wrap(inner))`
-- [ ] 3.3 Wire constructed pipeline into the agent's turn loop (replace bare provider client reference)
-- [ ] 3.4 Verify no-middleware case produces the bare provider client unchanged
+- [x] 3.1 Add `EffectivePriority` resolution: read `middleware:<ClassName>:priority` from `IConfigurationRoot`; fall back to attribute value
+- [x] 3.2 Implement pipeline fold: `middlewares.OrderBy(m => m.EffectivePriority).Aggregate(baseClient, (inner, m) => m.Wrap(inner))`
+- [x] 3.3 Wire constructed pipeline into the agent's turn loop (replace bare provider client reference)
+- [x] 3.4 Verify no-middleware case produces the bare provider client unchanged
 
 ## 4. Configuration Support
 

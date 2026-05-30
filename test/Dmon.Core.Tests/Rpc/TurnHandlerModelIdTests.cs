@@ -1,6 +1,7 @@
 using System.Runtime.CompilerServices;
 using Dmon.Abstractions;
 using Dmon.Abstractions.Providers;
+using Dmon.Core.Extensions;
 using Dmon.Core.Permissions;
 using Dmon.Core.Providers;
 using Dmon.Core.Rpc;
@@ -95,6 +96,8 @@ public sealed class TurnHandlerModelIdTests
         StubSystemPromptBuilder systemPromptBuilder = new();
         IConfiguration configuration = new ConfigurationBuilder().Build();
 
+        MiddlewarePipelineBuilder pipelineBuilder = new(new MiddlewareRegistry(), configuration);
+
         TurnHandler handler = new(
             providers,
             new NoopActiveModelStore(),
@@ -105,6 +108,7 @@ public sealed class TurnHandlerModelIdTests
             sessionHandler,
             attachmentStore,
             systemPromptBuilder,
+            pipelineBuilder,
             configuration,
             NullLogger<TurnHandler>.Instance);
 

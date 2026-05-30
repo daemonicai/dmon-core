@@ -15,6 +15,7 @@ using Dmon.Protocol.Delta;
 using Dmon.Protocol.Enums;
 using Dmon.Protocol.Events;
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.Configuration;
 
 namespace Dmon.Core.Rpc;
 
@@ -29,6 +30,7 @@ public sealed class TurnHandler : ITurnHandler
     private readonly ISessionHandler _sessionHandler;
     private readonly IAttachmentStore _attachmentStore;
     private readonly ISystemPromptBuilder _systemPromptBuilder;
+    private readonly MiddlewarePipelineBuilder _pipelineBuilder;
     private readonly RetryPolicy _retryPolicy;
     private readonly ILogger<TurnHandler> _logger;
 
@@ -58,6 +60,7 @@ public sealed class TurnHandler : ITurnHandler
         ISessionHandler sessionHandler,
         IAttachmentStore attachmentStore,
         ISystemPromptBuilder systemPromptBuilder,
+        MiddlewarePipelineBuilder pipelineBuilder,
         IConfiguration configuration,
         ILogger<TurnHandler> logger)
     {
@@ -70,6 +73,7 @@ public sealed class TurnHandler : ITurnHandler
         _sessionHandler = sessionHandler;
         _attachmentStore = attachmentStore;
         _systemPromptBuilder = systemPromptBuilder;
+        _pipelineBuilder = pipelineBuilder;
         _retryPolicy = RetryPolicy.FromConfiguration(configuration);
         _logger = logger;
     }
@@ -238,6 +242,10 @@ public sealed class TurnHandler : ITurnHandler
         {
             // Build the pipeline per-turn so provider switches take effect immediately.
             IChatClient providerClient = await _providers.GetCurrentAsync(cancellationToken).ConfigureAwait(false);
+            // Fold user middleware over the raw provider client. Instances live for the process
+            // lifetime (D6 — no hot-reload); only the Wrap call repeats each turn so that the
+            // fresh providerClient (rebuilt on model/provider switch) is always the innermost layer.
+            providerClient = _pipelineBuilder.Apply(providerClient);
             IChatClient retrying = new RetryingChatClient(providerClient, _retryPolicy, _emitter, provider, model);
             IChatClient offloading = new AttachmentOffloadingChatClient(retrying, _sessionHandler, _attachmentStore);
             IChatClient functionInvoker = new FunctionInvokingChatClient(offloading);
