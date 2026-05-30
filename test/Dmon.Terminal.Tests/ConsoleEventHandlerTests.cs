@@ -2,7 +2,6 @@ using System.Text;
 using System.Text.Json;
 using System.Threading.Channels;
 using Dcli;
-using Dmon.Abstractions.Providers;
 using Dmon.Protocol.Commands;
 using Dmon.Protocol.Enums;
 using Dmon.Protocol.Events;
@@ -27,7 +26,6 @@ public sealed class ConsoleEventHandlerTests
         List<Command> sentCommands,
         CancellationTokenSource cts,
         Action? requestReload = null,
-        IReadOnlyList<IProviderFactory>? providerFactories = null,
         InputStateLayer? inputLayer = null)
     {
         Func<Command, CancellationToken, Task> send = (cmd, _) =>
@@ -43,7 +41,6 @@ public sealed class ConsoleEventHandlerTests
             input,
             send,
             cts,
-            providerFactories ?? [],
             requestReload ?? (() => { }),
             fake);
     }

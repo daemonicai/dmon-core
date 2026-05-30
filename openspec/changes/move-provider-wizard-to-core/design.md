@@ -131,6 +131,10 @@ Following the `_pendingUiInputs`/`_pendingConfirms` precedent, `ProviderSetupHan
 
 Rollback: the change is a single branch; revert restores the terminal-side engine and the `Dmon.Providers` reference. No persisted data format changes (config persistence already exists in Core via `ProviderConfigureCommand`).
 
+## Known limitations
+
+- **ChooseMany renders as single-select in the terminal.** The terminal renderer maps `ChooseManyStep` onto a single-pick selection prompt (emitting one index), because no built-in factory emits a `ChooseManyStep` and the terminal's prompt surface has no multi-select primitive yet. The wire contract (`WizardAnswerCommand.Value` as comma-separated indices) and the Core decode already support multiple indices, so adding true multi-select is a terminal-only enhancement when an extension wizard first needs it. Documented so it is not mistaken for full support.
+
 ## Open Questions
 
 - Discriminator naming: `wizard.start`/`wizard.step`/`wizard.answer` vs a `provider.setup*` prefix. Leaning `wizard.*` since the carrier is generic over wizards; resolve during implementation, keep consistent with the spec.

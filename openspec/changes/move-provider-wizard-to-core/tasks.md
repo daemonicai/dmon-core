@@ -32,11 +32,11 @@
 
 ## 4. Terminal rewiring
 
-- [ ] 4.1 Rework `ConsoleEventHandler.HandleAddProviderAsync` to send `WizardStartCommand`, render each incoming `WizardStepEvent` via the renderer, and reply with `WizardAnswerCommand` (mapping answer/back/cancel to the outcome); treat `ProviderConfiguredEvent` as completion
-- [ ] 4.2 Update the terminal renderer to pattern-match `WizardStep` subtypes (from `Dmon.Protocol`) onto `InlinePrompt` interactions, preserving secret masking and back/cancel translation per the spec
-- [ ] 4.3 Delete `src/Dmon.Terminal/WizardEngine.cs` and the hard-coded factory list in `Program.cs` (lines ~47–53); remove the `providerFactories` wiring into `ConsoleEventHandler`
-- [ ] 4.4 Remove the `Dmon.Terminal → Dmon.Providers` `ProjectReference` from `Dmon.Terminal.csproj`; confirm `Dmon.Providers.Ollama` is also unreferenced if it was only there for the factory list
-- [ ] 4.5 Build the whole solution; confirm `Dmon.Terminal` compiles with no reference to `Dmon.Providers`
+- [x] 4.1 Rework `ConsoleEventHandler.HandleAddProviderAsync` to send `WizardStartCommand`, render each incoming `WizardStepEvent` via the renderer, and reply with `WizardAnswerCommand` (mapping answer/back/cancel to the outcome); treat `ProviderConfiguredEvent` as completion
+- [x] 4.2 Update the terminal renderer to pattern-match `WizardStep` subtypes (from `Dmon.Protocol`) onto `InlinePrompt` interactions, preserving secret masking and back/cancel translation per the spec
+- [x] 4.3 Delete `src/Dmon.Terminal/WizardEngine.cs` and the hard-coded factory list in `Program.cs` (lines ~47–53); remove the `providerFactories` wiring into `ConsoleEventHandler`
+- [x] 4.4 Remove the `Dmon.Terminal → Dmon.Providers` `ProjectReference` from `Dmon.Terminal.csproj`; confirm `Dmon.Providers.Ollama` is also unreferenced if it was only there for the factory list
+- [x] 4.5 Build the whole solution; confirm `Dmon.Terminal` compiles with no reference to `Dmon.Providers`
 
 ## 5. Validation and gates
 

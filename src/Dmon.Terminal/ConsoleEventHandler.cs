@@ -1,10 +1,10 @@
 using System.Text.Json;
 using System.Threading.Channels;
 using Dcli;
-using Dmon.Abstractions.Providers;
 using Dmon.Protocol.Commands;
 using Dmon.Protocol.Enums;
 using Dmon.Protocol.Events;
+using Dmon.Protocol.Wizard;
 
 namespace Dmon.Terminal;
 
@@ -14,13 +14,17 @@ internal sealed class ConsoleEventHandler
     private readonly InputStateLayer _input;
     private readonly Func<Command, CancellationToken, Task> _sendCommand;
     private readonly CancellationTokenSource _cts;
-    private readonly IReadOnlyList<IProviderFactory> _providerFactories;
     private readonly Action _requestReload;
     private readonly ITerminal _terminal;
 
     private string _rawText = string.Empty;
     private string _modelName = string.Empty;
     private string _activeProvider = string.Empty;
+
+    // Tracks whether a wizard session is currently active.
+    // Set when WizardStartCommand is sent; cleared when ProviderConfiguredEvent arrives
+    // or when the wizard is cancelled.
+    private bool _wizardActive;
 
     /// <summary>
     /// The id of the active session directory, set when the core reports a successful
@@ -33,7 +37,6 @@ internal sealed class ConsoleEventHandler
         InputStateLayer input,
         Func<Command, CancellationToken, Task> sendCommand,
         CancellationTokenSource cts,
-        IReadOnlyList<IProviderFactory> providerFactories,
         Action requestReload,
         ITerminal terminal)
     {
@@ -41,7 +44,6 @@ internal sealed class ConsoleEventHandler
         _input = input;
         _sendCommand = sendCommand;
         _cts = cts;
-        _providerFactories = providerFactories;
         _requestReload = requestReload;
         _terminal = terminal;
     }
@@ -129,9 +131,17 @@ internal sealed class ConsoleEventHandler
                 break;
 
             case ErrorEvent error:
-                _renderer.AddSystemLine($"[Error] {error.Message}");
-                if (!error.Recoverable)
-                    _cts.Cancel();
+                if (_wizardActive && error.Code == "wizard.invalidAnswer")
+                {
+                    // Core will re-emit a WizardStepEvent for the same step; just surface the message.
+                    _renderer.AddSystemLine($"[Wizard] {error.Message}");
+                }
+                else
+                {
+                    _renderer.AddSystemLine($"[Error] {error.Message}");
+                    if (!error.Recoverable)
+                        _cts.Cancel();
+                }
                 break;
 
             case ResponseEvent response when !response.Success:
@@ -189,6 +199,10 @@ internal sealed class ConsoleEventHandler
                 await HandleAddProviderAsync(cancellationToken).ConfigureAwait(false);
                 break;
 
+            case WizardStepEvent wizardStep when _wizardActive:
+                await RenderAndAnswerStepAsync(wizardStep, cancellationToken).ConfigureAwait(false);
+                break;
+
             case ModelListResultEvent listResult:
                 await RunProviderPickerAsync(listResult, cancellationToken).ConfigureAwait(false);
                 break;
@@ -200,6 +214,17 @@ internal sealed class ConsoleEventHandler
             case ResponseEvent sessionResponse when sessionResponse.Success
                 && sessionResponse.Command is "session.create" or "session.load" or "session.fork" or "session.clone":
                 TrackActiveSession(sessionResponse);
+                break;
+
+            case ProviderConfiguredEvent configured when _wizardActive:
+                _wizardActive = false;
+                _renderer.AddSystemLine(
+                    $"[Provider] Configured {configured.Adapter} / {configured.ModelId}");
+                _input.IsLocked = false;
+                break;
+
+            case WizardStepEvent:
+                // Wizard step arrived but no wizard is active — ignore (stale event).
                 break;
 
             case CompactionStartEvent:
@@ -214,7 +239,6 @@ internal sealed class ConsoleEventHandler
             // ExtensionUnloadedEvent: intentionally silent — tools are deregistered (no longer
             // offered to the LLM) but the assembly remains resident until the core restarts.
             case ExtensionUnloadedEvent:
-            case ProviderConfiguredEvent:
             case AuthLoginCompleteEvent:
             case AuthLogoutCompleteEvent:
             case AuthLoginFailedEvent:
@@ -271,29 +295,187 @@ internal sealed class ConsoleEventHandler
 
     private async Task HandleAddProviderAsync(CancellationToken cancellationToken)
     {
-        WizardEngine engine = new(_terminal, _providerFactories);
-        WizardResult? result = await engine.RunAsync(cancellationToken).ConfigureAwait(false);
+        _wizardActive = true;
 
-        if (result is null)
+        WizardStartCommand startCommand = new()
         {
-            _renderer.AddSystemLine("[Add Provider] Cancelled.");
-            _input.IsLocked = false;
-            return;
-        }
-
-        ProviderConfigureCommand command = new()
-        {
-            Id      = Guid.NewGuid().ToString("N"),
-            Adapter = result.Adapter,
-            ModelId = result.ModelId,
-            EnvVar  = result.EnvVar,
-            Scope   = "global",
+            Id = Guid.NewGuid().ToString("N"),
         };
 
-        await _sendCommand(command, cancellationToken).ConfigureAwait(false);
-        _renderer.AddSystemLine("[Add Provider] Configuring provider, waiting for agent ready…");
-        _input.IsLocked = false;
+        await _sendCommand(startCommand, cancellationToken).ConfigureAwait(false);
+        // Wizard steps arrive as WizardStepEvent; completion arrives as ProviderConfiguredEvent.
+        // Both are handled in HandleRpcEventAsync — this method returns and the event loop drives the rest.
     }
+
+    /// <summary>
+    /// Renders one wizard step via the terminal, encodes the answer, and sends a
+    /// <see cref="WizardAnswerCommand"/> back to core. Called for every <see cref="WizardStepEvent"/>
+    /// while a wizard session is active, including re-emitted steps after a validation error.
+    /// </summary>
+    private async Task RenderAndAnswerStepAsync(WizardStepEvent evt, CancellationToken cancellationToken)
+    {
+        WizardAnswerCommand answer = evt.Step switch
+        {
+            ChooseOneStep s  => await RenderChooseOneAsync(evt.WizardId, s, cancellationToken).ConfigureAwait(false),
+            ChooseManyStep s => await RenderChooseManyAsync(evt.WizardId, s, cancellationToken).ConfigureAwait(false),
+            TextInputStep s  => await RenderTextInputAsync(evt.WizardId, s, cancellationToken).ConfigureAwait(false),
+            YesNoStep s      => await RenderYesNoAsync(evt.WizardId, s, cancellationToken).ConfigureAwait(false),
+            InfoStep s       => RenderInfo(evt.WizardId, s),
+            WizardCompletedStep s => RenderCompleted(evt.WizardId, s),
+            _ => CancelUnknownStep(evt.WizardId),
+        };
+
+        // Cancel outcome from the terminal means the user aborted; clear wizard state.
+        if (answer.Outcome == WizardAnswerOutcome.Cancel)
+        {
+            _wizardActive = false;
+            _renderer.AddSystemLine("[Add Provider] Cancelled.");
+            _input.IsLocked = false;
+        }
+
+        await _sendCommand(answer, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<WizardAnswerCommand> RenderChooseOneAsync(
+        string wizardId, ChooseOneStep step, CancellationToken cancellationToken)
+    {
+        List<Line> items = step.Options
+            .Select(o => Line.FromText(o.Label))
+            .ToList();
+
+        DialogResult<int> result = await _terminal.SelectAsync(
+            new SelectRequest(
+                Items: items,
+                Title: new LineBuilder().Bold(step.Prompt).Build(),
+                AllowBack: true),
+            cancellationToken).ConfigureAwait(false);
+
+        if (result.Outcome == DialogOutcome.Back)
+            return Answer(wizardId, WizardAnswerOutcome.Back, null);
+
+        if (result.Outcome == DialogOutcome.Cancelled)
+            return Answer(wizardId, WizardAnswerOutcome.Cancel, null);
+
+        return Answer(wizardId, WizardAnswerOutcome.Answered, result.Value.ToString());
+    }
+
+    private async Task<WizardAnswerCommand> RenderChooseManyAsync(
+        string wizardId, ChooseManyStep step, CancellationToken cancellationToken)
+    {
+        // The terminal has no multi-select prompt primitive yet, and no built-in factory emits a
+        // ChooseManyStep, so we render it as single-select (one index). The wire format and Core
+        // decode already support multiple comma-separated indices; true multi-select is a future
+        // terminal-only enhancement once dcli exposes a MultiSelectAsync primitive.
+        List<Line> items = step.Options
+            .Select(o => Line.FromText(o.Label))
+            .ToList();
+
+        DialogResult<int> result = await _terminal.SelectAsync(
+            new SelectRequest(
+                Items: items,
+                Title: new LineBuilder().Bold(step.Prompt).Build(),
+                AllowBack: true),
+            cancellationToken).ConfigureAwait(false);
+
+        if (result.Outcome == DialogOutcome.Back)
+            return Answer(wizardId, WizardAnswerOutcome.Back, null);
+
+        if (result.Outcome == DialogOutcome.Cancelled)
+            return Answer(wizardId, WizardAnswerOutcome.Cancel, null);
+
+        // ChooseMany wire format: comma-separated zero-based indices (matching WizardAnswerHelper.DecodeChooseManyIndices).
+        return Answer(wizardId, WizardAnswerOutcome.Answered, result.Value.ToString());
+    }
+
+    private async Task<WizardAnswerCommand> RenderTextInputAsync(
+        string wizardId, TextInputStep step, CancellationToken cancellationToken)
+    {
+        if (step.Default is not null)
+        {
+            string shown = step.Secret ? new string('*', 8) : step.Default;
+            _terminal.Scrollback.Append(new LineBuilder()
+                .Dim($"Default: {shown}")
+                .Build());
+        }
+
+        DialogResult<string> result = await _terminal.InputAsync(
+            new InputRequest(
+                Prompt: new LineBuilder().Bold(step.Prompt).Build(),
+                Default: step.Default,
+                IsSecret: step.Secret),
+            cancellationToken).ConfigureAwait(false);
+
+        if (result.Outcome == DialogOutcome.Cancelled)
+            return Answer(wizardId, WizardAnswerOutcome.Cancel, null);
+
+        string value = result.Value ?? string.Empty;
+
+        if (value.Length == 0 && step.Default is not null)
+            value = step.Default;
+
+        if (value.Length == 0 && step.Required)
+            return Answer(wizardId, WizardAnswerOutcome.Cancel, null);
+
+        return Answer(wizardId, WizardAnswerOutcome.Answered, value.Length > 0 ? value : null);
+    }
+
+    private async Task<WizardAnswerCommand> RenderYesNoAsync(
+        string wizardId, YesNoStep step, CancellationToken cancellationToken)
+    {
+        List<Line> options = step.Default
+            ? [new LineBuilder().Fg("Yes", Color.Named(Color.AnsiColor.Green)).Build(),
+               new LineBuilder().Fg("No",  Color.Named(Color.AnsiColor.Red)).Build()]
+            : [new LineBuilder().Fg("No",  Color.Named(Color.AnsiColor.Red)).Build(),
+               new LineBuilder().Fg("Yes", Color.Named(Color.AnsiColor.Green)).Build()];
+
+        string hint = step.Default ? "[Y/n]" : "[y/N]";
+
+        DialogResult<int> result = await _terminal.ChoiceAsync(
+            new ChoiceRequest(
+                Options: options,
+                Prompt: new LineBuilder().Bold($"{step.Prompt} {hint}").Build()),
+            cancellationToken).ConfigureAwait(false);
+
+        if (result.Outcome == DialogOutcome.Cancelled)
+            return Answer(wizardId, WizardAnswerOutcome.Cancel, null);
+
+        // When default=true, index 0 = Yes; when default=false, index 0 = No.
+        bool selectedYes = step.Default ? result.Value == 0 : result.Value == 1;
+        return Answer(wizardId, WizardAnswerOutcome.Answered, selectedYes.ToString().ToLowerInvariant());
+    }
+
+    private WizardAnswerCommand RenderInfo(string wizardId, InfoStep step)
+    {
+        _terminal.Scrollback.Append(new LineBuilder()
+            .Dim(step.Prompt)
+            .Build());
+        return Answer(wizardId, WizardAnswerOutcome.Answered, null);
+    }
+
+    private WizardAnswerCommand RenderCompleted(string wizardId, WizardCompletedStep step)
+    {
+        _terminal.Scrollback.Append(new LineBuilder()
+            .Fg(step.Message, Color.Named(Color.AnsiColor.Green))
+            .Build());
+        // Answered with no value signals the core to persist and emit ProviderConfiguredEvent.
+        return Answer(wizardId, WizardAnswerOutcome.Answered, null);
+    }
+
+    private WizardAnswerCommand CancelUnknownStep(string wizardId)
+    {
+        // Unknown step subtype indicates a protocol desync (core is newer than this terminal build).
+        _renderer.AddSystemLine("[Wizard] Unknown step type — cancelling wizard to avoid desync.");
+        return Answer(wizardId, WizardAnswerOutcome.Cancel, null);
+    }
+
+    private static WizardAnswerCommand Answer(string wizardId, WizardAnswerOutcome outcome, string? value) =>
+        new()
+        {
+            Id       = Guid.NewGuid().ToString("N"),
+            WizardId = wizardId,
+            Outcome  = outcome,
+            Value    = value,
+        };
 
     private async Task RunProviderPickerAsync(ModelListResultEvent evt, CancellationToken cancellationToken)
     {
