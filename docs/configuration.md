@@ -196,6 +196,8 @@ middleware:
 
 **Scope.** Arbitrary fields are permitted in the section. No field name is reserved beyond `priority`. Middleware must not require the section to be present — absence means the middleware's defaults apply.
 
+**No hot-reload.** Middleware is constructed once at startup and the pipeline is held for the session. dmon has no file-system watcher, so editing or replacing a middleware assembly (or its config) while the agent is running has no effect on the running pipeline. Apply middleware changes by restarting the core with `/reload` (a full process restart per ADR-009), which re-reads config and rebuilds the pipeline. This is the `extension-middleware-tier` design decision D6.
+
 ---
 
 ## Provider configuration

@@ -26,7 +26,7 @@
 
 ## 5. Hot-Reload Guard
 
-- [ ] 5.1 Confirm the file-system watcher (if present) does not trigger reloads for middleware assemblies; add explicit exclusion or documentation if needed
+- [x] 5.1 Confirm the file-system watcher (if present) does not trigger reloads for middleware assemblies; add explicit exclusion or documentation if needed
 
 ## 6. Tests
 
