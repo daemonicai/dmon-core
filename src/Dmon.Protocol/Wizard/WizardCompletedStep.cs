@@ -1,4 +1,4 @@
-namespace Dmon.Abstractions.Wizard;
+namespace Dmon.Protocol.Wizard;
 
 /// <summary>
 /// Terminal marker returned by a factory when setup is complete.

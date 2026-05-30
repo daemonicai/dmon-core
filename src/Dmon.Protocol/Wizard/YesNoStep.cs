@@ -1,4 +1,6 @@
-namespace Dmon.Abstractions.Wizard;
+using System.Text.Json.Serialization;
+
+namespace Dmon.Protocol.Wizard;
 
 /// <summary>
 /// A yes/no confirmation step. Setting <see cref="Answer"/> flips
@@ -10,6 +12,7 @@ public sealed class YesNoStep : WizardStep
 
     private bool? _answer;
 
+    [JsonIgnore]
     public bool? Answer
     {
         get => _answer;

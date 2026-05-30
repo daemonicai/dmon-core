@@ -1,5 +1,6 @@
 using Dmon.Abstractions.Providers;
 using Dmon.Abstractions.Wizard;
+using Dmon.Protocol.Wizard;
 using Microsoft.Extensions.AI;
 using OllamaSharp;
 using DmonModelInfo = Dmon.Abstractions.Providers.ModelInfo;

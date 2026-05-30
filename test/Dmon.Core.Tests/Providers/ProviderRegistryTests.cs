@@ -1,5 +1,6 @@
 using Dmon.Abstractions.Providers;
 using Dmon.Abstractions.Wizard;
+using Dmon.Protocol.Wizard;
 using Dmon.Core.Providers;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.AI;

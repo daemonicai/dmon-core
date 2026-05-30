@@ -1,10 +1,7 @@
 using System.Text.Json;
 using Dcli;
-using Dmon.Abstractions.Providers;
 using Dmon.Protocol.Commands;
 using Dmon.Protocol.Events;
-using Dmon.Providers;
-using Dmon.Providers.Ollama;
 using Dmon.Terminal;
 
 string? corePathOverride = null;
@@ -44,14 +41,6 @@ async Task SendCommandAsync(Command cmd, CancellationToken ct)
     await coreProcess.StandardInput.FlushAsync(ct).ConfigureAwait(false);
 }
 
-IReadOnlyList<IProviderFactory> providerFactories =
-[
-    new AnthropicProviderFactory(),
-    new OpenAiProviderFactory(),
-    new GeminiProviderFactory(),
-    new OllamaProviderFactory(),
-];
-
 // Signals the session loop to restart when /reload is submitted via DrainAsync.
 TaskCompletionSource<bool> reloadSignal = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -60,7 +49,6 @@ ConsoleEventHandler handler = new(
     inputStateLayer,
     SendCommandAsync,
     cts,
-    providerFactories,
     requestReload: () => reloadSignal.TrySetResult(true),
     terminal: terminal);
 

@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Dmon.Abstractions.Providers;
 using Dmon.Abstractions.Wizard;
+using Dmon.Protocol.Wizard;
 using GeminiDotnet;
 using GeminiDotnet.Extensions.AI;
 using Microsoft.Extensions.AI;

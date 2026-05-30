@@ -47,6 +47,10 @@ Events (core → host, no `id`):
 
 Commands are fire-and-forget with an event stream back. `turn.submit` does not return a long-running response — the host processes the event stream. One turn = one LLM call + tool executions + tool results. `turnEnd` includes the complete assistant message and all tool results.
 
+### Dispatch concurrency
+
+Because commands are fire-and-forget and an interactive command may **suspend awaiting a later command on the same stdin stream** (a turn suspends on `tool.confirmResponse`/`ui.inputResponse`; a provider-setup wizard suspends on `wizard.answer`), the core's single stdin reader MUST NOT block on such a command. Long-running interactive commands (`turn.submit`, `wizard.start`) are dispatched on a tracked background task and the reader returns immediately to consume the next line; the suspended operation is resumed when its resolving command (`tool.confirmResponse`, `ui.inputResponse`, `wizard.answer`) is subsequently read and routed. Short, non-interactive commands are handled inline. This is the concrete consequence of "the core suspends the **turn** until the response arrives" — it is the turn (or wizard) that suspends, never the reader. Concurrency remains bounded: at most one turn (turn gate) and at most one active wizard (session guard); background-task failures are emitted as `error` events and are observable at shutdown.
+
 ### Tool confirmation
 
 The permission gate middleware uses Pi's `extension_ui_request / extension_ui_response` pattern. When the gate needs confirmation before invoking a tool, the core emits a `tool.confirmRequest` event; the host responds with a `tool.confirmResponse` command. The core suspends the turn until the response arrives. The same mechanism supports richer interactions (`select`, `input`, `editor`) for tools that need host UI.

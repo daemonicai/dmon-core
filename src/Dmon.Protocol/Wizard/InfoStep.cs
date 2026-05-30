@@ -1,4 +1,4 @@
-namespace Dmon.Abstractions.Wizard;
+namespace Dmon.Protocol.Wizard;
 
 /// <summary>
 /// An informational step with no answer. The renderer displays the

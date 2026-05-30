@@ -1,4 +1,6 @@
-namespace Dmon.Abstractions.Wizard;
+using System.Text.Json.Serialization;
+
+namespace Dmon.Protocol.Wizard;
 
 /// <summary>
 /// A step asking the user to pick exactly one option from a list.
@@ -10,6 +12,7 @@ public sealed class ChooseOneStep : WizardStep
 
     private int? _selectedIndex;
 
+    [JsonIgnore]
     public int? SelectedIndex
     {
         get => _selectedIndex;

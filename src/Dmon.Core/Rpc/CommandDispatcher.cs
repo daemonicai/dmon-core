@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Text.Json;
 using Dmon.Protocol.Commands;
 using Dmon.Protocol.Events;
@@ -21,6 +22,10 @@ public sealed class CommandDispatcher
     private readonly IEventEmitter _emitter;
     private readonly ILogger<CommandDispatcher> _logger;
 
+    // Tracked background tasks for long-running interactive commands (turn.submit, wizard.start).
+    // Kept so shutdown can observe them and so exceptions are never silently lost.
+    private readonly ConcurrentBag<Task> _backgroundTasks = new();
+
     public CommandDispatcher(
         ITurnHandler turn,
         IModelHandler model,
@@ -42,6 +47,12 @@ public sealed class CommandDispatcher
         _emitter = emitter;
         _logger = logger;
     }
+
+    /// <summary>
+    /// Waits for all outstanding background tasks to complete (or fault).
+    /// Call during graceful shutdown after the reader loop exits.
+    /// </summary>
+    public Task DrainAsync() => Task.WhenAll(_backgroundTasks);
 
     public async Task DispatchAsync(string line, CancellationToken cancellationToken)
     {
@@ -78,6 +89,22 @@ public sealed class CommandDispatcher
             string? type = typeElem.GetString();
             JsonElement root = doc.RootElement;
 
+            // Long-running interactive commands block on a TCS awaiting a later stdin line.
+            // Dispatching them inline would deadlock the reader. Run on a tracked background
+            // task so the reader returns immediately and can route the resolving command.
+            //
+            // IMPORTANT: JsonElement is a view into doc's memory buffer. We must deserialize
+            // to a typed POCO *before* exiting the using block (which disposes doc), so the
+            // background task never reads a disposed document.
+            if (IsLongRunningCommand(type))
+            {
+                // Eager deserialization while doc is still alive.
+                Func<CancellationToken, Task> work = BuildBackgroundWork(type, root);
+                Task backgroundTask = RunBackgroundAsync(type, work, cancellationToken);
+                _backgroundTasks.Add(backgroundTask);
+                return;
+            }
+
             try
             {
                 await RouteAsync(type, root, cancellationToken).ConfigureAwait(false);
@@ -102,6 +129,69 @@ public sealed class CommandDispatcher
                     Recoverable = false
                 }, cancellationToken).ConfigureAwait(false);
             }
+        }
+    }
+
+    private static bool IsLongRunningCommand(string? type) =>
+        type is "turn.submit" or "wizard.start";
+
+    // Eagerly deserializes the long-running command while the JsonDocument is still alive,
+    // returning a delegate that captures only the typed POCO (not a JsonElement view).
+    // Called inside the using(doc) block so deserialization completes before doc is disposed.
+    // The POCO is captured in the closure; the JsonElement is not referenced by the returned Func.
+    private Func<CancellationToken, Task> BuildBackgroundWork(string? type, JsonElement element)
+    {
+        // Deserialize synchronously here — doc is still alive, element is valid.
+        return type switch
+        {
+            "turn.submit" => DeserializeAndBind<TurnSubmitCommand>(element, _turn.SubmitAsync),
+            "wizard.start" => DeserializeAndBind<WizardStartCommand>(element, _providerSetup.StartWizardAsync),
+            _ => throw new InvalidOperationException($"Unexpected long-running command type: '{type}'.")
+        };
+    }
+
+    // Deserializes the element immediately and returns a Func closing over the typed POCO.
+    // The returned delegate has no reference to the JsonElement or its parent JsonDocument.
+    private static Func<CancellationToken, Task> DeserializeAndBind<T>(
+        JsonElement element,
+        Func<T, CancellationToken, Task> handler)
+    {
+        T cmd = Deserialize<T>(element); // synchronous — happens while doc is alive
+        return (ct) => handler(cmd, ct);
+    }
+
+    // Wraps a pre-built work delegate for background execution: surfaces any exception as an
+    // ErrorEvent rather than letting it escape unobserved. Accepts a Func so the caller can
+    // deserialize eagerly (while JsonDocument is alive) before passing the work here.
+    private async Task RunBackgroundAsync(string? type, Func<CancellationToken, Task> work, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await work(cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            // Shutdown or abort — not an error.
+        }
+        catch (NotImplementedException ex)
+        {
+            _logger.LogWarning("Command not yet implemented: {Type} — {Message}", type, ex.Message);
+            await _emitter.EmitAsync(new ErrorEvent
+            {
+                Code = "notImplemented",
+                Message = ex.Message,
+                Recoverable = true
+            }, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unhandled error in background command {Type}", type);
+            await _emitter.EmitAsync(new ErrorEvent
+            {
+                Code = "internalError",
+                Message = ex.Message,
+                Recoverable = false
+            }, cancellationToken).ConfigureAwait(false);
         }
     }
 
@@ -136,6 +226,8 @@ public sealed class CommandDispatcher
             "thinking.set" => _thinking.SetAsync(Deserialize<ThinkingSetCommand>(element), cancellationToken),
             "thinking.cycle" => _thinking.CycleAsync(Deserialize<ThinkingCycleCommand>(element), cancellationToken),
             "provider.configure" => _providerSetup.ConfigureAsync(Deserialize<ProviderConfigureCommand>(element), cancellationToken),
+            "wizard.start" => _providerSetup.StartWizardAsync(Deserialize<WizardStartCommand>(element), cancellationToken),
+            "wizard.answer" => _providerSetup.AnswerWizardAsync(Deserialize<WizardAnswerCommand>(element), cancellationToken),
             _ => UnknownCommandAsync(type, cancellationToken)
         };
     }

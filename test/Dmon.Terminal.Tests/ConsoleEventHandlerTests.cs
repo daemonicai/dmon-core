@@ -2,7 +2,6 @@ using System.Text;
 using System.Text.Json;
 using System.Threading.Channels;
 using Dcli;
-using Dmon.Abstractions.Providers;
 using Dmon.Protocol.Commands;
 using Dmon.Protocol.Enums;
 using Dmon.Protocol.Events;
@@ -27,7 +26,6 @@ public sealed class ConsoleEventHandlerTests
         List<Command> sentCommands,
         CancellationTokenSource cts,
         Action? requestReload = null,
-        IReadOnlyList<IProviderFactory>? providerFactories = null,
         InputStateLayer? inputLayer = null)
     {
         Func<Command, CancellationToken, Task> send = (cmd, _) =>
@@ -43,7 +41,6 @@ public sealed class ConsoleEventHandlerTests
             input,
             send,
             cts,
-            providerFactories ?? [],
             requestReload ?? (() => { }),
             fake);
     }
@@ -722,5 +719,79 @@ public sealed class ConsoleEventHandlerTests
         Assert.Equal(2, cmds.Count);
         Assert.Equal("first message",  cmds[0].Message);
         Assert.Equal("second message", cmds[1].Message);
+    }
+
+    // ── Bug B: WizardCompletedStep — no answer command sent, success line rendered ─
+
+    private static WizardStepEvent MakeStepEvent<T>(string wizardId, T step) where T : Dmon.Protocol.Wizard.WizardStep =>
+        new() { WizardId = wizardId, Step = step };
+
+    [Fact]
+    public async Task WizardCompletedStep_RendersSuccessLine_DoesNotSendAnswerCommand()
+    {
+        // The terminal must render the completion message and must NOT send a WizardAnswerCommand.
+        FakeTerminal fake = new();
+        List<Command> sentCommands = [];
+        using CancellationTokenSource cts = new();
+        ConsoleEventHandler handler = BuildHandler(fake, sentCommands, cts);
+
+        // Activate wizard state.
+        await handler.HandleRpcEventAsync(
+            (Event)new SetupRequiredEvent { Adapters = [] }, CancellationToken.None);
+        // The WizardStartCommand is sent; clear it so assertions are clean.
+        sentCommands.Clear();
+
+        Dmon.Protocol.Wizard.WizardCompletedStep completedStep = new()
+        {
+            Id = "done",
+            Prompt = "Complete",
+            Message = "Provider configured successfully!"
+        };
+
+        await handler.HandleRpcEventAsync(
+            (Event)MakeStepEvent("wiz-1", completedStep), CancellationToken.None);
+
+        // No WizardAnswerCommand must have been sent.
+        Assert.Empty(sentCommands.OfType<WizardAnswerCommand>());
+
+        // The completion message must appear in scrollback.
+        IEnumerable<string> lines = fake.Calls
+            .OfType<ScrollbackAppendLine>()
+            .Select(c => LineText(c.Line));
+        Assert.Contains(lines, l => l.Contains("Provider configured successfully!"));
+    }
+
+    [Fact]
+    public async Task ProviderConfiguredEvent_ShowsConfirmationLine_ClearsWizardState()
+    {
+        // ProviderConfiguredEvent while wizard is active renders a confirmation line
+        // and unlocks input.
+        FakeTerminal fake = new();
+        List<Command> sentCommands = [];
+        using CancellationTokenSource cts = new();
+        InputStateLayer layer = new();
+        ConsoleEventHandler handler = BuildHandler(fake, sentCommands, cts, inputLayer: layer);
+
+        // Lock input and activate wizard (simulating SetupRequired flow).
+        await handler.HandleRpcEventAsync(
+            (Event)new SetupRequiredEvent { Adapters = [] }, CancellationToken.None);
+
+        ProviderConfiguredEvent evt = new()
+        {
+            Adapter = "openai",
+            ModelId = "gpt-4o",
+            Scope   = "global",
+        };
+
+        await handler.HandleRpcEventAsync((Event)evt, CancellationToken.None);
+
+        // Confirmation line must appear in scrollback.
+        IEnumerable<string> lines = fake.Calls
+            .OfType<ScrollbackAppendLine>()
+            .Select(c => LineText(c.Line));
+        Assert.Contains(lines, l => l.Contains("openai") && l.Contains("gpt-4o"));
+
+        // Input must be unlocked.
+        Assert.False(layer.IsLocked);
     }
 }

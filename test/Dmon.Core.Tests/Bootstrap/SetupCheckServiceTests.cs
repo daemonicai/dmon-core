@@ -1,5 +1,6 @@
 using Dmon.Abstractions.Providers;
 using Dmon.Abstractions.Wizard;
+using Dmon.Protocol.Wizard;
 using Dmon.Core.Bootstrap;
 using Dmon.Core.Tests.Fakes;
 using Dmon.Protocol.Events;

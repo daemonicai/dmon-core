@@ -31,5 +31,8 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-nuget-
 
+      - name: Build
+        run: make build
+
       - name: Run tests
         run: make test

@@ -1,4 +1,6 @@
-namespace Dmon.Abstractions.Wizard;
+using System.Text.Json.Serialization;
+
+namespace Dmon.Protocol.Wizard;
 
 /// <summary>
 /// A step asking for free-form text. Setting <see cref="Value"/> to a non-null string
@@ -12,6 +14,7 @@ public sealed class TextInputStep : WizardStep
 
     private string? _value;
 
+    [JsonIgnore]
     public string? Value
     {
         get => _value;

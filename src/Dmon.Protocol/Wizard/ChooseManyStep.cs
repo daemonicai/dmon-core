@@ -1,4 +1,6 @@
-namespace Dmon.Abstractions.Wizard;
+using System.Text.Json.Serialization;
+
+namespace Dmon.Protocol.Wizard;
 
 /// <summary>
 /// A step asking the user to select one or more options.
@@ -12,6 +14,7 @@ public sealed class ChooseManyStep : WizardStep
 
     private IReadOnlyList<int>? _selectedIndices;
 
+    [JsonIgnore]
     public IReadOnlyList<int>? SelectedIndices
     {
         get => _selectedIndices;

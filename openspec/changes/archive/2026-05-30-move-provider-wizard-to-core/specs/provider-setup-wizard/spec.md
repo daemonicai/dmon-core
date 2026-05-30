@@ -1,7 +1,5 @@
-## Purpose
+## MODIFIED Requirements
 
-This capability defines the interactive provider setup wizard: the `WizardStep` type hierarchy and accumulating state, the engine that drives each factory's step machine, back/cancel navigation, global-scope persistence, the wizard RPC contract, and terminal rendering of steps.
-## Requirements
 ### Requirement: WizardStep type hierarchy
 The system SHALL define an abstract `WizardStep` base class in `Dmon.Protocol` with an `init`-only `string Id`, an `init`-only `string Prompt`, and a read-only `bool IsAnswered`. The question portion of a step SHALL be immutable; the answer portion SHALL be settable and SHALL flip `IsAnswered` to `true` when set, and SHALL be marked `[JsonIgnore]` so that only the question portion serialises on the wire. `WizardStep` SHALL be a `[JsonPolymorphic]` serialisation root with a `[JsonDerivedType]` discriminator per subtype, alongside `Command` and `Event`. The following concrete subtypes SHALL exist: `ChooseOneStep` (`IReadOnlyList<WizardOption> Options`, nullable `SelectedIndex` answer), `ChooseManyStep` (`Options`, `int MinSelections`, `IReadOnlyList<int> SelectedIndices` answer), `TextInputStep` (`string? Default`, `bool Secret`, `bool Required`, `string? Value` answer), `YesNoStep` (`bool Default`, `bool? Answer`), `InfoStep` (no answer; rendering advances), and `WizardCompletedStep` (carries a `string Message`, no answer). A `WizardOption` SHALL be defined in `Dmon.Protocol` and SHALL carry a display `Label`, a stored `Value`, and an optional `Description`.
 
@@ -24,13 +22,6 @@ The system SHALL define an abstract `WizardStep` base class in `Dmon.Protocol` w
 #### Scenario: Step round-trips polymorphically
 - **WHEN** a serialised `TextInputStep` is deserialised against the `WizardStep` base type
 - **THEN** the concrete `TextInputStep` is reconstructed via its `[JsonDerivedType]` discriminator
-
-### Requirement: WizardState accumulates answered steps
-The system SHALL define `WizardState` in `Dmon.Abstractions` holding an ordered, immutable `IReadOnlyList<WizardStep> Steps`. Each entry SHALL be an answered step (the adapter-selection step at index 0, followed by factory-produced steps in the order they were answered). The factory SHALL read prior answers from `WizardState.Steps` by step id and/or type.
-
-#### Scenario: Factory reads a prior answer by id
-- **WHEN** a factory needs the entered API key during `GetNextStepAsync`
-- **THEN** it locates the answered `TextInputStep` whose `Id == "api-key"` in `WizardState.Steps` and reads its `Value`
 
 ### Requirement: Wizard engine drives the factory state machine
 `Dmon.Core` SHALL provide a wizard engine that, after provider selection, repeatedly calls `IProviderFactory.GetNextStepAsync(state, cancellationToken)`. For each returned step that is not a `WizardCompletedStep`, the engine SHALL emit the step to the host as a `WizardStepEvent`, await the host's `WizardAnswerCommand`, apply the answer to the corresponding step, append the answered step to `WizardState.Steps`, and loop. When `GetNextStepAsync` returns a `WizardCompletedStep`, the engine SHALL stop the loop, persist the resulting provider config, and emit the completion to the host (the `WizardCompletedStep.Message` is rendered terminal-side). The `WizardState` SHALL be held in `Dmon.Core` for the duration of the wizard and SHALL NOT cross the wire.
@@ -103,6 +94,8 @@ The terminal renderer SHALL pattern-match `WizardStep` subtypes received via `Wi
 - **WHEN** the user triggers "back" at a selection prompt
 - **THEN** the renderer sends a `WizardAnswerCommand` with outcome `Back` rather than an answer
 
+## ADDED Requirements
+
 ### Requirement: Wizard RPC contract
 The provider setup wizard SHALL be driven over the RPC layer (ADR-003) using a dedicated message family. The host SHALL initiate the wizard with a `WizardStartCommand` (discriminator `wizard.start`). `Dmon.Core` SHALL emit each step as a `WizardStepEvent` (discriminator `wizard.step`) carrying a `wizardId` and the polymorphic `WizardStep`. The host SHALL reply with a `WizardAnswerCommand` (discriminator `wizard.answer`) carrying the `wizardId`, an `outcome` of `Answered`, `Back`, or `Cancel`, and the answer value when the outcome is `Answered`. Completion SHALL be signalled by reusing the existing `ProviderConfiguredEvent`; no new completion event SHALL be introduced. `Dmon.Core` SHALL hold at most one active wizard session, keyed by the `wizardId` from the start command, and SHALL ignore a `WizardAnswerCommand` whose `wizardId` does not match the active session.
 
@@ -121,4 +114,3 @@ The provider setup wizard SHALL be driven over the RPC layer (ADR-003) using a d
 #### Scenario: Completion reuses ProviderConfiguredEvent
 - **WHEN** the engine persists configuration at a `WizardCompletedStep`
 - **THEN** it emits the existing `ProviderConfiguredEvent` rather than a new wizard-specific completion event
-
