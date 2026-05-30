@@ -1,3 +1,7 @@
+## Purpose
+
+This capability defines the `IProviderFactory` abstraction for pluggable LLM client construction: the interface contract, the built-in factory implementations, capability reporting, the wizard setup flow, and the assembly-dependency boundaries between `Dmon.Abstractions`, `Dmon.Protocol`, and `Dmon.Providers`.
+## Requirements
 ### Requirement: IProviderFactory interface for pluggable client construction
 The system SHALL define `IProviderFactory` in `Dmon.Abstractions` with the following members: `string AdapterName`, `string DisplayName`, `string DefaultEnvVar`, `string DefaultModelId`, `ChatClientCapabilities GetCapabilities(string modelId)`, `ValueTask<IChatClient> CreateAsync(ProviderConfig config, string? apiKey, CancellationToken cancellationToken)`, `ValueTask<IReadOnlyList<ModelInfo>> GetAvailableModelsAsync(string? apiKey, CancellationToken cancellationToken = default)`, and `ValueTask<WizardStep> GetNextStepAsync(WizardState state, CancellationToken cancellationToken = default)`. `GetAvailableModelsAsync` SHALL retain a default interface implementation returning an empty list. `GetNextStepAsync` and `DisplayName` SHALL NOT have default implementations, so every factory is required to define its setup flow and human-readable name. `ProviderRegistry` SHALL resolve the correct factory by matching `ProviderConfig.Adapter` against `IProviderFactory.AdapterName` (case-insensitive). `DisplayName` is the human-readable label shown in the setup wizard; `AdapterName` remains the machine-readable identifier stored in config.
 
@@ -79,3 +83,19 @@ Each `IChatClient` returned by a factory's `CreateAsync` SHALL expose a `ChatCli
 #### Scenario: Dependency graph is clean
 - **WHEN** the solution dependency graph is inspected
 - **THEN** `Dmon.Providers` references `Dmon.Abstractions` and the three LLM SDKs; it references nothing else in the daemon solution
+
+### Requirement: Wizard types live in the reference-free protocol leaf
+The serialisable wizard types (`WizardStep` and its subtypes, and `WizardOption`) SHALL be defined in `Dmon.Protocol`. `Dmon.Protocol` SHALL remain a reference-free leaf assembly (no project or package references), so that the wire contract stays free of provider SDKs and `Microsoft.Extensions.AI`. `Dmon.Abstractions` MAY reference `Dmon.Protocol` (the dependency edge flows `Dmon.Abstractions → Dmon.Protocol`, never the reverse), allowing `IProviderFactory.GetNextStepAsync` to return a `WizardStep` that is simultaneously the in-process factory output and the RPC payload, with no DTO mapping. `WizardState` SHALL remain defined in `Dmon.Abstractions` as in-process session state.
+
+#### Scenario: Protocol has no references
+- **WHEN** `Dmon.Protocol.csproj` is inspected
+- **THEN** it contains no `ProjectReference` and no `PackageReference`
+
+#### Scenario: Abstractions references Protocol, not the reverse
+- **WHEN** the solution dependency graph is inspected
+- **THEN** `Dmon.Abstractions` references `Dmon.Protocol` and `Dmon.Protocol` does not reference `Dmon.Abstractions`
+
+#### Scenario: Factory output is the wire type
+- **WHEN** `IProviderFactory.GetNextStepAsync` returns a `WizardStep`
+- **THEN** that same `WizardStep` instance can be embedded in a `WizardStepEvent` and serialised without conversion to a separate DTO
+
