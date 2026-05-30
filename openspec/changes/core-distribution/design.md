@@ -80,6 +80,7 @@ No rollback concern: until packages exist on nuget.org and a tag is pushed, runt
 
 ## Open Questions
 
-- **SDK-package version line.** Do `Dmon.Protocol`, `Dmon.Abstractions`, `Dmon.Extensions` share one version line (recommended: one coherent "SDK 0.x" keyed to `Dmon.Protocol`'s `Major.Minor`), or version independently? Default to a shared SDK line unless review decides otherwise. (Three version lines total: SDK trio, `dmon`, `dmoncore`.)
-- **`Dmon.Runtime` public API seam** (D7) — exact shape of the "start a compatible core" entry point and how `/reload` (which calls `CoreProcessManager.RestartAsync`) maps onto it.
-- **Version-skew guard mechanism** — where the `Major.Minor == ProtocolVersion.Current` check lives (MSBuild target vs release-workflow step).
+- **SDK-package version line.** **RESOLVED:** shared SDK line — `Dmon.Protocol`, `Dmon.Abstractions`, `Dmon.Extensions` move together on one version keyed to `Dmon.Protocol`'s `Major.Minor`, under a single MinVer tag prefix. (Three version lines total: SDK trio, `dmon`, `dmoncore`.)
+- **`Dmon.Runtime` public API seam** (D7) — exact shape of the "start a compatible core" entry point and how `/reload` (which calls `CoreProcessManager.RestartAsync`) maps onto it. Settled during implementation of group 3 by the worker + reviewer.
+- **Version-skew guard mechanism** — **RESOLVED:** an MSBuild target (in `Directory.Build.props`/targets) that runs on pack, so the `Major.Minor == ProtocolVersion.Current` check fires on every local and CI pack, not only the release job.
+- **Publishing scope** — **RESOLVED:** this change authors the full packaging + `release.yml` and verifies packs/tool-install against a *local* feed only. Reserving the `Dmon.*` prefix, adding the `NUGET_API_KEY` secret, and the first real nuget.org push are left as a documented manual recipe (task 6.2); no real publish happens as part of landing this change.

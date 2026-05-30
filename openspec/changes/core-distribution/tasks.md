@@ -1,7 +1,7 @@
 ## 1. Distribution ADR
 
-- [ ] 1.1 Write `docs/adrs/ADR-NNN-core-distribution.md` (next free number) recording: granular contract packages on nuget.org; `dmon` acquires `dmoncore` at runtime into the global NuGet cache rather than bundling or package-referencing it; the 3-part protocol-keyed version & compatibility scheme (`Major.Minor` = wire protocol, `Patch` = per-component counter); `dmoncore` ships as a runnable framework-dependent publish closure launched via `dotnet exec`
-- [ ] 1.2 Get the ADR accepted and add its row to the ADR table in `CLAUDE.md`; cross-reference it where distribution/versioning is discoverable
+- [x] 1.1 Write `docs/adrs/ADR-NNN-core-distribution.md` (next free number) recording: granular contract packages on nuget.org; `dmon` acquires `dmoncore` at runtime into the global NuGet cache rather than bundling or package-referencing it; the 3-part protocol-keyed version & compatibility scheme (`Major.Minor` = wire protocol, `Patch` = per-component counter); `dmoncore` ships as a runnable framework-dependent publish closure launched via `dotnet exec`
+- [x] 1.2 Get the ADR accepted and add its row to the ADR table in `CLAUDE.md`; cross-reference it where distribution/versioning is discoverable
 
 ## 2. Protocol version single source of truth
 
