@@ -10,10 +10,10 @@
 
 ## 2. Wizard RPC carrier messages
 
-- [ ] 2.1 Add `WizardStartCommand { id }` in `src/Dmon.Protocol/Commands/` and register `[JsonDerivedType]` `wizard.start` on `Command`
-- [ ] 2.2 Add `WizardAnswerCommand { id, wizardId, outcome (Answered|Back|Cancel), value }` and register `wizard.answer` on `Command`; add the `WizardAnswerOutcome` enum under `src/Dmon.Protocol/Enums/`
-- [ ] 2.3 Add `WizardStepEvent { wizardId, WizardStep step }` in `src/Dmon.Protocol/Events/` and register `wizard.step` on `Event`
-- [ ] 2.4 Add serialisation tests for the three carriers, including a `WizardStepEvent` whose embedded `step` deserialises back to its concrete subtype
+- [x] 2.1 Add `WizardStartCommand { id }` in `src/Dmon.Protocol/Commands/` and register `[JsonDerivedType]` `wizard.start` on `Command`
+- [x] 2.2 Add `WizardAnswerCommand { id, wizardId, outcome (Answered|Back|Cancel), value }` and register `wizard.answer` on `Command`; add the `WizardAnswerOutcome` enum under `src/Dmon.Protocol/Enums/`
+- [x] 2.3 Add `WizardStepEvent { wizardId, WizardStep step }` in `src/Dmon.Protocol/Events/` and register `wizard.step` on `Event`
+- [x] 2.4 Add serialisation tests for the three carriers, including a `WizardStepEvent` whose embedded `step` deserialises back to its concrete subtype
 
 ## 3. Wizard engine in Dmon.Core
 
