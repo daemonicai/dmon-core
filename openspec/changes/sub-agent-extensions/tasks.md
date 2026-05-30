@@ -11,8 +11,8 @@
 
 ## 3. Guarantee the extension-facing IServiceProvider
 
-- [ ] 3.1 Confirm the `IServiceProvider` passed to extension constructors (`NuGetExtensionLoader`) resolves `IConfiguration` and `IEnumerable<IProviderFactory>`
-- [ ] 3.2 Add a loader test asserting a constructed extension can resolve both `IConfiguration` and the provider factories from its injected `IServiceProvider`
+- [x] 3.1 Confirm the `IServiceProvider` passed to extension constructors (`NuGetExtensionLoader`) resolves `IConfiguration` and `IEnumerable<IProviderFactory>`
+- [x] 3.2 Add a loader test asserting a constructed extension can resolve both `IConfiguration` and the provider factories from its injected `IServiceProvider`
 
 ## 4. Verification
 
