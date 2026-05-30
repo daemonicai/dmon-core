@@ -338,6 +338,30 @@ public sealed class WizardRendererTests
         Assert.Equal(WizardAnswerOutcome.Cancel, cmd.Outcome);
     }
 
+    [Fact]
+    public async Task WizardStep_TextInput_Back_SendsBackOutcome()
+    {
+        (ConsoleEventHandler handler, FakeTerminal fake, List<Command> sent) =
+            await BuildActiveWizardAsync();
+
+        fake.OnInputAsync = (_, _) =>
+            Task.FromResult(new DialogResult<string>(DialogOutcome.Back, string.Empty));
+
+        TextInputStep step = new()
+        {
+            Id       = "api-key",
+            Prompt   = "API key",
+            Secret   = false,
+            Required = true,
+        };
+
+        await handler.HandleRpcEventAsync((Event)StepEvt("w1", step), CancellationToken.None);
+
+        WizardAnswerCommand cmd = Assert.Single(sent.OfType<WizardAnswerCommand>());
+        Assert.Equal(WizardAnswerOutcome.Back, cmd.Outcome);
+        Assert.Null(cmd.Value);
+    }
+
     // ── YesNoStep ──────────────────────────────────────────────────────────
 
     [Fact]
@@ -407,6 +431,51 @@ public sealed class WizardRendererTests
 
         WizardAnswerCommand cmd = Assert.Single(sent.OfType<WizardAnswerCommand>());
         Assert.Equal(WizardAnswerOutcome.Cancel, cmd.Outcome);
+    }
+
+    [Fact]
+    public async Task WizardStep_YesNo_Back_SendsBackOutcome()
+    {
+        (ConsoleEventHandler handler, FakeTerminal fake, List<Command> sent) =
+            await BuildActiveWizardAsync();
+
+        fake.OnChoiceAsync = (_, _) =>
+            Task.FromResult(new DialogResult<int>(DialogOutcome.Back, default));
+
+        YesNoStep step = new()
+        {
+            Id      = "confirm",
+            Prompt  = "Are you sure?",
+            Default = false,
+        };
+
+        await handler.HandleRpcEventAsync((Event)StepEvt("w1", step), CancellationToken.None);
+
+        WizardAnswerCommand cmd = Assert.Single(sent.OfType<WizardAnswerCommand>());
+        Assert.Equal(WizardAnswerOutcome.Back, cmd.Outcome);
+        Assert.Null(cmd.Value);
+    }
+
+    [Fact]
+    public async Task WizardStep_YesNo_ChoiceRequest_HasAllowBackTrue()
+    {
+        (ConsoleEventHandler handler, FakeTerminal fake, List<Command> sent) =
+            await BuildActiveWizardAsync();
+
+        fake.OnChoiceAsync = (_, _) =>
+            Task.FromResult(new DialogResult<int>(DialogOutcome.Submitted, 0));
+
+        YesNoStep step = new()
+        {
+            Id      = "confirm",
+            Prompt  = "Are you sure?",
+            Default = true,
+        };
+
+        await handler.HandleRpcEventAsync((Event)StepEvt("w1", step), CancellationToken.None);
+
+        ChoiceOpened call = Assert.Single(fake.Calls.OfType<ChoiceOpened>());
+        Assert.True(call.Request.AllowBack);
     }
 
     // ── InfoStep ───────────────────────────────────────────────────────────

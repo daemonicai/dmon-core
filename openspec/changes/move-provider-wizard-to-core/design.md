@@ -133,7 +133,9 @@ Rollback: the change is a single branch; revert restores the terminal-side engin
 
 ## Known limitations
 
-- **ChooseMany renders as single-select in the terminal.** The terminal renderer maps `ChooseManyStep` onto a single-pick selection prompt (emitting one index), because no built-in factory emits a `ChooseManyStep` and the terminal's prompt surface has no multi-select primitive yet. The wire contract (`WizardAnswerCommand.Value` as comma-separated indices) and the Core decode already support multiple indices, so adding true multi-select is a terminal-only enhancement when an extension wizard first needs it. Documented so it is not mistaken for full support.
+- **ChooseMany renders as single-select in the terminal.** The terminal renderer maps `ChooseManyStep` onto a single-pick selection prompt (emitting one index) because no built-in factory emits a `ChooseManyStep`. dcli does expose a `MultiSelectRequest`, so wiring true multi-select is a straightforward terminal-only enhancement when an extension wizard first needs it; the wire contract (`WizardAnswerCommand.Value` as comma-separated indices) and the Core decode already support multiple indices. Documented so it is not mistaken for full support.
+
+- **Back navigation is unavailable on text-input steps (dcli gap).** The wizard's `[` back key works on selection steps (`ChooseOneStep`/`ChooseManyStep`) and the yes/no step (`YesNoStep`), because dcli's `SelectRequest`/`ChoiceRequest` expose `AllowBack`. dcli's `InputRequest` (0.2.0-rc.2) does **not** expose `AllowBack`, so back has no effect on `TextInputStep` prompts (e.g. the API-key step). The terminal already maps `DialogOutcome.Back → Back` defensively, so the fix is forward-compatible the moment dcli adds `InputRequest.AllowBack` — which should be raised as a dcli enhancement rather than worked around in dmon. Back from the first (provider-selection) step intentionally cancels the wizard.
 
 ## Open Questions
 

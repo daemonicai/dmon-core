@@ -174,8 +174,8 @@ public class ProviderSetupHandler : IProviderSetupHandler
 
                 if (step is WizardCompletedStep completedStep)
                 {
-                    // Emit the completed step to the host so it can render the success message.
-                    // This is fire-and-forget from the engine's perspective — no answer awaited.
+                    // Emit the completed step (awaited) so the host can render the success message;
+                    // no WizardAnswerCommand is awaited for it — the completed step is terminal.
                     await _emitter.EmitAsync(new WizardStepEvent
                     {
                         WizardId = wizardId,

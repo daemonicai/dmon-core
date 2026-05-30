@@ -416,6 +416,9 @@ internal sealed class ConsoleEventHandler
                 IsSecret: step.Secret),
             cancellationToken).ConfigureAwait(false);
 
+        if (result.Outcome == DialogOutcome.Back)
+            return Answer(wizardId, WizardAnswerOutcome.Back, null);
+
         if (result.Outcome == DialogOutcome.Cancelled)
             return Answer(wizardId, WizardAnswerOutcome.Cancel, null);
 
@@ -444,8 +447,12 @@ internal sealed class ConsoleEventHandler
         DialogResult<int> result = await _terminal.ChoiceAsync(
             new ChoiceRequest(
                 Options: options,
-                Prompt: new LineBuilder().Bold($"{step.Prompt} {hint}").Build()),
+                Prompt: new LineBuilder().Bold($"{step.Prompt} {hint}").Build())
+            { AllowBack = true },
             cancellationToken).ConfigureAwait(false);
+
+        if (result.Outcome == DialogOutcome.Back)
+            return Answer(wizardId, WizardAnswerOutcome.Back, null);
 
         if (result.Outcome == DialogOutcome.Cancelled)
             return Answer(wizardId, WizardAnswerOutcome.Cancel, null);
