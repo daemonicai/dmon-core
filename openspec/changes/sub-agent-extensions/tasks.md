@@ -5,9 +5,9 @@
 
 ## 2. Config-section convention (coordinate with extension-middleware-tier)
 
-- [ ] 2.1 Decide the command-extension config section path, harmonised with the middleware `middleware:<name>` convention (nested `extensions:commands:<name>` vs peer top-level `commands:<name>`); record the decision in design.md Open Questions
-- [ ] 2.2 Ensure a name-keyed command-extension section is parseable from the layered `IConfiguration` without the array-index collapse that affects the `extensions` list (`ExtensionsConfigReader`)
-- [ ] 2.3 Document the section convention alongside the existing extension config docs (ADR-009 area)
+- [x] 2.1 Decide the command-extension config section path, harmonised with the middleware `middleware:<name>` convention (nested `extensions:commands:<name>` vs peer top-level `commands:<name>`); record the decision in design.md Open Questions
+- [x] 2.2 Ensure a name-keyed command-extension section is parseable from the layered `IConfiguration` without the array-index collapse that affects the `extensions` list (`ExtensionsConfigReader`)
+- [x] 2.3 Document the section convention alongside the existing extension config docs (ADR-009 area)
 
 ## 3. Guarantee the extension-facing IServiceProvider
 
