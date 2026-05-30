@@ -1,4 +1,5 @@
 using Dmon.Abstractions.Wizard;
+using Dmon.Protocol.Wizard;
 using Microsoft.Extensions.AI;
 
 namespace Dmon.Abstractions.Providers;

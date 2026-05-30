@@ -2,6 +2,7 @@ using System.ClientModel;
 using System.Text.Json;
 using Dmon.Abstractions.Providers;
 using Dmon.Abstractions.Wizard;
+using Dmon.Protocol.Wizard;
 using Microsoft.Extensions.AI;
 using OpenAI;
 

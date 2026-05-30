@@ -1,4 +1,4 @@
-namespace Dmon.Abstractions.Wizard;
+namespace Dmon.Protocol.Wizard;
 
 /// <summary>
 /// An option presented in a selection step. <see cref="Label"/> is shown in the UI;

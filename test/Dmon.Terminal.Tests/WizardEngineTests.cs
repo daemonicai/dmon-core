@@ -1,6 +1,7 @@
 using Dcli;
 using Dmon.Abstractions.Providers;
 using Dmon.Abstractions.Wizard;
+using Dmon.Protocol.Wizard;
 using Dmon.Terminal.Tests.Fakes;
 using Microsoft.Extensions.AI;
 

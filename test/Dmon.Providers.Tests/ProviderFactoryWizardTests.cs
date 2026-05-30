@@ -1,4 +1,5 @@
 using Dmon.Abstractions.Wizard;
+using Dmon.Protocol.Wizard;
 using Dmon.Providers;
 
 namespace Dmon.Providers.Tests;

@@ -3,6 +3,7 @@ using Anthropic;
 using Anthropic.Core;
 using Dmon.Abstractions.Providers;
 using Dmon.Abstractions.Wizard;
+using Dmon.Protocol.Wizard;
 using Microsoft.Extensions.AI;
 
 namespace Dmon.Providers;

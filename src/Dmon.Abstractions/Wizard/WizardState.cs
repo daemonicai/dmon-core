@@ -1,3 +1,5 @@
+using Dmon.Protocol.Wizard;
+
 namespace Dmon.Abstractions.Wizard;
 
 /// <summary>
