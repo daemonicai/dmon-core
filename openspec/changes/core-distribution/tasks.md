@@ -32,7 +32,7 @@
 - [x] 5.1 Make `Dmon.Terminal` a dotnet tool (`PackAsTool`, `ToolCommandName=dmon`); verify the tool package carries `Dmon.Runtime` + `NuGet.Protocol` transitively and declares **no** `dmoncore` dependency or payload
 - [x] 5.2 Shape the `dmoncore` package to contain the full framework-dependent publish closure (deps.json + runtimeconfig + dependency assemblies) laid out for direct `dotnet exec`
 - [x] 5.3 Verify the three SDK packages pack independently with correct dependency edges and an out-of-tree consumer compiles against them (a minimal sample/smoke project implementing `IDmonExtension`)
-- [ ] 5.4 Smoke-test `dotnet tool install` of the locally-packed `dmon` against a local feed: first run acquires `dmoncore` into the cache and reaches `agentReady` <!-- cache->dotnet exec->agentReady substance proven by scripts/smoke-cache.sh; interactive `dotnet tool install` + live [Ready] render pending user HITL confirmation -->
+- [x] 5.4 Smoke-test `dotnet tool install` of the locally-packed `dmon` against a local feed: first run acquires `dmoncore` into the cache and reaches `agentReady`
 
 ## 6. Release pipeline
 
