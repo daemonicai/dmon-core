@@ -136,6 +136,32 @@ The config-driven extension model is governed by four ADRs:
 | [ADR-002](./adrs/ADR-002-extension-tool-contract.md) | **Contract.** The `IDmonExtension`/`AIFunction` interface all extensions implement. ADR-009 gives concrete meaning to ADR-002's "approved at project/global scope": presence in `config.yaml` is the approval. |
 | [ADR-006](./adrs/ADR-006-permission-model.md) | **Security gate.** Conservative permission model; under ADR-009 the gate fires at **add time** (writing a source to config), not on every startup. |
 
+### Command-extension configuration
+
+A command (sub-agent) extension reads its own settings from a **peer top-level `commands:<name>` section**, where `<name>` is the extension's `IDmonExtension.Name` (e.g. `dmon-websearch`). This section is a sibling of the `middleware:` section used by the middleware tier — not nested under `extensions:`.
+
+```yaml
+commands:
+  dmon-websearch:
+    model: gemini/gemini-2.5-flash   # <adapter>/<model-id>
+    timeout: "30"                    # arbitrary fields are permitted
+```
+
+**Reading the section.** Extensions read their section directly from the `IConfiguration` injected via `IServiceProvider`:
+
+```csharp
+IConfigurationSection section = configuration.GetSection($"commands:{Name}");
+string? model = section["model"];
+```
+
+No dedicated reader class is needed: the layered `IConfiguration` is safe for name-keyed maps because map keys are merged by name, not by array index. This is the property that distinguishes `commands:<name>` from the `extensions:` list, which collapses by index across layered files and requires `ExtensionsConfigReader` to be read correctly.
+
+**Layering behaviour.** The standard last-wins precedence applies: `~/.dmon/config.yaml` < `./.dmon/config.yaml` < `./.dmon/config.local.yaml`. A project-layer value overrides a user-layer value for the same key.
+
+**Scope.** The section is purely for extension settings. Arbitrary fields are allowed; the only reserved field is `model`, which carries the provider/model identity as `<adapter>/<model-id>`. Extensions must not rely on the section being present — absence means the extension's defaults apply.
+
+**ADR cross-reference.** This convention is governed by [ADR-010](./adrs/ADR-010-sub-agent-extensions.md) (sub-agent extensions scope boundary) and aligns with the middleware tier's `middleware:<ClassName>` convention. The choice of a name-keyed top-level map (rather than a sub-key under `extensions:`) is recorded in `design.md` decision D3 of the `sub-agent-extensions` change.
+
 ---
 
 ## Provider configuration
