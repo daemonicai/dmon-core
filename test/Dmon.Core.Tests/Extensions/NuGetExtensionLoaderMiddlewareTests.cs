@@ -1,6 +1,7 @@
 using Dmon.Core.Extensions;
 using Dmon.Extensions;
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.Logging;
 
 namespace Dmon.Core.Tests.Extensions;
 
@@ -213,6 +214,69 @@ public sealed class NuGetExtensionLoaderMiddlewareTests : IDisposable
     }
 
     // -------------------------------------------------------------------------
+    // Scenario: Middleware constructor throws — warning IS logged (task 6.3 logging half)
+    // -------------------------------------------------------------------------
+
+    /// <summary>
+    /// When a middleware constructor throws, the loader must call
+    /// <see cref="ILogger.LogWarning"/> via the <see cref="IServiceProvider"/>.
+    /// Inject a capturing <see cref="ILogger{T}"/> so the call is observable.
+    /// </summary>
+    [Fact]
+    public async Task LoadAsync_MiddlewareCtorThrows_LogsWarning()
+    {
+        string guid = Guid.NewGuid().ToString("N");
+        string asmName = $"MwCtorThrowLog{guid}";
+        string dllPath = Path.Combine(_tempDir, asmName + ".dll");
+
+        EmitAssembly(
+            assemblyName: asmName,
+            source: $$"""
+                using System;
+                using System.Collections.Generic;
+                using Dmon.Extensions;
+                using Microsoft.Extensions.AI;
+
+                [DmonMiddleware]
+                public sealed class {{asmName}}BadMw : IDmonMiddleware
+                {
+                    public {{asmName}}BadMw()
+                    {
+                        throw new InvalidOperationException("deliberate ctor failure for log test");
+                    }
+
+                    public IChatClient Wrap(IChatClient inner) => inner;
+                }
+
+                // Provide a real IDmonExtension so the load is not rejected as empty.
+                public sealed class {{asmName}}Ext : IDmonExtension
+                {
+                    public string Name => "{{asmName}}";
+                    public string Description => "log-warning test";
+                    public IEnumerable<AIFunction> Tools =>
+                        [AIFunctionFactory.Create(() => "ok", "{{asmName}}_probe")];
+                }
+                """,
+            outputPath: dllPath,
+            additionalRefs: [DmonExtensionsPath, MeaiPath]);
+
+        CapturingLogger capturingLogger = new();
+        IServiceProvider sp = new CapturingLoggerServiceProvider(capturingLogger);
+        NuGetExtensionLoader loader = new(sp);
+        ParsedExtensionSource source = new() { Kind = "assembly", Value = dllPath };
+
+        ExtensionLoadResult result = await loader.LoadAsync(source);
+
+        // The middleware must be skipped.
+        Assert.Empty(result.Middleware);
+
+        // A warning must have been emitted by the logger.
+        Assert.True(
+            capturingLogger.HasWarning,
+            "Expected a LogWarning call when the middleware constructor throws.");
+    }
+
+    // -------------------------------------------------------------------------
     // Scenario: Tool-only assembly — middleware list is empty
     // -------------------------------------------------------------------------
 
@@ -380,4 +444,42 @@ public sealed class NuGetExtensionLoaderMiddlewareTests : IDisposable
 file sealed class MwTestNullServiceProvider : IServiceProvider
 {
     public object? GetService(Type serviceType) => null;
+}
+
+/// <summary>
+/// Records whether any LogWarning call was made, regardless of message or exception.
+/// Used to verify the middleware-ctor-throws warning path (task 6.3).
+/// </summary>
+file sealed class CapturingLogger : ILogger<NuGetExtensionLoader>
+{
+    public bool HasWarning { get; private set; }
+
+    public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+    public bool IsEnabled(LogLevel logLevel) => true;
+
+    public void Log<TState>(
+        LogLevel logLevel,
+        EventId eventId,
+        TState state,
+        Exception? exception,
+        Func<TState, Exception?, string> formatter)
+    {
+        if (logLevel >= LogLevel.Warning)
+        {
+            HasWarning = true;
+        }
+    }
+}
+
+/// <summary>
+/// Returns a <see cref="CapturingLogger"/> for <c>ILogger&lt;NuGetExtensionLoader&gt;</c>
+/// and null for every other service type.
+/// </summary>
+file sealed class CapturingLoggerServiceProvider(CapturingLogger logger) : IServiceProvider
+{
+    private static readonly Type LoggerType = typeof(ILogger<NuGetExtensionLoader>);
+
+    public object? GetService(Type serviceType) =>
+        serviceType == LoggerType ? logger : null;
 }

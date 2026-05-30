@@ -30,9 +30,9 @@
 
 ## 6. Tests
 
-- [ ] 6.1 Unit test: `DmonMiddlewareAttribute` default and custom priority
-- [ ] 6.2 Unit test: loader discovers annotated middleware, ignores unannotated `IDmonMiddleware`
-- [ ] 6.3 Unit test: loader skips faulting middleware constructor, logs error, continues
-- [ ] 6.4 Unit test: pipeline fold order — lower priority is innermost
-- [ ] 6.5 Unit test: config `priority` override takes precedence over attribute value
-- [ ] 6.6 Integration test: extension assembly with both tools and middleware — both are loaded
+- [x] 6.1 Unit test: `DmonMiddlewareAttribute` default and custom priority
+- [x] 6.2 Unit test: loader discovers annotated middleware, ignores unannotated `IDmonMiddleware`
+- [x] 6.3 Unit test: loader skips faulting middleware constructor, logs error, continues
+- [x] 6.4 Unit test: pipeline fold order — lower priority is innermost
+- [x] 6.5 Unit test: config `priority` override takes precedence over attribute value
+- [x] 6.6 Integration test: extension assembly with both tools and middleware — both are loaded
