@@ -16,6 +16,6 @@
 
 ## 4. Verification
 
-- [ ] 4.1 `make build` clean (`TreatWarningsAsErrors`) and `make test` green
-- [ ] 4.2 `openspec validate sub-agent-extensions --strict`
-- [ ] 4.3 Confirm every scenario in the `sub-agent-extensions` spec is covered by a test or the accepted ADR
+- [x] 4.1 `make build` clean (`TreatWarningsAsErrors`) and `make test` green
+- [x] 4.2 `openspec validate sub-agent-extensions --strict`
+- [x] 4.3 Confirm every scenario in the `sub-agent-extensions` spec is covered by a test or the accepted ADR
