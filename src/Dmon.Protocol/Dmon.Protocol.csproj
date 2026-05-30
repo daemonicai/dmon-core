@@ -6,6 +6,16 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <RootNamespace>Dmon.Protocol</RootNamespace>
+
+    <IsPackable>true</IsPackable>
+    <!-- Shared SDK version line: sdk-0.1.0, sdk-0.1.1, … -->
+    <MinVerTagPrefix>sdk-</MinVerTagPrefix>
+    <Description>Wire protocol DTOs and constants for the dmon JSONL/stdio agent protocol. ProtocolVersion.Current is the single source of truth for the Major.Minor compatibility version.</Description>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
 
 </Project>

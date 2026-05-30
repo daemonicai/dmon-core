@@ -21,11 +21,11 @@
 
 ## 4. Packaging metadata and versioning
 
-- [ ] 4.1 Add `LICENSE` (MPL-2.0) at the repository root
-- [ ] 4.2 Add `Directory.Build.props` with shared metadata (Authors, RepositoryUrl, `PackageLicenseExpression=MPL-2.0`, SourceLink, `ContinuousIntegrationBuild`, deterministic builds, symbol packages) and `IsPackable=false` by default
-- [ ] 4.3 Set `IsPackable=true` only on `Dmon.Protocol`, `Dmon.Abstractions`, `Dmon.Extensions`, `Dmon.Terminal`, `Dmon.Core`; add per-package README and description
-- [ ] 4.4 Configure MinVer with per-project tag prefixes (`dmon-`, `core-`, and the SDK line — resolve Open Question: shared SDK version line); ensure inter-package deps (`Dmon.Extensions`/`Dmon.Abstractions` → `Dmon.Protocol`) pack as package dependencies
-- [ ] 4.5 Add a version-consistency guard (MSBuild target or release step) that fails when a packed version's `Major.Minor` diverges from `ProtocolVersion.Current`
+- [x] 4.1 Add `LICENSE` (MPL-2.0) at the repository root
+- [x] 4.2 Add `Directory.Build.props` with shared metadata (Authors, RepositoryUrl, `PackageLicenseExpression=MPL-2.0`, SourceLink, `ContinuousIntegrationBuild`, deterministic builds, symbol packages) and `IsPackable=false` by default
+- [x] 4.3 Set `IsPackable=true` only on `Dmon.Protocol`, `Dmon.Abstractions`, `Dmon.Extensions`, `Dmon.Terminal`, `Dmon.Core`; add per-package README and description
+- [x] 4.4 Configure MinVer with per-project tag prefixes (`dmon-`, `core-`, and the SDK line — resolve Open Question: shared SDK version line); ensure inter-package deps (`Dmon.Extensions`/`Dmon.Abstractions` → `Dmon.Protocol`) pack as package dependencies
+- [x] 4.5 Add a version-consistency guard (MSBuild target or release step) that fails when a packed version's `Major.Minor` diverges from `ProtocolVersion.Current`
 
 ## 5. Package shaping — tool and runnable core
 

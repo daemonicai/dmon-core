@@ -8,6 +8,12 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UserSecretsId>dotnet-Dmon.Core-235116ed-4152-4f15-a7a2-f92f60df0333</UserSecretsId>
+
+    <IsPackable>true</IsPackable>
+    <!-- Independent version line for the dmoncore agent core -->
+    <MinVerTagPrefix>core-</MinVerTagPrefix>
+    <Description>The dmoncore agent core — a .NET coding agent published as a runnable framework-dependent closure. Acquired and managed at runtime by the dmon host tool; not intended as a library reference.</Description>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
 
   <ItemGroup>
@@ -31,5 +37,9 @@
     <ProjectReference Include="..\Dmon.Extensions\Dmon.Extensions.csproj" />
     <ProjectReference Include="..\Dmon.Providers\Dmon.Providers.csproj" />
     <ProjectReference Include="..\Dmon.Providers.Ollama\Dmon.Providers.Ollama.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
   </ItemGroup>
 </Project>

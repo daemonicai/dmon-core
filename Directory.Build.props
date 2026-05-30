@@ -1,0 +1,102 @@
+<Project>
+
+  <!-- ====================================================================
+       Shared build properties for all projects in the solution.
+       IsPackable defaults to false; the five distribution projects opt in.
+       ==================================================================== -->
+
+  <PropertyGroup>
+    <Authors>Emmz Rendle</Authors>
+    <Company>daemonicai</Company>
+    <Product>dmon</Product>
+    <RepositoryUrl>https://github.com/daemonicai/dmon-core</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageProjectUrl>https://github.com/daemonicai/dmon-core</PackageProjectUrl>
+    <PackageLicenseExpression>MPL-2.0</PackageLicenseExpression>
+
+    <!-- Symbol packages -->
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+
+    <!-- Deterministic / reproducible builds -->
+    <Deterministic>true</Deterministic>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+
+    <!-- Non-packable by default; distribution projects override this to true -->
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <!-- CI: deterministic path-mapping so build paths don't embed the CI agent's home dir -->
+  <PropertyGroup Condition="'$(GITHUB_ACTIONS)' == 'true' Or '$(CI)' == 'true'">
+    <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
+  </PropertyGroup>
+
+  <!-- SourceLink — build-time only, not a runtime or pack dependency -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0"
+                      PrivateAssets="all" />
+  </ItemGroup>
+
+  <!-- MinVer — compute version from git tags; build-time only -->
+  <ItemGroup>
+    <PackageReference Include="MinVer" Version="6.0.0"
+                      PrivateAssets="all" />
+  </ItemGroup>
+
+  <!-- Version floor: untagged builds produce 0.1.0-alpha.0 (matching ProtocolVersion.Current = "0.1") -->
+  <PropertyGroup>
+    <MinVerMinimumMajorMinor>0.1</MinVerMinimumMajorMinor>
+  </PropertyGroup>
+
+  <!-- ====================================================================
+       Version-skew guard (task 4.5 / ADR-011 D8)
+
+       Reads ProtocolVersion.Current from ProtocolVersion.cs using regex so
+       the guard never hard-codes the value — there is exactly one authored
+       protocol version in the codebase.
+
+       Runs AfterTargets="MinVer" so $(MinVerMajor)/$(MinVerMinor) are set,
+       and only for packable projects (IsPackable == true).
+       ==================================================================== -->
+
+  <PropertyGroup>
+    <!-- Path to the C# file that holds the single authored protocol version -->
+    <_ProtocolVersionFile>$(MSBuildThisFileDirectory)src/Dmon.Protocol/ProtocolVersion.cs</_ProtocolVersionFile>
+  </PropertyGroup>
+
+  <Target Name="CheckProtocolVersionSkew"
+          AfterTargets="MinVer"
+          Condition="'$(IsPackable)' == 'true'">
+
+    <!-- Read the file lines into an item list -->
+    <ReadLinesFromFile File="$(_ProtocolVersionFile)">
+      <Output TaskParameter="Lines" ItemName="_ProtocolVersionLines" />
+    </ReadLinesFromFile>
+
+    <!-- Extract the "x.y" literal from:  public const string Current = "x.y";
+         NOTE: the regex requires Current's declaration to be on a single line.
+         Do not reformat that const to span multiple lines or this guard will fail. -->
+    <PropertyGroup>
+      <_ProtocolVersionRaw>@(_ProtocolVersionLines)</_ProtocolVersionRaw>
+      <!-- Match: Current = "0.1" — capture the quoted value -->
+      <_ProtocolMajorMinor>$([System.Text.RegularExpressions.Regex]::Match(
+          '$(_ProtocolVersionRaw)',
+          'Current\s*=\s*"(\d+\.\d+)"').Groups[1].Value)</_ProtocolMajorMinor>
+    </PropertyGroup>
+
+    <Error
+      Condition="'$(_ProtocolMajorMinor)' == ''"
+      Text="Version-skew guard: could not parse ProtocolVersion.Current from $(_ProtocolVersionFile). Check the file syntax." />
+
+    <PropertyGroup>
+      <_PackedMajorMinor>$(MinVerMajor).$(MinVerMinor)</_PackedMajorMinor>
+    </PropertyGroup>
+
+    <Error
+      Condition="'$(_PackedMajorMinor)' != '$(_ProtocolMajorMinor)'"
+      Text="Version-skew guard: package version Major.Minor is $(_PackedMajorMinor) but ProtocolVersion.Current is $(_ProtocolMajorMinor). Tag this release with a tag whose Major.Minor equals the protocol version." />
+
+  </Target>
+
+</Project>
