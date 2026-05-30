@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <!-- Version injected by the smoke script via -p:DmonSdkVersion=<packed version>. -->
+    <DmonSdkVersion Condition="'$(DmonSdkVersion)' == ''">0.1.0-*</DmonSdkVersion>
+    <!-- This is an out-of-tree consumer; it must not be added to Dmon.slnx. -->
+    <IsPackable>false</IsPackable>
+    <!-- No MinVer — this project is not part of the dmon release pipeline. -->
+    <MinVerSkip>true</MinVerSkip>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Reference the packed SDK packages only — no ProjectReference into this repo. -->
+    <PackageReference Include="Dmon.Extensions" Version="$(DmonSdkVersion)" />
+  </ItemGroup>
+
+</Project>

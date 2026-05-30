@@ -79,5 +79,8 @@ notes/
 # graphify knowledge-graph output (local tooling, not source)
 graphify-out/
 
+# local pack staging directory (created by smoke scripts; not for source control)
+.pack-out/
+
 # macOS
 .DS_Store

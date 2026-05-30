@@ -10,6 +10,8 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
 
     <IsPackable>true</IsPackable>
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>dmon</ToolCommandName>
     <!-- Independent version line for the dmon console host -->
     <MinVerTagPrefix>dmon-</MinVerTagPrefix>
     <Description>The dmon console host — a .NET global tool that launches and communicates with the dmoncore agent over JSONL/stdio.</Description>
