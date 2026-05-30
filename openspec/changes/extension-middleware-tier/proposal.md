@@ -26,7 +26,7 @@ The `IChatClient` pipeline model in `Microsoft.Extensions.AI` is a first-class c
 
 ## Impact
 
-- **`Dmon.Contracts`** (extension contract assembly): new `IDmonMiddleware` interface and `DmonMiddlewareAttribute` class.
+- **`Dmon.Extensions`** (extension contract assembly): new `IDmonMiddleware` interface and `DmonMiddlewareAttribute` class.
 - **Agent core / extension loader**: middleware discovery alongside tool discovery; pipeline construction at startup.
 - **Config schema**: new top-level `middleware` section with per-middleware named subsections (arbitrary fields + optional `priority` override).
 - **No impact** on the RPC protocol, session storage, permission model, or provider configuration.

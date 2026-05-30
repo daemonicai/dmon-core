@@ -1,8 +1,8 @@
 ## 1. Contract Assembly — New Types
 
-- [ ] 1.1 Add `IDmonMiddleware` interface to `Dmon.Contracts` with `IChatClient Wrap(IChatClient inner)` method
-- [ ] 1.2 Add `DmonMiddlewareAttribute` sealed class to `Dmon.Contracts` with `int Priority { get; init; }` property (default `0`)
-- [ ] 1.3 Verify `Dmon.Contracts` builds without warnings and existing `IDmonExtension` types are unaffected
+- [ ] 1.1 Add `IDmonMiddleware` interface to `Dmon.Extensions` with `IChatClient Wrap(IChatClient inner)` method
+- [ ] 1.2 Add `DmonMiddlewareAttribute` sealed class to `Dmon.Extensions` with `int Priority { get; init; }` property (default `0`)
+- [ ] 1.3 Verify `Dmon.Extensions` builds without warnings and existing `IDmonExtension` types are unaffected
 
 ## 2. Extension Loader — Middleware Discovery
 

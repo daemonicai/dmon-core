@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: IDmonMiddleware declares Wrap method
-`IDmonMiddleware` SHALL be a public interface in `Dmon.Contracts` declaring a single method `IChatClient Wrap(IChatClient inner)`. Implementations return an `IChatClient` that wraps `inner`, intercepting requests and/or responses.
+`IDmonMiddleware` SHALL be a public interface in `Dmon.Extensions` declaring a single method `IChatClient Wrap(IChatClient inner)`. Implementations return an `IChatClient` that wraps `inner`, intercepting requests and/or responses.
 
 #### Scenario: Middleware wraps inner client
 - **WHEN** `middleware.Wrap(innerClient)` is called
@@ -12,7 +12,7 @@
 - **THEN** an `ArgumentNullException` is thrown
 
 ### Requirement: DmonMiddlewareAttribute marks and configures middleware
-`DmonMiddlewareAttribute` SHALL be a public sealed attribute in `Dmon.Contracts`, applicable to classes. It SHALL expose an `int Priority` property (default `0`). Only classes annotated with `[DmonMiddleware]` AND implementing `IDmonMiddleware` are loaded by the extension loader.
+`DmonMiddlewareAttribute` SHALL be a public sealed attribute in `Dmon.Extensions`, applicable to classes. It SHALL expose an `int Priority` property (default `0`). Only classes annotated with `[DmonMiddleware]` AND implementing `IDmonMiddleware` are loaded by the extension loader.
 
 #### Scenario: Annotated class is discovered
 - **WHEN** an extension assembly containing a class annotated with `[DmonMiddleware]` and implementing `IDmonMiddleware` is loaded
