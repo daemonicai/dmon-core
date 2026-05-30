@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Dmon.Protocol;
 
 namespace Dmon.Core.Tests.Integration;
 
@@ -139,6 +140,18 @@ public class IntegrationSmokeTest : IClassFixture<CoreProcessFixture>
         // TODO: add a second fixture (NoprovidersProcessFixture) that starts the core
         // with no provider config and asserts setupRequired is emitted. This requires a
         // separate IClassFixture so it does not share the process with this class.
+    }
+
+    [Fact]
+    public void AgentReady_EmitsProtocolVersionCurrent()
+    {
+        Assert.True(_fixture.AgentReadyReceived, _fixture.FormatFailure("agentReady was never received"));
+        Assert.NotNull(_fixture.AgentReadyLine);
+
+        using JsonDocument doc = JsonDocument.Parse(_fixture.AgentReadyLine);
+        string? emitted = doc.RootElement.GetProperty("protocolVersion").GetString();
+
+        Assert.Equal(ProtocolVersion.Current, emitted);
     }
 
     // ─── helpers ──────────────────────────────────────────────

@@ -5,9 +5,9 @@
 
 ## 2. Protocol version single source of truth
 
-- [ ] 2.1 Add a public `ProtocolVersion` type to `Dmon.Protocol` with `const string Current = "0.1"` (and a parsed `Major.Minor` helper for comparison)
-- [ ] 2.2 Emit `ProtocolVersion.Current` from the core's `agentReady` (`RpcHostedService`), replacing the hardcoded `"1.0"`
-- [ ] 2.3 Add/adjust tests asserting the core emits `ProtocolVersion.Current` at `agentReady`
+- [x] 2.1 Add a public `ProtocolVersion` type to `Dmon.Protocol` with `const string Current = "0.1"` (and a parsed `Major.Minor` helper for comparison)
+- [x] 2.2 Emit `ProtocolVersion.Current` from the core's `agentReady` (`RpcHostedService`), replacing the hardcoded `"1.0"`
+- [x] 2.3 Add/adjust tests asserting the core emits `ProtocolVersion.Current` at `agentReady`
 
 ## 3. Dmon.Runtime library — discovery, acquisition, lifecycle, compatibility gate
 
