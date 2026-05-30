@@ -1,4 +1,8 @@
-## ADDED Requirements
+## Purpose
+
+Define how each provider factory exposes a live model list via `GetAvailableModelsAsync`, how the `ModelModelsCommand`/`ModelModelsResultEvent` protocol pair surfaces those lists to the terminal host, and the timeout and fallback behaviour that keeps the picker responsive when a provider endpoint is slow or unreachable.
+
+## Requirements
 
 ### Requirement: IProviderFactory exposes async model listing
 `IProviderFactory` SHALL declare `ValueTask<IReadOnlyList<ModelInfo>> GetAvailableModelsAsync(string? apiKey, CancellationToken cancellationToken = default)`. A default implementation SHALL be provided that returns an empty list, so existing external implementations do not require immediate changes.

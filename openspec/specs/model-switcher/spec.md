@@ -1,3 +1,7 @@
+## Purpose
+
+Define how the terminal host surfaces the `/model` command as an interactive two-step picker — first selecting a provider then a live-fetched model list for that provider — and communicates selection back to the core via `ModelListCommand`, `ModelModelsCommand`, and `ModelSetCommand`.
+
 ## Requirements
 
 ### Requirement: /model command triggers interactive two-step picker

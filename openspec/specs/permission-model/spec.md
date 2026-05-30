@@ -1,10 +1,8 @@
-## REMOVED Requirements
+## Purpose
 
-### Requirement: IPermissionPolicy provides per-category evaluation methods
-**Reason**: Evaluation logic belongs to the extension that understands its own argument shapes and risk profile, not to the Core layer. Hard-coding `EvaluateRead`, `EvaluateWrite`, `EvaluateBash`, and `EvaluateHttp` in `IPermissionPolicy` couples Core to tool-category knowledge that only exists because specific tools were anticipated. Moving evaluation to `IDaemonExtension.Evaluate` keeps the gate dumb and removes the category dispatch.
-**Migration**: Replace any call to `IPermissionPolicy.EvaluateRead/Write/Bash/Http` with `IToolRegistry.FindExtension(call.Name)?.Evaluate(call, policy.ProjectSettings, policy.GlobalSettings) ?? PermissionResult.Prompt`.
+Define the current-state permission model for dmon: how `IPermissionPolicy` exposes project and global settings to extension evaluators, how `PermissionGateChatClient` delegates per-tool permission evaluation to the owning extension, and how `BashTool` inlines denylist and composite command detection.
 
-## MODIFIED Requirements
+## Requirements
 
 ### Requirement: IPermissionPolicy provides settings access
 `IPermissionPolicy` SHALL expose `IPermissionSettings ProjectSettings` and `IPermissionSettings? GlobalSettings` so that extension `Evaluate` implementations can read the permission configuration. The interface SHALL NOT contain any method that names a tool category.
@@ -16,8 +14,6 @@
 #### Scenario: IPermissionPolicy has no EvaluateRead, EvaluateWrite, EvaluateBash, or EvaluateHttp
 - **WHEN** `IPermissionPolicy` is inspected
 - **THEN** none of the methods `EvaluateRead`, `EvaluateWrite`, `EvaluateBash`, or `EvaluateHttp` exist on the interface
-
-## ADDED Requirements
 
 ### Requirement: PermissionGateChatClient delegates evaluation to the owning extension
 `PermissionGateChatClient` SHALL call `IToolRegistry.FindExtension(call.Name)` to locate the owning extension, then call `extension.Evaluate(call, policy.ProjectSettings, policy.GlobalSettings)` to obtain a `PermissionResult`. If no extension is found for the tool name, the gate SHALL default to `PermissionResult.Prompt`.

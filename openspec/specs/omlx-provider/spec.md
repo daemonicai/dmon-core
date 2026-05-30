@@ -1,4 +1,8 @@
-## ADDED Requirements
+## Purpose
+
+Define the `OmlxProviderExtension` and `OmlxProviderFactory` components that integrate the oMLX local inference server into dmon, covering Apple Silicon applicability, server identity probing, lifecycle management via `open -a oMLX`, capability heuristics, custom `x-api-key` header injection, and environment-variable-based configuration.
+
+## Requirements
 
 ### Requirement: Platform applicability check
 `OmlxProviderExtension.IsApplicable()` SHALL return `true` if and only if the current process is running on macOS (`OSPlatform.OSX`) on an ARM64 architecture (Apple Silicon). It SHALL return `false` on all other platforms and CPU architectures. It SHALL NOT throw; exceptions are caught and treated as `false`.

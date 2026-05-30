@@ -1,4 +1,8 @@
-## ADDED Requirements
+## Purpose
+
+Define the session-as-relocatable-directory storage model: the on-disk layout (`messages.jsonl`, `meta.json`, `attachments/`), append-only message logging, attachment offloading threshold, non-destructive compaction, project-local-vs-global store discovery, session fork and clone operations, and the SQLite session index.
+
+## Requirements
 
 ### Requirement: Session-as-relocatable-directory
 Each session SHALL be stored as a self-contained directory that can be copied, moved, or shared without losing any content. No data outside the session directory is required to read session content.

@@ -1,4 +1,8 @@
-## ADDED Requirements
+## Purpose
+
+Define the six built-in tools (`read_file`, `write_file`, `edit_file`, `glob`, `fetch`, `bash`) that are registered into `IToolRegistry` at startup, their argument contracts, error handling behaviour, and the architectural constraint that `Daemon.BuiltinTools` carries no dependency on `Daemon.Core`.
+
+## Requirements
 
 ### Requirement: Built-in tool suite available at startup
 The system SHALL provide six built-in tools — `read_file`, `write_file`, `edit_file`, `glob`, `fetch`, and `bash` — registered into `IToolRegistry` before the first turn. Each tool SHALL be implemented as an `IDaemonExtension` in the `Daemon.BuiltinTools` project.
