@@ -75,3 +75,9 @@ notes/
 
 # dmon local overrides (git-ignored; not for shared config)
 .dmon/config.local.yaml
+
+# graphify knowledge-graph output (local tooling, not source)
+graphify-out/
+
+# macOS
+.DS_Store
