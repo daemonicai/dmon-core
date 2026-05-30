@@ -8,7 +8,7 @@ The `IChatClient` pipeline model in `Microsoft.Extensions.AI` is a first-class c
 
 - Add `IDmonMiddleware` interface to the extension contract assembly, with a single method `IChatClient Wrap(IChatClient inner)`.
 - Add `[DmonMiddleware]` attribute (with an `int Priority` property) that marks a class as a middleware extension and controls its position in the pipeline.
-- Extend the extension loader to discover `IDmonMiddleware` implementations in `.csx` scripts and NuGet extension packages (alongside existing `IDmonExtension` tool discovery).
+- Extend the extension loader to discover `IDmonMiddleware` implementations in NuGet/local-assembly extension packages via type reflection (alongside existing `IDmonExtension` tool discovery). `.csx` scripts remain tools-only — they return `AIFunction` instances rather than exposing types for reflection, and middleware has no hot-reload (D6) whereas `.csx` is the hot-reloadable tier.
 - Construct the `IChatClient` pipeline at agent startup by folding discovered middlewares over the base provider client in priority order: `middlewares.Aggregate(baseClient, (inner, m) => m.Wrap(inner))`.
 - Add per-middleware configuration support: each middleware gets a named section in the config YAML (arbitrary fields); priority can be overridden in config.
 - Host injects an `IServiceProvider` (containing `IConfigurationRoot`) into middleware at construction so middleware can pull its own config.

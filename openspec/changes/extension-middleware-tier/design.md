@@ -8,7 +8,7 @@ The extension loader currently discovers `IDmonExtension` implementations in `.c
 
 **Goals:**
 - Add `IDmonMiddleware` and `[DmonMiddleware]` to the `Dmon.Extensions` assembly so authors can write middleware extensions.
-- Discover middleware in the same extension packages/scripts as tools.
+- Discover middleware in NuGet/local-assembly extension packages (type reflection), the same assemblies that can carry tools. `.csx` scripts remain tools-only (no type-reflection discovery; middleware is not hot-reloadable per D6).
 - Build the `IChatClient` pipeline from discovered middlewares at agent startup.
 - Allow per-middleware configuration via named YAML sections; allow priority to be overridden in config.
 - Inject `IServiceProvider` (with `IConfigurationRoot`) into middleware so each can read its own config.

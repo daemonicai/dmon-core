@@ -6,7 +6,7 @@
 
 ## 2. Extension Loader — Middleware Discovery
 
-- [ ] 2.1 Add middleware discovery pass to the extension loader: reflect over loaded types for `IDmonMiddleware` + `[DmonMiddleware]`
+- [ ] 2.1 Add middleware discovery pass to the NuGet/local-assembly loader (`NuGetExtensionLoader`): reflect over loaded types for `IDmonMiddleware` + `[DmonMiddleware]`. `.csx` (`CsxScriptLoader`) remains tools-only — no middleware discovery there
 - [ ] 2.2 Implement two-overload instantiation: try `(IServiceProvider)` constructor first, fall back to parameterless
 - [ ] 2.3 Catch and log construction exceptions per failing middleware; continue loading remaining extensions
 - [ ] 2.4 Verify tool-only assemblies pass the middleware discovery pass with no errors
