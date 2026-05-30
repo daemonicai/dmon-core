@@ -41,6 +41,6 @@
 
 ## 7. Verification
 
-- [ ] 7.1 `make build` clean (`TreatWarningsAsErrors`) and `make test` green
-- [ ] 7.2 `openspec validate core-distribution --strict`
-- [ ] 7.3 Confirm every scenario in the `package-publishing` and `core-runtime-acquisition` specs is covered by a test, a pack/inspection check, or the accepted ADR
+- [x] 7.1 `make build` clean (`TreatWarningsAsErrors`) and `make test` green
+- [x] 7.2 `openspec validate core-distribution --strict`
+- [x] 7.3 Confirm every scenario in the `package-publishing` and `core-runtime-acquisition` specs is covered by a test, a pack/inspection check, or the accepted ADR
