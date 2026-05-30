@@ -14,6 +14,7 @@ using Dmon.Core.Rpc;
 using Dmon.Core.Session;
 using Dmon.Providers;
 using Dmon.Providers.Ollama;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 
@@ -75,6 +76,8 @@ public static class DmonServiceExtensions
             new ExtensionSecurityAnalyser(sp.GetRequiredService<IProviderRegistry>()));
 
         services.AddSingleton<IToolRegistry, ToolRegistry>();
+        services.AddSingleton<IMiddlewareRegistry, MiddlewareRegistry>();
+        services.AddSingleton<MiddlewarePipelineBuilder>();
         services.AddSingleton<CsxScriptLoader>();
         services.AddSingleton<NuGetExtensionLoader>();
         services.AddSingleton<IExtensionLoader>(sp => sp.GetRequiredService<CsxScriptLoader>());
@@ -83,7 +86,8 @@ public static class DmonServiceExtensions
             sp.GetRequiredService<IToolRegistry>(),
             sp.GetRequiredService<IEnumerable<IExtensionLoader>>(),
             sp.GetRequiredService<ILogger<ExtensionService>>(),
-            sp.GetService<IProviderRegistry>()));
+            sp.GetService<IProviderRegistry>(),
+            sp.GetRequiredService<IMiddlewareRegistry>()));
         services.AddSingleton<PromoteService>();
 
         services.AddSingleton<ExtensionsConfigReader>();
@@ -144,6 +148,13 @@ public static class DmonServiceExtensions
 
         services.AddHttpClient();
         services.AddHostedService<BuiltinToolsInitializer>();
+
+        // Expose IConfigurationRoot so middleware can call
+        // GetRequiredService<IConfigurationRoot>().GetSection("middleware:<ClassName>").
+        // The host IConfiguration built by HostApplicationBuilder is always an
+        // IConfigurationRoot; the cast is safe here by construction.
+        services.TryAddSingleton<IConfigurationRoot>(sp =>
+            (IConfigurationRoot)sp.GetRequiredService<IConfiguration>());
 
         return services;
     }

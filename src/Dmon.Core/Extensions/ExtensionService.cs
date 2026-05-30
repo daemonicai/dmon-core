@@ -16,6 +16,7 @@ public sealed class ExtensionService
 {
     private readonly IToolRegistry _toolRegistry;
     private readonly IProviderRegistry? _providerRegistry;
+    private readonly IMiddlewareRegistry? _middlewareRegistry;
     private readonly Dictionary<string, IExtensionLoader> _loaders;
     private readonly ILogger<ExtensionService> _logger;
 
@@ -38,10 +39,12 @@ public sealed class ExtensionService
         IToolRegistry toolRegistry,
         IEnumerable<IExtensionLoader> loaders,
         ILogger<ExtensionService> logger,
-        IProviderRegistry? providerRegistry = null)
+        IProviderRegistry? providerRegistry = null,
+        IMiddlewareRegistry? middlewareRegistry = null)
     {
         _toolRegistry = toolRegistry;
         _providerRegistry = providerRegistry;
+        _middlewareRegistry = middlewareRegistry;
         _logger = logger;
         _loaders = loaders.ToDictionary(l => l.SourceKind, StringComparer.OrdinalIgnoreCase);
 
@@ -147,14 +150,20 @@ public sealed class ExtensionService
             }
         }
 
-        // All or nothing — require tools or a registered provider.
-        if (result.Tools.Count == 0 && registeredProviderName is null)
+        // Register discovered middleware into the registry so group-3 can fold the pipeline.
+        if (result.Middleware.Count > 0 && _middlewareRegistry is not null)
+        {
+            _middlewareRegistry.Register(result.Middleware);
+        }
+
+        // All or nothing — require tools, a registered provider, or middleware.
+        if (result.Tools.Count == 0 && registeredProviderName is null && result.Middleware.Count == 0)
         {
             Error?.Invoke(new ExtensionErrorEvent
             {
                 Source = source,
                 Phase = "load",
-                Diagnostics = ["Extension provided no AIFunction instances and no applicable provider."]
+                Diagnostics = ["Extension provided no AIFunction instances, no applicable provider, and no middleware."]
             });
             return;
         }

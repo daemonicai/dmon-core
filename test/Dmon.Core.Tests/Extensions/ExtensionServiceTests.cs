@@ -479,6 +479,93 @@ public sealed class ExtensionServiceTests
         }
     }
 
+    // ------------------------------------------------------------------ //
+    // Integration: assembly with both tools and middleware                 //
+    // ------------------------------------------------------------------ //
+
+    /// <summary>
+    /// Spec scenario 6.6: an assembly that exposes BOTH an <see cref="IDmonExtension"/>
+    /// (tool) and an <see cref="IDmonMiddleware"/> (marked with [DmonMiddleware]) is loaded
+    /// through <see cref="ExtensionService"/>. After the call:
+    ///   - the tool must appear in <see cref="IToolRegistry"/>
+    ///   - the middleware must appear in <see cref="IMiddlewareRegistry"/>
+    /// This verifies the full wiring in <see cref="ExtensionService.LoadAsync"/>, not just
+    /// the discovery-level result (which is already covered by
+    /// <c>LoadAsync_ToolAndMiddlewareAssembly_BothAreSurfaced</c> in the loader tests).
+    /// </summary>
+    [Fact]
+    public async Task LoadAsync_AssemblyWithToolAndMiddleware_RegistersBothInRegistries()
+    {
+        string guid = Guid.NewGuid().ToString("N");
+        string extName = $"IntegBothReg{guid}";
+        string tempDir = Path.Combine(Path.GetTempPath(), $"dmon-integ-test-{guid}");
+        Directory.CreateDirectory(tempDir);
+        string dllPath = Path.Combine(tempDir, extName + ".dll");
+
+        string dmonExtPath = typeof(IDmonExtension).Assembly.Location;
+        string meaiPath = typeof(IChatClient).Assembly.Location;
+
+        try
+        {
+            TestAssemblyEmitter.EmitAssembly(
+                assemblyName: extName,
+                source: $$"""
+                    using System;
+                    using System.Collections.Generic;
+                    using Dmon.Extensions;
+                    using Microsoft.Extensions.AI;
+
+                    [DmonMiddleware(Priority = 42)]
+                    public sealed class {{extName}}Mw : IDmonMiddleware
+                    {
+                        public IChatClient Wrap(IChatClient inner)
+                        {
+                            ArgumentNullException.ThrowIfNull(inner);
+                            return inner;
+                        }
+                    }
+
+                    public sealed class {{extName}}Ext : IDmonExtension
+                    {
+                        public string Name => "{{extName}}";
+                        public string Description => "integration both test";
+                        public IEnumerable<AIFunction> Tools =>
+                            [AIFunctionFactory.Create(() => "result", "{{extName}}_tool", "tool")];
+                    }
+                    """,
+                outputPath: dllPath,
+                additionalRefs: [dmonExtPath, meaiPath]);
+
+            IToolRegistry toolRegistry = new ToolRegistry();
+            MiddlewareRegistry middlewareRegistry = new();
+            NuGetExtensionLoader loader = new(new NullSp());
+
+            ExtensionService service = new(
+                toolRegistry,
+                [loader],
+                NullLogger<ExtensionService>.Instance,
+                providerRegistry: null,
+                middlewareRegistry: middlewareRegistry);
+
+            await service.LoadAsync(dllPath);
+
+            // Tool must be in the tool registry.
+            IReadOnlyList<RegisteredExtensionSnapshot> snapshot = toolRegistry.GetSnapshot();
+            Assert.Single(snapshot);
+            Assert.Equal(extName, snapshot[0].Name);
+            Assert.Equal(1, snapshot[0].ToolCount);
+
+            // Middleware must be in the middleware registry.
+            IReadOnlyList<IDmonMiddleware> middlewares = middlewareRegistry.GetAll();
+            Assert.Single(middlewares);
+            Assert.IsAssignableFrom<IDmonMiddleware>(middlewares[0]);
+        }
+        finally
+        {
+            try { Directory.Delete(tempDir, recursive: true); } catch { /* best-effort */ }
+        }
+    }
+
     private sealed class FakeExtensionLoader : IExtensionLoader
     {
         public string SourceKind { get; }

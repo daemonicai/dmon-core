@@ -263,6 +263,8 @@ internal static class TurnHandlerFactory
         IConfiguration configuration = new ConfigurationBuilder().Build();
         store ??= new NoopActiveModelStore();
 
+        MiddlewarePipelineBuilder pipelineBuilder = new(new MiddlewareRegistry(), configuration);
+
         TurnHandler handler = new(
             providers,
             store,
@@ -273,6 +275,7 @@ internal static class TurnHandlerFactory
             sessionHandler,
             attachmentStore,
             systemPromptBuilder,
+            pipelineBuilder,
             configuration,
             NullLogger<TurnHandler>.Instance);
 

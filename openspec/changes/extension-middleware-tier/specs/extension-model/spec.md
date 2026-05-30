@@ -1,14 +1,14 @@
 ## ADDED Requirements
 
-### Requirement: Dmon.Contracts exports IDmonMiddleware and DmonMiddlewareAttribute
-The `Dmon.Contracts` assembly SHALL export `IDmonMiddleware` and `DmonMiddlewareAttribute` as public types. These SHALL be in the same root namespace as `IDmonExtension` and `IDmonAttribute`. No existing public types SHALL be removed or renamed by this change.
+### Requirement: Dmon.Extensions exports IDmonMiddleware and DmonMiddlewareAttribute
+The `Dmon.Extensions` assembly SHALL export `IDmonMiddleware` and `DmonMiddlewareAttribute` as public types. These SHALL be in the same root namespace as `IDmonExtension` and `DmonAIFunctionFactory`. No existing public types SHALL be removed or renamed by this change.
 
-#### Scenario: Extension package references only Dmon.Contracts
-- **WHEN** an extension NuGet package references only `Dmon.Contracts`
+#### Scenario: Extension package references only Dmon.Extensions
+- **WHEN** an extension NuGet package references only `Dmon.Extensions`
 - **THEN** it has access to both `IDmonExtension` and `IDmonMiddleware` without additional references
 
 #### Scenario: Existing extensions remain binary-compatible
-- **WHEN** an extension compiled against the previous `Dmon.Contracts` (without middleware types) is loaded
+- **WHEN** an extension compiled against the previous `Dmon.Extensions` (without middleware types) is loaded
 - **THEN** it loads without error and its tools are available
 
 ### Requirement: Extension loader performs middleware discovery pass

@@ -7,8 +7,8 @@ The extension loader currently discovers `IDmonExtension` implementations in `.c
 ## Goals / Non-Goals
 
 **Goals:**
-- Add `IDmonMiddleware` and `[DmonMiddleware]` to the `Dmon.Contracts` assembly so authors can write middleware extensions.
-- Discover middleware in the same extension packages/scripts as tools.
+- Add `IDmonMiddleware` and `[DmonMiddleware]` to the `Dmon.Extensions` assembly so authors can write middleware extensions.
+- Discover middleware in NuGet/local-assembly extension packages (type reflection), the same assemblies that can carry tools. `.csx` scripts remain tools-only (no type-reflection discovery; middleware is not hot-reloadable per D6).
 - Build the `IChatClient` pipeline from discovered middlewares at agent startup.
 - Allow per-middleware configuration via named YAML sections; allow priority to be overridden in config.
 - Inject `IServiceProvider` (with `IConfigurationRoot`) into middleware so each can read its own config.
@@ -60,7 +60,7 @@ The host instantiates middleware by calling `Activator.CreateInstance(type, serv
 
 ### D5 — Same contract assembly as `IDmonExtension`
 
-`IDmonMiddleware` and `DmonMiddlewareAttribute` live in `Dmon.Contracts` alongside `IDmonExtension`.
+`IDmonMiddleware` and `DmonMiddlewareAttribute` live in `Dmon.Extensions` alongside `IDmonExtension`.
 
 **Rationale:** A single contract NuGet package is simpler for extension authors. The two interfaces are complementary (an extension package could expose both tools and middleware), and splitting them would create versioning friction with no benefit in V1.
 
@@ -73,11 +73,11 @@ Middleware changes require a process restart. The agent startup sequence constru
 ## Risks / Trade-offs
 
 - **[State loss on reload]** Because there is no hot-reload, middleware with in-memory state (e.g., a semantic cache) loses that state on restart. → Accepted for V1. Middleware authors who need persistence should write to disk or an external store.
-- **[Instantiation failures]** A middleware that throws in its constructor will prevent agent startup. → The loader SHALL catch construction exceptions, log them, and skip the failing middleware (not abort startup). This matches the existing tool-loader behaviour.
+- **[Instantiation failures]** A middleware that throws in its constructor will prevent agent startup. → The loader SHALL catch construction exceptions, log them, and skip the failing middleware (not abort startup). This is intentionally distinct from tool/provider loading, where a constructor throw propagates and fails the entire assembly load.
 - **[Priority collisions]** Two middlewares with the same priority have undefined relative order. → Document that priority values should be spaced (e.g., 100, 200) to allow insertion. Stable sort preserves registration order as a tiebreaker.
-- **[`DelegatingChatClient` dependency]** If middleware authors use M.E.AI's `DelegatingChatClient` base class, they take a dependency on a specific M.E.AI version. → This is expected and acceptable; `Dmon.Contracts` already pins M.E.AI.
+- **[`DelegatingChatClient` dependency]** If middleware authors use M.E.AI's `DelegatingChatClient` base class, they take a dependency on a specific M.E.AI version. → This is expected and acceptable; `Dmon.Extensions` already pins M.E.AI.
 
 ## Open Questions
 
-- Should `Dmon.Contracts` re-export `DelegatingChatClient` or reference M.E.AI directly? (Current assumption: direct M.E.AI reference, no re-export.)
+- Should `Dmon.Extensions` re-export `DelegatingChatClient` or reference M.E.AI directly? (Current assumption: direct M.E.AI reference, no re-export.)
 - Is there a need for middleware to signal "I am not applicable for this turn" (e.g., skip caching for streaming)? If so, a thin `ShouldWrap(ChatOptions)` hook could be added in a later change.

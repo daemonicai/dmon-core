@@ -1,5 +1,6 @@
 using System.Runtime.CompilerServices;
 using Dmon.Abstractions;
+using Dmon.Core.Extensions;
 using Dmon.Core.Rpc;
 using Dmon.Protocol.Commands;
 using Microsoft.Extensions.AI;
@@ -81,6 +82,8 @@ public sealed class TurnHandlerSystemPromptTests
         ISystemPromptBuilder promptBuilder = systemPromptBuilder ?? new FixedSystemPromptBuilder(SystemPromptText);
         IConfiguration configuration = new ConfigurationBuilder().Build();
 
+        MiddlewarePipelineBuilder pipelineBuilder = new(new MiddlewareRegistry(), configuration);
+
         TurnHandler handler = new(
             providers,
             new NoopActiveModelStore(),
@@ -91,6 +94,7 @@ public sealed class TurnHandlerSystemPromptTests
             sessionHandler,
             attachmentStore,
             promptBuilder,
+            pipelineBuilder,
             configuration,
             NullLogger<TurnHandler>.Instance);
 
