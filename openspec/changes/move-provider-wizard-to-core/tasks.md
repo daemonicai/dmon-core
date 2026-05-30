@@ -40,7 +40,7 @@
 
 ## 5. Validation and gates
 
-- [ ] 5.1 `make build` clean (no warnings; `TreatWarningsAsErrors`)
-- [ ] 5.2 `make test` green (new wizard-flow tests plus all existing tests)
-- [ ] 5.3 `openspec validate move-provider-wizard-to-core --strict` passes
-- [ ] 5.4 Manual smoke (HITL): run the terminal host, trigger add-provider, complete the wizard for one provider, confirm config persists and the agent becomes ready — provide a copy-pasteable recipe and await confirmation
+- [x] 5.1 `make build` clean (no warnings; `TreatWarningsAsErrors`)
+- [x] 5.2 `make test` green (new wizard-flow tests plus all existing tests)
+- [x] 5.3 `openspec validate move-provider-wizard-to-core --strict` passes
+- [x] 5.4 Manual smoke (HITL): run the terminal host, trigger add-provider, complete the wizard for one provider, confirm config persists and the agent becomes ready — provide a copy-pasteable recipe and await confirmation
