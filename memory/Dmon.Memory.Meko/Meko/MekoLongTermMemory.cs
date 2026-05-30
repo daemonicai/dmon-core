@@ -66,7 +66,10 @@ internal sealed class MekoLongTermMemory : ILongTermMemory
         public const string GetAll = "memory_get_all";
         public const string Update = "memory_update";
         public const string DeleteById = "memory_delete_by_id";
-        public const string Flush = "flush_pending_memory_candidates";
+        // flush_pending_memory_candidates is intentionally absent: live verification
+        // (2026-05-30) confirmed it performs no server-side write and only returns an
+        // agent-directive. dmon captures explicitly at RecordAsync, so there is nothing
+        // to materialize here; acting on the directive is an agent-loop concern (D7/D8).
     }
 
     // Candidate field names for the conversation UUID in the conversation_create response.
@@ -158,9 +161,16 @@ internal sealed class MekoLongTermMemory : ILongTermMemory
         return MekoResultParser.ParseHits(result, _logger);
     }
 
-    public async ValueTask FlushAsync(CancellationToken cancellationToken = default)
+    /// <summary>
+    /// Best-effort no-op. <c>flush_pending_memory_candidates</c> performs no server-side
+    /// write (verified live 2026-05-30): it returns only an agent-directive. dmon captures
+    /// explicitly via <c>memory_add</c> at <see cref="RecordAsync"/>; there is nothing to
+    /// materialize. Acting on the directive is an agent-loop concern, out of scope here (D7/D8).
+    /// </summary>
+    public ValueTask FlushAsync(CancellationToken cancellationToken = default)
     {
-        await FlushInternalAsync(cancellationToken).ConfigureAwait(false);
+        cancellationToken.ThrowIfCancellationRequested();
+        return ValueTask.CompletedTask;
     }
 
     // -----------------------------------------------------------------------
@@ -477,32 +487,4 @@ internal sealed class MekoLongTermMemory : ILongTermMemory
     private static bool IsUuid(string? value) =>
         !string.IsNullOrWhiteSpace(value) && Guid.TryParse(value, out _);
 
-    private async Task FlushInternalAsync(CancellationToken cancellationToken)
-    {
-        try
-        {
-            string conversationId = await EnsureConversationAsync(cancellationToken).ConfigureAwait(false);
-
-            var args = new Dictionary<string, object?>
-            {
-                [MekoArgNames.AgentId] = _context.Context.AgentId,
-                [MekoArgNames.ConversationId] = conversationId,
-                [MekoArgNames.Scope] = MekoScopeMapping.AdminScope,
-            };
-
-            if (IsUuid(_context.Context.DatapackId))
-            {
-                args[MekoArgNames.DatapackId] = _context.Context.DatapackId;
-            }
-
-            CallToolResult result = await _invoker.CallToolAsync(MekoTools.Flush, args, cancellationToken).ConfigureAwait(false);
-
-            _logger.LogDebug("MekoLongTermMemory: flush completed (best-effort). Result block count: {Count}.",
-                result.Content?.Count ?? 0);
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            _logger.LogWarning(ex, "MekoLongTermMemory: flush_pending_memory_candidates failed (best-effort; suppressed).");
-        }
-    }
 }

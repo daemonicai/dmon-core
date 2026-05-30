@@ -151,17 +151,17 @@ public sealed class MekoToolMappingTests
     }
 
     [Fact]
-    public async Task FlushAsync_Calls_FlushPendingMemoryCandidates_With_AdminScope()
+    public async Task FlushAsync_Makes_Zero_Invoker_Calls_And_Completes()
     {
+        // flush_pending_memory_candidates is an agent-directive, not a server write (D7/D8,
+        // verified live 2026-05-30). FlushAsync is a best-effort no-op and must not call
+        // any MCP tool — capture happens at RecordAsync.
         var fake = new FakeMekoToolInvoker();
         var memory = MekoTestHelpers.BuildMemory(fake);
 
         await memory.FlushAsync().AsTask();
 
-        var (tool, args) = FirstMemoryCall(fake);
-        Assert.Equal("flush_pending_memory_candidates", tool);
-        Assert.Equal("admin", args["scope"]);
-        Assert.Equal(FakeMekoToolInvoker.FakeConversationId, args["conversation_id"]);
+        Assert.Equal(0, fake.CallCount);
     }
 
     [Fact]
