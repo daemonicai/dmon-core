@@ -16,7 +16,7 @@
 - [x] 3.3 Implement discovery precedence: `--core-path` → `DMON_CORE_PATH` → global NuGet cache (`SettingsUtility.GetGlobalPackagesFolder` + `GlobalPackagesFolderUtility.GetPackage`) → on-demand acquisition; overrides take priority over the cache
 - [x] 3.4 Implement acquisition via `NuGet.Protocol`: `FindPackageByIdResource.GetAllVersionsAsync` filtered to the host's `Major.Minor`, newest wins; `CopyNupkgToStreamAsync`; `GlobalPackagesFolderUtility.AddPackageAsync` to install into the cache; actionable error on network failure naming the overrides
 - [x] 3.5 Launch the resolved core from its cached publish closure via `dotnet exec` of `dmoncore.dll`
-- [ ] 3.6 Implement the protocol-version compatibility gate: read `agentReady.protocolVersion`, compare `Major.Minor` to `ProtocolVersion.Current`, stop the core and fail with an actionable mismatch error otherwise; expose the "start a protocol-compatible core" entry point (resolve Open Question: API seam) and route `Dmon.Terminal` (incl. `/reload`) through it <!-- code complete + reviewed + unit-tested; HITL smoke (live [Ready]/[Reload] render) pending user confirmation -->
+- [x] 3.6 Implement the protocol-version compatibility gate: read `agentReady.protocolVersion`, compare `Major.Minor` to `ProtocolVersion.Current`, stop the core and fail with an actionable mismatch error otherwise; expose the "start a protocol-compatible core" entry point (resolve Open Question: API seam) and route `Dmon.Terminal` (incl. `/reload`) through it
 - [x] 3.7 Tests: discovery precedence (override > cache > fetch), cache-hit avoids network, version filter picks newest matching `Major.Minor`, compatibility gate accepts match / rejects mismatch, acquisition-failure error message
 
 ## 4. Packaging metadata and versioning
