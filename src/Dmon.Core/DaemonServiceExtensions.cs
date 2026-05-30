@@ -14,6 +14,7 @@ using Dmon.Core.Rpc;
 using Dmon.Core.Session;
 using Dmon.Providers;
 using Dmon.Providers.Ollama;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 
@@ -147,6 +148,13 @@ public static class DmonServiceExtensions
 
         services.AddHttpClient();
         services.AddHostedService<BuiltinToolsInitializer>();
+
+        // Expose IConfigurationRoot so middleware can call
+        // GetRequiredService<IConfigurationRoot>().GetSection("middleware:<ClassName>").
+        // The host IConfiguration built by HostApplicationBuilder is always an
+        // IConfigurationRoot; the cast is safe here by construction.
+        services.TryAddSingleton<IConfigurationRoot>(sp =>
+            (IConfigurationRoot)sp.GetRequiredService<IConfiguration>());
 
         return services;
     }

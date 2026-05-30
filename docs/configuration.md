@@ -162,6 +162,40 @@ No dedicated reader class is needed: the layered `IConfiguration` is safe for na
 
 **ADR cross-reference.** This convention is governed by [ADR-010](./adrs/ADR-010-sub-agent-extensions.md) (sub-agent extensions scope boundary) and aligns with the middleware tier's `middleware:<ClassName>` convention. The choice of a name-keyed top-level map (rather than a sub-key under `extensions:`) is recorded in `design.md` decision D3 of the `sub-agent-extensions` change.
 
+### Middleware configuration
+
+A middleware extension reads its own settings from a **top-level `middleware:<ClassName>` section**, where `<ClassName>` is the middleware class's unqualified name. The key lookup is **case-insensitive** (standard `IConfiguration` key matching). This section is a sibling of the `commands:` section — not nested under `extensions:`.
+
+```yaml
+middleware:
+  TokenLimitMiddleware:
+    priority: 50          # optional — overrides [DmonMiddleware(Priority = ...)]
+    maxTokens: "4096"     # arbitrary fields are permitted
+    logRequests: "true"
+```
+
+**Reading the section.** Middleware reads its section from the `IConfigurationRoot` injected via `IServiceProvider`:
+
+```csharp
+IConfigurationRoot root = serviceProvider.GetRequiredService<IConfigurationRoot>();
+IConfigurationSection section = root.GetSection($"middleware:{nameof(TokenLimitMiddleware)}");
+string? maxTokens = section["maxTokens"];
+```
+
+`IConfigurationRoot` is registered in the host DI container alongside `IConfiguration`; resolve it with `GetRequiredService<IConfigurationRoot>()`. It gives access to the same layered config that `IConfiguration` does, plus `GetSection` and section-reload APIs.
+
+**Priority override.** The optional `priority` field (int) overrides the value declared on the `[DmonMiddleware]` attribute. When the field is present, it becomes the middleware's effective priority used for pipeline ordering. When absent, the attribute value applies.
+
+```yaml
+middleware:
+  TokenLimitMiddleware:
+    priority: 50   # overrides [DmonMiddleware(Priority = 100)]
+```
+
+**Layering behaviour.** The same last-wins precedence applies: `~/.dmon/config.yaml` < `./.dmon/config.yaml` < `./.dmon/config.local.yaml`. A project-layer value for the same key overrides a user-layer value. Because middleware subsections are keyed by class name (not by array index), layering is safe — no index-collapse occurs.
+
+**Scope.** Arbitrary fields are permitted in the section. No field name is reserved beyond `priority`. Middleware must not require the section to be present — absence means the middleware's defaults apply.
+
 ---
 
 ## Provider configuration

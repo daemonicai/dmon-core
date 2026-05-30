@@ -20,9 +20,9 @@
 
 ## 4. Configuration Support
 
-- [ ] 4.1 Add `middleware` top-level section to the config YAML schema (arbitrary per-middleware subsections, optional `priority` field)
-- [ ] 4.2 Ensure `IConfigurationRoot` is registered in the host `IServiceProvider` so middleware can call `GetRequiredService<IConfigurationRoot>()`
-- [ ] 4.3 Document the config schema in `docs/config.md` (or equivalent) with a worked example
+- [x] 4.1 Add `middleware` top-level section to the config YAML schema (arbitrary per-middleware subsections, optional `priority` field)
+- [x] 4.2 Ensure `IConfigurationRoot` is registered in the host `IServiceProvider` so middleware can call `GetRequiredService<IConfigurationRoot>()`
+- [x] 4.3 Document the config schema in `docs/config.md` (or equivalent) with a worked example
 
 ## 5. Hot-Reload Guard
 
