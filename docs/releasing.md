@@ -113,26 +113,15 @@ Because `dmoncore` is lowercase and the glob `Dmon.*` is case-sensitive on nuget
 - **Option A (recommended):** push `dmoncore` manually the first time via `dotnet nuget push` — nuget.org then associates the ID with your account, and no prefix reservation is needed for a single-ID package.
 - **Option B:** also reserve the exact prefix `dmoncore` (no wildcard) under Account → Package ID Prefixes.
 
-### Step 2 — Create a scoped nuget.org API key
+### Step 2 — `NUGET_API_KEY` secret (already configured)
 
-1. On nuget.org go to **Account → API Keys → Create**.
-2. Select scope **Push new packages and package versions**.
-3. Under **Select Packages**, choose **Glob pattern** and enter `Dmon.*` — then separately add `dmoncore` to cover that package too (or use `*` and restrict by owner instead).
-4. Set an expiry (90 days is a reasonable default; rotate it in a calendar reminder).
-5. Copy the generated key — it is shown only once.
+`NUGET_API_KEY` is **already provisioned as an organization secret on the `daemonicai` GitHub org**, so there is normally nothing to create here. The `release.yml` workflow reads it as `secrets.NUGET_API_KEY` (org secrets resolve the same way as repository secrets); it is never echoed in logs.
 
-### Step 3 — Add the API key as a GitHub Actions secret
+The only thing to confirm: the org secret's **repository access list must include this repo** (`daemonicai/dmon-core`) — otherwise the workflow sees an empty value and the push step fails. Org → Settings → Secrets and variables → Actions → `NUGET_API_KEY` → Repository access.
 
-```
-Repository → Settings → Secrets and variables → Actions → New repository secret
+If the key ever needs rotating, regenerate it on nuget.org (**Account → API Keys**, scope **Push new packages and package versions**, packages glob `Dmon.*` **plus** `dmoncore` since that id does not match the glob — or `*` restricted by owner; set an expiry) and update the org secret value.
 
-Name:  NUGET_API_KEY
-Value: <paste the key from Step 2>
-```
-
-The `release.yml` workflow reads it as `secrets.NUGET_API_KEY`; it is never echoed in logs.
-
-### Step 4 — Verify with a dry run (optional but recommended)
+### Step 3 — Verify with a dry run (optional but recommended)
 
 Before pushing a real tag you can smoke-test packing locally against a local feed:
 
