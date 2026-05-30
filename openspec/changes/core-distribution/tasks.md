@@ -36,8 +36,8 @@
 
 ## 6. Release pipeline
 
-- [ ] 6.1 Add a tag-triggered `release.yml` that runs `dotnet pack` + `dotnet nuget push` to nuget.org using a `NUGET_API_KEY` secret; ensure PR CI does not publish
-- [ ] 6.2 Document the release process and the `Dmon.*` nuget.org prefix reservation (HITL: reserving the prefix and adding the secret are manual nuget.org/GitHub steps — provide a copy-pasteable recipe)
+- [x] 6.1 Add a tag-triggered `release.yml` that runs `dotnet pack` + `dotnet nuget push` to nuget.org using a `NUGET_API_KEY` secret; ensure PR CI does not publish
+- [x] 6.2 Document the release process and the `Dmon.*` nuget.org prefix reservation (HITL: reserving the prefix and adding the secret are manual nuget.org/GitHub steps — provide a copy-pasteable recipe) <!-- recipe documented in docs/releasing.md; performing the manual nuget.org prefix reservation + NUGET_API_KEY secret is deferred per the agreed build+local-smoke-only publishing scope -->
 
 ## 7. Verification
 

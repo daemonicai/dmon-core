@@ -1,0 +1,89 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'sdk-*'
+      - 'dmon-*'
+      - 'core-*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: pack and publish
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # MinVer requires full history and all tags to compute versions correctly.
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
+      - name: Build
+        run: make build
+
+      - name: Run tests
+        run: make test
+
+      - name: Determine release line and pack
+        id: pack
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          mkdir -p out
+          case "$TAG" in
+            sdk-*)
+              echo "line=sdk" >> "$GITHUB_OUTPUT"
+              dotnet pack src/Dmon.Protocol/Dmon.Protocol.csproj  -c Release -o out --no-build
+              dotnet pack src/Dmon.Abstractions/Dmon.Abstractions.csproj -c Release -o out --no-build
+              dotnet pack src/Dmon.Extensions/Dmon.Extensions.csproj -c Release -o out --no-build
+              ;;
+            dmon-*)
+              echo "line=dmon" >> "$GITHUB_OUTPUT"
+              dotnet pack src/Dmon.Terminal/Dmon.Terminal.csproj -c Release -o out --no-build
+              ;;
+            core-*)
+              echo "line=core" >> "$GITHUB_OUTPUT"
+              # --no-build: make build already compiled the project; this step only packs the output.
+              dotnet pack src/Dmon.Core/Dmon.Core.csproj -c Release -o out --no-build
+              ;;
+            *)
+              echo "Unknown tag prefix: $TAG" >&2
+              exit 1
+              ;;
+          esac
+
+      - name: Push to nuget.org
+        env:
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+        run: |
+          dotnet nuget push "out/*.nupkg" \
+            --api-key "$NUGET_API_KEY" \
+            --source https://api.nuget.org/v3/index.json \
+            --skip-duplicate
+          # .snupkg symbol packages (sdk line only — dmoncore has IncludeSymbols=false).
+          if compgen -G "out/*.snupkg" > /dev/null; then
+            dotnet nuget push "out/*.snupkg" \
+              --api-key "$NUGET_API_KEY" \
+              --source https://api.nuget.org/v3/index.json \
+              --skip-duplicate
+          fi
