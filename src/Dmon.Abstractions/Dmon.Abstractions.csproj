@@ -4,6 +4,12 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+
+    <IsPackable>true</IsPackable>
+    <!-- Shared SDK version line with Dmon.Protocol and Dmon.Extensions -->
+    <MinVerTagPrefix>sdk-</MinVerTagPrefix>
+    <Description>Extension and provider contracts for the dmon coding agent. Implements IDmonExtension and IProviderFactory using Microsoft.Extensions.AI (IChatClient / AIFunction).</Description>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
   <ItemGroup>
     <!-- M.E.AI pinned to the abstractions version Anthropic 12.x targets; re-validate when bumping Anthropic. -->
@@ -11,5 +17,8 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Dmon.Protocol\Dmon.Protocol.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
   </ItemGroup>
 </Project>

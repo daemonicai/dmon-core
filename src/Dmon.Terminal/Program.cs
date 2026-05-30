@@ -2,6 +2,7 @@ using System.Text.Json;
 using Dcli;
 using Dmon.Protocol.Commands;
 using Dmon.Protocol.Events;
+using Dmon.Runtime;
 using Dmon.Terminal;
 
 string? corePathOverride = null;
@@ -17,9 +18,11 @@ for (int i = 0; i < args.Length - 1; i++)
 JsonSerializerOptions jsonOptions = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 
 using CancellationTokenSource cts = new();
-using CoreProcessManager coreProcess = new(corePathOverride);
 
-await coreProcess.StartAsync().ConfigureAwait(false);
+CoreLauncher launcher = new();
+CoreSession coreSession = await launcher
+    .StartProtocolCompatibleCoreAsync(corePathOverride, cancellationToken: cts.Token)
+    .ConfigureAwait(false);
 
 // Single ITerminal instance for the lifetime of the process; dcli owns the fixed region.
 await using ITerminal terminal = await Dcli.Terminal.StartAsync(
@@ -30,15 +33,20 @@ InputStateLayer inputStateLayer = new();
 TerminalRenderer renderer = new(terminal);
 renderer.PrintSeparator("dmon");
 
+// Render the initial agentReady readiness that was consumed by the compatibility gate.
+AgentReadyEvent initialReady = coreSession.AgentReady;
+renderer.AddSystemLine(
+    $"[Ready] dmon core v{initialReady.CoreVersion} (protocol {initialReady.ProtocolVersion})");
+
 async Task SendCommandAsync(Command cmd, CancellationToken ct)
 {
     // Serialize as the base Command type so [JsonPolymorphic] emits the "type" discriminator.
     // Passing cmd.GetType() (the concrete type) bypasses the polymorphic attributes and omits it.
     string json = JsonSerializer.Serialize(cmd, jsonOptions);
     // ADR-003: strict LF framing. Do not rely on StreamWriter.NewLine (CRLF on Windows).
-    await coreProcess.StandardInput.WriteAsync(json.AsMemory(), ct).ConfigureAwait(false);
-    await coreProcess.StandardInput.WriteAsync('\n').ConfigureAwait(false);
-    await coreProcess.StandardInput.FlushAsync(ct).ConfigureAwait(false);
+    await coreSession.Process.StandardInput.WriteAsync(json.AsMemory(), ct).ConfigureAwait(false);
+    await coreSession.Process.StandardInput.WriteAsync('\n').ConfigureAwait(false);
+    await coreSession.Process.StandardInput.FlushAsync(ct).ConfigureAwait(false);
 }
 
 // Signals the session loop to restart when /reload is submitted via DrainAsync.
@@ -68,7 +76,8 @@ try
     do
     {
         // Build a per-session dispatcher on the current process's stdout.
-        EventDispatcher dispatcher = new(coreProcess.StandardOutput);
+        // StandardOutput is positioned after the agentReady line already consumed by the gate.
+        EventDispatcher dispatcher = new(coreSession.Process.StandardOutput);
         dispatchTask = dispatcher.RunAsync(cts.Token);
 
         Task<bool> nextEvent = dispatcher.Events.WaitToReadAsync(cts.Token).AsTask();
@@ -116,14 +125,21 @@ try
                 await handler.HandleRpcEventAsync(leftover, cts.Token).ConfigureAwait(false);
             }
 
-            // Wait for the old dispatcher's RunAsync to finish (it completes on old stdout EOF
-            // after StopAsync closes the process).
-            await coreProcess.RestartAsync().ConfigureAwait(false);
+            // RestartAsync: stops the old process, starts a fresh one, and re-runs the
+            // protocol gate on the new process's stdout.
+            coreSession = await launcher
+                .RestartAsync(coreSession, cts.Token)
+                .ConfigureAwait(false);
+
             // Recreate here (point B) so a second /reload during the restart window hits the
             // already-completed TCS and is a no-op, rather than lighting up the freshly-reset one.
             reloadSignal = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
             try { await dispatchTask.ConfigureAwait(false); }
             catch (OperationCanceledException) { }
+
+            AgentReadyEvent reloadReady = coreSession.AgentReady;
+            renderer.AddSystemLine(
+                $"[Reload] Core restarted. dmon core v{reloadReady.CoreVersion} (protocol {reloadReady.ProtocolVersion})");
 
             // Re-open the active session on the fresh process so it re-acquires the lock.
             if (handler.ActiveSessionId is not null)
@@ -136,8 +152,6 @@ try
                 try { await SendCommandAsync(loadCmd, cts.Token).ConfigureAwait(false); }
                 catch (OperationCanceledException) { }
             }
-
-            renderer.AddSystemLine("[Reload] Core restarted.");
         }
     }
     while (restart && !cts.IsCancellationRequested);
@@ -145,7 +159,7 @@ try
 catch (OperationCanceledException) { }
 
 renderer.PrintSeparator("goodbye");
-await coreProcess.StopAsync().ConfigureAwait(false);
+await coreSession.Process.StopAsync().ConfigureAwait(false);
 
 try
 {

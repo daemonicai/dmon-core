@@ -44,11 +44,12 @@ public sealed class RpcHostedService : BackgroundService
 
         await _emitter.EmitAsync(new AgentReadyEvent
         {
-            ProtocolVersion = "1.0",
+            ProtocolVersion = Dmon.Protocol.ProtocolVersion.Current,
             CoreVersion = coreVersion
         }, stoppingToken).ConfigureAwait(false);
 
-        _logger.LogDebug("RPC loop started. Protocol 1.0, core {Version}.", coreVersion);
+        _logger.LogDebug("RPC loop started. Protocol {Protocol}, core {Version}.",
+            Dmon.Protocol.ProtocolVersion.Current, coreVersion);
 
         while (!stoppingToken.IsCancellationRequested)
         {

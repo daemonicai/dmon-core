@@ -151,11 +151,6 @@ internal sealed class ConsoleEventHandler
                 _renderer.AddSystemLine(failMessage);
                 break;
 
-            case AgentReadyEvent ready:
-                _renderer.AddSystemLine(
-                    $"[Ready] dmon core v{ready.CoreVersion} (protocol {ready.ProtocolVersion})");
-                break;
-
             case BootstrapNoticeEvent bootstrap:
                 _renderer.AddSystemLine($"[Bootstrap] Session: {bootstrap.Path}");
                 break;

@@ -1,6 +1,6 @@
 using System.Collections.Concurrent;
 using System.Reflection;
-using Dmon.Terminal;
+using Dmon.Runtime;
 
 namespace Dmon.Terminal.Tests;
 

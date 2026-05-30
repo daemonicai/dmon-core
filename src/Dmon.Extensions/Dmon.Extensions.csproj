@@ -5,6 +5,12 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+
+    <IsPackable>true</IsPackable>
+    <!-- Shared SDK version line with Dmon.Protocol and Dmon.Abstractions -->
+    <MinVerTagPrefix>sdk-</MinVerTagPrefix>
+    <Description>Extension SDK surface for building dmon extensions. Provides middleware pipeline integration, per-extension configuration, and helpers for registering AIFunction tools.</Description>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
 
   <ItemGroup>
@@ -14,6 +20,10 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Dmon.Protocol\Dmon.Protocol.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
   </ItemGroup>
 
 </Project>

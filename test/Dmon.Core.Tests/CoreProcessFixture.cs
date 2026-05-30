@@ -17,6 +17,7 @@ public sealed class CoreProcessFixture : IAsyncLifetime
     public StreamReader? StandardOutput { get; private set; }
     public List<string> Stderr { get; } = [];
     public bool AgentReadyReceived { get; private set; }
+    public string? AgentReadyLine { get; private set; }
     public string? CoreDir { get; private set; }
 
     public bool IsRunning => _process is { HasExited: false };
@@ -134,6 +135,7 @@ public sealed class CoreProcessFixture : IAsyncLifetime
             if (line.Contains("\"agentReady\""))
             {
                 AgentReadyReceived = true;
+                AgentReadyLine = line;
                 return;
             }
         }
