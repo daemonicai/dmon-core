@@ -1,4 +1,8 @@
-## ADDED Requirements
+## Purpose
+
+Define the `AttachmentOffloadingChatClient` middleware that intercepts large tool results in the pipeline, writes them to the session's `attachments/` directory, and replaces the inline content with a compact JSON reference, keeping `messages.jsonl` small while preserving full output fidelity.
+
+## Requirements
 
 ### Requirement: AttachmentOffloadingChatClient offloads large tool results
 The system SHALL provide an `AttachmentOffloadingChatClient` `IChatClient` middleware. When a `FunctionResultContent` in the pipeline response exceeds `Daemon:Session:AttachmentThresholdBytes` (default 1024 bytes), the middleware SHALL write the full content to `attachments/<callId>.txt` in the current session directory and replace the result string with a compact JSON object: `{"attachmentPath": "attachments/<callId>.txt", "preview": "<first 200 chars>..."}`.

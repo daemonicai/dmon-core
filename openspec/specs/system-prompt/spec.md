@@ -1,3 +1,7 @@
+## Purpose
+
+Define how the agent core assembles the system prompt at the start of each session by combining a static core identity with dynamic runtime context and discovered project configuration files, and how the assembled message is injected as the first entry in the conversation history.
+
 ## Requirements
 
 ### Requirement: System prompt assembly

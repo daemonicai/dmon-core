@@ -1,5 +1,9 @@
 # Ollama Provider Spec
 
+## Purpose
+
+Define the `OllamaProviderExtension` and `OllamaProviderFactory` components that integrate an Ollama inference server into dmon as a first-class local provider, covering platform applicability, server reachability, wizard-driven configuration, capability heuristics derived from model IDs, and project isolation constraints.
+
 ## Requirements
 
 ### Requirement: OllamaProviderExtension implements IProviderExtension

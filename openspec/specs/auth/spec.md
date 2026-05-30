@@ -1,4 +1,8 @@
-## ADDED Requirements
+## Purpose
+
+Define how dmon resolves, stores, and manages provider API credentials — including environment variable precedence, the user-global credentials file format, the `/login` and `/logout` commands, and optional API key support for locally-hosted providers.
+
+## Requirements
 
 ### Requirement: API key credential resolution
 The system SHALL resolve provider credentials in the following order: environment variable → credentials file (`~/.daemon/credentials/<provider>.json`) → interactive prompt. Credentials SHALL always be stored in user-global scope; never in the project-local `.daemon/` directory.
