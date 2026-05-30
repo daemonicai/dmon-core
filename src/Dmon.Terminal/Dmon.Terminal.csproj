@@ -17,6 +17,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Dmon.Protocol\Dmon.Protocol.csproj" />
+    <ProjectReference Include="..\Dmon.Runtime\Dmon.Runtime.csproj" />
   </ItemGroup>
 
 </Project>

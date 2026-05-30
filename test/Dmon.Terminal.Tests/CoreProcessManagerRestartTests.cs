@@ -1,7 +1,7 @@
 using System.Reflection;
 using System.Text.Json;
 using Dmon.Protocol.Commands;
-using Dmon.Terminal;
+using Dmon.Runtime;
 
 namespace Dmon.Terminal.Tests;
 
