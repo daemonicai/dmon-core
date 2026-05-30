@@ -37,6 +37,7 @@ Key accepted decisions:
 | ADR-007 | Provider-extension lifecycle: `IsApplicable()` at load, `EnsureRunningAsync()` gated, per-runner `IProviderFactory`. |
 | ADR-008 | Extensions load into the **Default** `AssemblyLoadContext` (no collectible per-load contexts); reclaim via process restart. Supersedes ADR-002's loading mechanism. |
 | ADR-009 | Active extensions are declared in `config.yaml` (user + project), auto-loaded at startup; `/reload` restarts the core. |
+| ADR-010 | A scoped single-turn in-process `IChatClient` in a tool extension is in scope; multi-agent orchestration (multiple `dmon-core` processes over stdio/RPC) remains deferred. |
 
 New ADRs belong in `docs/adrs/ADR-NNN-<slug>.md`. Use the existing ADRs as the format template.
 
@@ -189,6 +190,8 @@ Do not implement, propose, or accept tasks for these unless the brief is explici
 - Remote agent execution
 - Mobile hosts
 - OAuth authentication (noted stretch goal for Gemini/Vertex only)
+
+**Scope clarification (ADR-010):** "Multi-agent orchestration" means multiple `dmon-core` **processes** communicating over the stdio/RPC interface. A tool extension that constructs a scoped, single-turn in-process `IChatClient` to fulfil a tool call is *in scope* — it is simply an extension using an additional LLM model, not orchestration. See [`docs/adrs/ADR-010-sub-agent-extensions.md`](./docs/adrs/ADR-010-sub-agent-extensions.md).
 
 ## graphify
 

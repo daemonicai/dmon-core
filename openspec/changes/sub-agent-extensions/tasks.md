@@ -1,7 +1,7 @@
 ## 1. Scope ADR
 
-- [ ] 1.1 Write `docs/adrs/ADR-NNN-sub-agent-extensions.md` (next free number) recording: a tool extension running a scoped, single-turn in-process `IChatClient` is in scope; multi-agent orchestration (deferred in V1) = multiple `dmon-core` processes over stdio/RPC
-- [ ] 1.2 Get the ADR accepted; cross-reference it from the V1 "Out of scope" list in `CLAUDE.md` so the boundary is discoverable
+- [x] 1.1 Write `docs/adrs/ADR-NNN-sub-agent-extensions.md` (next free number) recording: a tool extension running a scoped, single-turn in-process `IChatClient` is in scope; multi-agent orchestration (deferred in V1) = multiple `dmon-core` processes over stdio/RPC
+- [x] 1.2 Get the ADR accepted; cross-reference it from the V1 "Out of scope" list in `CLAUDE.md` so the boundary is discoverable
 
 ## 2. Config-section convention (coordinate with extension-middleware-tier)
 
