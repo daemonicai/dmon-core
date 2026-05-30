@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: Dmon.Extensions exports IDmonMiddleware and DmonMiddlewareAttribute
-The `Dmon.Extensions` assembly SHALL export `IDmonMiddleware` and `DmonMiddlewareAttribute` as public types. These SHALL be in the same root namespace as `IDmonExtension` and `IDmonAttribute`. No existing public types SHALL be removed or renamed by this change.
+The `Dmon.Extensions` assembly SHALL export `IDmonMiddleware` and `DmonMiddlewareAttribute` as public types. These SHALL be in the same root namespace as `IDmonExtension` and `DmonAIFunctionFactory`. No existing public types SHALL be removed or renamed by this change.
 
 #### Scenario: Extension package references only Dmon.Extensions
 - **WHEN** an extension NuGet package references only `Dmon.Extensions`
