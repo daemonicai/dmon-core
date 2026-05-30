@@ -56,7 +56,7 @@ public sealed class ProviderSetupHandlerTests : IDisposable
         IEventEmitter emitter,
         string globalConfigPath,
         string localConfigPath,
-        IProviderRegistry? registry = null) : ProviderSetupHandler(emitter, registry ?? new NoOpProviderRegistry())
+        IProviderRegistry? registry = null) : ProviderSetupHandler(emitter, registry ?? new NoOpProviderRegistry(), [])
     {
         protected override string? ResolveConfigPath(string scope) =>
             scope switch
@@ -208,7 +208,7 @@ public sealed class ProviderSetupHandlerTests : IDisposable
     {
         // Use base handler directly — TestablePsh passes unknown scopes through to null.
         FakeEventEmitter emitter = new();
-        ProviderSetupHandler handler = new(emitter, new NoOpProviderRegistry());
+        ProviderSetupHandler handler = new(emitter, new NoOpProviderRegistry(), []);
 
         await handler.ConfigureAsync(MakeCommand("unknown-scope"), CancellationToken.None);
 

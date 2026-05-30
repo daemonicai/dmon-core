@@ -97,6 +97,16 @@ TARGET
  └─────────────────────────────┘            └──────────────────────────────────┘
 ```
 
+### D7 — Non-blocking dispatch for long-running commands (substrate fix, discovered during apply)
+
+**Problem found during apply review.** The stdin reader is serial: `RpcHostedService` reads a line, `await`s `CommandDispatcher.DispatchAsync`, and only then reads the next line. `DispatchAsync` `await`s the route inline, and `turn.submit → TurnHandler.SubmitAsync` `await`s `RunTurnAsync` to completion. `RunTurnAsync` suspends on a `TaskCompletionSource` waiting for `tool.confirmResponse`/`ui.inputResponse` — which can only arrive as a *later stdin line* the loop cannot read while blocked. The wizard's `wizard.start → StartWizardAsync` has the identical shape, blocking on `wizard.answer`. This is a **deadlock**, latent in the existing turn round-trips (no end-to-end test ever exercised a response over the real loop) and fatal to the wizard, whose entire purpose is the round-trip.
+
+**This is a bug against ADR-003, not a new decision.** ADR-003 already states: *"Commands are fire-and-forget with an event stream back. `turn.submit` does not return a long-running response"* and *"the core suspends the turn until the response arrives."* "Suspends the **turn**" — not the reader. The inline-await implementation contradicts that. The fix conforms the code to the accepted ADR; we add a clarifying **"Dispatch concurrency"** subsection to ADR-003 rather than a superseding ADR.
+
+**Decision.** Long-running interactive commands (`turn.submit`, `wizard.start`) are dispatched on a **tracked background task**; `DispatchAsync` returns to the reader immediately for these, so subsequent lines (`tool.confirmResponse`, `ui.inputResponse`, `wizard.answer`, `turn.abort`) are read and routed to resolve the suspended operation's `TaskCompletionSource`. Short, non-interactive commands (`model.*`, `session.*`, `provider.configure`, the response/answer commands themselves) continue to be awaited inline — they don't block on a future line. Concurrency safety is unchanged: at most one turn is enforced by the existing `_turnGate`, and at most one wizard by the session guard (D6); errors on the background task are surfaced as `ErrorEvent`s, never lost. Background tasks are tracked (not bare `_ = Task.Run`) so shutdown can await/observe them.
+
+**Alternatives considered.** (a) Leave it inline and require the host to pre-send answers — impossible, the request must be emitted before the host can answer. (b) A second reader thread / channel — more concurrency surface than needed; the background-task-per-long-command approach keeps a single reader and bounded concurrency. (c) A separate prerequisite change — rejected by the user in favour of folding the fix in, since the wizard cannot function without it and the engine work is already in flight.
+
 ### D6 — Session keying: by wizard id, at most one active
 
 Following the `_pendingUiInputs`/`_pendingConfirms` precedent, `ProviderSetupHandler` holds the active `WizardSession` keyed by the start command's id. At most one wizard is active (single human, single connection per ADR-003). Keying by id lets the handler reject/ignore a stale `WizardAnswerCommand` that arrives for a wizard that was already cancelled or completed.

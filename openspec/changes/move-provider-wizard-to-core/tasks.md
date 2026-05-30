@@ -15,15 +15,20 @@
 - [x] 2.3 Add `WizardStepEvent { wizardId, WizardStep step }` in `src/Dmon.Protocol/Events/` and register `wizard.step` on `Event`
 - [x] 2.4 Add serialisation tests for the three carriers, including a `WizardStepEvent` whose embedded `step` deserialises back to its concrete subtype
 
-## 3. Wizard engine in Dmon.Core
+## 3. Non-blocking dispatch + wizard engine in Dmon.Core
 
-- [ ] 3.1 Extend the **existing** `ProviderSetupHandler` (`src/Dmon.Core/Rpc/`, currently handles only `ProviderConfigureCommand`) to also hold the active `WizardSession` (`WizardState` + resolved factory) keyed by the start command id, enforcing at most one active wizard; add the corresponding members to `IProviderSetupHandler`
-- [ ] 3.2 Port the engine loop from `WizardEngine`: build provider-selection (step 0) from Core's DI-registered `IProviderFactory` instances (via `IProviderRegistry` or injected factories); loop `GetNextStepAsync` emitting `WizardStepEvent` and awaiting `WizardAnswerCommand` via a `TaskCompletionSource` (mirror `TurnHandler._pendingUiInputs`)
-- [ ] 3.3 Implement `Answered` (apply + append to `WizardState`), `Back` (truncate last answered step, re-invoke), and `Cancel` (discard session, persist nothing) outcomes; ignore answers whose `wizardId` does not match the active session
-- [ ] 3.4 On `WizardCompletedStep`, persist by reusing the handler's existing `ConfigureAsync` persistence path (YAML stanza + `AddDynamicProvider` + `ProviderConfiguredEvent`) with scope `global`; do not duplicate the persistence logic
-- [ ] 3.5 Route `WizardStartCommand` and `WizardAnswerCommand` to `ProviderSetupHandler` in `CommandDispatcher` (alongside the existing `ProviderConfigureCommand` route)
-- [ ] 3.6 Confirm `ProviderSetupHandler` DI registration covers the new dependencies (it is already registered for `ProviderConfigureCommand`)
-- [ ] 3.7 Add tests: full happy-path flow (start → api-key → model → completed → `ProviderConfiguredEvent`), back navigation re-asks the prior step, cancel persists nothing, stale `wizardId` is ignored, and an extension-registered factory appears in provider selection
+- [x] 3.1 Extend the **existing** `ProviderSetupHandler` (`src/Dmon.Core/Rpc/`, currently handles only `ProviderConfigureCommand`) to also hold the active `WizardSession` (`WizardState` + resolved factory) keyed by the start command id, enforcing at most one active wizard; add the corresponding members to `IProviderSetupHandler`
+- [x] 3.2 Port the engine loop from `WizardEngine`: build provider-selection (step 0) from Core's DI-registered `IProviderFactory` instances (via `IProviderRegistry` or injected factories); loop `GetNextStepAsync` emitting `WizardStepEvent` and awaiting `WizardAnswerCommand` via a `TaskCompletionSource` (mirror `TurnHandler._pendingUiInputs`)
+- [x] 3.3 Implement `Answered` (apply + append to `WizardState`), `Back` (truncate last answered step, re-invoke), and `Cancel` (discard session, persist nothing) outcomes; ignore answers whose `wizardId` does not match the active session
+- [x] 3.4 On `WizardCompletedStep`, persist by reusing the handler's existing `ConfigureAsync` persistence path (YAML stanza + `AddDynamicProvider` + `ProviderConfiguredEvent`) with scope `global`; do not duplicate the persistence logic
+- [x] 3.5 Route `WizardStartCommand` and `WizardAnswerCommand` to `ProviderSetupHandler` in `CommandDispatcher` (alongside the existing `ProviderConfigureCommand` route)
+- [x] 3.6 Confirm `ProviderSetupHandler` DI registration covers the new dependencies (it is already registered for `ProviderConfigureCommand`)
+- [x] 3.7 Add tests: full happy-path flow (start → api-key → model → completed → `ProviderConfiguredEvent`), back navigation re-asks the prior step, cancel persists nothing, stale `wizardId` is ignored, and an extension-registered factory appears in provider selection
+- [x] 3.8 **Substrate fix (D7):** make `CommandDispatcher`/`RpcHostedService` dispatch long-running interactive commands (`turn.submit`, `wizard.start`) on a tracked background task so the stdin reader keeps pumping and can route `tool.confirmResponse`/`ui.inputResponse`/`wizard.answer`/`turn.abort` to resolve a suspended operation; short commands stay inline; background-task errors surface as `error` events and tasks are observable at shutdown
+- [x] 3.9 Add an integration test that drives a request→response round-trip through the **real** read loop (no out-of-band injection): a `turn.submit` that triggers a `tool.confirmRequest` answered by a subsequent `tool.confirmResponse`, and a `wizard.start` → `wizard.step` → `wizard.answer` flow — asserting completion rather than hang
+- [x] 3.10 Fix reviewer N2: a malformed/empty/out-of-range `ChooseMany` answer re-prompts the current step (or emits `error` with `Recoverable = true`) instead of unwinding the wizard with `Recoverable = false`
+- [x] 3.11 Fix reviewer N3: an invalid/unparseable `ChooseOne` answer (incl. provider-selection) re-prompts instead of appending an unanswered step and dereferencing a null `SelectedIndex`
+- [x] 3.12 Fix reviewer N1: remove the dead 2-parameter `ProviderSetupHandler` constructor and migrate the two existing test call sites to the real 3-arg constructor (`[]` for factories)
 
 ## 4. Terminal rewiring
 

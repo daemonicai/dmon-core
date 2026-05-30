@@ -79,5 +79,9 @@ public sealed class RpcHostedService : BackgroundService
 
             await _dispatcher.DispatchAsync(line, stoppingToken).ConfigureAwait(false);
         }
+
+        // Allow outstanding background tasks (turn.submit, wizard.start) to complete
+        // before the hosted service tears down.
+        await _dispatcher.DrainAsync().ConfigureAwait(false);
     }
 }
