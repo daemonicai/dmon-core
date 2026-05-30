@@ -439,8 +439,10 @@ public sealed class WizardRendererTests
     // ── WizardCompletedStep ────────────────────────────────────────────────
 
     [Fact]
-    public async Task WizardStep_Completed_RendersMessageAndSendsAnswered()
+    public async Task WizardStep_Completed_RendersMessageAndDoesNotSendAnswerCommand()
     {
+        // WizardCompletedStep is a terminal/no-answer step: the core emits it fire-and-forget
+        // and never awaits a WizardAnswerCommand for it. The terminal must NOT send one.
         (ConsoleEventHandler handler, FakeTerminal fake, List<Command> sent) =
             await BuildActiveWizardAsync();
 
@@ -459,9 +461,8 @@ public sealed class WizardRendererTests
 
         Assert.Contains(scrollbackLines, l => l.Contains("Provider configured successfully!"));
 
-        WizardAnswerCommand cmd = Assert.Single(sent.OfType<WizardAnswerCommand>());
-        Assert.Equal(WizardAnswerOutcome.Answered, cmd.Outcome);
-        Assert.Null(cmd.Value);
+        // No WizardAnswerCommand must be sent — the step is terminal.
+        Assert.Empty(sent.OfType<WizardAnswerCommand>());
     }
 
     // ── ProviderConfiguredEvent (completion) ───────────────────────────────

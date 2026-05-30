@@ -311,9 +311,21 @@ internal sealed class ConsoleEventHandler
     /// Renders one wizard step via the terminal, encodes the answer, and sends a
     /// <see cref="WizardAnswerCommand"/> back to core. Called for every <see cref="WizardStepEvent"/>
     /// while a wizard session is active, including re-emitted steps after a validation error.
+    /// <see cref="WizardCompletedStep"/> is terminal — the core sends no follow-up; no answer command is sent.
     /// </summary>
     private async Task RenderAndAnswerStepAsync(WizardStepEvent evt, CancellationToken cancellationToken)
     {
+        // WizardCompletedStep is a no-answer terminal step: render and return without sending a command.
+        if (evt.Step is WizardCompletedStep completed)
+        {
+            _terminal.Scrollback.Append(new LineBuilder()
+                .Fg(completed.Message, Color.Named(Color.AnsiColor.Green))
+                .Build());
+            // _wizardActive is cleared by the subsequent ProviderConfiguredEvent handler;
+            // do not clear it here to avoid a race where ProviderConfiguredEvent arrives first.
+            return;
+        }
+
         WizardAnswerCommand answer = evt.Step switch
         {
             ChooseOneStep s  => await RenderChooseOneAsync(evt.WizardId, s, cancellationToken).ConfigureAwait(false),
@@ -321,7 +333,6 @@ internal sealed class ConsoleEventHandler
             TextInputStep s  => await RenderTextInputAsync(evt.WizardId, s, cancellationToken).ConfigureAwait(false),
             YesNoStep s      => await RenderYesNoAsync(evt.WizardId, s, cancellationToken).ConfigureAwait(false),
             InfoStep s       => RenderInfo(evt.WizardId, s),
-            WizardCompletedStep s => RenderCompleted(evt.WizardId, s),
             _ => CancelUnknownStep(evt.WizardId),
         };
 
@@ -449,15 +460,6 @@ internal sealed class ConsoleEventHandler
         _terminal.Scrollback.Append(new LineBuilder()
             .Dim(step.Prompt)
             .Build());
-        return Answer(wizardId, WizardAnswerOutcome.Answered, null);
-    }
-
-    private WizardAnswerCommand RenderCompleted(string wizardId, WizardCompletedStep step)
-    {
-        _terminal.Scrollback.Append(new LineBuilder()
-            .Fg(step.Message, Color.Named(Color.AnsiColor.Green))
-            .Build());
-        // Answered with no value signals the core to persist and emit ProviderConfiguredEvent.
         return Answer(wizardId, WizardAnswerOutcome.Answered, null);
     }
 

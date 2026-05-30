@@ -172,8 +172,16 @@ public class ProviderSetupHandler : IProviderSetupHandler
             {
                 step = await factory.GetNextStepAsync(state, cancellationToken).ConfigureAwait(false);
 
-                if (step is WizardCompletedStep)
+                if (step is WizardCompletedStep completedStep)
                 {
+                    // Emit the completed step to the host so it can render the success message.
+                    // This is fire-and-forget from the engine's perspective — no answer awaited.
+                    await _emitter.EmitAsync(new WizardStepEvent
+                    {
+                        WizardId = wizardId,
+                        Step = completedStep
+                    }, cancellationToken).ConfigureAwait(false);
+
                     await CompleteWizardAsync(factory, state, cancellationToken).ConfigureAwait(false);
                     return;
                 }
@@ -463,8 +471,10 @@ public class ProviderSetupHandler : IProviderSetupHandler
         return $"  {adapter}:\n    adapter: {adapter}\n    defaultModelId: {modelId}\n    auth:\n      type: envVar\n      envVar: {envVar}\n";
     }
 
-    // Splices the stanza directly beneath the top-level `providers:` line so the
-    // new provider is a child of that mapping.
+    // Upserts a provider stanza: if a block with the same key already exists under
+    // `providers:`, replaces it in place; otherwise inserts directly beneath `providers:`.
+    // A provider block is the `  <key>:` line plus all child lines indented at 4+ spaces,
+    // up to the next sibling (2-space-indented key) or a non-indented line or EOF.
     private static string InsertProviderStanza(string existing, string stanzaBody)
     {
         string[] lines = existing.Split('\n');
@@ -475,9 +485,90 @@ public class ProviderSetupHandler : IProviderSetupHandler
             return existing.TrimEnd() + "\n\nproviders:\n" + stanzaBody;
         }
 
+        // Extract the provider key from the stanza body (first non-empty line, e.g. "  openai:\n...")
+        string? adapterKey = ExtractProviderKey(stanzaBody);
+
+        if (adapterKey is not null)
+        {
+            // Search for an existing block with this key under `providers:`.
+            int existingBlockStart = FindProviderBlockStart(lines, providersIndex + 1, adapterKey);
+            if (existingBlockStart >= 0)
+            {
+                // Find the end of this block: the next line at 0 or 2-space indent (or EOF).
+                int existingBlockEnd = FindProviderBlockEnd(lines, existingBlockStart + 1);
+                // Replace the block in place.
+                IEnumerable<string> beforeBlock = lines.Take(existingBlockStart);
+                IEnumerable<string> afterBlock = lines.Skip(existingBlockEnd);
+                // stanzaBody already ends with \n; drop the trailing empty string from split
+                string[] newBodyLines = stanzaBody.Split('\n');
+                // Remove trailing empty element that Split produces when stanzaBody ends with \n
+                IEnumerable<string> bodyLines = newBodyLines.Length > 0 && newBodyLines[^1] == string.Empty
+                    ? newBodyLines[..^1]
+                    : newBodyLines;
+                return string.Join('\n', beforeBlock.Concat(bodyLines).Concat(afterBlock));
+            }
+        }
+
+        // No existing block — insert directly beneath `providers:`.
         IEnumerable<string> head = lines.Take(providersIndex + 1);
         IEnumerable<string> tail = lines.Skip(providersIndex + 1);
         return string.Join('\n', head) + "\n" + stanzaBody + string.Join('\n', tail);
+    }
+
+    // Extracts the adapter key name from the first non-empty line of a stanza body.
+    // Stanza body format: "  openai:\n    adapter: openai\n    ..."
+    private static string? ExtractProviderKey(string stanzaBody)
+    {
+        foreach (string line in stanzaBody.Split('\n'))
+        {
+            string trimmed = line.TrimEnd();
+            if (trimmed.Length == 0) continue;
+            // Expect exactly two leading spaces then "<key>:"
+            if (trimmed.Length > 2 && trimmed[0] == ' ' && trimmed[1] == ' '
+                && (trimmed[2] != ' ') && trimmed.EndsWith(':'))
+            {
+                return trimmed[2..^1]; // strip "  " prefix and ":" suffix
+            }
+            break; // first non-empty line was not a 2-space-indented key
+        }
+        return null;
+    }
+
+    // Finds the line index of "  <key>:" within the lines following `providers:`.
+    // Returns -1 if not found.
+    private static int FindProviderBlockStart(string[] lines, int searchFrom, string key)
+    {
+        string marker = $"  {key}:";
+        for (int i = searchFrom; i < lines.Length; i++)
+        {
+            string trimmed = lines[i].TrimEnd();
+            // Stop if we reach a non-indented non-empty non-comment line (a new top-level key).
+            if (trimmed.Length > 0 && trimmed[0] != ' ' && trimmed[0] != '#')
+                break;
+            if (trimmed == marker)
+                return i;
+        }
+        return -1;
+    }
+
+    // Returns the index of the first line after the provider block that is at 0 or 2-space indent
+    // (i.e., a sibling key or a new top-level key). EOF = lines.Length.
+    private static int FindProviderBlockEnd(string[] lines, int startFrom)
+    {
+        for (int i = startFrom; i < lines.Length; i++)
+        {
+            string trimmed = lines[i].TrimEnd();
+            if (trimmed.Length == 0) continue;
+            // A line whose first character is non-space (top-level) or exactly 2-space-indented
+            // and is a key (ends with ':') signals the end of this provider's block.
+            if (trimmed[0] != ' ')
+                return i;
+            if (trimmed[0] == ' ' && trimmed.Length > 1 && trimmed[1] == ' '
+                && (trimmed.Length <= 2 || trimmed[2] != ' ')
+                && !trimmed.TrimStart().StartsWith('#'))
+                return i;
+        }
+        return lines.Length;
     }
 
     // A top-level `providers:` mapping key: at column zero and not a comment.

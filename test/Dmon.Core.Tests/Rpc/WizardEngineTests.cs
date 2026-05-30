@@ -506,4 +506,66 @@ public sealed class WizardEngineTests : IDisposable
         // ErrorEvent with invalidAnswer was emitted.
         Assert.Contains(emitter.Emitted.OfType<ErrorEvent>(), e => e.Code == "wizard.invalidAnswer");
     }
+
+    // ─── Bug B: WizardCompletedStep must be emitted to host ──────────────────
+
+    /// <summary>
+    /// When the factory returns a <see cref="WizardCompletedStep"/>, the engine must emit
+    /// a <see cref="WizardStepEvent"/> carrying it to the host BEFORE emitting
+    /// <see cref="ProviderConfiguredEvent"/> and persisting.
+    /// </summary>
+    [Fact]
+    public async Task HappyPath_EmitsWizardStepEventForCompletedStep()
+    {
+        const string wizardId = "wiz-completed-emit";
+        FakeEventEmitter emitter = new();
+        TrackingProviderRegistry registry = new();
+
+        // No intermediate steps — factory immediately returns WizardCompletedStep.
+        ScriptedFactory factory = MakeFactory(adapter: "fake", display: "Fake", steps: []);
+        TestablePsh handler = MakeHandler(emitter, [factory], registry);
+
+        Task wizardTask = handler.StartWizardAsync(MakeStart(wizardId), CancellationToken.None);
+
+        // Answer provider selection — factory then returns WizardCompletedStep.
+        await DeliverAsync(handler, MakeAnswer(wizardId, WizardAnswerOutcome.Answered, "0"));
+
+        await wizardTask;
+
+        // A WizardStepEvent carrying WizardCompletedStep must have been emitted.
+        IReadOnlyList<WizardStepEvent> stepEvents = emitter.Emitted.OfType<WizardStepEvent>().ToList();
+        WizardStepEvent? completedEvent = stepEvents.FirstOrDefault(e => e.Step is WizardCompletedStep);
+        Assert.NotNull(completedEvent);
+        Assert.Equal(wizardId, completedEvent.WizardId);
+
+        // ProviderConfiguredEvent must still be emitted.
+        Assert.Single(emitter.Emitted.OfType<ProviderConfiguredEvent>());
+    }
+
+    /// <summary>
+    /// The <see cref="WizardStepEvent"/> for <see cref="WizardCompletedStep"/> must arrive
+    /// before <see cref="ProviderConfiguredEvent"/> in the emitted sequence.
+    /// </summary>
+    [Fact]
+    public async Task CompletedStepEvent_PrecedesProviderConfiguredEvent()
+    {
+        const string wizardId = "wiz-order";
+        FakeEventEmitter emitter = new();
+        TrackingProviderRegistry registry = new();
+        ScriptedFactory factory = MakeFactory(adapter: "fake", display: "Fake", steps: []);
+        TestablePsh handler = MakeHandler(emitter, [factory], registry);
+
+        Task wizardTask = handler.StartWizardAsync(MakeStart(wizardId), CancellationToken.None);
+        await DeliverAsync(handler, MakeAnswer(wizardId, WizardAnswerOutcome.Answered, "0"));
+        await wizardTask;
+
+        List<Event> all = emitter.Emitted.ToList();
+        int completedIdx = all.FindIndex(e => e is WizardStepEvent ws && ws.Step is WizardCompletedStep);
+        int configuredIdx = all.FindIndex(e => e is ProviderConfiguredEvent);
+
+        Assert.True(completedIdx >= 0, "WizardStepEvent(WizardCompletedStep) was not emitted.");
+        Assert.True(configuredIdx >= 0, "ProviderConfiguredEvent was not emitted.");
+        Assert.True(completedIdx < configuredIdx,
+            $"WizardStepEvent(completed) must precede ProviderConfiguredEvent. Indices: {completedIdx} vs {configuredIdx}.");
+    }
 }

@@ -230,4 +230,121 @@ public sealed class ProviderSetupHandlerTests : IDisposable
         Assert.Equal("provider.configure.failed", evt.Code);
         Assert.True(evt.Recoverable);
     }
+
+    // ─── Bug A: upsert — duplicate key prevention ─────────────────────
+
+    [Fact]
+    public async Task SameProvider_PersistTwice_ProducesExactlyOneBlock()
+    {
+        // Persisting "openai" twice must result in exactly ONE `openai:` block (upsert, not append).
+        string configPath = Path.Combine(_tempDir, "config.yaml");
+        FakeEventEmitter emitter = new();
+        TestablePsh handler = new(emitter, configPath, configPath);
+
+        await handler.ConfigureAsync(
+            MakeCommand("global", adapter: "openai", modelId: "gpt-4o", envVar: "OPENAI_API_KEY"),
+            CancellationToken.None);
+
+        await handler.ConfigureAsync(
+            MakeCommand("global", adapter: "openai", modelId: "gpt-4o-mini", envVar: "OPENAI_API_KEY"),
+            CancellationToken.None);
+
+        string written = await File.ReadAllTextAsync(configPath);
+
+        // Exactly one `openai:` key in the file.
+        int count = 0;
+        int pos = 0;
+        while ((pos = written.IndexOf("  openai:", pos, StringComparison.Ordinal)) >= 0)
+        {
+            count++;
+            pos++;
+        }
+        Assert.Equal(1, count);
+
+        // The retained block must use the model from the second persist.
+        IReadOnlyList<ProviderConfig> providers = LoadFromFile(configPath);
+        ProviderConfig openai = Assert.Single(providers);
+        Assert.Equal("openai", openai.Adapter);
+        Assert.Equal("gpt-4o-mini", openai.DefaultModelId);
+    }
+
+    [Fact]
+    public async Task SameProvider_PersistTwice_FileParsesByYamlWithoutError()
+    {
+        // Round-trip: write twice then parse — must not throw a duplicate-key exception.
+        string configPath = Path.Combine(_tempDir, "config.yaml");
+        FakeEventEmitter emitter = new();
+        TestablePsh handler = new(emitter, configPath, configPath);
+
+        await handler.ConfigureAsync(
+            MakeCommand("global", adapter: "openai", modelId: "gpt-4o", envVar: "OPENAI_API_KEY"),
+            CancellationToken.None);
+
+        await handler.ConfigureAsync(
+            MakeCommand("global", adapter: "openai", modelId: "gpt-4o-mini", envVar: "OPENAI_API_KEY"),
+            CancellationToken.None);
+
+        // Parsing must succeed without throwing — duplicate keys would cause an exception here.
+        IReadOnlyList<ProviderConfig> providers = LoadFromFile(configPath);
+        Assert.Single(providers);
+    }
+
+    [Fact]
+    public async Task DifferentProviders_PersistBoth_BothPresent()
+    {
+        // Persisting "openai" then "anthropic" keeps both blocks — upsert must not
+        // accidentally remove sibling providers.
+        string configPath = Path.Combine(_tempDir, "config.yaml");
+        FakeEventEmitter emitter = new();
+        TestablePsh handler = new(emitter, configPath, configPath);
+
+        await handler.ConfigureAsync(
+            MakeCommand("global", adapter: "openai", modelId: "gpt-4o", envVar: "OPENAI_API_KEY"),
+            CancellationToken.None);
+
+        await handler.ConfigureAsync(
+            MakeCommand("global", adapter: "anthropic", modelId: "claude-sonnet-4-6", envVar: "ANTHROPIC_API_KEY"),
+            CancellationToken.None);
+
+        IReadOnlyList<ProviderConfig> providers = LoadFromFile(configPath);
+        Assert.Equal(2, providers.Count);
+        Assert.Contains(providers, p => p.Adapter == "openai");
+        Assert.Contains(providers, p => p.Adapter == "anthropic");
+    }
+
+    [Fact]
+    public async Task SameProvider_Upsert_PreservesOtherTopLevelKeys()
+    {
+        // A file with a non-providers top-level key must survive a same-provider upsert.
+        const string initial =
+            "sessionStore: local\n" +
+            "\n" +
+            "providers:\n" +
+            "  openai:\n" +
+            "    adapter: openai\n" +
+            "    defaultModelId: gpt-4o\n" +
+            "    auth:\n" +
+            "      type: envVar\n" +
+            "      envVar: OPENAI_API_KEY\n";
+
+        string configPath = Path.Combine(_tempDir, "config.yaml");
+        await File.WriteAllTextAsync(configPath, initial);
+
+        FakeEventEmitter emitter = new();
+        TestablePsh handler = new(emitter, configPath, configPath);
+
+        await handler.ConfigureAsync(
+            MakeCommand("global", adapter: "openai", modelId: "gpt-4o-mini", envVar: "OPENAI_API_KEY"),
+            CancellationToken.None);
+
+        string written = await File.ReadAllTextAsync(configPath);
+
+        // sessionStore key must be preserved.
+        Assert.Contains("sessionStore:", written, StringComparison.Ordinal);
+
+        // Exactly one openai block.
+        IReadOnlyList<ProviderConfig> providers = LoadFromFile(configPath);
+        ProviderConfig openai = Assert.Single(providers);
+        Assert.Equal("gpt-4o-mini", openai.DefaultModelId);
+    }
 }
