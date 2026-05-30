@@ -43,6 +43,14 @@ public sealed record ExtensionLoadResult
     /// A type may implement both <see cref="IDmonExtension"/> and <see cref="IProviderExtension"/>.
     /// </summary>
     public IProviderExtension? ProviderExtension { get; init; }
+
+    /// <summary>
+    /// Middleware instances discovered in the loaded assembly.
+    /// Only types that both implement <see cref="IDmonMiddleware"/> and carry
+    /// <see cref="DmonMiddlewareAttribute"/> are included.
+    /// Empty for .csx script extensions and for assemblies with no middleware.
+    /// </summary>
+    public IReadOnlyList<IDmonMiddleware> Middleware { get; init; } = [];
 }
 
 /// <summary>

@@ -4,6 +4,7 @@ using System.Runtime.Loader;
 using Dmon.Abstractions.Providers;
 using Dmon.Extensions;
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.Logging;
 
 namespace Dmon.Core.Extensions;
 
@@ -104,19 +105,21 @@ public sealed class NuGetExtensionLoader : IExtensionLoader
             }
         }
 
-        (List<IDmonExtension> toolExtensions, List<IProviderExtension> providerExtensions) =
+        (List<IDmonExtension> toolExtensions,
+         List<IProviderExtension> providerExtensions,
+         List<IDmonMiddleware> middlewareExtensions) =
             DiscoverAll(assembly, _serviceProvider);
 
-        if (toolExtensions.Count == 0 && providerExtensions.Count == 0)
+        if (toolExtensions.Count == 0 && providerExtensions.Count == 0 && middlewareExtensions.Count == 0)
         {
             return CreateErrorResult(
                 source.Value,
                 "load",
-                $"No types implementing IDmonExtension or IProviderExtension found in '{assembly.GetName().Name}'.");
+                $"No types implementing IDmonExtension, IProviderExtension, or IDmonMiddleware found in '{assembly.GetName().Name}'.");
         }
 
         // Use the first tool extension as the primary for Name/Description.
-        // If there are no tool extensions, synthesise a minimal name from the assembly.
+        // If there are no tool extensions, synthesise a minimal name from the provider or assembly.
         string name;
         string? description;
         IDmonExtension? primary;
@@ -136,10 +139,17 @@ public sealed class NuGetExtensionLoader : IExtensionLoader
                 }
             }
         }
-        else
+        else if (providerExtensions.Count > 0)
         {
             primary = null;
             name = providerExtensions[0].ProviderName;
+            description = null;
+        }
+        else
+        {
+            // Middleware-only assembly: derive name from the first middleware type.
+            primary = null;
+            name = middlewareExtensions[0].GetType().Name;
             description = null;
         }
 
@@ -150,7 +160,8 @@ public sealed class NuGetExtensionLoader : IExtensionLoader
             Tools = allTools,
             SourceKind = "nuget",
             Extension = primary,
-            ProviderExtension = providerExtensions.Count > 0 ? providerExtensions[0] : null
+            ProviderExtension = providerExtensions.Count > 0 ? providerExtensions[0] : null,
+            Middleware = middlewareExtensions
         };
     }
 
@@ -253,14 +264,20 @@ public sealed class NuGetExtensionLoader : IExtensionLoader
         return null;
     }
 
-    private static (List<IDmonExtension> tools, List<IProviderExtension> providers)
+    private static (List<IDmonExtension> tools, List<IProviderExtension> providers, List<IDmonMiddleware> middleware)
         DiscoverAll(Assembly assembly, IServiceProvider serviceProvider)
     {
         List<IDmonExtension> tools = [];
         List<IProviderExtension> providers = [];
+        List<IDmonMiddleware> middleware = [];
         Type toolType = typeof(IDmonExtension);
         Type providerType = typeof(IProviderExtension);
+        Type middlewareType = typeof(IDmonMiddleware);
         Type spType = typeof(IServiceProvider);
+
+        // Resolve a logger once; null if the container does not provide one (e.g. in tests).
+        ILogger<NuGetExtensionLoader>? logger =
+            serviceProvider.GetService<ILogger<NuGetExtensionLoader>>();
 
         try
         {
@@ -274,22 +291,70 @@ public sealed class NuGetExtensionLoader : IExtensionLoader
                 bool isToolExt = toolType.IsAssignableFrom(type);
                 bool isProviderExt = providerType.IsAssignableFrom(type);
 
-                if (!isToolExt && !isProviderExt)
+                // Middleware: must implement IDmonMiddleware AND carry [DmonMiddleware].
+                // A type implementing the interface without the attribute is silently ignored.
+                bool isMiddleware = middlewareType.IsAssignableFrom(type)
+                    && type.IsDefined(typeof(DmonMiddlewareAttribute), inherit: false);
+
+                if (!isToolExt && !isProviderExt && !isMiddleware)
                 {
                     continue;
                 }
 
-                // A type implementing both interfaces is instantiated once; the same
-                // instance is added to both lists.
+                // Tool and provider instantiation: let exceptions propagate so that
+                // ExtensionService.LoadAsync can surface them as ExtensionErrorEvents.
+                // This preserves the original semantics — a throwing tool/provider ctor
+                // fails the entire assembly load.
+                //
+                // Middleware-only instantiation is wrapped in a try/catch: a throwing
+                // middleware ctor is logged and skipped; the rest of the assembly still loads.
+                // This is intentionally distinct from tool/provider behaviour.
+                //
+                // Dual types (implementing tool/provider AND middleware): instantiated once
+                // on the tool/provider path (propagating); the instance is then shared with
+                // the middleware list if it also satisfies IDmonMiddleware.
                 object? instance = null;
 
-                if (type.GetConstructor([spType]) is not null)
+                if (isToolExt || isProviderExt)
                 {
-                    instance = Activator.CreateInstance(type, serviceProvider);
+                    // Propagating path — exceptions reach the caller.
+                    if (type.GetConstructor([spType]) is not null)
+                    {
+                        instance = Activator.CreateInstance(type, serviceProvider);
+                    }
+                    else if (type.GetConstructor(Type.EmptyTypes) is not null)
+                    {
+                        instance = Activator.CreateInstance(type);
+                    }
                 }
-                else if (type.GetConstructor(Type.EmptyTypes) is not null)
+                else
                 {
-                    instance = Activator.CreateInstance(type);
+                    // Pure middleware path — catch and skip on ctor failure.
+                    try
+                    {
+                        if (type.GetConstructor([spType]) is not null)
+                        {
+                            instance = Activator.CreateInstance(type, serviceProvider);
+                        }
+                        else if (type.GetConstructor(Type.EmptyTypes) is not null)
+                        {
+                            instance = Activator.CreateInstance(type);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        // Per spec "Middleware constructor throws — startup continues":
+                        // log the failure, skip this middleware, and continue loading.
+                        Exception inner = ex.InnerException ?? ex;
+
+                        logger?.LogWarning(
+                            inner,
+                            "Skipping middleware type '{TypeName}' in assembly '{AssemblyName}': constructor threw an exception.",
+                            type.FullName,
+                            assembly.GetName().Name);
+
+                        continue;
+                    }
                 }
 
                 if (instance is null)
@@ -306,6 +371,11 @@ public sealed class NuGetExtensionLoader : IExtensionLoader
                 {
                     providers.Add(providerExt);
                 }
+
+                if (isMiddleware && instance is IDmonMiddleware mw)
+                {
+                    middleware.Add(mw);
+                }
             }
         }
         catch (ReflectionTypeLoadException ex)
@@ -317,7 +387,7 @@ public sealed class NuGetExtensionLoader : IExtensionLoader
                 ex);
         }
 
-        return (tools, providers);
+        return (tools, providers, middleware);
     }
 
     private static ExtensionLoadResult CreateErrorResult(

@@ -75,6 +75,7 @@ public static class DmonServiceExtensions
             new ExtensionSecurityAnalyser(sp.GetRequiredService<IProviderRegistry>()));
 
         services.AddSingleton<IToolRegistry, ToolRegistry>();
+        services.AddSingleton<IMiddlewareRegistry, MiddlewareRegistry>();
         services.AddSingleton<CsxScriptLoader>();
         services.AddSingleton<NuGetExtensionLoader>();
         services.AddSingleton<IExtensionLoader>(sp => sp.GetRequiredService<CsxScriptLoader>());
@@ -83,7 +84,8 @@ public static class DmonServiceExtensions
             sp.GetRequiredService<IToolRegistry>(),
             sp.GetRequiredService<IEnumerable<IExtensionLoader>>(),
             sp.GetRequiredService<ILogger<ExtensionService>>(),
-            sp.GetService<IProviderRegistry>()));
+            sp.GetService<IProviderRegistry>(),
+            sp.GetRequiredService<IMiddlewareRegistry>()));
         services.AddSingleton<PromoteService>();
 
         services.AddSingleton<ExtensionsConfigReader>();

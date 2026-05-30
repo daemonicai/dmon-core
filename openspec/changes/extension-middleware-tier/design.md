@@ -73,7 +73,7 @@ Middleware changes require a process restart. The agent startup sequence constru
 ## Risks / Trade-offs
 
 - **[State loss on reload]** Because there is no hot-reload, middleware with in-memory state (e.g., a semantic cache) loses that state on restart. → Accepted for V1. Middleware authors who need persistence should write to disk or an external store.
-- **[Instantiation failures]** A middleware that throws in its constructor will prevent agent startup. → The loader SHALL catch construction exceptions, log them, and skip the failing middleware (not abort startup). This matches the existing tool-loader behaviour.
+- **[Instantiation failures]** A middleware that throws in its constructor will prevent agent startup. → The loader SHALL catch construction exceptions, log them, and skip the failing middleware (not abort startup). This is intentionally distinct from tool/provider loading, where a constructor throw propagates and fails the entire assembly load.
 - **[Priority collisions]** Two middlewares with the same priority have undefined relative order. → Document that priority values should be spaced (e.g., 100, 200) to allow insertion. Stable sort preserves registration order as a tiebreaker.
 - **[`DelegatingChatClient` dependency]** If middleware authors use M.E.AI's `DelegatingChatClient` base class, they take a dependency on a specific M.E.AI version. → This is expected and acceptable; `Dmon.Extensions` already pins M.E.AI.
 
