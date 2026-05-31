@@ -60,3 +60,54 @@ a host project (`Dmon.Terminal` or a future Avalonia host) with an arm64 self-co
 publish, suppress or remove the `PlatformTarget` property from the host `.csproj` (let the
 RID drive the target architecture instead of setting `PlatformTarget` explicitly). The
 library project itself is unaffected — this only surfaces on `Exe`-outputting projects.
+
+## Composition / DI
+
+### Basic wiring (short-term only)
+
+```csharp
+services.AddDmonCore()
+        .AddDmonMemory();
+```
+
+`AddDmonMemory()` registers:
+
+- `ModelResolver` (singleton, parameterless) — local embedding model file resolver.
+- `IEmbeddingGenerator<string, Embedding<float>>` → `LocalEmbeddingGenerator` (singleton).
+- `IMessageAppender` → `MessageAppender` (singleton) — appends turns to `messages.jsonl`.
+- `IShortTermMemory` → `ShortTermMemory` (singleton).
+- `IMemory` → `Memory` facade (singleton).
+
+All registrations use `TryAddSingleton`, so a host or test can pre-register substitutes
+without them being overwritten.
+
+### Session identity — host responsibility
+
+`ShortTermMemory` requires a `MemoryContext` (record `(DatapackId, AgentId, ConversationId)`)
+that is session-scoped. The host must register it before resolving `IShortTermMemory`:
+
+```csharp
+services.AddSingleton(new MemoryContext(datapackId, agentId, conversationId));
+```
+
+Additionally, `ShortTermMemory.InitializeAsync()` **must** be awaited before calling
+`SearchAsync` or `RecordAsync`. DI cannot perform async initialisation — this is a host
+responsibility (e.g. call it in a hosted-service `StartAsync` or an application startup
+hook).
+
+### Enabling durable (long-term) memory
+
+Long-term memory is opt-in and provided by the separate `Dmon.Memory.Meko` package.
+Register it before or after `AddDmonMemory()` — order does not matter:
+
+```csharp
+services.AddDmonCore()
+        .AddDmonMemory()
+        .AddMekoLongTermMemory(...);   // from Dmon.Memory.Meko
+```
+
+The `Memory` facade resolves `ILongTermMemory` via `GetService` (nullable) at construction.
+When no long-term store is registered, `IMemory.LongTerm` is `null` and dmon runs in
+short-term-only mode.
+
+`Dmon.Memory` has **no** package or project reference to `Dmon.Memory.Meko`.
