@@ -9,8 +9,8 @@
 
 ## 2. DI wiring (decoupled)
 
-- [ ] 2.1 Implement `AddDmonMemory()` `IServiceCollection` extension registering the local embedder, the short-term store, and `IMemory` → `Memory`; resolve `ILongTermMemory?` from the container at facade construction (null if none registered) (D4)
-- [ ] 2.2 Confirm `Dmon.Memory` has **no** `PackageReference`/`ProjectReference` to `Dmon.Memory.Meko`; document the host composition (`AddDmonMemory()` + optionally the Meko package's `AddMekoLongTermMemory(...)`, either order) (D4)
+- [x] 2.1 Implement `AddDmonMemory()` `IServiceCollection` extension registering the local embedder, the short-term store, and `IMemory` → `Memory`; resolve `ILongTermMemory?` from the container at facade construction (null if none registered) (D4)
+- [x] 2.2 Confirm `Dmon.Memory` has **no** `PackageReference`/`ProjectReference` to `Dmon.Memory.Meko`; document the host composition (`AddDmonMemory()` + optionally the Meko package's `AddMekoLongTermMemory(...)`, either order) (D4)
 
 ## 3. Tests
 
