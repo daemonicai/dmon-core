@@ -104,19 +104,19 @@ public sealed class ByteUnchangedForwardingTests
         RecordingConnection c2 = new();
         RecordingConnection c3 = new();
 
-        long g1 = handler.Attach(c1);
+        AttachResult r1 = handler.Attach(c1, lastSeq: 0);
         handler.Detach();
-        long g2 = handler.Attach(c2);
+        AttachResult r2 = handler.Attach(c2, lastSeq: 0);
         handler.Detach();
-        long g3 = handler.Attach(c3);
+        AttachResult r3 = handler.Attach(c3, lastSeq: 0);
 
-        Assert.True(g1 < g2, $"g1={g1} should be < g2={g2}");
-        Assert.True(g2 < g3, $"g2={g2} should be < g3={g3}");
-        Assert.True(g1 >= 1, "generation starts at 1 (first Attach)");
+        Assert.True(r1.Generation < r2.Generation, $"g1={r1.Generation} should be < g2={r2.Generation}");
+        Assert.True(r2.Generation < r3.Generation, $"g2={r2.Generation} should be < g3={r3.Generation}");
+        Assert.True(r1.Generation >= 1, "generation starts at 1 (first Attach)");
     }
 
     [Fact]
-    public async Task HeadSeq_IsZero_UntilGroup4()
+    public async Task HeadSeq_IsZero_WhenNoEventsReceived()
     {
         FeedableReader stdout = new();
         StringWriter stdin = new();

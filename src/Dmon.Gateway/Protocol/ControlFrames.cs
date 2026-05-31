@@ -33,8 +33,8 @@ public sealed record AttachFrame
     public required string SessionId { get; init; }
 
     /// <summary>
-    /// Last sequence number seen by the client. Group 4 uses this for replay;
-    /// accepted here but not acted upon until Group 4.
+    /// Last sequence number seen by the client. The gateway replays events
+    /// with seq greater than this value up to <c>headSeq</c> before resuming live delivery.
     /// </summary>
     [JsonPropertyName("lastSeq")]
     public long LastSeq { get; init; }
@@ -56,8 +56,8 @@ public sealed record AttachedFrame
     public required long Generation { get; init; }
 
     /// <summary>
-    /// Highest sequence number persisted for this session. Placeholder 0 until Group 4
-    /// wires up messages.jsonl-backed sequencing.
+    /// Highest sequence number assigned to a server→client event for this session at the
+    /// moment of attach. Zero if no events have been emitted yet.
     /// </summary>
     [JsonPropertyName("headSeq")]
     public required long HeadSeq { get; init; }

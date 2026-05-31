@@ -25,8 +25,9 @@ namespace Dmon.Gateway;
 /// reply carries it so the client can detect reconnections. Fencing (dropping older-gen
 /// frames, evicting the prior connection) is Group 6 — not implemented here.
 ///
-/// Replay semantics: lastSeq is accepted in the attach frame but replay of
-/// (lastSeq, headSeq] is Group 4 — not implemented here.
+/// Replay semantics: lastSeq from the attach frame is passed to SessionHandler.Attach, which
+/// sets the delivery cursor. The single drain loop replays (lastSeq, headSeq] before delivering
+/// live events. The accurate headSeq is carried in the attached reply (ADR-014).
 /// </summary>
 public sealed class GatewayConnectionEndpoint
 {
@@ -119,16 +120,13 @@ public sealed class GatewayConnectionEndpoint
             return;
         }
 
-        // lastSeq is captured here; replay of (lastSeq, headSeq] is Group 4.
-        _ = attachFrame.LastSeq;
-
         using WebSocketGatewayConnection connection = new(socket);
-        long generation = handler.Attach(connection);
+        AttachResult attachResult = handler.Attach(connection, attachFrame.LastSeq);
 
         AttachedFrame attachedFrame = new()
         {
-            Generation = generation,
-            HeadSeq = handler.HeadSeq,
+            Generation = attachResult.Generation,
+            HeadSeq = attachResult.HeadSeq,
         };
         // Route the reply through the connection's serialized send funnel, not the raw socket:
         // Attach() has already released the pump's wake, so the first buffered event may be

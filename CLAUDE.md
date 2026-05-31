@@ -41,6 +41,7 @@ Key accepted decisions:
 | ADR-011 | Distribution model: granular contract packages on nuget.org; `dmon` (dotnet tool) acquires `dmoncore` at runtime into the global NuGet cache (no bundling); 3-part protocol-keyed version scheme (`Major.Minor` = wire protocol). |
 | ADR-012 | Remote access transport: a WebSocket gateway with connection-decoupled, resumable sessions; **Tailscale** is the auth/encryption boundary (single-tenant, home-server); optional shared key for defense-in-depth. |
 | ADR-013 | Agent profiles: a named bundle (persona + per-session `assets/` toggle + permission mode) selected per session; built-in `coding` profile preserves today's behaviour; non-coding personas are config. |
+| ADR-014 | Gateway event replay uses an in-memory per-session `seq` buffer in the live handler, **not** `messages.jsonl` (which holds only conversational turns, written only by the core). Amends ADR-012 Decision 4. |
 
 New ADRs belong in `docs/adrs/ADR-NNN-<slug>.md`. Use the existing ADRs as the format template.
 

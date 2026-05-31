@@ -18,9 +18,9 @@
 
 ## 4. Event sequencing and replay
 
-- [ ] 4.1 Assign a monotonic per-session `seq` to every server→client event, backed by `messages.jsonl` (ADR-004); track `headSeq`.
-- [ ] 4.2 On attach, replay `(lastSeq, headSeq]` from the log then resume live.
-- [ ] 4.3 Implement subscribe-then-replay with dedupe by `seq` so events arriving mid-replay are delivered exactly once.
+- [x] 4.1 Assign a monotonic per-session `seq` to every server→client event, retained in the live handler's in-memory `seq`-indexed buffer (ADR-014; not `messages.jsonl`); track `headSeq`.
+- [x] 4.2 On attach, replay `(lastSeq, headSeq]` from the in-memory buffer then resume live.
+- [x] 4.3 Implement subscribe-then-replay with dedupe by `seq` so events arriving mid-replay are delivered exactly once.
 
 ## 5. Command idempotency
 
