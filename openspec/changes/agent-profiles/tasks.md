@@ -1,8 +1,8 @@
 ## 1. Profile contracts (Dmon.Abstractions)
 
-- [ ] 1.1 Add a `PermissionMode` enum (`Coding`, `Sandbox`) in `Dmon.Abstractions`.
-- [ ] 1.2 Add an immutable `AgentProfile` record: `Name`, `Persona` (string), `Assets` (bool), `PermissionMode`.
-- [ ] 1.3 Add `IAgentProfileResolver` with a single `Task<AgentProfile> ResolveAsync(string? requestedProfile, CancellationToken)` returning the session's resolved profile.
+- [x] 1.1 Add a `PermissionMode` enum (`Coding`, `Sandbox`) in `Dmon.Abstractions`.
+- [x] 1.2 Add an immutable `AgentProfile` record: `Name`, `Persona` (string), `Assets` (bool), `PermissionMode`.
+- [x] 1.3 Add `IAgentProfileResolver` with a single `Task<AgentProfile> ResolveAsync(string? requestedProfile, CancellationToken)` returning the session's resolved profile.
 
 ## 2. Profile config + two-scope merge (Dmon.Core/Config)
 
