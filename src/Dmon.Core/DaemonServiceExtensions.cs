@@ -145,6 +145,8 @@ public static class DmonServiceExtensions
             return new AgentProfileResolver(setResolver, userConfigPath, projectConfigPath);
         });
         services.AddSingleton<AgentProfileContext>();
+        services.AddSingleton<ISessionAssetProvisioner>(
+            _ => new SessionAssetProvisioner(Directory.GetCurrentDirectory()));
 
         services.AddSingleton<TurnHandler>();
         services.AddSingleton<ITurnHandler>(sp => sp.GetRequiredService<TurnHandler>());

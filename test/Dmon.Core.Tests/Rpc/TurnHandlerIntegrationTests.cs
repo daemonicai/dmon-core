@@ -287,6 +287,7 @@ internal static class TurnHandlerFactory
             configuration,
             new StubAgentProfileResolver(),
             new AgentProfileContext(),
+            new NoopSessionAssetProvisioner(),
             NullLogger<TurnHandler>.Instance);
 
         return (handler, emitter);
@@ -552,4 +553,13 @@ public sealed class TurnHandlerIntegrationTests
 
         Assert.Equal(0, store.SaveCount);
     }
+}
+
+/// <summary>
+/// ISessionAssetProvisioner stub that is a no-op — used in tests that do not
+/// exercise asset-directory provisioning.
+/// </summary>
+internal sealed class NoopSessionAssetProvisioner : ISessionAssetProvisioner
+{
+    public string? Provision(AgentProfile profile, string? sessionId) => null;
 }

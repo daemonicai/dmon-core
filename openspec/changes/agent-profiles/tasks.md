@@ -33,8 +33,8 @@
 
 ## 6. Asset directory provisioning
 
-- [ ] 6.1 At session creation, provision `assets/<session_id>/` under the workspace root when `AgentProfile.Assets` is true; create nothing when false.
-- [ ] 6.2 Keep the asset directory distinct from the session-storage `attachments/` and independent of the session process lifetime.
+- [x] 6.1 At session creation, provision `assets/<session_id>/` under the workspace root when `AgentProfile.Assets` is true; create nothing when false.
+- [x] 6.2 Keep the asset directory distinct from the session-storage `attachments/` and independent of the session process lifetime.
 
 ## 7. Tests and documentation
 

@@ -99,6 +99,7 @@ public sealed class TurnHandlerSystemPromptTests
             configuration,
             new StubAgentProfileResolver(),
             new AgentProfileContext(),
+            new NoopSessionAssetProvisioner(),
             NullLogger<TurnHandler>.Instance);
 
         return (handler, emitter);

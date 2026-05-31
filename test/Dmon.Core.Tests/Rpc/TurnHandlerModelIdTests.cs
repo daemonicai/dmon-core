@@ -113,6 +113,7 @@ public sealed class TurnHandlerModelIdTests
             configuration,
             new StubAgentProfileResolver(),
             new AgentProfileContext(),
+            new NoopSessionAssetProvisioner(),
             NullLogger<TurnHandler>.Instance);
 
         return (handler, emitter);

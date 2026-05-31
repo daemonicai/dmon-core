@@ -36,6 +36,7 @@ public sealed class TurnHandler : ITurnHandler
     private readonly RetryPolicy _retryPolicy;
     private readonly IAgentProfileResolver _profileResolver;
     private readonly AgentProfileContext _profileContext;
+    private readonly ISessionAssetProvisioner _assetProvisioner;
     private readonly ILogger<TurnHandler> _logger;
 
     // Pending confirm/ui-input response channels keyed by request id.
@@ -68,6 +69,7 @@ public sealed class TurnHandler : ITurnHandler
         IConfiguration configuration,
         IAgentProfileResolver profileResolver,
         AgentProfileContext profileContext,
+        ISessionAssetProvisioner assetProvisioner,
         ILogger<TurnHandler> logger)
     {
         _providers = providers;
@@ -83,6 +85,7 @@ public sealed class TurnHandler : ITurnHandler
         _retryPolicy = RetryPolicy.FromConfiguration(configuration);
         _profileResolver = profileResolver;
         _profileContext = profileContext;
+        _assetProvisioner = assetProvisioner;
         _logger = logger;
     }
 
@@ -114,6 +117,11 @@ public sealed class TurnHandler : ITurnHandler
                 // (later in this change); null falls back to defaultProfile or built-in coding.
                 await _profileContext.EnsureResolvedAsync(_profileResolver, requestedProfile: null, _turnCts.Token)
                     .ConfigureAwait(false);
+
+                // Provision assets/<session_id>/ under the workspace root when the profile
+                // enables assets. Must run before BuildAsync so the system-prompt asset-dir
+                // line (Group 4) refers to a directory that already exists on disk.
+                _assetProvisioner.Provision(_profileContext.Profile, _sessionHandler.CurrentSession?.Id);
 
                 ChatMessage systemMessage = await _systemPromptBuilder.BuildAsync(_turnCts.Token).ConfigureAwait(false);
                 _history.Insert(0, systemMessage);
