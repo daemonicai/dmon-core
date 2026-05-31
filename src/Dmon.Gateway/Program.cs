@@ -35,8 +35,12 @@ builder.Services.AddSingleton<IAgentProfileResolver>(sp =>
     return new AgentProfileResolver(setResolver, userConfigPath, projectConfigPath);
 });
 
-// --- Session registry and WS endpoint handler ---
+// --- Time provider (injectable for testability — Group 7) ---
+builder.Services.AddSingleton(TimeProvider.System);
+
+// --- Session registry, reaper, and WS endpoint handler ---
 builder.Services.AddSingleton<SessionRegistry>();
+builder.Services.AddHostedService<SessionReaper>();
 builder.Services.AddSingleton<GatewayConnectionEndpoint>();
 
 WebApplication app = builder.Build();

@@ -35,9 +35,9 @@
 
 ## 7. Detached lifetime and liveness
 
-- [ ] 7.1 Implement `ping`/`pong` heartbeats on a configurable interval; treat missed heartbeats as a detected disconnect.
-- [ ] 7.2 Start the detached grace timer on detected disconnect; reap idle-detached handlers after the idle TTL.
-- [ ] 7.3 Retain a detached handler with a turn in flight until the turn completes, bounded by the absolute max; enforce the concurrent-handler cap.
+- [x] 7.1 Implement `ping`/`pong` heartbeats on a configurable interval; treat missed heartbeats as a detected disconnect.
+- [x] 7.2 Start the detached grace timer on detected disconnect; reap idle-detached handlers after the idle TTL.
+- [x] 7.3 Retain a detached handler with a turn in flight until the turn completes, bounded by the absolute max; enforce the concurrent-handler cap.
 
 ## 8. Permission parking while detached
 

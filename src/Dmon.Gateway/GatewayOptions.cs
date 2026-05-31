@@ -30,11 +30,14 @@ public sealed class GatewayOptions
     public int RunningTurnTtlMinutes { get; set; } = 60;
 
     /// <summary>
-    /// How long a detached session without any active turn is kept before reaping (minutes).
-    /// Distinct from <see cref="IdleDetachedTtlMinutes"/> to allow shorter reaping of
-    /// sessions that were never used.
+    /// Interval between gateway→client heartbeat ping frames (seconds).
+    /// Keeps connections alive across carrier-NAT idle timeouts and provides
+    /// the liveness signal for missed-heartbeat disconnect detection.
+    /// A missed-beat deadline of 2× the interval is used: if no frame arrives
+    /// from the client within that window the connection is treated as dead
+    /// and the forwarding loop exits (starting the detached grace timer).
     /// </summary>
-    public int DetachedTtlMinutes { get; set; } = 30;
+    public int HeartbeatIntervalSeconds { get; set; } = 25;
 
     /// <summary>
     /// Maximum number of concurrently active session handlers.

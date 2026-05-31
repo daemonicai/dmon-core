@@ -1,4 +1,6 @@
 using System.IO;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using Dmon.Runtime;
 
 namespace Dmon.Gateway.Sessions;
@@ -31,8 +33,10 @@ public sealed class SessionHandler : IAsyncDisposable
     private readonly CoreSession? _coreSession;
     private readonly TextReader _stdout;
     private readonly TextWriter _stdin;
+    private readonly TimeProvider _timeProvider;
 
-    // Guards _connection, _seqLog, _headSeq, _sentSeq, and _admittedIds together.
+    // Guards _connection, _seqLog, _headSeq, _sentSeq, _admittedIds,
+    // _isTurnInFlight, and _detachedAt together.
     private readonly Lock _lock = new();
     private IGatewayConnection? _connection;
 
@@ -66,6 +70,14 @@ public sealed class SessionHandler : IAsyncDisposable
     // Monotonically increasing; incremented on each Attach. Group 6 enforces fencing.
     private long _generation;
 
+    // True when the core has emitted turnStart without a subsequent turnEnd.
+    // Written by the reader task under _lock; read by the reaper.
+    private bool _isTurnInFlight;
+
+    // Non-null while this handler has no attached connection. Set by Detach, cleared by Attach.
+    // Written under _lock; the reaper reads it to determine eligibility and compute elapsed time.
+    private DateTimeOffset? _detachedAt;
+
     public string SessionId { get; }
 
     /// <summary>
@@ -95,12 +107,49 @@ public sealed class SessionHandler : IAsyncDisposable
         }
     }
 
+    /// <summary>
+    /// True when the core has emitted <c>turnStart</c> without a subsequent <c>turnEnd</c>.
+    /// Read by the reaper to decide whether to apply the idle TTL or the absolute-max TTL.
+    /// </summary>
+    public bool IsTurnInFlight
+    {
+        get
+        {
+            lock (_lock)
+                return _isTurnInFlight;
+        }
+    }
+
+    /// <summary>
+    /// The UTC timestamp at which this handler became detached (no attached connection).
+    /// <c>null</c> when a connection is currently attached.
+    /// Set by <see cref="Detach"/>, cleared by <see cref="Attach"/>.
+    /// The reaper uses this to determine whether the handler has been idle long enough to reap.
+    /// </summary>
+    public DateTimeOffset? DetachedAt
+    {
+        get
+        {
+            lock (_lock)
+                return _detachedAt;
+        }
+    }
+
     /// <param name="sessionId">Stable identifier for this session.</param>
     /// <param name="coreSession">An already-started, protocol-gated core session.</param>
     public SessionHandler(string sessionId, CoreSession coreSession)
+        : this(sessionId, coreSession, TimeProvider.System)
+    {
+    }
+
+    /// <param name="sessionId">Stable identifier for this session.</param>
+    /// <param name="coreSession">An already-started, protocol-gated core session.</param>
+    /// <param name="timeProvider">Time provider for detached-timestamp recording.</param>
+    public SessionHandler(string sessionId, CoreSession coreSession, TimeProvider timeProvider)
     {
         SessionId = sessionId;
         _coreSession = coreSession;
+        _timeProvider = timeProvider;
         _stdout = coreSession.Process.StandardOutput;
         _stdin = coreSession.Process.StandardInput;
         _pumpTask = RunPumpAsync(_pumpCts.Token);
@@ -110,9 +159,20 @@ public sealed class SessionHandler : IAsyncDisposable
     /// Test seam: drives the pump from arbitrary stdout/stdin streams without spawning a process.
     /// </summary>
     internal SessionHandler(string sessionId, TextReader stdout, TextWriter stdin)
+        : this(sessionId, stdout, stdin, TimeProvider.System)
+    {
+    }
+
+    /// <summary>
+    /// Test seam: drives the pump from arbitrary stdout/stdin streams without spawning a process.
+    /// Accepts an explicit <paramref name="timeProvider"/> so tests can use
+    /// <c>FakeTimeProvider</c> to control detached timestamps deterministically.
+    /// </summary>
+    internal SessionHandler(string sessionId, TextReader stdout, TextWriter stdin, TimeProvider timeProvider)
     {
         SessionId = sessionId;
         _coreSession = null;
+        _timeProvider = timeProvider;
         _stdout = stdout;
         _stdin = stdin;
         _pumpTask = RunPumpAsync(_pumpCts.Token);
@@ -146,6 +206,8 @@ public sealed class SessionHandler : IAsyncDisposable
 
             generation = Interlocked.Increment(ref _generation);
             _connection = connection;
+            // Clear the detached timestamp — this handler now has an active connection.
+            _detachedAt = null;
             // Clamp: a lastSeq below 0 or above headSeq is bounded defensively.
             _sentSeq = Math.Clamp(lastSeq, 0L, _headSeq);
             headSeq = _headSeq;
@@ -174,7 +236,13 @@ public sealed class SessionHandler : IAsyncDisposable
         lock (_lock)
         {
             if (ReferenceEquals(_connection, connection))
+            {
                 _connection = null;
+                // Record when the handler first became detached so the reaper can compute
+                // how long it has been idle. Only set on the first detach after an attach;
+                // subsequent calls on an already-detached handler are identity-guarded above.
+                _detachedAt ??= _timeProvider.GetUtcNow();
+            }
         }
     }
 
@@ -327,6 +395,19 @@ public sealed class SessionHandler : IAsyncDisposable
                 {
                     _headSeq++;
                     _seqLog.Add((_headSeq, line));
+
+                    // Passive inspection for turnStart/turnEnd (ADR-003 / Group 7).
+                    // The bytes are forwarded unchanged; this is purely for the reaper's
+                    // in-flight flag. turnStart…turnEnd brackets the whole agentic loop
+                    // (including all LLM iterations and tool calls) with no inner gaps.
+                    // Defensive: a second turnStart without an intervening turnEnd is
+                    // idempotent (stays in-flight). The case "turn ends without a turnEnd"
+                    // (e.g. core crash) is covered by RunningTurnTtlMinutes.
+                    string? eventType = GetEventTypeDiscriminator(line);
+                    if (eventType == "turnStart")
+                        _isTurnInFlight = true;
+                    else if (eventType == "turnEnd")
+                        _isTurnInFlight = false;
                 }
 
                 // Wake the drain loop; it will deliver to the connection if one is attached.
@@ -336,6 +417,28 @@ public sealed class SessionHandler : IAsyncDisposable
         catch (OperationCanceledException)
         {
             // Shutting down.
+        }
+    }
+
+    /// <summary>
+    /// Returns the top-level "type" discriminator of an ADR-003 event line, or <c>null</c> if
+    /// absent or the line is not valid JSON. Mirrors <c>GetGwDiscriminator</c> in
+    /// <c>ControlFrameSerializer</c> but reads the "type" field instead of "gw". Called only
+    /// from within the reader task; kept private because it is an implementation detail of
+    /// the in-flight inspection pass.
+    /// </summary>
+    private static string? GetEventTypeDiscriminator(string line)
+    {
+        try
+        {
+            JsonNode? node = JsonNode.Parse(line);
+            if (node?["type"] is not JsonValue value)
+                return null;
+            return value.TryGetValue(out string? text) ? text : null;
+        }
+        catch (JsonException)
+        {
+            return null;
         }
     }
 
