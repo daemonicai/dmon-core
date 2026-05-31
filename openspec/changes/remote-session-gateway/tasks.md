@@ -58,7 +58,7 @@
 
 ## 11. Tests and deployment docs
 
-- [ ] 11.1 Test: drop-and-reattach replays missed events in order with no duplicate across the seam.
-- [ ] 11.2 Test: resent command is deduped by `id`; in-flight-turn handler survives detach while idle handler reaps at TTL.
-- [ ] 11.3 Test: a new attach evicts the prior connection and fenced frames are rejected; shared-key mismatch yields HTTP 401.
-- [ ] 11.4 Document deployment: `tailscale serve` fronting the loopback gateway, MagicDNS cert, and a tailnet ACL restricting the iOS device to the gateway port.
+- [x] 11.1 Test: drop-and-reattach replays missed events in order with no duplicate across the seam.
+- [x] 11.2 Test: resent command is deduped by `id`; in-flight-turn handler survives detach while idle handler reaps at TTL.
+- [x] 11.3 Test: a new attach evicts the prior connection and fenced frames are rejected; shared-key mismatch yields HTTP 401.
+- [x] 11.4 Document deployment: `tailscale serve` fronting the loopback gateway, MagicDNS cert, and a tailnet ACL restricting the iOS device to the gateway port.
