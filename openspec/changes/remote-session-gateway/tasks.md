@@ -1,8 +1,8 @@
 ## 1. Gateway host skeleton
 
-- [ ] 1.1 Create `src/Dmon.Gateway` (ASP.NET Core, Kestrel) with a `ProjectReference` to `Dmon.Runtime`; `IsPackable` per the repo's packaging rules.
-- [ ] 1.2 Bind to **loopback by default**; expose bind address, TTLs, max-handlers, and optional shared-key via gateway config.
-- [ ] 1.3 Add a WebSocket endpoint (`app.UseWebSockets()`) and the DI wiring (session registry, `CoreProcessManager`, profile resolver).
+- [x] 1.1 Create `src/Dmon.Gateway` (ASP.NET Core, Kestrel) with a `ProjectReference` to `Dmon.Runtime`; `IsPackable` per the repo's packaging rules.
+- [x] 1.2 Bind to **loopback by default**; expose bind address, TTLs, max-handlers, and optional shared-key via gateway config.
+- [x] 1.3 Add a WebSocket endpoint (`app.UseWebSockets()`) and the DI wiring (session registry, `CoreProcessManager`, profile resolver).
 
 ## 2. Session registry and handler lifecycle
 
