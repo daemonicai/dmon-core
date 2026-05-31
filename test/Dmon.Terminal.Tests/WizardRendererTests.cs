@@ -156,13 +156,13 @@ public sealed class WizardRendererTests
     // ── ChooseManyStep ─────────────────────────────────────────────────────
 
     [Fact]
-    public async Task WizardStep_ChooseMany_Answered_SendsCommaSeparatedIndex()
+    public async Task WizardStep_ChooseMany_Answered_MultipleIndices_SendsCommaSeparatedValue()
     {
         (ConsoleEventHandler handler, FakeTerminal fake, List<Command> sent) =
             await BuildActiveWizardAsync();
 
-        fake.OnSelectAsync = (_, _) =>
-            Task.FromResult(new DialogResult<int>(DialogOutcome.Submitted, 2));
+        fake.OnMultiSelectAsync = (_, _) =>
+            Task.FromResult(new DialogResult<int[]>(DialogOutcome.Submitted, [0, 2]));
 
         ChooseManyStep step = new()
         {
@@ -180,8 +180,52 @@ public sealed class WizardRendererTests
 
         WizardAnswerCommand cmd = Assert.Single(sent.OfType<WizardAnswerCommand>());
         Assert.Equal(WizardAnswerOutcome.Answered, cmd.Outcome);
-        // Single-pick fallback: value is the selected index as string.
-        Assert.Equal("2", cmd.Value);
+        Assert.Equal("0,2", cmd.Value);
+    }
+
+    [Fact]
+    public async Task WizardStep_ChooseMany_Back_SendsBackOutcome()
+    {
+        (ConsoleEventHandler handler, FakeTerminal fake, List<Command> sent) =
+            await BuildActiveWizardAsync();
+
+        fake.OnMultiSelectAsync = (_, _) =>
+            Task.FromResult(new DialogResult<int[]>(DialogOutcome.Back, []));
+
+        ChooseManyStep step = new()
+        {
+            Id      = "features",
+            Prompt  = "Pick features",
+            Options = [new WizardOption("A", "a"), new WizardOption("B", "b")],
+        };
+
+        await handler.HandleRpcEventAsync((Event)StepEvt("w1", step), CancellationToken.None);
+
+        WizardAnswerCommand cmd = Assert.Single(sent.OfType<WizardAnswerCommand>());
+        Assert.Equal(WizardAnswerOutcome.Back, cmd.Outcome);
+        Assert.Null(cmd.Value);
+    }
+
+    [Fact]
+    public async Task WizardStep_ChooseMany_MultiSelectRequest_HasAllowBackTrue()
+    {
+        (ConsoleEventHandler handler, FakeTerminal fake, List<Command> sent) =
+            await BuildActiveWizardAsync();
+
+        fake.OnMultiSelectAsync = (_, _) =>
+            Task.FromResult(new DialogResult<int[]>(DialogOutcome.Submitted, [0]));
+
+        ChooseManyStep step = new()
+        {
+            Id      = "features",
+            Prompt  = "Pick features",
+            Options = [new WizardOption("A", "a")],
+        };
+
+        await handler.HandleRpcEventAsync((Event)StepEvt("w1", step), CancellationToken.None);
+
+        MultiSelectOpened call = Assert.Single(fake.Calls.OfType<MultiSelectOpened>());
+        Assert.True(call.Request.AllowBack);
     }
 
     // ── TextInputStep ──────────────────────────────────────────────────────
@@ -360,6 +404,29 @@ public sealed class WizardRendererTests
         WizardAnswerCommand cmd = Assert.Single(sent.OfType<WizardAnswerCommand>());
         Assert.Equal(WizardAnswerOutcome.Back, cmd.Outcome);
         Assert.Null(cmd.Value);
+    }
+
+    [Fact]
+    public async Task WizardStep_TextInput_InputRequest_HasAllowBackTrue()
+    {
+        (ConsoleEventHandler handler, FakeTerminal fake, List<Command> sent) =
+            await BuildActiveWizardAsync();
+
+        fake.OnInputAsync = (_, _) =>
+            Task.FromResult(new DialogResult<string>(DialogOutcome.Submitted, "value"));
+
+        TextInputStep step = new()
+        {
+            Id       = "api-key",
+            Prompt   = "API key",
+            Secret   = false,
+            Required = true,
+        };
+
+        await handler.HandleRpcEventAsync((Event)StepEvt("w1", step), CancellationToken.None);
+
+        InputOpened call = Assert.Single(fake.Calls.OfType<InputOpened>());
+        Assert.True(call.Request.AllowBack);
     }
 
     // ── YesNoStep ──────────────────────────────────────────────────────────
