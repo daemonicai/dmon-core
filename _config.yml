@@ -1,0 +1,20 @@
+remote_theme: daemonicai/dmon-pages
+baseurl: "/dmon-core"
+url: "https://daemonicai.github.io"
+
+title: dmon-core
+tagline: .NET-native agent core
+description: A .NET-native coding agent inspired by Pi — self-extensible via NuGet, with curated tool output and a conservative permission model.
+
+github:
+  owner: daemonicai
+  repo: dmon-core
+org_url: "https://github.com/daemonicai"
+
+plugins:
+  - jekyll-remote-theme
+  - jekyll-seo-tag
+
+defaults:
+  - scope: { path: "" }
+    values: { layout: home }
