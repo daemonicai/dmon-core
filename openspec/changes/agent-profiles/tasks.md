@@ -38,8 +38,8 @@
 
 ## 7. Tests and documentation
 
-- [ ] 7.1 Test: under the `coding` profile, the assembled persona equals the prior static core byte-for-byte, no asset dir is created, and permission mode is `coding`.
-- [ ] 7.2 Test: config-defined profiles merge across scopes (union, dedupe by name, project wins); `personaFile` is read; unknown name and sandbox+assets:false both error.
-- [ ] 7.3 Test: `sandbox` allows writes within `assets/<session_id>/`, prompts outside it, and never overrides the denylist (including symlink/`..` escape attempts).
-- [ ] 7.4 Test: per-session `profile` overrides `defaultProfile`; absent both, built-in `coding` applies.
-- [ ] 7.5 Update `config.yaml` documentation/sample with the `profiles:` and `defaultProfile` keys and the two permission modes.
+- [x] 7.1 Test: under the `coding` profile, the assembled persona equals the prior static core byte-for-byte, no asset dir is created, and permission mode is `coding`.
+- [x] 7.2 Test: config-defined profiles merge across scopes (union, dedupe by name, project wins); `personaFile` is read; unknown name and sandbox+assets:false both error.
+- [x] 7.3 Test: `sandbox` allows writes within `assets/<session_id>/`, prompts outside it, and never overrides the denylist (including symlink/`..` escape attempts).
+- [x] 7.4 Test: per-session `profile` overrides `defaultProfile`; absent both, built-in `coding` applies.
+- [x] 7.5 Update `config.yaml` documentation/sample with the `profiles:` and `defaultProfile` keys and the two permission modes.
