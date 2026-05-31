@@ -6,16 +6,14 @@ namespace Dmon.Core.Profiles;
 /// Built-in agent profiles that exist independent of any config file.
 /// </summary>
 /// <remarks>
-/// The <see cref="CodingPersona"/> constant is the single source of truth for the
-/// built-in coding persona. <see cref="SystemPromptBuilder"/> currently holds an
-/// identical copy (Group 4 will remove it and point at this constant).
+/// <see cref="CodingPersona"/> is the single source of truth for the built-in coding
+/// persona. <see cref="SystemPromptBuilder"/> resolves it via
+/// <see cref="Dmon.Abstractions.Profiles.AgentProfile.Persona"/>; no duplicate copy exists.
 /// </remarks>
 internal static class BuiltInProfiles
 {
     internal const string CodingProfileName = "coding";
 
-    // Byte-for-byte copy of SystemPromptBuilder.StaticCore — do not retype.
-    // Group 4 will delete the copy in SystemPromptBuilder and reference this constant.
     internal static readonly string CodingPersona = """
         # Identity
 

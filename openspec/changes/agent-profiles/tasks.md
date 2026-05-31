@@ -21,9 +21,9 @@
 
 ## 4. System prompt persona injection (Dmon.Core/SystemPrompt)
 
-- [ ] 4.1 Replace the `StaticCore` constant usage in `SystemPromptBuilder` with the active `AgentProfile.Persona`.
-- [ ] 4.2 Surface the per-session asset directory in the dynamic-context block only when `AgentProfile.Assets` is true; omit it otherwise.
-- [ ] 4.3 Confirm the surrounding scaffolding (project `CLAUDE.md`/`AGENTS.md` discovery, dynamic context, system-message-at-index-0) is otherwise unchanged.
+- [x] 4.1 Replace the `StaticCore` constant usage in `SystemPromptBuilder` with the active `AgentProfile.Persona`.
+- [x] 4.2 Surface the per-session asset directory in the dynamic-context block only when `AgentProfile.Assets` is true; omit it otherwise.
+- [x] 4.3 Confirm the surrounding scaffolding (project `CLAUDE.md`/`AGENTS.md` discovery, dynamic context, system-message-at-index-0) is otherwise unchanged.
 
 ## 5. Permission mode in the gate (Dmon.Core permission pipeline)
 

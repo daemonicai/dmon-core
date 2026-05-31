@@ -1,12 +1,16 @@
 using Dmon.Abstractions;
+using Dmon.Abstractions.Profiles;
 using Dmon.Abstractions.Providers;
 using Dmon.Core.Config;
 using Dmon.Core.Extensions;
+using Dmon.Core.Profiles;
 using Dmon.Core.Providers;
 using Dmon.Core.Rpc;
+using Dmon.Core.Session;
 using Dmon.Core.SystemPrompt;
 using Dmon.Core.Tests.Fakes;
 using Dmon.Extensions;
+using Dmon.Protocol.Commands;
 using Dmon.Protocol.Events;
 using Microsoft.Extensions.AI;
 
@@ -44,13 +48,28 @@ public sealed class SystemPromptBuilderTests : IDisposable
 
     // ── helpers ─────────────────────────────────────────────────────────────
 
-    private static SystemPromptBuilder MakeBuilder(FakeEventEmitter? emitter = null)
+    private static AgentProfileContext ResolvedCodingContext()
+    {
+        AgentProfileContext ctx = new();
+        ctx.EnsureResolvedAsync(
+            new StubAgentProfileResolver(),
+            requestedProfile: null,
+            CancellationToken.None).GetAwaiter().GetResult();
+        return ctx;
+    }
+
+    private static SystemPromptBuilder MakeBuilder(
+        FakeEventEmitter? emitter = null,
+        AgentProfileContext? profileContext = null,
+        ISessionHandler? sessionHandler = null)
     {
         StubProviderRegistry providers = new();
         EmptyToolRegistry tools = new();
         AgentConfigResolver configResolver = new();
         IEventEmitter eventEmitter = emitter ?? new FakeEventEmitter();
-        return new SystemPromptBuilder(providers, tools, configResolver, eventEmitter);
+        AgentProfileContext ctx = profileContext ?? ResolvedCodingContext();
+        ISessionHandler session = sessionHandler ?? new StubSessionHandler();
+        return new SystemPromptBuilder(providers, tools, configResolver, eventEmitter, ctx, session);
     }
 
     private void WriteProjectFile(string filename, string content)
@@ -208,5 +227,44 @@ public sealed class SystemPromptBuilderTests : IDisposable
             => throw new NotSupportedException();
 
         public void Dispose() { }
+    }
+
+    private sealed class StubAgentProfileResolver : IAgentProfileResolver
+    {
+        public Task<AgentProfile> ResolveAsync(string? requestedProfile, CancellationToken cancellationToken)
+            => Task.FromResult(BuiltInProfiles.Coding);
+    }
+
+    private sealed class StubSessionHandler : ISessionHandler
+    {
+        public SessionMeta? CurrentSession => null;
+
+        public Task CreateAsync(SessionCreateCommand cmd, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task ForkAsync(SessionForkCommand cmd, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task CloneAsync(SessionCloneCommand cmd, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task LoadAsync(SessionLoadCommand cmd, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task ListAsync(SessionListCommand cmd, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task SetNameAsync(SessionSetNameCommand cmd, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task GetStatsAsync(SessionGetStatsCommand cmd, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task GetMessagesAsync(SessionGetMessagesCommand cmd, CancellationToken cancellationToken) => Task.CompletedTask;
+    }
+
+    // Staged for Group 7 asset-directory tests (asset surfacing via session path).
+    private sealed class SessionWithIdHandler : ISessionHandler
+    {
+        private readonly string _sessionId;
+
+        public SessionWithIdHandler(string sessionId) => _sessionId = sessionId;
+
+        public SessionMeta? CurrentSession => new() { Id = _sessionId };
+
+        public Task CreateAsync(SessionCreateCommand cmd, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task ForkAsync(SessionForkCommand cmd, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task CloneAsync(SessionCloneCommand cmd, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task LoadAsync(SessionLoadCommand cmd, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task ListAsync(SessionListCommand cmd, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task SetNameAsync(SessionSetNameCommand cmd, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task GetStatsAsync(SessionGetStatsCommand cmd, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task GetMessagesAsync(SessionGetMessagesCommand cmd, CancellationToken cancellationToken) => Task.CompletedTask;
     }
 }
