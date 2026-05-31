@@ -2,10 +2,10 @@
 
 ## 1. IMemory facade + cross-tier fusion
 
-- [ ] 1.1 Implement `Memory : IMemory` in `Dmon.Memory`: constructor takes `IShortTermMemory` (required) + `ILongTermMemory?` (optional); expose `ShortTerm` (never null) and `LongTerm` (nullable) properties (D1)
-- [ ] 1.2 `RecordAsync` fans out to short-term always and to long-term when non-null; `FlushAsync` flushes every configured tier (D1)
-- [ ] 1.3 `SearchAsync`: query both tiers in parallel, fuse by rank-based RRF (`1/(k+rank)`, `k=60`, per-tier weights at a single adjustable point), set `MemoryHit.Source`, and de-duplicate near-identical cross-tier hits (normalized `Text`, fallback `Id`; keep higher fused rank, prefer the copy carrying `Relations`) (D2, D3)
-- [ ] 1.4 Degrade gracefully: `LongTerm` null → short-term only; a long-term search fault is contained (log + return short-term results), not propagated (D5)
+- [x] 1.1 Implement `Memory : IMemory` in `Dmon.Memory`: constructor takes `IShortTermMemory` (required) + `ILongTermMemory?` (optional); expose `ShortTerm` (never null) and `LongTerm` (nullable) properties (D1)
+- [x] 1.2 `RecordAsync` fans out to short-term always and to long-term when non-null; `FlushAsync` flushes every configured tier (D1)
+- [x] 1.3 `SearchAsync`: query both tiers in parallel, fuse by rank-based RRF (`1/(k+rank)`, `k=60`, per-tier weights at a single adjustable point), set `MemoryHit.Source`, and de-duplicate near-identical cross-tier hits (normalized `Text`, fallback `Id`; keep higher fused rank, prefer the copy carrying `Relations`) (D2, D3)
+- [x] 1.4 Degrade gracefully: `LongTerm` null → short-term only; a long-term search fault is contained (log + return short-term results), not propagated (D5)
 
 ## 2. DI wiring (decoupled)
 
