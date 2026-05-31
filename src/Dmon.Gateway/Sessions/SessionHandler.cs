@@ -34,7 +34,16 @@ public sealed class SessionHandler : IAsyncDisposable
     private readonly Task _pumpTask;
     private readonly CancellationTokenSource _pumpCts = new();
 
+    // Monotonically increasing; incremented on each Attach. Group 6 enforces fencing.
+    private long _generation;
+
     public string SessionId { get; }
+
+    /// <summary>
+    /// Placeholder for the highest persisted sequence number. Group 4 wires the real value
+    /// from messages.jsonl; until then this is always 0.
+    /// </summary>
+    public long HeadSeq => 0;
 
     /// <param name="sessionId">Stable identifier for this session.</param>
     /// <param name="coreSession">An already-started, protocol-gated core session.</param>
@@ -66,16 +75,21 @@ public sealed class SessionHandler : IAsyncDisposable
     /// <summary>
     /// Attaches a connection. Buffered events are flushed by the single pump loop, in original
     /// order, before any later line is delivered. Replaces any previously attached connection.
+    /// Returns the new monotonic generation number for the <c>attached</c> reply.
+    /// Group 6 uses the generation for fencing; this method only issues it.
     /// </summary>
-    public void Attach(IGatewayConnection connection)
+    public long Attach(IGatewayConnection connection)
     {
+        long generation;
         lock (_lock)
         {
+            generation = Interlocked.Increment(ref _generation);
             _connection = connection;
         }
 
         // Wake the pump so it drains the buffer to the new connection immediately.
         _wake.Release();
+        return generation;
     }
 
     /// <summary>

@@ -12,9 +12,9 @@
 
 ## 3. Connection-control sub-protocol
 
-- [ ] 3.1 Define `attach` / `attached` / `ack` / `ping` / `pong` frames, distinguishable from and additive to ADR-003 command/event frames.
-- [ ] 3.2 Implement the attach handshake: accept `attach {sessionId, lastSeq}`, reply `attached {generation, headSeq}`.
-- [ ] 3.3 Verify ADR-003 command/event JSON is forwarded byte-unchanged (no reshaping at the gateway).
+- [x] 3.1 Define `attach` / `attached` / `ack` / `ping` / `pong` frames, distinguishable from and additive to ADR-003 command/event frames.
+- [x] 3.2 Implement the attach handshake: accept `attach {sessionId, lastSeq}`, reply `attached {generation, headSeq}`.
+- [x] 3.3 Verify ADR-003 command/event JSON is forwarded byte-unchanged (no reshaping at the gateway).
 
 ## 4. Event sequencing and replay
 

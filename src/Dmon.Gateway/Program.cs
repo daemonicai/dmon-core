@@ -4,7 +4,6 @@ using Dmon.Abstractions.Profiles;
 using Dmon.Gateway;
 using Dmon.Gateway.Sessions;
 using Dmon.Runtime;
-using Microsoft.Extensions.Options;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
@@ -36,32 +35,17 @@ builder.Services.AddSingleton<IAgentProfileResolver>(sp =>
     return new AgentProfileResolver(setResolver, userConfigPath, projectConfigPath);
 });
 
-// --- Session registry (group 2 adds handler lifecycle) ---
+// --- Session registry and WS endpoint handler ---
 builder.Services.AddSingleton<SessionRegistry>();
+builder.Services.AddSingleton<GatewayConnectionEndpoint>();
 
 WebApplication app = builder.Build();
 
 // --- WebSocket middleware (D1 — ASP.NET Core built-in, no SignalR) ---
 app.UseWebSockets();
 
-// --- WebSocket endpoint (group 2-3 add session attach/control sub-protocol) ---
-app.Map("/ws", async (HttpContext context) =>
-{
-    if (!context.WebSockets.IsWebSocketRequest)
-    {
-        context.Response.StatusCode = StatusCodes.Status400BadRequest;
-        return;
-    }
-
-    using System.Net.WebSockets.WebSocket socket =
-        await context.WebSockets.AcceptWebSocketAsync().ConfigureAwait(false);
-
-    // Placeholder: accept and immediately close. Groups 2-3 wire session attach,
-    // the control sub-protocol, and the JSONL relay here.
-    await socket.CloseAsync(
-        System.Net.WebSockets.WebSocketCloseStatus.NormalClosure,
-        "gateway not yet implemented",
-        context.RequestAborted).ConfigureAwait(false);
-});
+// --- WebSocket endpoint: connection-control sub-protocol (Group 3) ---
+app.MapGet("/ws", (HttpContext context, GatewayConnectionEndpoint endpoint) =>
+    endpoint.HandleAsync(context));
 
 await app.RunAsync().ConfigureAwait(false);
