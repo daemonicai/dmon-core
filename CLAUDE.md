@@ -39,6 +39,8 @@ Key accepted decisions:
 | ADR-009 | Active extensions are declared in `config.yaml` (user + project), auto-loaded at startup; `/reload` restarts the core. |
 | ADR-010 | A scoped single-turn in-process `IChatClient` in a tool extension is in scope; multi-agent orchestration (multiple `dmon-core` processes over stdio/RPC) remains deferred. |
 | ADR-011 | Distribution model: granular contract packages on nuget.org; `dmon` (dotnet tool) acquires `dmoncore` at runtime into the global NuGet cache (no bundling); 3-part protocol-keyed version scheme (`Major.Minor` = wire protocol). |
+| ADR-012 | Remote access transport: a WebSocket gateway with connection-decoupled, resumable sessions; **Tailscale** is the auth/encryption boundary (single-tenant, home-server); optional shared key for defense-in-depth. |
+| ADR-013 | Agent profiles: a named bundle (persona + per-session `assets/` toggle + permission mode) selected per session; built-in `coding` profile preserves today's behaviour; non-coding personas are config. |
 
 New ADRs belong in `docs/adrs/ADR-NNN-<slug>.md`. Use the existing ADRs as the format template.
 
@@ -188,11 +190,13 @@ Do not implement, propose, or accept tasks for these unless the brief is explici
 - Multi-agent orchestration
 - Avalonia desktop host
 - Skill marketplace / discovery service
-- Remote agent execution
-- Mobile hosts
+- Generic multi-user / public remote agent execution (a single-tenant Tailscale-fronted gateway is in scope — ADR-012)
+- Mobile hosts as first-class agent hosts (a personal iOS client of the ADR-012 gateway is in scope)
 - OAuth authentication (noted stretch goal for Gemini/Vertex only)
 
 **Scope clarification (ADR-010):** "Multi-agent orchestration" means multiple `dmon-core` **processes** communicating over the stdio/RPC interface. A tool extension that constructs a scoped, single-turn in-process `IChatClient` to fulfil a tool call is *in scope* — it is simply an extension using an additional LLM model, not orchestration. See [`docs/adrs/ADR-010-sub-agent-extensions.md`](./docs/adrs/ADR-010-sub-agent-extensions.md).
+
+**Scope clarification (ADR-012/013):** A *single-tenant* remote access gateway — one user's `dmoncore` sessions exposed over WebSocket to a personal iOS client, reached only over **Tailscale** — is **in scope**. This is not "remote agent execution" in the deferred sense (multi-user / public / untrusted); it is one user reaching their own home-server agent over a private overlay. Selectable **agent profiles** (ADR-013) — persona + per-session asset directory + permission mode — are likewise in scope. See [`docs/adrs/ADR-012-remote-session-transport.md`](./docs/adrs/ADR-012-remote-session-transport.md) and [`docs/adrs/ADR-013-agent-profiles.md`](./docs/adrs/ADR-013-agent-profiles.md).
 
 ## graphify
 

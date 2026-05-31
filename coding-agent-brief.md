@@ -110,8 +110,8 @@ existence long-term.
 - Multi-agent orchestration.
 - The Avalonia host (build the console host first, prove the RPC surface).
 - Skill marketplace / discovery service.
-- Remote agent execution.
-- Mobile hosts.
+- Generic multi-user / public remote agent execution. *(A single-tenant, **Tailscale**-fronted remote access gateway exposing one user's sessions is **in scope** — ADR-012/013.)*
+- Mobile hosts as first-class agent hosts. *(A personal iOS **client** of the ADR-012 gateway is in scope.)*
 
 ## References
 
