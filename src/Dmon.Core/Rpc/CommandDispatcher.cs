@@ -138,6 +138,7 @@ public sealed class CommandDispatcher
             SessionSetNameCommand c => _session.SetNameAsync(c, cancellationToken),
             SessionGetStatsCommand c => _session.GetStatsAsync(c, cancellationToken),
             SessionGetMessagesCommand c => _session.GetMessagesAsync(c, cancellationToken),
+            SessionCompactCommand => throw new NotImplementedException("session.compact is not yet implemented."),
             ExtensionLoadCommand c => _extension.LoadAsync(c, cancellationToken),
             ExtensionUnloadCommand c => _extension.UnloadAsync(c, cancellationToken),
             ExtensionPromoteCommand c => _extension.PromoteAsync(c, cancellationToken),

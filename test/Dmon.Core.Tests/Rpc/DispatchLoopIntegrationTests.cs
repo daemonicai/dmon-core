@@ -198,6 +198,32 @@ public sealed class DispatchLoopIntegrationTests : IDisposable
         Assert.True(abortableTurn.WasCancelled);
     }
 
+    // ─── Scenario E: session.compact emits notImplemented (recoverable), reader survives
+    //
+    // Proof: SessionCompactCommand is a registered JsonDerivedType but has no handler.
+    // The Route arm throws NotImplementedException, which RunGuardedAsync catches and turns
+    // into a recoverable notImplemented ErrorEvent. DispatchAsync must not throw — the
+    // reader loop keeps running.
+    // ─────────────────────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task SessionCompact_EmitsNotImplemented_AndDispatcherSurvives()
+    {
+        using CancellationTokenSource cts = new(TimeSpan.FromSeconds(10));
+
+        ConcurrentEventEmitter emitter = new();
+        CommandDispatcher dispatcher = BuildDispatcher(emitter);
+
+        // Must not throw — the reader loop should survive an unimplemented command.
+        await dispatcher.DispatchAsync(
+            @"{""type"":""session.compact"",""id"":""compact-1""}",
+            cts.Token);
+
+        ErrorEvent err = Assert.Single(emitter.Emitted.OfType<ErrorEvent>());
+        Assert.Equal("notImplemented", err.Code);
+        Assert.True(err.Recoverable);
+    }
+
     // ─── Helpers ─────────────────────────────────────────────────────────────────────────
 
     // Thread-safe emitter for integration tests where background tasks write concurrently.

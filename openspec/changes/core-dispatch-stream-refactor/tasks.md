@@ -10,6 +10,7 @@
 - [x] 2.2 Add `RunGuardedAsync(Command cmd, CancellationToken cancellationToken)` wrapping `Route` with the `OperationCanceledException` (swallow) / `NotImplementedException` (→ `notImplemented`, recoverable) / `Exception` (→ `internalError`, non-recoverable) ladder
 - [x] 2.3 Rewrite `DispatchAsync` to `HandleAsync(ParseCommand(line), ct)`: `ParseFault` → emit the error event; `ParsedCommand` of `TurnSubmitCommand`/`WizardStartCommand` → add `RunGuardedAsync(...)` to `_backgroundTasks`; otherwise `await RunGuardedAsync(...)` inline
 - [x] 2.4 Delete the now-dead code: the string-keyed `RouteAsync`, `BuildBackgroundWork`, `DeserializeAndBind`, `RunBackgroundAsync`, and the `Deserialize<T>(JsonElement)` helper — confirm no remaining references
+- [x] 2.5 Add an explicit `SessionCompactCommand` arm to `Route` that throws `NotImplementedException` (→ guard emits `notImplemented`, recoverable), so a known-but-unhandled command is a recoverable "not yet built" rather than a non-recoverable `internalError`; reserve the fail-loud `_ =>` arm for genuinely-unknown CLR types. Add a dispatch-level test asserting `session.compact` yields `notImplemented`/recoverable and the reader survives
 
 ## 3. Source stage in RpcHostedService
 
