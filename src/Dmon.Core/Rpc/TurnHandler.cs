@@ -263,7 +263,7 @@ public sealed class TurnHandler : ITurnHandler
             IChatClient retrying = new RetryingChatClient(providerClient, _retryPolicy, _emitter, provider, model);
             IChatClient offloading = new AttachmentOffloadingChatClient(retrying, _sessionHandler, _attachmentStore);
             IChatClient functionInvoker = new FunctionInvokingChatClient(offloading);
-            IChatClient pipeline = new PermissionGateChatClient(functionInvoker, _policy, _tools, ConfirmCallback);
+            IChatClient pipeline = new PermissionGateChatClient(functionInvoker, _policy, _tools, ConfirmCallback, _profileContext, _sessionHandler);
 
             IReadOnlyList<AIFunction> toolList = _tools.GetAll();
             ChatOptions options = new();

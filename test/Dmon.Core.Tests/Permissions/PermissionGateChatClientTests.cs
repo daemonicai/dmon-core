@@ -1,6 +1,11 @@
+using Dmon.Abstractions.Profiles;
 using Dmon.Core.Extensions;
 using Dmon.Core.Permissions;
+using Dmon.Core.Profiles;
+using Dmon.Core.Rpc;
+using Dmon.Core.Session;
 using Dmon.Extensions;
+using Dmon.Protocol.Commands;
 using Dmon.Protocol.Enums;
 using Dmon.Protocol.Events;
 using Dmon.Protocol.Permissions;
@@ -74,8 +79,24 @@ public sealed class PermissionGateChatClientTests
         public void Clear() { }
     }
 
+    private sealed class StubSessionHandler : ISessionHandler
+    {
+        public SessionMeta? CurrentSession => null;
+        public Task CreateAsync(SessionCreateCommand cmd, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task ForkAsync(SessionForkCommand cmd, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task CloneAsync(SessionCloneCommand cmd, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task LoadAsync(SessionLoadCommand cmd, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task ListAsync(SessionListCommand cmd, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task SetNameAsync(SessionSetNameCommand cmd, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task GetStatsAsync(SessionGetStatsCommand cmd, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task GetMessagesAsync(SessionGetMessagesCommand cmd, CancellationToken cancellationToken) => Task.CompletedTask;
+    }
+
     private static FunctionCallContent MakeCall(string callId, string name)
         => new(callId, name, null);
+
+    // Coding-mode profile context: profile not resolved → no sandbox allowance.
+    private static AgentProfileContext UnresolvedProfileContext() => new();
 
     private static PermissionGateChatClient BuildGate(
         List<ChatMessage> innerResponse,
@@ -86,7 +107,9 @@ public sealed class PermissionGateChatClientTests
             new StubInnerClient(innerResponse),
             new StubPolicy(),
             new StubToolRegistry(),
-            callback);
+            callback,
+            UnresolvedProfileContext(),
+            new StubSessionHandler());
     }
 
     // --- Tests: GetResponseAsync ---
@@ -250,7 +273,9 @@ public sealed class PermissionGateChatClientTests
             new StubInnerClient(inner),
             new StubPolicy(),
             new StubRegistryWithExtension("my_tool", extension),
-            (_, _) => Task.FromResult(true));
+            (_, _) => Task.FromResult(true),
+            UnresolvedProfileContext(),
+            new StubSessionHandler());
 
         await gate.GetResponseAsync([], null, CancellationToken.None);
 
@@ -269,7 +294,9 @@ public sealed class PermissionGateChatClientTests
             new StubInnerClient(inner),
             new StubPolicy(),
             new StubRegistryWithExtension("safe_tool", extension),
-            (_, _) => { callbackInvoked = true; return Task.FromResult(true); });
+            (_, _) => { callbackInvoked = true; return Task.FromResult(true); },
+            UnresolvedProfileContext(),
+            new StubSessionHandler());
 
         ChatResponse response = await gate.GetResponseAsync([], null, CancellationToken.None);
 
@@ -291,7 +318,9 @@ public sealed class PermissionGateChatClientTests
             new StubInnerClient(inner),
             new StubPolicy(),
             new StubRegistryWithExtension("dangerous_tool", extension),
-            (_, _) => { callbackInvoked = true; return Task.FromResult(true); });
+            (_, _) => { callbackInvoked = true; return Task.FromResult(true); },
+            UnresolvedProfileContext(),
+            new StubSessionHandler());
 
         ChatResponse response = await gate.GetResponseAsync([], null, CancellationToken.None);
 

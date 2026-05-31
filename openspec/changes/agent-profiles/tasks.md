@@ -27,9 +27,9 @@
 
 ## 5. Permission mode in the gate (Dmon.Core permission pipeline)
 
-- [ ] 5.1 Thread the session's `PermissionMode` and asset directory path to the write/edit/delete evaluators.
-- [ ] 5.2 Under `Sandbox`, return an implicit allow (risk `none`) when a target's normalised path (symlinks resolved, `..` collapsed) is within `assets/<session_id>/`.
-- [ ] 5.3 Ensure operations outside the asset subtree evaluate exactly as in `Coding` mode, and that the denylist is checked before the sandbox allowance and cannot be overridden.
+- [x] 5.1 Thread the session's `PermissionMode` and asset directory path to the write/edit/delete evaluators.
+- [x] 5.2 Under `Sandbox`, return an implicit allow (risk `none`) when a target's normalised path (symlinks resolved, `..` collapsed) is within `assets/<session_id>/`.
+- [x] 5.3 Ensure operations outside the asset subtree evaluate exactly as in `Coding` mode, and that the denylist is checked before the sandbox allowance and cannot be overridden.
 
 ## 6. Asset directory provisioning
 
