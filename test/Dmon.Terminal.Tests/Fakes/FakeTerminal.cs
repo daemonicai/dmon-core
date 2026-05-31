@@ -6,8 +6,7 @@ namespace Dmon.Terminal.Tests.Fakes;
 /// In-memory implementation of <see cref="Dcli.ITerminal"/> for unit tests.
 /// Records every call in <see cref="Calls"/> for assertion.
 /// <para>
-/// <see cref="Dcli.IAutocomplete.Show"/>, <see cref="Dcli.IAutocomplete.Hide"/>,
-/// <see cref="Dcli.ITerminal.MultiSelectAsync"/>, and
+/// <see cref="Dcli.IAutocomplete.Show"/>, <see cref="Dcli.IAutocomplete.Hide"/>, and
 /// <see cref="Dcli.IScrollback.BeginCollapsible"/> throw <see cref="NotImplementedException"/>
 /// — use <c>HeadlessTerminal</c> for tests that need those.
 /// </para>
@@ -48,6 +47,7 @@ public sealed class FakeTerminal : Dcli.ITerminal
     // ── dialog scripting ────────────────────────────────────────────────────
 
     public Func<Dcli.SelectRequest, CancellationToken, Task<Dcli.DialogResult<int>>>? OnSelectAsync { get; set; }
+    public Func<Dcli.MultiSelectRequest, CancellationToken, Task<Dcli.DialogResult<int[]>>>? OnMultiSelectAsync { get; set; }
     public Func<Dcli.ChoiceRequest, CancellationToken, Task<Dcli.DialogResult<int>>>? OnChoiceAsync { get; set; }
     public Func<Dcli.InputRequest, CancellationToken, Task<Dcli.DialogResult<string>>>? OnInputAsync { get; set; }
 
@@ -116,8 +116,13 @@ public sealed class FakeTerminal : Dcli.ITerminal
     public Task<Dcli.DialogResult<int[]>> MultiSelectAsync(
         Dcli.MultiSelectRequest req,
         CancellationToken cancellationToken = default)
-        => throw new NotImplementedException(
-            "FakeTerminal does not implement MultiSelectAsync; use HeadlessTerminal for tests that need it.");
+    {
+        _calls.Add(new MultiSelectOpened(req));
+        if (OnMultiSelectAsync is null)
+            throw new InvalidOperationException(
+                "FakeTerminal.MultiSelectAsync called without a scripted handler — set OnMultiSelectAsync before invoking.");
+        return OnMultiSelectAsync(req, cancellationToken);
+    }
 
     public Task<Dcli.DialogResult<int>> ChoiceAsync(
         Dcli.ChoiceRequest req,
@@ -147,6 +152,7 @@ public sealed class FakeTerminal : Dcli.ITerminal
     {
         public void Append(Dcli.Line line) => owner._calls.Add(new ScrollbackAppendLine(line));
         public void Append(string text) => owner._calls.Add(new ScrollbackAppendText(text));
+        public void AppendRule() => owner._calls.Add(new ScrollbackAppendRule());
 
         public Dcli.ILiveBlock BeginLive()
         {

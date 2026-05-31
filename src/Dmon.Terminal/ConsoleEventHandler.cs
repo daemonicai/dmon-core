@@ -368,16 +368,12 @@ internal sealed class ConsoleEventHandler
     private async Task<WizardAnswerCommand> RenderChooseManyAsync(
         string wizardId, ChooseManyStep step, CancellationToken cancellationToken)
     {
-        // The terminal has no multi-select prompt primitive yet, and no built-in factory emits a
-        // ChooseManyStep, so we render it as single-select (one index). The wire format and Core
-        // decode already support multiple comma-separated indices; true multi-select is a future
-        // terminal-only enhancement once dcli exposes a MultiSelectAsync primitive.
         List<Line> items = step.Options
             .Select(o => Line.FromText(o.Label))
             .ToList();
 
-        DialogResult<int> result = await _terminal.SelectAsync(
-            new SelectRequest(
+        DialogResult<int[]> result = await _terminal.MultiSelectAsync(
+            new MultiSelectRequest(
                 Items: items,
                 Title: new LineBuilder().Bold(step.Prompt).Build(),
                 AllowBack: true),
@@ -389,8 +385,7 @@ internal sealed class ConsoleEventHandler
         if (result.Outcome == DialogOutcome.Cancelled)
             return Answer(wizardId, WizardAnswerOutcome.Cancel, null);
 
-        // ChooseMany wire format: comma-separated zero-based indices (matching WizardAnswerHelper.DecodeChooseManyIndices).
-        return Answer(wizardId, WizardAnswerOutcome.Answered, result.Value.ToString());
+        return Answer(wizardId, WizardAnswerOutcome.Answered, string.Join(",", result.Value));
     }
 
     private async Task<WizardAnswerCommand> RenderTextInputAsync(
@@ -408,7 +403,8 @@ internal sealed class ConsoleEventHandler
             new InputRequest(
                 Prompt: new LineBuilder().Bold(step.Prompt).Build(),
                 Default: step.Default,
-                IsSecret: step.Secret),
+                IsSecret: step.Secret,
+                AllowBack: true),
             cancellationToken).ConfigureAwait(false);
 
         if (result.Outcome == DialogOutcome.Back)
