@@ -1,8 +1,8 @@
 ## 1. Total parse stage
 
-- [ ] 1.1 Add internal closed result types in `Dmon.Core/Rpc`: `abstract record CommandParse`, `record ParsedCommand(Command Command)`, `record ParseFault(ErrorEvent Error)`
-- [ ] 1.2 Implement `static CommandParse ParseCommand(string line)` per design D3: `JsonDocument.Parse` (catch → `malformedCommand`) → `TryGetProperty("type")` absent → `missingType` → `RootElement.Deserialize<Command>(options)` inside `using(doc)` (catch `JsonException` → `unknownCommand`); never throws; materialize the POCO before the document is disposed
-- [ ] 1.3 Unit-test `ParseCommand`: a valid command of a representative type returns `ParsedCommand`; malformed JSON → `malformedCommand`; no `type` → `missingType`; unknown `type` → `unknownCommand`; and the documented nuance — a known type with an invalid payload (e.g. `turn.submit` missing `message`) → `unknownCommand` (recoverable)
+- [x] 1.1 Add internal closed result types in `Dmon.Core/Rpc`: `abstract record CommandParse`, `record ParsedCommand(Command Command)`, `record ParseFault(ErrorEvent Error)`
+- [x] 1.2 Implement `static CommandParse ParseCommand(string line)` per design D3: `JsonDocument.Parse` (catch → `malformedCommand`) → `TryGetProperty("type")` absent → `missingType` → `RootElement.Deserialize<Command>(options)` inside `using(doc)` (catch `JsonException` → `unknownCommand`); never throws; materialize the POCO before the document is disposed
+- [x] 1.3 Unit-test `ParseCommand`: a valid command of a representative type returns `ParsedCommand`; malformed JSON → `malformedCommand`; no `type` → `missingType`; unknown `type` → `unknownCommand`; and the documented nuance — a known type with an invalid payload (e.g. `turn.submit` missing `message`) → `unknownCommand` (recoverable)
 
 ## 2. Typed sink and single error guard
 

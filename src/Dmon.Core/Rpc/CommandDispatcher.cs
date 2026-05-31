@@ -12,6 +12,12 @@ public sealed class CommandDispatcher
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase
     };
 
+    // Polymorphic parse options: camelCase + allows the "type" discriminator to appear
+    // anywhere in the JSON object (after "id"), which is the standard command wire shape.
+    // Derived from DeserializerOptions so the camelCase policy can't drift independently.
+    private static readonly JsonSerializerOptions ParseOptions =
+        new(DeserializerOptions) { AllowOutOfOrderMetadataProperties = true };
+
     private readonly ITurnHandler _turn;
     private readonly IModelHandler _model;
     private readonly ISessionHandler _session;
@@ -240,6 +246,74 @@ public sealed class CommandDispatcher
             Message = $"Unknown command type: '{type}'.",
             Recoverable = true
         }, cancellationToken).ConfigureAwait(false);
+    }
+
+    // Total parse stage: never throws for any string input.
+    // Returns ParsedCommand on success; ParseFault with the appropriate error code otherwise.
+    internal static CommandParse ParseCommand(string line)
+    {
+        JsonDocument doc;
+        try
+        {
+            doc = JsonDocument.Parse(line);
+        }
+        catch (JsonException)
+        {
+            return new ParseFault(new ErrorEvent
+            {
+                Code = "malformedCommand",
+                Message = "Could not parse command JSON.",
+                Recoverable = true
+            });
+        }
+
+        using (doc)
+        {
+            if (doc.RootElement.ValueKind != JsonValueKind.Object)
+            {
+                return new ParseFault(new ErrorEvent
+                {
+                    Code = "malformedCommand",
+                    Message = "Command must be a JSON object.",
+                    Recoverable = true
+                });
+            }
+
+            if (!doc.RootElement.TryGetProperty("type", out _))
+            {
+                return new ParseFault(new ErrorEvent
+                {
+                    Code = "missingType",
+                    Message = "Command is missing the 'type' field.",
+                    Recoverable = true
+                });
+            }
+
+            try
+            {
+                Command? cmd = doc.RootElement.Deserialize<Command>(ParseOptions);
+                if (cmd is null)
+                {
+                    return new ParseFault(new ErrorEvent
+                    {
+                        Code = "malformedCommand",
+                        Message = "Command deserialized to null.",
+                        Recoverable = true
+                    });
+                }
+
+                return new ParsedCommand(cmd);
+            }
+            catch (JsonException ex)
+            {
+                return new ParseFault(new ErrorEvent
+                {
+                    Code = "unknownCommand",
+                    Message = ex.Message,
+                    Recoverable = true
+                });
+            }
+        }
     }
 
     private static T Deserialize<T>(JsonElement element)
