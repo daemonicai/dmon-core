@@ -58,6 +58,16 @@ public static class ControlFrameSerializer
         TryReadTopLevelString(rawFrame, "id");
 
     /// <summary>
+    /// Returns the top-level "type" field of an ADR-003 command frame, or <c>null</c> if absent,
+    /// null, not a JSON string, or the frame is not valid JSON. Used by the forwarding loop to
+    /// identify permission-response commands (<c>tool.confirmResponse</c>,
+    /// <c>ui.inputResponse</c>) so outstanding-request tracking can be cleared on a successful
+    /// core write.
+    /// </summary>
+    public static string? GetCommandType(string rawFrame) =>
+        TryReadTopLevelString(rawFrame, "type");
+
+    /// <summary>
     /// Parses a raw frame as an <see cref="AttachFrame"/>. Returns <c>null</c> on parse failure.
     /// </summary>
     public static AttachFrame? ParseAttach(string rawFrame)

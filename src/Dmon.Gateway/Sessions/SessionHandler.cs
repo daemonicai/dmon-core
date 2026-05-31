@@ -36,9 +36,18 @@ public sealed class SessionHandler : IAsyncDisposable
     private readonly TimeProvider _timeProvider;
 
     // Guards _connection, _seqLog, _headSeq, _sentSeq, _admittedIds,
-    // _isTurnInFlight, and _detachedAt together.
+    // _isTurnInFlight, _detachedAt, and _outstanding together.
     private readonly Lock _lock = new();
     private IGatewayConnection? _connection;
+
+    // Outstanding permission requests: request-id → (OriginalSeq, RawLine).
+    // Insertion order mirrors seq order (seq is monotonically increasing; a confirmRequest
+    // always arrives after the seqs that precede it). Entries are removed when the matching
+    // response command is successfully written to core stdin. The map's lifetime is the
+    // handler's lifetime — it is never persisted, so all outstanding state is abandoned when
+    // the handler is reaped (StopAsync / DisposeAsync), which is exactly the "abandoned with
+    // the turn" semantic required by 8.2.
+    private readonly Dictionary<string, (long OriginalSeq, string RawLine)> _outstanding = [];
 
     // Dedup set for inbound command ids (ADR-012 Decision 5 / Group 5).
     // Unbounded for handler lifetime — commands are user-initiated and rare relative to events.
@@ -210,6 +219,32 @@ public sealed class SessionHandler : IAsyncDisposable
             _detachedAt = null;
             // Clamp: a lastSeq below 0 or above headSeq is bounded defensively.
             _sentSeq = Math.Clamp(lastSeq, 0L, _headSeq);
+
+            // Re-surface outstanding permission requests the client already advanced past.
+            //
+            // The normal replay window (cursor, headSeq] will re-deliver any outstanding request
+            // whose OriginalSeq > cursor (the client never saw it). For requests with
+            // OriginalSeq <= cursor the client already received them, but may have been killed
+            // before answering (e.g. mobile app backgrounded). Re-emit those by appending a new
+            // seq-log entry with a fresh monotonic seq above headSeq so the drain loop delivers
+            // them in order after the replay window.
+            //
+            // Idempotency: the client keys prompts by request id; the core dedups responses by id
+            // and answers a late/duplicate response with a recoverable error, so a prompt appearing
+            // again under a new seq is safe. The re-emitted entry is structurally identical to the
+            // original — the client must treat a re-surfaced prompt as the same request.
+            foreach ((long origSeq, string rawLine) in _outstanding.Values)
+            {
+                if (origSeq <= _sentSeq)
+                {
+                    // Client advanced past this one — replay won't cover it; re-emit above headSeq.
+                    _headSeq++;
+                    _seqLog.Add((_headSeq, rawLine));
+                }
+                // origSeq > _sentSeq: replay window (cursor, headSeq] already covers it; do not
+                // double-send.
+            }
+
             headSeq = _headSeq;
         }
 
@@ -243,6 +278,20 @@ public sealed class SessionHandler : IAsyncDisposable
                 // subsequent calls on an already-detached handler are identity-guarded above.
                 _detachedAt ??= _timeProvider.GetUtcNow();
             }
+        }
+    }
+
+    /// <summary>
+    /// True when there is at least one permission request (tool.confirmRequest or
+    /// ui.inputRequest) whose response has not yet been written to core stdin. Used by tests to
+    /// assert 8.1 (gate held while detached) and to verify 8.2 cleanup.
+    /// </summary>
+    public bool HasOutstandingRequests
+    {
+        get
+        {
+            lock (_lock)
+                return _outstanding.Count > 0;
         }
     }
 
@@ -304,6 +353,20 @@ public sealed class SessionHandler : IAsyncDisposable
         lock (_lock)
         {
             _admittedIds.Remove(id);
+        }
+    }
+
+    /// <summary>
+    /// Clears the outstanding-request entry for the given request id after the matching
+    /// permission-response command (tool.confirmResponse / ui.inputResponse) has been
+    /// successfully written to core stdin. Called by the endpoint only on a successful write,
+    /// so a failed write leaves the entry intact for re-surfacing on the next reattach.
+    /// </summary>
+    public void ClearOutstandingRequest(string id)
+    {
+        lock (_lock)
+        {
+            _outstanding.Remove(id);
         }
     }
 
@@ -396,18 +459,31 @@ public sealed class SessionHandler : IAsyncDisposable
                     _headSeq++;
                     _seqLog.Add((_headSeq, line));
 
-                    // Passive inspection for turnStart/turnEnd (ADR-003 / Group 7).
-                    // The bytes are forwarded unchanged; this is purely for the reaper's
-                    // in-flight flag. turnStart…turnEnd brackets the whole agentic loop
-                    // (including all LLM iterations and tool calls) with no inner gaps.
-                    // Defensive: a second turnStart without an intervening turnEnd is
-                    // idempotent (stays in-flight). The case "turn ends without a turnEnd"
-                    // (e.g. core crash) is covered by RunningTurnTtlMinutes.
+                    // Passive inspection for turnStart/turnEnd (ADR-003 / Group 7) and
+                    // permission-request events (Group 8). The bytes are forwarded unchanged;
+                    // this pass is purely for the in-flight flag and outstanding-request map.
+                    //
+                    // turnStart…turnEnd brackets the whole agentic loop (including all LLM
+                    // iterations and tool calls) with no inner gaps. Defensive: a second
+                    // turnStart without an intervening turnEnd is idempotent (stays in-flight).
+                    // The case "turn ends without a turnEnd" (e.g. core crash) is covered by
+                    // RunningTurnTtlMinutes.
                     string? eventType = GetEventTypeDiscriminator(line);
                     if (eventType == "turnStart")
                         _isTurnInFlight = true;
                     else if (eventType == "turnEnd")
                         _isTurnInFlight = false;
+
+                    // Track outstanding permission gates (8.1 / 8.2). The request id is the
+                    // top-level "id" field (same field the endpoint reads for command dedup).
+                    // If the same id is emitted twice (defensive), the later one wins — that
+                    // matches the core's own last-write-wins dedup on response commands.
+                    if (eventType is "tool.confirmRequest" or "ui.inputRequest")
+                    {
+                        string? requestId = GetEventId(line);
+                        if (requestId is not null)
+                            _outstanding[requestId] = (_headSeq, line);
+                    }
                 }
 
                 // Wake the drain loop; it will deliver to the connection if one is attached.
@@ -433,6 +509,27 @@ public sealed class SessionHandler : IAsyncDisposable
         {
             JsonNode? node = JsonNode.Parse(line);
             if (node?["type"] is not JsonValue value)
+                return null;
+            return value.TryGetValue(out string? text) ? text : null;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Returns the top-level "id" field of an ADR-003 event line, or <c>null</c> if absent or
+    /// the line is not valid JSON. Used to key outstanding permission-request entries (Group 8).
+    /// Reads the same "id" field that the endpoint reads for command dedup — the core assigns
+    /// the same id to the request event and its matching response command.
+    /// </summary>
+    private static string? GetEventId(string line)
+    {
+        try
+        {
+            JsonNode? node = JsonNode.Parse(line);
+            if (node?["id"] is not JsonValue value)
                 return null;
             return value.TryGetValue(out string? text) ? text : null;
         }

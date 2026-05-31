@@ -41,8 +41,8 @@
 
 ## 8. Permission parking while detached
 
-- [ ] 8.1 While detached, hold permission requests unresolved — neither auto-approve nor auto-deny.
-- [ ] 8.2 Deliver a parked request to the client on reattach; abandon it with the turn if the handler is reaped first.
+- [x] 8.1 While detached, hold permission requests unresolved — neither auto-approve nor auto-deny.
+- [x] 8.2 Deliver a parked request to the client on reattach; abandon it with the turn if the handler is reaped first.
 
 ## 9. Tailscale-fronted auth
 

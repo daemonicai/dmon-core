@@ -319,6 +319,15 @@ public sealed class GatewayConnectionEndpoint
                                 break;
                             }
 
+                            // Clear the outstanding-request entry on a successful write: the client
+                            // has answered the permission gate and the core has received the response,
+                            // so the parked request no longer needs to be re-surfaced on reattach.
+                            // Only clear after the write succeeds — a failed write must leave the
+                            // entry intact so a retry can re-surface the prompt on the next attach.
+                            string? commandType = ControlFrameSerializer.GetCommandType(raw);
+                            if (commandType is "tool.confirmResponse" or "ui.inputResponse")
+                                handler.ClearOutstandingRequest(commandId);
+
                             // Ack only after a successful write, so the ack always implies the core
                             // received the command.
                             await connection.SendAsync(
