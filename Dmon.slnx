@@ -22,6 +22,7 @@
     <Project Path="src\Dmon.Providers.Ollama\Dmon.Providers.Ollama.csproj" />
     <Project Path="src\Dmon.Memory\Dmon.Memory.csproj" />
     <Project Path="src\Dmon.Runtime\Dmon.Runtime.csproj" />
+    <Project Path="src\Dmon.Gateway\Dmon.Gateway.csproj" />
   </Folder>
   <Folder Name="/test/">
     <Project Path="test\Dmon.Core.Tests\Dmon.Core.Tests.csproj" />
@@ -33,5 +34,6 @@
     <Project Path="test\Dmon.Terminal.Tests\Dmon.Terminal.Tests.csproj" />
     <Project Path="test\Dmon.Memory.Tests\Dmon.Memory.Tests.csproj" />
     <Project Path="test\Dmon.Runtime.Tests\Dmon.Runtime.Tests.csproj" />
+    <Project Path="test\Dmon.Gateway.Tests\Dmon.Gateway.Tests.csproj" />
   </Folder>
 </Solution>

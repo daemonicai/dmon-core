@@ -34,14 +34,14 @@ The gateway SHALL define connection-control frames layered around the unchanged 
 - **THEN** they are byte-compatible with the ADR-003 stdio shapes, and control frames are additive and distinguishable
 
 ### Requirement: Per-session event sequencing
-The gateway SHALL assign a monotonic per-session sequence number (`seq`) to every server→client event, durably backed by the session's `messages.jsonl` (ADR-004). The `headSeq` reported at attach SHALL reflect the highest assigned `seq` for the session.
+The gateway SHALL assign a monotonic per-session sequence number (`seq`) to every server→client event as it flows out, and SHALL retain the sequenced events in the live handler's in-memory `seq`-indexed buffer (ADR-014; the core's `messages.jsonl` is the conversational store, written only by the core, and is not the event-stream backing). The `headSeq` reported at attach SHALL reflect the highest assigned `seq` for the session.
 
 #### Scenario: Monotonic sequence
 - **WHEN** the core emits a series of events for a session
 - **THEN** each is assigned a strictly increasing `seq`, with no gaps or reuse within the session
 
 ### Requirement: Replay on reattach
-On `attach`, the gateway SHALL deliver every event with `seq` greater than the client's `lastSeq` up to `headSeq`, then resume live delivery. The gateway SHALL subscribe to the live stream before replaying history and dedupe by `seq`, so events arriving during replay are neither dropped nor duplicated.
+On `attach`, the gateway SHALL deliver every event with `seq` greater than the client's `lastSeq` up to `headSeq`, then resume live delivery. The gateway SHALL subscribe to the live stream before replaying history from the handler's retained `seq`-indexed buffer (ADR-014) and dedupe by `seq`, so events arriving during replay are neither dropped nor duplicated.
 
 #### Scenario: Missed events replayed in order
 - **WHEN** a client reattaches with `lastSeq = N` and the session's `headSeq = M` (M > N)

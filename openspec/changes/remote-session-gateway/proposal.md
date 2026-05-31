@@ -7,7 +7,7 @@
 - Add a new ASP.NET Core host, **`Dmon.Gateway`**, exposing a **raw WebSocket** endpoint that forwards ADR-003 command/event JSON to and from a `dmoncore` process near-verbatim. It reuses `Dmon.Runtime`'s `CoreProcessManager` (ADR-011) for core discovery/spawn/lifecycle.
 - Introduce a **`SessionHandler`** that owns one `dmoncore` process per `sessionId`, held in an in-memory **session registry**. A WebSocket **attaches** on connect and **detaches** on drop; the handler persists across detach. The stdio pump binds to the handler, not the connection.
 - Add a **connection-control sub-protocol** layered around the unchanged ADR-003 messages: `attach` (`sessionId`, `lastSeq`), `attached` (`generation`, `headSeq`), `ack` (command `id`), `ping`/`pong`. **The ADR-003 wire contract does not change.**
-- **Resume on reconnect:** assign a monotonic per-session **`seq`** to every server→client event (durably backed by `messages.jsonl`, ADR-004); a reattaching client sends `lastSeq` and the handler replays `(lastSeq, headSeq]` then resumes live (subscribe-then-replay to close the seam).
+- **Resume on reconnect:** assign a monotonic per-session **`seq`** to every server→client event, retained in the live handler's in-memory `seq`-indexed buffer (ADR-014 — the core's `messages.jsonl` holds conversational turns, not the event stream, and is written only by the core); a reattaching client sends `lastSeq` and the handler replays `(lastSeq, headSeq]` then resumes live (subscribe-then-replay to close the seam).
 - **Command idempotency:** the handler acks commands by `id`; a reattaching client resends unacked commands; the handler dedups by `id`.
 - **Stale-connection fencing + single active writer:** each attach issues a monotonically increasing **generation**; frames from an older generation are dropped and that socket closed. A new attach **evicts** the prior connection.
 - **Running-turn-aware detached lifetime:** on detected detach, an idle handler is reaped after a configurable TTL; a handler with a turn in flight is kept alive until the turn completes, bounded by an absolute maximum; a hard cap limits concurrent live handlers.
@@ -30,9 +30,9 @@
 
 - **Code:** new `src/Dmon.Gateway` (ASP.NET Core, Kestrel WebSocket); depends on `Dmon.Runtime` (`CoreProcessManager`, ADR-011) and the `agent-profiles` resolver. No change to `Dmon.Core`'s stdio protocol.
 - **Protocol:** new gateway-only connection-control frames; ADR-003 command/event shapes unchanged.
-- **Storage:** consumes `messages.jsonl` (ADR-004) as the replay cursor (per-session `seq`); no log-format change.
+- **Storage:** in-session event replay uses an in-memory per-session `seq` buffer in the handler (ADR-014); no change to `messages.jsonl`, which the gateway never writes. The core's `messages.jsonl` remains the conversational store for cross-restart recovery via session load.
 - **Config:** gateway settings — bind address (loopback default), detached/idle/running TTLs, max concurrent handlers, optional shared key.
 - **Dependencies:** **`agent-profiles`** change must land first (the `profile` selected at session creation). ASP.NET Core is a new dependency, isolated to `Dmon.Gateway`.
 - **Deployment:** Tailscale on the home server (`tailscale serve` + MagicDNS cert); a tailnet ACL restricts the device to the gateway port.
-- **ADRs:** implements ADR-012; relies on ADR-003/004/006/011 and the `agent-profiles` change (ADR-013). No ADR superseded.
+- **ADRs:** implements ADR-012; **ADR-014 amends ADR-012 Decision 4** (event replay is an in-memory `seq` buffer, not `messages.jsonl`); relies on ADR-003/004/006/011 and the `agent-profiles` change (ADR-013).
 - **Deferred (ADR-012 Open Questions):** read-only multi-observer (A), replay compaction (D) remain out of scope.
