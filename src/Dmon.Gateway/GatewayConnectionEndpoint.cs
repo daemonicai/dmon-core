@@ -22,8 +22,10 @@ namespace Dmon.Gateway;
 ///   4. On socket close / error / cancellation → Detach the handler so the core survives.
 ///
 /// Generation semantics: Attach() returns a strictly-increasing generation. The attached
-/// reply carries it so the client can detect reconnections. Fencing (dropping older-gen
-/// frames, evicting the prior connection) is Group 6 — not implemented here.
+/// reply carries it so the client can detect reconnections. Before acting on each inbound
+/// frame the loop checks whether this connection is still current; if a newer attach has
+/// superseded it, the frame is dropped, the connection is closed with status 4409 (conflict),
+/// and the loop exits (Group 6 / 6.2).
 ///
 /// Replay semantics: lastSeq from the attach frame is passed to SessionHandler.Attach, which
 /// sets the delivery cursor. The single drain loop replays (lastSeq, headSeq] before delivering
@@ -137,19 +139,23 @@ public sealed class GatewayConnectionEndpoint
         // --- Phase 2: Forwarding loop ---
         try
         {
-            await RunForwardingLoopAsync(socket, connection, handler, ct).ConfigureAwait(false);
+            // Production always enforces fencing: the gate compares this connection's generation
+            // against the handler's current generation and closes the socket if superseded.
+            await RunForwardingLoopAsync(
+                socket, connection, handler, attachResult.Generation, enforceFencing: true, ct)
+                .ConfigureAwait(false);
         }
         catch (ProtocolViolationFrameException ex)
         {
             // Detach first so the pump stops targeting this connection before we close it.
-            handler.Detach();
+            handler.Detach(connection);
             await CloseOnViolationAsync(socket, ex, ct).ConfigureAwait(false);
             return;
         }
         finally
         {
             // Core and handler survive the socket disconnect.
-            handler.Detach();
+            handler.Detach(connection);
         }
     }
 
@@ -158,17 +164,35 @@ public sealed class GatewayConnectionEndpoint
     /// so tests can assert that control frames never reach core stdin while ADR-003 frames do —
     /// exercising the loop itself, not just the routing predicate.
     /// </summary>
+    /// <param name="myGeneration">
+    /// The generation assigned to <paramref name="connection"/> at attach time. Only consulted
+    /// when <paramref name="enforceFencing"/> is <c>true</c>.
+    /// </param>
+    /// <param name="enforceFencing">
+    /// When <c>true</c>, the per-frame gate compares <paramref name="myGeneration"/> against the
+    /// handler's current generation and closes a superseded connection. Legacy tests that do not
+    /// exercise fencing pass <c>false</c> explicitly. Production always passes <c>true</c>.
+    /// </param>
     internal Task RunForwardingLoopForTestAsync(
         WebSocket socket,
         IGatewayConnection connection,
         SessionHandler handler,
-        CancellationToken cancellationToken) =>
-        RunForwardingLoopAsync(socket, connection, handler, cancellationToken);
+        CancellationToken cancellationToken,
+        long myGeneration = 0,
+        bool enforceFencing = false) =>
+        RunForwardingLoopAsync(
+            socket, connection, handler, myGeneration, enforceFencing, cancellationToken);
+
+    // WebSocket close status 4409: connection conflict — this connection has been superseded
+    // by a newer attach. Chosen from the application-range (4000–4999).
+    private const WebSocketCloseStatus FencedConnectionStatus = (WebSocketCloseStatus)4409;
 
     private async Task RunForwardingLoopAsync(
         WebSocket socket,
         IGatewayConnection connection,
         SessionHandler handler,
+        long myGeneration,
+        bool enforceFencing,
         CancellationToken cancellationToken)
     {
         while (socket.State == WebSocketState.Open)
@@ -177,6 +201,24 @@ public sealed class GatewayConnectionEndpoint
                 .ConfigureAwait(false);
             if (raw is null)
                 break;
+
+            // Per-frame generation gate (Group 6 / 6.2): check under the handler's lock so the
+            // read is consistent with Attach's write. myGeneration can only be older (a newer
+            // attach bumped _generation); if this connection has been superseded, drop the frame,
+            // close the socket, and exit. The gate fires for every frame type — command, ping,
+            // pong, unknown — so a fenced connection writes nothing further. Enforcement is gated
+            // by an explicit flag, not by the generation value: production always enforces; only
+            // legacy tests that do not exercise fencing opt out.
+            if (enforceFencing && myGeneration != handler.CurrentGeneration)
+            {
+                await CloseOnViolationAsync(
+                    socket,
+                    new ProtocolViolationFrameException(
+                        FencedConnectionStatus,
+                        "connection superseded by a newer attach"),
+                    cancellationToken).ConfigureAwait(false);
+                break;
+            }
 
             string? gw = ControlFrameSerializer.GetGwDiscriminator(raw);
 

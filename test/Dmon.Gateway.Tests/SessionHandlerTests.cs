@@ -69,7 +69,7 @@ public sealed class SessionHandlerTests
         stdout.Feed("""{"event":"1"}""");
         await first.WaitForCountAsync(1);
 
-        handler.Detach();
+        handler.Detach(first);
 
         // Emitted while detached → retained in log at seq 2.
         stdout.Feed("""{"event":"2"}""");
@@ -138,7 +138,7 @@ public sealed class SessionHandlerTests
         RecordingConnection sink = new();
         handler.Attach(sink, lastSeq: 0);
         await sink.WaitForCountAsync(m);
-        handler.Detach();
+        handler.Detach(sink);
 
         // Re-attach with lastSeq=3: expect only events 4, 5, 6.
         int lastSeq = 3;
@@ -183,7 +183,7 @@ public sealed class SessionHandlerTests
         RecordingConnection drainer = new();
         handler.Attach(drainer, lastSeq: 0);
         await drainer.WaitForCountAsync(4);
-        handler.Detach();
+        handler.Detach(drainer);
 
         // Phase 2: reattach with lastSeq=2 — cursor set to 2, so replay is 3..4.
         RecordingConnection connection = new();
@@ -233,7 +233,7 @@ public sealed class SessionHandlerTests
         RecordingConnection drain = new();
         handler.Attach(drain, lastSeq: 0);
         await drain.WaitForCountAsync(4);
-        handler.Detach();
+        handler.Detach(drain);
 
         Assert.Equal(4L, handler.HeadSeq);
 
@@ -272,7 +272,7 @@ public sealed class SessionHandlerTests
         RecordingConnection warmup = new();
         handler.Attach(warmup, lastSeq: 0);
         await warmup.WaitForCountAsync(3);
-        handler.Detach();
+        handler.Detach(warmup);
 
         // Gate the connection so it parks inside SendAsync after delivering the first frame.
         GatedConnection gated = new(blockAfterFrame: 1);
@@ -322,7 +322,7 @@ public sealed class SessionHandlerTests
         RecordingConnection warmup = new();
         handler.Attach(warmup, lastSeq: 0);
         await warmup.WaitForCountAsync(5);
-        handler.Detach();
+        handler.Detach(warmup);
 
         // Connection A attaches from the start and parks after delivering frame 1 (seq 1).
         GatedConnection connA = new(blockAfterFrame: 1);
@@ -394,6 +394,109 @@ public sealed class SessionHandlerTests
     }
 
     // -------------------------------------------------------------------------
+    // Group 6: fencing and single active writer
+    // -------------------------------------------------------------------------
+
+    /// <summary>
+    /// 6.1 — Successive Attach calls return strictly increasing generations.
+    /// </summary>
+    [Fact]
+    public async Task SuccessiveAttach_ReturnsStrictlyIncreasingGenerations()
+    {
+        FeedableReader stdout = new();
+        StringWriter stdin = new();
+        await using SessionHandler handler = new("s1", stdout, stdin);
+
+        RecordingConnection connA = new();
+        RecordingConnection connB = new();
+        RecordingConnection connC = new();
+
+        AttachResult r1 = handler.Attach(connA, lastSeq: 0);
+        AttachResult r2 = handler.Attach(connB, lastSeq: 0);
+        AttachResult r3 = handler.Attach(connC, lastSeq: 0);
+
+        Assert.True(r1.Generation < r2.Generation, "generation must be strictly increasing");
+        Assert.True(r2.Generation < r3.Generation, "generation must be strictly increasing");
+    }
+
+    /// <summary>
+    /// 6.3 — Attaching a new connection evicts and aborts the prior connection.
+    /// After the second attach, connA is aborted and the handler's active connection is connB.
+    /// Events drain to connB only.
+    /// </summary>
+    [Fact]
+    public async Task NewAttach_EvictsPriorConnection_AndAbortIt()
+    {
+        FeedableReader stdout = new();
+        StringWriter stdin = new();
+        await using SessionHandler handler = new("s1", stdout, stdin);
+
+        AbortingConnection connA = new();
+        RecordingConnection connB = new();
+
+        handler.Attach(connA, lastSeq: 0);
+
+        // Attaching connB must abort connA.
+        handler.Attach(connB, lastSeq: 0);
+
+        Assert.True(connA.WasAborted, "prior connection must be aborted on new attach");
+
+        // An event now drains to connB only.
+        stdout.Feed("""{"ev":"x"}""");
+        IReadOnlyList<string> received = await connB.WaitForCountAsync(1);
+        Assert.Single(received);
+        Assert.Contains("\"x\"", received[0]);
+        Assert.Empty(connA.Frames);
+    }
+
+    /// <summary>
+    /// 6.3 evicted Detach is a no-op — after connA is evicted and its forwarding loop calls
+    /// Detach(connA), the handler's _connection is still connB.
+    /// </summary>
+    [Fact]
+    public async Task EvictedDetach_DoesNotClobberNewConnection()
+    {
+        FeedableReader stdout = new();
+        StringWriter stdin = new();
+        await using SessionHandler handler = new("s1", stdout, stdin);
+
+        RecordingConnection connA = new();
+        RecordingConnection connB = new();
+
+        handler.Attach(connA, lastSeq: 0);
+        handler.Attach(connB, lastSeq: 0);
+
+        // Simulate the evicted loop's cleanup: Detach(connA) must be a no-op.
+        handler.Detach(connA);
+
+        // An event must still reach connB.
+        stdout.Feed("""{"ev":"y"}""");
+        IReadOnlyList<string> received = await connB.WaitForCountAsync(1);
+        Assert.Single(received);
+        Assert.Contains("\"y\"", received[0]);
+    }
+
+    /// <summary>
+    /// 6.2 — CurrentGeneration reflects the most recently attached generation.
+    /// </summary>
+    [Fact]
+    public async Task CurrentGeneration_ReflectsMostRecentAttach()
+    {
+        FeedableReader stdout = new();
+        StringWriter stdin = new();
+        await using SessionHandler handler = new("s1", stdout, stdin);
+
+        RecordingConnection connA = new();
+        AttachResult r1 = handler.Attach(connA, lastSeq: 0);
+        Assert.Equal(r1.Generation, handler.CurrentGeneration);
+
+        RecordingConnection connB = new();
+        AttachResult r2 = handler.Attach(connB, lastSeq: 0);
+        Assert.Equal(r2.Generation, handler.CurrentGeneration);
+        Assert.True(r2.Generation > r1.Generation);
+    }
+
+    // -------------------------------------------------------------------------
     // Test helpers
     // -------------------------------------------------------------------------
 
@@ -422,6 +525,8 @@ public sealed class SessionHandlerTests
             }
             return ValueTask.CompletedTask;
         }
+
+        public void Abort() { }
 
         public async Task<IReadOnlyList<string>> WaitForCountAsync(int count)
         {
@@ -496,6 +601,8 @@ public sealed class SessionHandlerTests
 
         public void Release() => _release.TrySetResult();
 
+        public void Abort() { }
+
         public async Task<IReadOnlyList<string>> WaitForCountAsync(int count)
         {
             using CancellationTokenSource cts = new(TimeSpan.FromSeconds(5));
@@ -561,6 +668,8 @@ public sealed class SessionHandlerTests
             return ValueTask.CompletedTask;
         }
 
+        public void Abort() { }
+
         public Task WaitForFailureAsync() => _failed.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
         public async Task<IReadOnlyList<string>> WaitForCountAsync(int count)
@@ -589,6 +698,38 @@ public sealed class SessionHandlerTests
                     }
                 }
             }
+        }
+    }
+
+    /// <summary>
+    /// Records frames and tracks whether <see cref="Abort"/> was called.
+    /// Used to verify proactive eviction in Group 6 tests.
+    /// </summary>
+    private sealed class AbortingConnection : IGatewayConnection
+    {
+        private readonly List<string> _frames = [];
+        private readonly Lock _gate = new();
+        private bool _aborted;
+
+        public IReadOnlyList<string> Frames
+        {
+            get { lock (_gate) { return [.. _frames]; } }
+        }
+
+        public bool WasAborted
+        {
+            get { lock (_gate) { return _aborted; } }
+        }
+
+        public ValueTask SendAsync(string frame, CancellationToken cancellationToken)
+        {
+            lock (_gate) { _frames.Add(frame); }
+            return ValueTask.CompletedTask;
+        }
+
+        public void Abort()
+        {
+            lock (_gate) { _aborted = true; }
         }
     }
 

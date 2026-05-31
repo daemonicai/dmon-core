@@ -42,5 +42,13 @@ internal sealed class WebSocketGatewayConnection : IGatewayConnection, IDisposab
         }
     }
 
+    /// <summary>
+    /// Aborts the underlying socket without a graceful close handshake.
+    /// Any blocked <c>ReceiveAsync</c> on the socket will throw, causing the forwarding loop to
+    /// exit. The send-lock semaphore is not disposed here — disposal is the forwarding loop's
+    /// responsibility via the enclosing <c>using</c> block.
+    /// </summary>
+    public void Abort() => _socket.Abort();
+
     public void Dispose() => _sendLock.Dispose();
 }

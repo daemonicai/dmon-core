@@ -29,9 +29,9 @@
 
 ## 6. Fencing and single active writer
 
-- [ ] 6.1 Issue a strictly increasing `generation` on each attach.
-- [ ] 6.2 Gate **every** inbound frame on generation; drop frames from and close any connection older than the current generation.
-- [ ] 6.3 Evict (fence + close) the prior connection when a new attach succeeds for a live handler.
+- [x] 6.1 Issue a strictly increasing `generation` on each attach.
+- [x] 6.2 Gate **every** inbound frame on generation; drop frames from and close any connection older than the current generation.
+- [x] 6.3 Evict (fence + close) the prior connection when a new attach succeeds for a live handler.
 
 ## 7. Detached lifetime and liveness
 

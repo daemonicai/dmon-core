@@ -105,9 +105,9 @@ public sealed class ByteUnchangedForwardingTests
         RecordingConnection c3 = new();
 
         AttachResult r1 = handler.Attach(c1, lastSeq: 0);
-        handler.Detach();
+        handler.Detach(c1);
         AttachResult r2 = handler.Attach(c2, lastSeq: 0);
-        handler.Detach();
+        handler.Detach(c2);
         AttachResult r3 = handler.Attach(c3, lastSeq: 0);
 
         Assert.True(r1.Generation < r2.Generation, $"g1={r1.Generation} should be < g2={r2.Generation}");
@@ -156,6 +156,8 @@ public sealed class ByteUnchangedForwardingTests
     {
         public ValueTask SendAsync(string frame, CancellationToken cancellationToken) =>
             ValueTask.CompletedTask;
+
+        public void Abort() { }
     }
 
     private sealed class FeedableReader : TextReader

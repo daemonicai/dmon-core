@@ -10,4 +10,13 @@ public interface IGatewayConnection
     /// Sends one text frame (a raw JSONL event line) to the connected client.
     /// </summary>
     ValueTask SendAsync(string frame, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Forcefully aborts the underlying transport without a graceful close handshake.
+    /// Called on the evicted connection when a newer attach supersedes it (Group 6).
+    /// Aborting makes any blocked <c>ReceiveAsync</c> throw so the forwarding loop exits.
+    /// Must not dispose shared resources — disposal is owned by the forwarding loop's
+    /// <c>using</c> block.
+    /// </summary>
+    void Abort();
 }

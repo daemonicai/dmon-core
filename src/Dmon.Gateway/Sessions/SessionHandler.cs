@@ -81,6 +81,20 @@ public sealed class SessionHandler : IAsyncDisposable
         }
     }
 
+    /// <summary>
+    /// The generation assigned to the most recently attached connection.
+    /// Read under <c>_lock</c> so callers comparing against their own stored generation
+    /// see a consistent value. Used by the forwarding loop to gate inbound frames (Group 6).
+    /// </summary>
+    public long CurrentGeneration
+    {
+        get
+        {
+            lock (_lock)
+                return _generation;
+        }
+    }
+
     /// <param name="sessionId">Stable identifier for this session.</param>
     /// <param name="coreSession">An already-started, protocol-gated core session.</param>
     public SessionHandler(string sessionId, CoreSession coreSession)
@@ -115,14 +129,21 @@ public sealed class SessionHandler : IAsyncDisposable
     /// subscribe-then-replay ordering with deduplication by seq.
     /// Returns the new generation and the current <see cref="HeadSeq"/> atomically so the
     /// caller can send an accurate <c>attached</c> reply.
-    /// Group 6 uses the generation for fencing; this method only issues it.
+    ///
+    /// If a prior connection is currently attached, it is evicted (fenced): its generation is
+    /// superseded by the new one and its transport is aborted after the lock is released, so
+    /// its in-flight <c>ReceiveAsync</c> throws and its forwarding loop exits (Group 6 / 6.3).
     /// </summary>
     public AttachResult Attach(IGatewayConnection connection, long lastSeq)
     {
         long generation;
         long headSeq;
+        IGatewayConnection? evicted;
         lock (_lock)
         {
+            // Capture the prior connection before replacing it so we can abort it outside the lock.
+            evicted = _connection;
+
             generation = Interlocked.Increment(ref _generation);
             _connection = connection;
             // Clamp: a lastSeq below 0 or above headSeq is bounded defensively.
@@ -130,20 +151,30 @@ public sealed class SessionHandler : IAsyncDisposable
             headSeq = _headSeq;
         }
 
+        // Abort the evicted connection outside the lock. Abort is synchronous and does not hold
+        // shared state, so this is safe to call without the lock. The evicted connection's
+        // forwarding loop will observe the abort, exit, and call Detach(evicted) — which is a
+        // no-op because _connection no longer references it (Group 6 / 6.3).
+        evicted?.Abort();
+
         // Wake the pump so it starts delivering from _sentSeq immediately.
         _wake.Release();
         return new AttachResult(generation, headSeq);
     }
 
     /// <summary>
-    /// Detaches the current connection. The handler and its core process remain alive;
-    /// subsequent core stdout lines are buffered for the next attach.
+    /// Detaches the given connection. Only clears <c>_connection</c> if it still references
+    /// <paramref name="connection"/>; if a newer attach has already replaced it, this is a no-op.
+    /// This identity guard prevents an evicted loop's cleanup from clobbering the new connection
+    /// (Group 6 / 6.3). The handler and its core process remain alive; subsequent core stdout
+    /// lines are buffered for the next attach.
     /// </summary>
-    public void Detach()
+    public void Detach(IGatewayConnection connection)
     {
         lock (_lock)
         {
-            _connection = null;
+            if (ReferenceEquals(_connection, connection))
+                _connection = null;
         }
     }
 

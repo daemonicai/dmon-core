@@ -176,6 +176,8 @@ public sealed class CommandIdempotencyTests
             lock (_gate) { _frames.Add(frame); }
             return ValueTask.CompletedTask;
         }
+
+        public void Abort() { }
     }
 
     private sealed class CapturingWriter : TextWriter
