@@ -3,10 +3,12 @@ using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
 using Dmon.Abstractions;
+using Dmon.Abstractions.Profiles;
 using Dmon.Abstractions.Providers;
 using Dmon.Core.Extensions;
 using Dmon.Core.Permissions;
 using Dmon.Core.Pipeline;
+using Dmon.Core.Profiles;
 using Dmon.Core.Providers;
 using Dmon.Core.Session;
 using Dmon.Core.Telemetry;
@@ -32,6 +34,8 @@ public sealed class TurnHandler : ITurnHandler
     private readonly ISystemPromptBuilder _systemPromptBuilder;
     private readonly MiddlewarePipelineBuilder _pipelineBuilder;
     private readonly RetryPolicy _retryPolicy;
+    private readonly IAgentProfileResolver _profileResolver;
+    private readonly AgentProfileContext _profileContext;
     private readonly ILogger<TurnHandler> _logger;
 
     // Pending confirm/ui-input response channels keyed by request id.
@@ -62,6 +66,8 @@ public sealed class TurnHandler : ITurnHandler
         ISystemPromptBuilder systemPromptBuilder,
         MiddlewarePipelineBuilder pipelineBuilder,
         IConfiguration configuration,
+        IAgentProfileResolver profileResolver,
+        AgentProfileContext profileContext,
         ILogger<TurnHandler> logger)
     {
         _providers = providers;
@@ -75,6 +81,8 @@ public sealed class TurnHandler : ITurnHandler
         _systemPromptBuilder = systemPromptBuilder;
         _pipelineBuilder = pipelineBuilder;
         _retryPolicy = RetryPolicy.FromConfiguration(configuration);
+        _profileResolver = profileResolver;
+        _profileContext = profileContext;
         _logger = logger;
     }
 
@@ -101,6 +109,12 @@ public sealed class TurnHandler : ITurnHandler
         {
             if (!_systemPromptInjected)
             {
+                // Resolve the agent profile once per session before building the system prompt.
+                // requestedProfile is null until the RPC protocol wires per-session profile selection
+                // (later in this change); null falls back to defaultProfile or built-in coding.
+                await _profileContext.EnsureResolvedAsync(_profileResolver, requestedProfile: null, _turnCts.Token)
+                    .ConfigureAwait(false);
+
                 ChatMessage systemMessage = await _systemPromptBuilder.BuildAsync(_turnCts.Token).ConfigureAwait(false);
                 _history.Insert(0, systemMessage);
                 _systemPromptInjected = true;

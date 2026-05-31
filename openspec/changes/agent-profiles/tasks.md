@@ -13,11 +13,11 @@
 
 ## 3. Built-in coding profile + resolver
 
-- [ ] 3.1 Lift the current `StaticCore` text into a built-in `coding` profile (`persona` = the text verbatim, `assets: false`, `permissionMode: Coding`).
-- [ ] 3.2 Implement `IAgentProfileResolver`: merge effective set with the built-in, apply precedence (per-session `profile` > `defaultProfile` > built-in `coding`), read inline/file persona, return an immutable `AgentProfile`.
-- [ ] 3.3 Fail with an actionable error when a selected profile name matches nothing in the effective set (no silent fallback).
-- [ ] 3.4 Reject the incoherent `permissionMode: sandbox` + `assets: false` combination at resolution time with an actionable config error.
-- [ ] 3.5 Register the resolver in DI so the `AgentProfile` is resolved once per session and shared by all consumers.
+- [x] 3.1 Lift the current `StaticCore` text into a built-in `coding` profile (`persona` = the text verbatim, `assets: false`, `permissionMode: Coding`).
+- [x] 3.2 Implement `IAgentProfileResolver`: merge effective set with the built-in, apply precedence (per-session `profile` > `defaultProfile` > built-in `coding`), read inline/file persona, return an immutable `AgentProfile`.
+- [x] 3.3 Fail with an actionable error when a selected profile name matches nothing in the effective set (no silent fallback).
+- [x] 3.4 Reject the incoherent `permissionMode: sandbox` + `assets: false` combination at resolution time with an actionable config error.
+- [x] 3.5 Register the resolver in DI so the `AgentProfile` is resolved once per session and shared by all consumers.
 
 ## 4. System prompt persona injection (Dmon.Core/SystemPrompt)
 

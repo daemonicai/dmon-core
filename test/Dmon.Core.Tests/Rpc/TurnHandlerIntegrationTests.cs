@@ -1,9 +1,11 @@
 using System.Runtime.CompilerServices;
 using Dmon.Abstractions;
+using Dmon.Abstractions.Profiles;
 using Dmon.Abstractions.Providers;
 using Dmon.Core.Extensions;
 using Dmon.Extensions;
 using Dmon.Core.Permissions;
+using Dmon.Core.Profiles;
 using Dmon.Core.Session;
 using Dmon.Protocol.Permissions;
 using Dmon.Core.Providers;
@@ -237,6 +239,12 @@ internal sealed class StubSystemPromptBuilder : ISystemPromptBuilder
         => Task.FromResult(new ChatMessage(ChatRole.System, "You are a test assistant."));
 }
 
+internal sealed class StubAgentProfileResolver : IAgentProfileResolver
+{
+    public Task<AgentProfile> ResolveAsync(string? requestedProfile, CancellationToken cancellationToken)
+        => Task.FromResult(BuiltInProfiles.Coding);
+}
+
 internal static class TurnHandlerFactory
 {
     public static (TurnHandler handler, TestEventEmitter emitter) Create(
@@ -277,6 +285,8 @@ internal static class TurnHandlerFactory
             systemPromptBuilder,
             pipelineBuilder,
             configuration,
+            new StubAgentProfileResolver(),
+            new AgentProfileContext(),
             NullLogger<TurnHandler>.Instance);
 
         return (handler, emitter);
