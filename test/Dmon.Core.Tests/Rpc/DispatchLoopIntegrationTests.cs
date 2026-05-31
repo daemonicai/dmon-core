@@ -198,6 +198,32 @@ public sealed class DispatchLoopIntegrationTests : IDisposable
         Assert.True(abortableTurn.WasCancelled);
     }
 
+    // ─── Scenario E: session.compact emits notImplemented (recoverable), reader survives
+    //
+    // Proof: SessionCompactCommand is a registered JsonDerivedType but has no handler.
+    // The Route arm throws NotImplementedException, which RunGuardedAsync catches and turns
+    // into a recoverable notImplemented ErrorEvent. DispatchAsync must not throw — the
+    // reader loop keeps running.
+    // ─────────────────────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task SessionCompact_EmitsNotImplemented_AndDispatcherSurvives()
+    {
+        using CancellationTokenSource cts = new(TimeSpan.FromSeconds(10));
+
+        ConcurrentEventEmitter emitter = new();
+        CommandDispatcher dispatcher = BuildDispatcher(emitter);
+
+        // Must not throw — the reader loop should survive an unimplemented command.
+        await dispatcher.DispatchAsync(
+            @"{""type"":""session.compact"",""id"":""compact-1""}",
+            cts.Token);
+
+        ErrorEvent err = Assert.Single(emitter.Emitted.OfType<ErrorEvent>());
+        Assert.Equal("notImplemented", err.Code);
+        Assert.True(err.Recoverable);
+    }
+
     // ─── Helpers ─────────────────────────────────────────────────────────────────────────
 
     // Thread-safe emitter for integration tests where background tasks write concurrently.
@@ -229,10 +255,11 @@ public sealed class DispatchLoopIntegrationTests : IDisposable
     private static CommandDispatcher BuildDispatcher(
         IEventEmitter emitter,
         ITurnHandler? turn = null,
+        IModelHandler? model = null,
         IProviderSetupHandler? providerSetup = null)
         => new(
             turn: turn ?? new NoOpTurnHandler(),
-            model: new NoOpModelHandler(),
+            model: model ?? new NoOpModelHandler(),
             session: new NoOpSessionHandler(),
             extension: new NoOpExtensionHandler(),
             auth: new NoOpAuthHandler(),
@@ -447,6 +474,44 @@ public sealed class DispatchLoopIntegrationTests : IDisposable
         public Task AnswerWizardAsync(WizardAnswerCommand command, CancellationToken cancellationToken) => Task.CompletedTask;
     }
 
+    // ─── Stub: records whether CycleAsync was called (Scenarios F–H) ────────────────────
+
+    /// <summary>
+    /// Model handler that tracks whether <see cref="CycleAsync"/> was invoked.
+    /// Used to prove that a subsequent valid command executes after a bad line.
+    /// </summary>
+    private sealed class TrackingModelHandler : IModelHandler
+    {
+        public bool CycleCalled { get; private set; }
+
+        public Task CycleAsync(ModelCycleCommand cmd, CancellationToken cancellationToken)
+        {
+            CycleCalled = true;
+            return Task.CompletedTask;
+        }
+
+        public Task SetAsync(ModelSetCommand cmd, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task ListAsync(ModelListCommand cmd, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task ModelsAsync(ModelModelsCommand cmd, CancellationToken cancellationToken) => Task.CompletedTask;
+    }
+
+    // ─── Stub: throws from CycleAsync (Scenario I) ───────────────────────────────────────
+
+    /// <summary>
+    /// Model handler whose <see cref="CycleAsync"/> always throws, exercising the inline
+    /// (non-backgrounded) path of <see cref="CommandDispatcher.RunGuardedAsync"/> that
+    /// surfaces handler exceptions as <c>internalError</c> events.
+    /// </summary>
+    private sealed class ThrowingModelHandler : IModelHandler
+    {
+        public Task CycleAsync(ModelCycleCommand cmd, CancellationToken cancellationToken) =>
+            Task.FromException(new InvalidOperationException("simulated model.cycle failure"));
+
+        public Task SetAsync(ModelSetCommand cmd, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task ListAsync(ModelListCommand cmd, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task ModelsAsync(ModelModelsCommand cmd, CancellationToken cancellationToken) => Task.CompletedTask;
+    }
+
     // ─── Stub: throws immediately from SubmitAsync (Scenario C) ──────────────────────────
 
     /// <summary>
@@ -463,6 +528,106 @@ public sealed class DispatchLoopIntegrationTests : IDisposable
         public Task AbortAsync(TurnAbortCommand cmd, CancellationToken cancellationToken) => Task.CompletedTask;
         public Task ConfirmResponseAsync(ToolConfirmResponseCommand cmd, CancellationToken cancellationToken) => Task.CompletedTask;
         public Task UiInputResponseAsync(UiInputResponseCommand cmd, CancellationToken cancellationToken) => Task.CompletedTask;
+    }
+
+    // ─── Scenarios F–I: dispatch-level proof that bad input is rejected without killing the
+    //     reader (spec requirement: "Malformed and unrecognized commands are rejected without
+    //     killing the reader"). These complement ParseCommandTests, which cover ParseCommand
+    //     in isolation; these tests prove the property through the full DispatchAsync path and
+    //     verify that a subsequent valid command still executes.
+    // ─────────────────────────────────────────────────────────────────────────────────────
+
+    // ─── Scenario F: malformed JSON emits malformedCommand — dispatch continues ────────────
+
+    [Fact]
+    public async Task MalformedJson_EmitsMalformedCommand_AndDispatchContinues()
+    {
+        using CancellationTokenSource cts = new(TimeSpan.FromSeconds(10));
+
+        ConcurrentEventEmitter emitter = new();
+        TrackingModelHandler tracking = new();
+        CommandDispatcher dispatcher = BuildDispatcher(emitter, model: tracking);
+
+        // Bad line: must not throw and must emit malformedCommand.
+        await dispatcher.DispatchAsync("{not json", cts.Token);
+
+        ErrorEvent err = Assert.Single(emitter.Emitted.OfType<ErrorEvent>());
+        Assert.Equal("malformedCommand", err.Code);
+        Assert.True(err.Recoverable);
+
+        // Subsequent valid command must still be processed — proving the loop survived.
+        await dispatcher.DispatchAsync(@"{""type"":""model.cycle"",""id"":""f-1""}", cts.Token);
+
+        Assert.True(tracking.CycleCalled, "model.cycle handler must run after a preceding bad line.");
+    }
+
+    // ─── Scenario G: missing type field emits missingType — dispatch continues ─────────────
+
+    [Fact]
+    public async Task MissingTypeField_EmitsMissingType_AndDispatchContinues()
+    {
+        using CancellationTokenSource cts = new(TimeSpan.FromSeconds(10));
+
+        ConcurrentEventEmitter emitter = new();
+        TrackingModelHandler tracking = new();
+        CommandDispatcher dispatcher = BuildDispatcher(emitter, model: tracking);
+
+        await dispatcher.DispatchAsync(@"{""id"":""r1""}", cts.Token);
+
+        ErrorEvent err = Assert.Single(emitter.Emitted.OfType<ErrorEvent>());
+        Assert.Equal("missingType", err.Code);
+        Assert.True(err.Recoverable);
+
+        await dispatcher.DispatchAsync(@"{""type"":""model.cycle"",""id"":""g-1""}", cts.Token);
+
+        Assert.True(tracking.CycleCalled, "model.cycle handler must run after a preceding missingType line.");
+    }
+
+    // ─── Scenario H: unknown type emits unknownCommand — dispatch continues ───────────────
+
+    [Fact]
+    public async Task UnknownType_EmitsUnknownCommand_AndDispatchContinues()
+    {
+        using CancellationTokenSource cts = new(TimeSpan.FromSeconds(10));
+
+        ConcurrentEventEmitter emitter = new();
+        TrackingModelHandler tracking = new();
+        CommandDispatcher dispatcher = BuildDispatcher(emitter, model: tracking);
+
+        await dispatcher.DispatchAsync(@"{""id"":""r1"",""type"":""does.not.exist""}", cts.Token);
+
+        ErrorEvent err = Assert.Single(emitter.Emitted.OfType<ErrorEvent>());
+        Assert.Equal("unknownCommand", err.Code);
+        Assert.True(err.Recoverable);
+
+        await dispatcher.DispatchAsync(@"{""type"":""model.cycle"",""id"":""h-1""}", cts.Token);
+
+        Assert.True(tracking.CycleCalled, "model.cycle handler must run after a preceding unknownCommand line.");
+    }
+
+    // ─── Scenario I: handler failure emits internalError (recoverable:false) — DispatchAsync
+    //     does not throw, proving the reader loop would survive in the RpcHostedService loop.
+    //
+    // model.cycle routes inline (not backgrounded), so RunGuardedAsync catches the exception
+    // synchronously within the DispatchAsync call. This proves the guard catches inline
+    // handler errors just as Scenario C proves it catches backgrounded ones.
+    // ─────────────────────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task InlineHandlerFailure_EmitsInternalError_AndDispatchAsyncDoesNotThrow()
+    {
+        using CancellationTokenSource cts = new(TimeSpan.FromSeconds(10));
+
+        ConcurrentEventEmitter emitter = new();
+        ThrowingModelHandler throwing = new();
+        CommandDispatcher dispatcher = BuildDispatcher(emitter, model: throwing);
+
+        // Must not throw — RunGuardedAsync must catch the handler exception.
+        await dispatcher.DispatchAsync(@"{""type"":""model.cycle"",""id"":""i-1""}", cts.Token);
+
+        ErrorEvent err = Assert.Single(emitter.Emitted.OfType<ErrorEvent>());
+        Assert.Equal("internalError", err.Code);
+        Assert.False(err.Recoverable);
     }
 
     // ─── Stub: suspends until aborted (Scenario D) ───────────────────────────────────────

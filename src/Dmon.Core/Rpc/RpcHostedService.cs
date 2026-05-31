@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using Dmon.Core.Bootstrap;
 using Dmon.Core.Extensions;
 using Dmon.Protocol.Events;
@@ -51,23 +52,38 @@ public sealed class RpcHostedService : BackgroundService
         _logger.LogDebug("RPC loop started. Protocol {Protocol}, core {Version}.",
             Dmon.Protocol.ProtocolVersion.Current, coreVersion);
 
-        while (!stoppingToken.IsCancellationRequested)
+        await foreach (string line in ReadLinesAsync(Console.In, stoppingToken).ConfigureAwait(false))
+        {
+            await _dispatcher.DispatchAsync(line, stoppingToken).ConfigureAwait(false);
+        }
+
+        // Allow outstanding background tasks (turn.submit, wizard.start) to complete
+        // before the hosted service tears down.
+        await _dispatcher.DrainAsync().ConfigureAwait(false);
+    }
+
+    // Yields trimmed, non-blank lines from input. Ends on stdin EOF (null) or cancellation.
+    // Single-reader: one line is fully dispatched before the next is read (no concurrency added).
+    private static async IAsyncEnumerable<string> ReadLinesAsync(
+        TextReader input,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        while (!cancellationToken.IsCancellationRequested)
         {
             string? line;
             try
             {
-                line = await Console.In.ReadLineAsync(stoppingToken).ConfigureAwait(false);
+                line = await input.ReadLineAsync(cancellationToken).ConfigureAwait(false);
             }
             catch (OperationCanceledException)
             {
-                break;
+                yield break;
             }
 
             if (line is null)
             {
                 // stdin closed — host disconnected.
-                _logger.LogDebug("stdin closed; shutting down.");
-                break;
+                yield break;
             }
 
             // Strip trailing CR for environments that send CRLF.
@@ -78,11 +94,7 @@ public sealed class RpcHostedService : BackgroundService
                 continue;
             }
 
-            await _dispatcher.DispatchAsync(line, stoppingToken).ConfigureAwait(false);
+            yield return line;
         }
-
-        // Allow outstanding background tasks (turn.submit, wizard.start) to complete
-        // before the hosted service tears down.
-        await _dispatcher.DrainAsync().ConfigureAwait(false);
     }
 }
