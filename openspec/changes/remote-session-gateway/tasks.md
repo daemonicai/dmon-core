@@ -6,9 +6,9 @@
 
 ## 2. Session registry and handler lifecycle
 
-- [ ] 2.1 Implement `SessionHandler` owning one `dmoncore` process spawned via `CoreProcessManager` (ADR-011), keyed by `sessionId`.
-- [ ] 2.2 Implement the in-memory session registry (`ConcurrentDictionary<sessionId, SessionHandler>`).
-- [ ] 2.3 Bind the stdio pump to the handler (client frames → core stdin; core stdout → attached connection or durable buffer); implement attach/detach so the handler outlives a dropped connection.
+- [x] 2.1 Implement `SessionHandler` owning one `dmoncore` process spawned via `CoreProcessManager` (ADR-011), keyed by `sessionId`.
+- [x] 2.2 Implement the in-memory session registry (`ConcurrentDictionary<sessionId, SessionHandler>`).
+- [x] 2.3 Bind the stdio pump to the handler (client frames → core stdin; core stdout → attached connection or durable buffer); implement attach/detach so the handler outlives a dropped connection.
 
 ## 3. Connection-control sub-protocol
 

@@ -18,4 +18,8 @@
     <ProjectReference Include="..\Dmon.Core\Dmon.Core.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="Dmon.Gateway.Tests" />
+  </ItemGroup>
+
 </Project>

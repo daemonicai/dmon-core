@@ -34,5 +34,6 @@
     <Project Path="test\Dmon.Terminal.Tests\Dmon.Terminal.Tests.csproj" />
     <Project Path="test\Dmon.Memory.Tests\Dmon.Memory.Tests.csproj" />
     <Project Path="test\Dmon.Runtime.Tests\Dmon.Runtime.Tests.csproj" />
+    <Project Path="test\Dmon.Gateway.Tests\Dmon.Gateway.Tests.csproj" />
   </Folder>
 </Solution>
