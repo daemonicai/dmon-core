@@ -20,7 +20,7 @@
 
 ## 4. Verification and gates
 
-- [ ] 4.1 `DispatchLoopIntegrationTests` (wizard round-trip, tool-confirm round-trip, backgrounded-error-surfaced, abort-during-turn) pass unchanged
-- [ ] 4.2 Add dispatch-level coverage for the new `agent-core` requirement scenarios: malformed JSON does not stop the loop, missing `type`, unknown `type`, and handler failure → `internalError` with the reader still alive
-- [ ] 4.3 `make build` clean under `TreatWarningsAsErrors`; `make test` (or `dotnet test -c Release`) green
-- [ ] 4.4 `openspec validate core-dispatch-stream-refactor --strict` passes
+- [x] 4.1 `DispatchLoopIntegrationTests` (wizard round-trip, tool-confirm round-trip, backgrounded-error-surfaced, abort-during-turn) pass unchanged
+- [x] 4.2 Add dispatch-level coverage for the new `agent-core` requirement scenarios: malformed JSON does not stop the loop, missing `type`, unknown `type`, and handler failure → `internalError` with the reader still alive
+- [x] 4.3 `make build` clean under `TreatWarningsAsErrors`; `make test` (or `dotnet test -c Release`) green
+- [x] 4.4 `openspec validate core-dispatch-stream-refactor --strict` passes
