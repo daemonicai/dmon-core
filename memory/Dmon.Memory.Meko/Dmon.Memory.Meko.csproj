@@ -6,6 +6,7 @@
       dmon-core pins at 10.5.1; 10.5.2 is a backwards-compatible patch release — we accept
       the upgrade here. Pin explicitly so future transitive pulls don't silently advance further.
     -->
+    <PackageReference Include="Dmon.Abstractions" Version="0.1.0" />
     <PackageReference Include="Microsoft.Extensions.AI.Abstractions" Version="10.5.2" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.7" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.7" />
@@ -16,11 +17,6 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="Dmon.Memory.Meko.Tests" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <!-- TODO: swap to PackageReference once Dmon.Abstractions is published to NuGet -->
-    <ProjectReference Include="..\..\..\dmon-core\src\Dmon.Abstractions\Dmon.Abstractions.csproj" />
   </ItemGroup>
 
 </Project>
