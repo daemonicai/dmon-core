@@ -46,9 +46,23 @@ public sealed class GatewayOptions
     public int MaxConcurrentHandlers { get; set; } = 10;
 
     /// <summary>
-    /// Optional pre-shared key for defense-in-depth (D5 / group 9).
+    /// Optional pre-shared key for defense-in-depth (D5 / ADR-012 Decision 12).
     /// When <see langword="null"/> or empty, the shared-key check is disabled.
-    /// Validation logic is wired in group 9.
+    /// When set, every WebSocket upgrade must carry <c>Authorization: Bearer &lt;key&gt;</c>;
+    /// mismatches are rejected with HTTP 401 before a socket is opened.
     /// </summary>
     public string? SharedKey { get; set; }
+
+    /// <summary>
+    /// Allows binding to a specific non-loopback address (e.g. a Tailscale IP such as
+    /// <c>http://100.x.y.z:5500</c>). Defaults to <see langword="false"/>.
+    /// </summary>
+    /// <remarks>
+    /// The intended exposure path is <c>tailscale serve</c> fronting the loopback bind
+    /// (<c>http://127.0.0.1:5500</c>), not a direct non-loopback bind. Set this only
+    /// when you have a specific operational reason and understand the consequences.
+    /// Wildcard / all-interfaces addresses (<c>0.0.0.0</c>, <c>::</c>, <c>*</c>, <c>+</c>)
+    /// are always rejected regardless of this flag because they expose public NICs.
+    /// </remarks>
+    public bool AllowNonLoopbackBind { get; set; }
 }

@@ -46,8 +46,8 @@
 
 ## 9. Tailscale-fronted auth
 
-- [ ] 9.1 Enforce loopback-by-default; require explicit config to bind any other interface; never bind a public NIC.
-- [ ] 9.2 When a shared key is configured, validate `Authorization: Bearer <key>` on the WebSocket upgrade and reject mismatches with HTTP 401 before opening a socket.
+- [x] 9.1 Enforce loopback-by-default; require explicit config to bind any other interface; never bind a public NIC.
+- [x] 9.2 When a shared key is configured, validate `Authorization: Bearer <key>` on the WebSocket upgrade and reject mismatches with HTTP 401 before opening a socket.
 
 ## 10. Profile-selecting session creation
 

@@ -16,6 +16,25 @@ GatewayOptions gatewayOptions = builder.Configuration
     .GetSection(GatewayOptions.SectionName)
     .Get<GatewayOptions>() ?? new GatewayOptions();
 
+// 9.1 — Enforce the loopback-by-default / no-public-NIC policy before starting the host.
+(bool bindAllowed, string? bindError) = GatewayBindPolicy.Validate(
+    gatewayOptions.BindAddress, gatewayOptions.AllowNonLoopbackBind);
+
+if (!bindAllowed)
+{
+    Console.Error.WriteLine($"[dmon-gateway] FATAL: {bindError}");
+    return 1;
+}
+
+if (GatewayBindPolicy.IsNonLoopbackWithOptIn(
+        gatewayOptions.BindAddress, gatewayOptions.AllowNonLoopbackBind))
+{
+    Console.WriteLine(
+        $"[dmon-gateway] WARNING: Binding to non-loopback address '{gatewayOptions.BindAddress}'. " +
+        "The intended exposure path is 'tailscale serve' fronting the loopback bind, not a " +
+        "direct non-loopback bind. Ensure your firewall rules are correct.");
+}
+
 builder.WebHost.UseUrls(gatewayOptions.BindAddress);
 
 // --- Core infrastructure (D6 — reuse Dmon.Runtime bootstrap) ---
@@ -53,3 +72,4 @@ app.MapGet("/ws", (HttpContext context, GatewayConnectionEndpoint endpoint) =>
     endpoint.HandleAsync(context));
 
 await app.RunAsync().ConfigureAwait(false);
+return 0;

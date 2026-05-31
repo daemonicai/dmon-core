@@ -93,6 +93,16 @@ public sealed class GatewayConnectionEndpoint
 
     public async Task HandleAsync(HttpContext context)
     {
+        // 9.2 — Shared-key check: runs before IsWebSocketRequest so an unauthorized caller
+        // learns nothing about the endpoint (no upgrade attempted, no socket opened).
+        string? authHeader = context.Request.Headers.Authorization;
+        if (!SharedKeyAuthenticator.IsAuthorized(authHeader, _options.CurrentValue.SharedKey))
+        {
+            _logger.LogWarning("WebSocket upgrade rejected: missing or mismatched Authorization header.");
+            context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+            return;
+        }
+
         if (!context.WebSockets.IsWebSocketRequest)
         {
             context.Response.StatusCode = StatusCodes.Status400BadRequest;
