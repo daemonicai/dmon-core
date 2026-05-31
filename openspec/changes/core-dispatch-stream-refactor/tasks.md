@@ -6,10 +6,10 @@
 
 ## 2. Typed sink and single error guard
 
-- [ ] 2.1 Add `Task Route(Command cmd, CancellationToken cancellationToken)` — a pattern `switch` on the concrete command type mirroring every arm of the current `RouteAsync`; `_ =>` throws `InvalidOperationException($"No route for {cmd.GetType().Name}.")`
-- [ ] 2.2 Add `RunGuardedAsync(Command cmd, CancellationToken cancellationToken)` wrapping `Route` with the `OperationCanceledException` (swallow) / `NotImplementedException` (→ `notImplemented`, recoverable) / `Exception` (→ `internalError`, non-recoverable) ladder
-- [ ] 2.3 Rewrite `DispatchAsync` to `HandleAsync(ParseCommand(line), ct)`: `ParseFault` → emit the error event; `ParsedCommand` of `TurnSubmitCommand`/`WizardStartCommand` → add `RunGuardedAsync(...)` to `_backgroundTasks`; otherwise `await RunGuardedAsync(...)` inline
-- [ ] 2.4 Delete the now-dead code: the string-keyed `RouteAsync`, `BuildBackgroundWork`, `DeserializeAndBind`, `RunBackgroundAsync`, and the `Deserialize<T>(JsonElement)` helper — confirm no remaining references
+- [x] 2.1 Add `Task Route(Command cmd, CancellationToken cancellationToken)` — a pattern `switch` on the concrete command type mirroring every arm of the current `RouteAsync`; `_ =>` throws `InvalidOperationException($"No route for {cmd.GetType().Name}.")`
+- [x] 2.2 Add `RunGuardedAsync(Command cmd, CancellationToken cancellationToken)` wrapping `Route` with the `OperationCanceledException` (swallow) / `NotImplementedException` (→ `notImplemented`, recoverable) / `Exception` (→ `internalError`, non-recoverable) ladder
+- [x] 2.3 Rewrite `DispatchAsync` to `HandleAsync(ParseCommand(line), ct)`: `ParseFault` → emit the error event; `ParsedCommand` of `TurnSubmitCommand`/`WizardStartCommand` → add `RunGuardedAsync(...)` to `_backgroundTasks`; otherwise `await RunGuardedAsync(...)` inline
+- [x] 2.4 Delete the now-dead code: the string-keyed `RouteAsync`, `BuildBackgroundWork`, `DeserializeAndBind`, `RunBackgroundAsync`, and the `Deserialize<T>(JsonElement)` helper — confirm no remaining references
 
 ## 3. Source stage in RpcHostedService
 
