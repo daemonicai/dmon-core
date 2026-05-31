@@ -24,8 +24,8 @@
 
 ## 5. Command idempotency
 
-- [ ] 5.1 Ack each accepted command by its ADR-003 `id`.
-- [ ] 5.2 Dedupe resent commands by `id` so a command delivered before a drop is not executed twice; re-ack a duplicate.
+- [x] 5.1 Ack each accepted command by its ADR-003 `id`.
+- [x] 5.2 Dedupe resent commands by `id` so a command delivered before a drop is not executed twice; re-ack a duplicate.
 
 ## 6. Fencing and single active writer
 

@@ -183,7 +183,61 @@ public sealed class GatewayConnectionEndpoint
             if (gw is null)
             {
                 // ADR-003 command — forward byte-unchanged.
-                await handler.WriteToCoreAsync(raw, cancellationToken).ConfigureAwait(false);
+                string? commandId = ControlFrameSerializer.GetCommandId(raw);
+
+                if (commandId is not null)
+                {
+                    // Admit-then-forward: id recorded under lock before the write so a
+                    // concurrent duplicate sees Duplicate even if the first write is mid-flight.
+                    CommandAdmission admission = handler.TryAdmitCommand(commandId);
+                    if (admission == CommandAdmission.Accepted)
+                    {
+                        try
+                        {
+                            await handler.WriteToCoreAsync(raw, cancellationToken).ConfigureAwait(false);
+                        }
+                        catch (Exception ex) when (ex is not OperationCanceledException)
+                        {
+                            // The core write failed (dead/closed stdin). Compensate the admission
+                            // so the client's resend is re-forwarded rather than swallowed as a
+                            // duplicate, and do NOT ack — a false ack would tell the client the
+                            // turn was accepted when the core never saw it (ADR-012 Decision 5).
+                            // The connection cannot proceed without a working core, so close it
+                            // cleanly and break; the HandleAsync finally detaches the handler.
+                            // (Full core-death/handler-reap handling is Group 7.)
+                            handler.RemoveAdmission(commandId);
+                            await CloseOnViolationAsync(
+                                socket,
+                                new ProtocolViolationFrameException(
+                                    (WebSocketCloseStatus)4500, "core write failed"),
+                                cancellationToken).ConfigureAwait(false);
+                            break;
+                        }
+
+                        // Ack only after a successful write, so the ack always implies the core
+                        // received the command.
+                        await connection.SendAsync(
+                            ControlFrameSerializer.Serialize(new AckFrame { Id = commandId }),
+                            cancellationToken).ConfigureAwait(false);
+                    }
+                    else
+                    {
+                        // Duplicate: the command was already admitted (and, on the happy path,
+                        // already written). Re-ack so a client that missed the first ack learns
+                        // the command was received, without writing it to the core twice.
+                        await connection.SendAsync(
+                            ControlFrameSerializer.Serialize(new AckFrame { Id = commandId }),
+                            cancellationToken).ConfigureAwait(false);
+                    }
+                }
+                else
+                {
+                    // Malformed: no usable id. ADR-003 requires id, so this is defensive.
+                    // Forward unchanged so the core can emit an error response; we cannot ack
+                    // without an id, so we do not send one.
+                    await handler.WriteToCoreAsync(raw, cancellationToken).ConfigureAwait(false);
+                }
+
                 continue;
             }
 
@@ -289,9 +343,10 @@ public sealed class GatewayConnectionEndpoint
     }
 
     /// <summary>
-    /// Signals an inbound frame that violates the protocol (binary message, or a message
-    /// larger than <see cref="MaxMessageBytes"/>). Carries the close status the caller uses
-    /// to abort the connection.
+    /// Signals that the connection cannot proceed and must be closed: an inbound frame that
+    /// violates the protocol (binary message, or a message larger than
+    /// <see cref="MaxMessageBytes"/>), or a failed core write. Carries the close status the
+    /// caller uses to abort the connection cleanly.
     /// </summary>
     private sealed class ProtocolViolationFrameException : Exception
     {

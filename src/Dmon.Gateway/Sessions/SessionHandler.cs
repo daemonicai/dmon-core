@@ -32,9 +32,13 @@ public sealed class SessionHandler : IAsyncDisposable
     private readonly TextReader _stdout;
     private readonly TextWriter _stdin;
 
-    // Guards _connection, _seqLog, _headSeq, and _sentSeq together.
+    // Guards _connection, _seqLog, _headSeq, _sentSeq, and _admittedIds together.
     private readonly Lock _lock = new();
     private IGatewayConnection? _connection;
+
+    // Dedup set for inbound command ids (ADR-012 Decision 5 / Group 5).
+    // Unbounded for handler lifetime — commands are user-initiated and rare relative to events.
+    private readonly HashSet<string> _admittedIds = [];
 
     // Retained seq-indexed event log. Entry at index i has seq i+1 (1-based), so seq N is at
     // index N-1. Never truncated in V1 (ADR-014 Decision 3; compaction is deferred).
@@ -163,6 +167,44 @@ public sealed class SessionHandler : IAsyncDisposable
         finally
         {
             _stdinLock.Release();
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Command idempotency (ADR-012 Decision 5 / Group 5)
+    // -------------------------------------------------------------------------
+
+    /// <summary>
+    /// Records <paramref name="id"/> as admitted and returns <see cref="CommandAdmission.Accepted"/>,
+    /// or returns <see cref="CommandAdmission.Duplicate"/> if the id was already admitted.
+    ///
+    /// Lock discipline: the set check and write are performed under <c>_lock</c> so the first
+    /// concurrent arrival records the id before any second arrival can observe it. The actual
+    /// core write (<see cref="WriteToCoreAsync"/>) happens outside the lock (no await under lock).
+    /// Because the id is recorded before the write returns, a duplicate that arrives while the
+    /// first write is in-flight is correctly identified as a duplicate.
+    /// </summary>
+    public CommandAdmission TryAdmitCommand(string id)
+    {
+        lock (_lock)
+        {
+            if (!_admittedIds.Add(id))
+                return CommandAdmission.Duplicate;
+            return CommandAdmission.Accepted;
+        }
+    }
+
+    /// <summary>
+    /// Removes a previously-admitted id, compensating an admission whose subsequent core write
+    /// failed. Admission is recorded before the write so a concurrent in-flight duplicate is
+    /// caught; if the write then throws, the id must be un-recorded so the client's resend is
+    /// re-forwarded rather than silently dropped as a duplicate (ADR-012 Decision 5).
+    /// </summary>
+    public void RemoveAdmission(string id)
+    {
+        lock (_lock)
+        {
+            _admittedIds.Remove(id);
         }
     }
 

@@ -48,9 +48,162 @@ public sealed class ForwardingLoopTests
         Assert.Contains("""{"gw":"pong"}""", connection.Frames);
     }
 
+    [Fact]
+    public async Task NonStringId_DoesNotThrow_AndIsForwardedRawWithoutAck()
+    {
+        // A numeric id is a structurally-valid-but-wrong-typed frame from the untrusted boundary.
+        // GetCommandId treats it as "no usable id": forward raw to core, do not ack, do not crash.
+        const string numericId = """{"id":42,"type":"run","prompt":"hi"}""";
+
+        CapturingWriter stdin = new();
+        NeverReadingReader stdout = new();
+        await using SessionHandler handler = new("numeric-id", stdout, stdin);
+
+        FakeClientWebSocket socket = new();
+        socket.QueueText(numericId);
+        socket.QueueClose();
+
+        RecordingConnection connection = new();
+        GatewayConnectionEndpoint endpoint = NewEndpoint();
+
+        await endpoint.RunForwardingLoopForTestAsync(
+            socket, connection, handler, CancellationToken.None);
+
+        Assert.Equal(numericId + "\n", stdin.GetWritten());
+        Assert.DoesNotContain(connection.Frames, f => f.Contains("\"ack\""));
+    }
+
+    [Fact]
+    public async Task NonStringGw_DoesNotThrow_AndIsTreatedAsNonControlFrame()
+    {
+        // {"gw":42} has a non-string discriminator. GetGwDiscriminator returns null, so the loop
+        // treats it as an ADR-003 frame: it has no usable id either, so it is forwarded raw and
+        // not acked. The point of the test is that this does not crash the loop.
+        const string numericGw = """{"gw":42}""";
+
+        CapturingWriter stdin = new();
+        NeverReadingReader stdout = new();
+        await using SessionHandler handler = new("numeric-gw", stdout, stdin);
+
+        FakeClientWebSocket socket = new();
+        socket.QueueText(numericGw);
+        socket.QueueClose();
+
+        RecordingConnection connection = new();
+        GatewayConnectionEndpoint endpoint = NewEndpoint();
+
+        // No uncaught exception escapes the loop.
+        await endpoint.RunForwardingLoopForTestAsync(
+            socket, connection, handler, CancellationToken.None);
+
+        Assert.Equal(numericGw + "\n", stdin.GetWritten());
+        Assert.DoesNotContain(connection.Frames, f => f.Contains("\"ack\""));
+    }
+
+    [Fact]
+    public async Task NoIdCommandFrame_IsForwardedToCore_AndNotAcked()
+    {
+        // N1: a command frame with no "id" is forwarded byte-unchanged so the core can emit an
+        // error, but cannot be acked (no id to ack).
+        const string noId = """{"type":"run","prompt":"hi"}""";
+
+        CapturingWriter stdin = new();
+        NeverReadingReader stdout = new();
+        await using SessionHandler handler = new("no-id", stdout, stdin);
+
+        FakeClientWebSocket socket = new();
+        socket.QueueText(noId);
+        socket.QueueClose();
+
+        RecordingConnection connection = new();
+        GatewayConnectionEndpoint endpoint = NewEndpoint();
+
+        await endpoint.RunForwardingLoopForTestAsync(
+            socket, connection, handler, CancellationToken.None);
+
+        Assert.Equal(noId + "\n", stdin.GetWritten());
+        Assert.DoesNotContain(connection.Frames, f => f.Contains("\"ack\""));
+    }
+
+    [Fact]
+    public async Task CoreWriteFailure_RemovesAdmission_DoesNotAck_AndTerminatesCleanly()
+    {
+        // H1: on a core-write failure the admission must be compensated (so a resend retries),
+        // no ack sent (no false acceptance), and the loop must terminate without an uncaught
+        // exception. The first stdin throws on write; a subsequent resend of the same id must be
+        // re-forwarded to a working stdin.
+        const string command = """{"id":"req-1","type":"run","prompt":"hi"}""";
+
+        // Throws on the first write (dead stdin), succeeds and captures on subsequent writes.
+        FailFirstWriter stdin = new();
+        NeverReadingReader stdout = new();
+        await using SessionHandler handler = new("write-fail", stdout, stdin);
+
+        // First connection: command fails to reach the core.
+        FakeClientWebSocket firstSocket = new();
+        firstSocket.QueueText(command);
+        firstSocket.QueueClose();
+
+        RecordingConnection firstConnection = new();
+        GatewayConnectionEndpoint endpoint = NewEndpoint();
+
+        // (c) The loop terminates without an uncaught exception (a propagated exception would
+        // fail the test).
+        await endpoint.RunForwardingLoopForTestAsync(
+            firstSocket, firstConnection, handler, CancellationToken.None);
+
+        // (a) No ack was sent for the failed write.
+        Assert.DoesNotContain(firstConnection.Frames, f => f.Contains("\"ack\""));
+        Assert.Equal("", stdin.GetWritten());
+
+        // (b) The admission was removed, so a resend of the same id is re-forwarded to the (now
+        // working) stdin and acked — not swallowed as a duplicate.
+        FakeClientWebSocket resendSocket = new();
+        resendSocket.QueueText(command);
+        resendSocket.QueueClose();
+
+        RecordingConnection resendConnection = new();
+        await endpoint.RunForwardingLoopForTestAsync(
+            resendSocket, resendConnection, handler, CancellationToken.None);
+
+        Assert.Equal(command + "\n", stdin.GetWritten());
+        Assert.Contains(resendConnection.Frames, f => f.Contains("\"ack\"") && f.Contains("req-1"));
+    }
+
     // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------
+
+    private static GatewayConnectionEndpoint NewEndpoint() =>
+        new(new SessionRegistry(), NullLogger<GatewayConnectionEndpoint>.Instance);
+
+    /// <summary>
+    /// A stdin writer that throws on its first write (simulating a transiently-dead core stdin),
+    /// then succeeds and captures on every subsequent write (the resend reaches a working stdin).
+    /// </summary>
+    private sealed class FailFirstWriter : TextWriter
+    {
+        private readonly StringBuilder _sb = new();
+        private bool _failed;
+
+        public override Encoding Encoding => Encoding.UTF8;
+
+        public override Task WriteAsync(ReadOnlyMemory<char> buffer, CancellationToken cancellationToken = default)
+        {
+            if (!_failed)
+            {
+                _failed = true;
+                throw new IOException("core stdin closed");
+            }
+
+            _sb.Append(buffer.Span);
+            return Task.CompletedTask;
+        }
+
+        public override Task FlushAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public string GetWritten() => _sb.ToString();
+    }
 
     private sealed class RecordingConnection : IGatewayConnection
     {

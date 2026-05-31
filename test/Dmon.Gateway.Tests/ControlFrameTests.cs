@@ -127,6 +127,42 @@ public sealed class ControlFrameTests
     }
 
     // -------------------------------------------------------------------------
+    // Type-tolerant parsing — a non-string discriminator/id must not throw (untrusted boundary)
+    // -------------------------------------------------------------------------
+
+    [Theory]
+    [InlineData("""{"gw":42}""")]
+    [InlineData("""{"gw":true}""")]
+    [InlineData("""{"gw":null}""")]
+    [InlineData("""{"gw":{"nested":1}}""")]
+    public void GetGwDiscriminator_ReturnsNull_AndDoesNotThrow_OnNonStringGw(string raw)
+    {
+        // A structurally-valid frame with a non-string "gw" must be treated as having no usable
+        // discriminator (null), never throw — otherwise one malformed client frame crashes the
+        // forwarding loop on the untrusted network boundary.
+        string? result = ControlFrameSerializer.GetGwDiscriminator(raw);
+        Assert.Null(result);
+    }
+
+    [Theory]
+    [InlineData("""{"id":42,"type":"run"}""")]
+    [InlineData("""{"id":true,"type":"run"}""")]
+    [InlineData("""{"id":null,"type":"run"}""")]
+    [InlineData("""{"id":{"nested":1},"type":"run"}""")]
+    public void GetCommandId_ReturnsNull_AndDoesNotThrow_OnNonStringId(string raw)
+    {
+        // A non-string "id" (e.g. numeric) must yield "no usable id" (null), not throw.
+        string? result = ControlFrameSerializer.GetCommandId(raw);
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public void GetCommandId_ReturnsStringId_WhenPresent()
+    {
+        Assert.Equal("req-7", ControlFrameSerializer.GetCommandId("""{"id":"req-7","type":"run"}"""));
+    }
+
+    // -------------------------------------------------------------------------
     // 3.2 — ParseAttach round-trips correctly
     // -------------------------------------------------------------------------
 
