@@ -1,5 +1,8 @@
 using System.Diagnostics;
+using Dmon.Abstractions.Profiles;
 using Dmon.Core.Extensions;
+using Dmon.Core.Profiles;
+using Dmon.Core.Rpc;
 using Dmon.Core.Telemetry;
 using Dmon.Extensions;
 using Dmon.Protocol.Enums;
@@ -24,17 +27,23 @@ public sealed class PermissionGateChatClient : IChatClient
     private readonly IPermissionPolicy _policy;
     private readonly IToolRegistry _registry;
     private readonly Func<ToolConfirmRequestEvent, CancellationToken, Task<bool>> _confirmCallback;
+    private readonly AgentProfileContext _profileContext;
+    private readonly ISessionHandler _sessionHandler;
 
     public PermissionGateChatClient(
         IChatClient inner,
         IPermissionPolicy policy,
         IToolRegistry registry,
-        Func<ToolConfirmRequestEvent, CancellationToken, Task<bool>> confirmCallback)
+        Func<ToolConfirmRequestEvent, CancellationToken, Task<bool>> confirmCallback,
+        AgentProfileContext profileContext,
+        ISessionHandler sessionHandler)
     {
         _inner = inner;
         _policy = policy;
         _registry = registry;
         _confirmCallback = confirmCallback;
+        _profileContext = profileContext;
+        _sessionHandler = sessionHandler;
     }
 
     public async Task<ChatResponse> GetResponseAsync(
@@ -118,6 +127,14 @@ public sealed class PermissionGateChatClient : IChatClient
                 IDmonExtension? extension = _registry.FindExtension(call.Name);
                 PermissionResult permission = extension?.Evaluate(call, _policy.ProjectSettings, _policy.GlobalSettings)
                     ?? PermissionResult.Prompt;
+
+                // Sandbox upgrade: only a Prompt result can be elevated to Allow.
+                // Deny is never overridden (denylist wins unconditionally — spec 5.3).
+                if (permission == PermissionResult.Prompt)
+                {
+                    permission = ApplySandboxAllowance(call, permission);
+                }
+
                 string decision = permission.ToString().ToLowerInvariant();
                 ToolConfirmRequest confirmReq = extension?.CreateConfirmRequest(call)
                     ?? new ToolConfirmRequest
@@ -177,6 +194,97 @@ public sealed class PermissionGateChatClient : IChatClient
         }
 
         return result;
+    }
+
+    // --- Sandbox upgrade ---
+
+    /// <summary>
+    /// Elevates a <see cref="PermissionResult.Prompt"/> to <see cref="PermissionResult.Allow"/>
+    /// when all sandbox conditions are met. Called only when the incoming result is Prompt —
+    /// Deny is never passed here, so the denylist cannot be overridden.
+    /// </summary>
+    private PermissionResult ApplySandboxAllowance(FunctionCallContent call, PermissionResult current)
+    {
+        // Guard 1: profile must be resolved, mode must be Sandbox, and Assets must be enabled.
+        if (!_profileContext.IsResolved)
+        {
+            return current;
+        }
+
+        AgentProfile profile = _profileContext.Profile;
+
+        if (profile.PermissionMode != PermissionMode.Sandbox || !profile.Assets)
+        {
+            return current;
+        }
+
+        // Guard 2: session must be active to know which asset directory to check against.
+        string? sessionId = _sessionHandler.CurrentSession?.Id;
+        if (sessionId is null)
+        {
+            return current;
+        }
+
+        // Guard 3: the call must carry a "path" argument (write_file / edit_file).
+        // Bash rm carries "command", not "path", so it stays governed by the bash denylist.
+        if (call.Arguments is null || !call.Arguments.TryGetValue("path", out object? pathArg) || pathArg is null)
+        {
+            return current;
+        }
+
+        string targetPath = pathArg.ToString()!;
+        if (string.IsNullOrEmpty(targetPath))
+        {
+            return current;
+        }
+
+        string assetDir = ProfileAssetPath.Compute(Directory.GetCurrentDirectory(), sessionId);
+
+        // Guard 4: honour any configured Write deny — it wins over the sandbox allowance.
+        // (Today's coding-mode path never checks Write.Deny for writes; this check is
+        // confined to the sandbox branch so coding-mode behaviour is byte-for-byte unchanged.)
+        string normalisedTarget = Path.GetFullPath(targetPath);
+        if (IsWriteDenied(normalisedTarget))
+        {
+            return PermissionResult.Deny;
+        }
+
+        // Guard 5: symlink-resolved containment check (security-critical — see spec 5.2 / design Risk row).
+        // Path.GetFullPath collapses ".." but does NOT resolve symlinks; SandboxContainmentChecker does both.
+        if (!SandboxContainmentChecker.IsContained(targetPath, assetDir))
+        {
+            return current;
+        }
+
+        return PermissionResult.Allow;
+    }
+
+    /// <summary>
+    /// Returns <see langword="true"/> when <paramref name="normalisedPath"/> matches a
+    /// Write deny entry in the project or global settings.
+    /// </summary>
+    private bool IsWriteDenied(string normalisedPath)
+    {
+        int projectDenyScore = PermissionPolicy.LongestPrefixMatch(
+            normalisedPath, _policy.ProjectSettings.Settings.Write.Deny);
+
+        if (projectDenyScore >= 0)
+        {
+            return true;
+        }
+
+        if (_policy.GlobalSettings is not null)
+        {
+            int globalDenyScore = PermissionPolicy.LongestPrefixMatch(
+                normalisedPath, _policy.GlobalSettings.Settings.Write.Deny);
+
+            if (globalDenyScore >= 0)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private async Task<bool> PromptForToolCallAsync(

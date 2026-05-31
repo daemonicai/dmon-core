@@ -3,10 +3,12 @@ using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
 using Dmon.Abstractions;
+using Dmon.Abstractions.Profiles;
 using Dmon.Abstractions.Providers;
 using Dmon.Core.Extensions;
 using Dmon.Core.Permissions;
 using Dmon.Core.Pipeline;
+using Dmon.Core.Profiles;
 using Dmon.Core.Providers;
 using Dmon.Core.Session;
 using Dmon.Core.Telemetry;
@@ -32,6 +34,9 @@ public sealed class TurnHandler : ITurnHandler
     private readonly ISystemPromptBuilder _systemPromptBuilder;
     private readonly MiddlewarePipelineBuilder _pipelineBuilder;
     private readonly RetryPolicy _retryPolicy;
+    private readonly IAgentProfileResolver _profileResolver;
+    private readonly AgentProfileContext _profileContext;
+    private readonly ISessionAssetProvisioner _assetProvisioner;
     private readonly ILogger<TurnHandler> _logger;
 
     // Pending confirm/ui-input response channels keyed by request id.
@@ -62,6 +67,9 @@ public sealed class TurnHandler : ITurnHandler
         ISystemPromptBuilder systemPromptBuilder,
         MiddlewarePipelineBuilder pipelineBuilder,
         IConfiguration configuration,
+        IAgentProfileResolver profileResolver,
+        AgentProfileContext profileContext,
+        ISessionAssetProvisioner assetProvisioner,
         ILogger<TurnHandler> logger)
     {
         _providers = providers;
@@ -75,6 +83,9 @@ public sealed class TurnHandler : ITurnHandler
         _systemPromptBuilder = systemPromptBuilder;
         _pipelineBuilder = pipelineBuilder;
         _retryPolicy = RetryPolicy.FromConfiguration(configuration);
+        _profileResolver = profileResolver;
+        _profileContext = profileContext;
+        _assetProvisioner = assetProvisioner;
         _logger = logger;
     }
 
@@ -101,6 +112,17 @@ public sealed class TurnHandler : ITurnHandler
         {
             if (!_systemPromptInjected)
             {
+                // Resolve the agent profile once per session before building the system prompt.
+                // requestedProfile is null until the RPC protocol wires per-session profile selection
+                // (later in this change); null falls back to defaultProfile or built-in coding.
+                await _profileContext.EnsureResolvedAsync(_profileResolver, requestedProfile: null, _turnCts.Token)
+                    .ConfigureAwait(false);
+
+                // Provision assets/<session_id>/ under the workspace root when the profile
+                // enables assets. Must run before BuildAsync so the system-prompt asset-dir
+                // line (Group 4) refers to a directory that already exists on disk.
+                _assetProvisioner.Provision(_profileContext.Profile, _sessionHandler.CurrentSession?.Id);
+
                 ChatMessage systemMessage = await _systemPromptBuilder.BuildAsync(_turnCts.Token).ConfigureAwait(false);
                 _history.Insert(0, systemMessage);
                 _systemPromptInjected = true;
@@ -249,7 +271,7 @@ public sealed class TurnHandler : ITurnHandler
             IChatClient retrying = new RetryingChatClient(providerClient, _retryPolicy, _emitter, provider, model);
             IChatClient offloading = new AttachmentOffloadingChatClient(retrying, _sessionHandler, _attachmentStore);
             IChatClient functionInvoker = new FunctionInvokingChatClient(offloading);
-            IChatClient pipeline = new PermissionGateChatClient(functionInvoker, _policy, _tools, ConfirmCallback);
+            IChatClient pipeline = new PermissionGateChatClient(functionInvoker, _policy, _tools, ConfirmCallback, _profileContext, _sessionHandler);
 
             IReadOnlyList<AIFunction> toolList = _tools.GetAll();
             ChatOptions options = new();

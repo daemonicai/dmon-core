@@ -1,6 +1,7 @@
 using System.Runtime.CompilerServices;
 using Dmon.Abstractions;
 using Dmon.Core.Extensions;
+using Dmon.Core.Profiles;
 using Dmon.Core.Rpc;
 using Dmon.Protocol.Commands;
 using Microsoft.Extensions.AI;
@@ -96,6 +97,9 @@ public sealed class TurnHandlerSystemPromptTests
             promptBuilder,
             pipelineBuilder,
             configuration,
+            new StubAgentProfileResolver(),
+            new AgentProfileContext(),
+            new NoopSessionAssetProvisioner(),
             NullLogger<TurnHandler>.Instance);
 
         return (handler, emitter);

@@ -18,6 +18,8 @@ Both files are optional. When neither exists and `.dmon/` has not been bootstrap
 | `sessionStore` | string | `"local"` | Where session data is stored. `"local"` = `<project>/.dmon/sessions/`, `"global"` = `~/.dmon/sessions/`, or an absolute path. |
 | `extensions` | list | `[]` | Extensions to load at startup (see [Extension configuration](#extension-configuration)). |
 | `providers` | object | — | Provider definitions (see [Provider configuration](#provider-configuration)). |
+| `profiles` | map | `{}` | Named agent profile bundles (see [Agent profiles](#agent-profiles)). |
+| `defaultProfile` | string | `"coding"` | Name of the profile to select when no per-session profile is requested (see [Agent profiles](#agent-profiles)). |
 
 ### Session settings (`Dmon:Session:*`)
 
@@ -197,6 +199,99 @@ middleware:
 **Scope.** Arbitrary fields are permitted in the section. No field name is reserved beyond `priority`. Middleware must not require the section to be present — absence means the middleware's defaults apply.
 
 **No hot-reload.** Middleware is constructed once at startup and the pipeline is held for the session. dmon has no file-system watcher, so editing or replacing a middleware assembly (or its config) while the agent is running has no effect on the running pipeline. Apply middleware changes by restarting the core with `/reload` (a full process restart per ADR-009), which re-reads config and rebuilds the pipeline. This is the `extension-middleware-tier` design decision D6.
+
+---
+
+## Agent profiles
+
+Agent profiles are named bundles that define an agent's identity (persona), asset directory behaviour, and permission posture for a session. Governed by [ADR-013](./adrs/ADR-013-agent-profiles.md).
+
+### Built-in `coding` profile
+
+The `coding` profile is always available without any config. It uses the standard coding persona, does not provision an asset directory, and runs with the `coding` permission mode (ADR-006 behaviour). **When no profile is configured and no per-session profile is requested, the built-in `coding` profile applies — the default behaviour is unchanged.**
+
+### Profile schema
+
+The `profiles` key is a YAML map where each key is the profile name:
+
+```yaml
+profiles:
+  helper:
+    persona: "You are a helpful research assistant."  # inline persona text
+    assets: false                                     # default false
+    permissionMode: coding                            # coding | sandbox
+
+  writer:
+    personaFile: ./personas/writer.md    # OR a path to a persona file
+    assets: true
+    permissionMode: sandbox
+```
+
+Each entry supports these fields:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `persona` | string | One of `persona` or `personaFile` | Inline persona text injected into the system prompt. |
+| `personaFile` | string (path) | One of `persona` or `personaFile` | Path to a file whose contents are used as the persona. Resolved relative to the config file that declares it. |
+| `assets` | bool | No (default `false`) | When `true`, a per-session `assets/<session_id>/` directory is provisioned under the workspace root. Required when `permissionMode` is `sandbox`. |
+| `permissionMode` | `coding` \| `sandbox` | No (default `coding`) | Permission posture for the session (see [Permission modes](#permission-modes)). |
+
+Exactly one of `persona` or `personaFile` must be present. Specifying both or neither is a configuration error that aborts session start with an actionable message.
+
+### `defaultProfile`
+
+The `defaultProfile` key names the profile to use when no per-session profile is requested:
+
+```yaml
+defaultProfile: helper
+```
+
+When absent, the built-in `coding` profile applies.
+
+### Selection precedence
+
+Profile selection for a session follows this order (highest to lowest):
+
+1. **Per-session `profile`** — passed when creating the session (consumed by the remote-session-gateway; not yet exposed over the wire in the current release).
+2. **`defaultProfile`** — the configured default, if present.
+3. **Built-in `coding`** — when neither of the above applies.
+
+A selected profile name that does not exist in the effective set (config union built-in) is a hard error — no session is created and an actionable message names the unknown profile and the available alternatives.
+
+### Scope and merge
+
+The `profiles` map and `defaultProfile` key follow the same two-scope merge as extensions (see [ADR-009](./adrs/ADR-009-config-driven-extension-loading.md)):
+
+- **Project:** `./.dmon/config.yaml`
+- **User:** `~/.dmon/config.yaml`
+
+The **effective set** is the **union** of both maps. Where the same profile name appears in both scopes, the **project entry's fields win** (case-insensitive name comparison). The user-file position in the merged list is preserved. For `defaultProfile`, the project value wins when both scopes declare one; if only one scope declares it, that value is used.
+
+### Permission modes
+
+| Mode | Behaviour |
+|------|-----------|
+| `coding` | ADR-006 default: CWD-subtree reads are implicit; all writes and bash commands require a per-operation prompt. |
+| `sandbox` | Identical to `coding` except that write/edit operations whose normalised target is within `assets/<session_id>/` are **implicitly allowed** (no prompt). The configured denylist and all other gate behaviour are unchanged — a denylist entry inside the asset dir still denies. |
+
+`sandbox` requires `assets: true`. Setting `permissionMode: sandbox` with `assets: false` is an incoherence error that aborts session start.
+
+### Example
+
+```yaml
+defaultProfile: coding   # optional — coding is the default
+
+profiles:
+  coding:                # overrides the built-in coding profile (optional)
+    persona: "You are a coding agent specialised in Go."
+    assets: false
+    permissionMode: coding
+
+  writer:
+    personaFile: ./personas/writer.md
+    assets: true
+    permissionMode: sandbox
+```
 
 ---
 
