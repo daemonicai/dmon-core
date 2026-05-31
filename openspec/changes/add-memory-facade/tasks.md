@@ -14,8 +14,8 @@
 
 ## 3. Tests
 
-- [ ] 3.1 Record/flush fan-out reaches both tiers (fake `IShortTermMemory` + fake `ILongTermMemory`)
-- [ ] 3.2 Fused search: `Source` provenance correct; ordering is rank-based RRF (not raw score); cross-tier duplicate collapses to one; one-tier-empty returns the other
-- [ ] 3.3 Long-term-disabled path: facade operates short-term only, no long-term calls, `LongTerm` null
-- [ ] 3.4 Resilience: a throwing/timing-out long-term `SearchAsync` degrades to short-term results without surfacing the error
-- [ ] 3.5 DI: `AddDmonMemory()` alone resolves a short-term-only facade; with an `ILongTermMemory` also registered (either order), the facade fuses both
+- [x] 3.1 Record/flush fan-out reaches both tiers (fake `IShortTermMemory` + fake `ILongTermMemory`)
+- [x] 3.2 Fused search: `Source` provenance correct; ordering is rank-based RRF (not raw score); cross-tier duplicate collapses to one; one-tier-empty returns the other
+- [x] 3.3 Long-term-disabled path: facade operates short-term only, no long-term calls, `LongTerm` null
+- [x] 3.4 Resilience: a throwing/timing-out long-term `SearchAsync` degrades to short-term results without surfacing the error
+- [x] 3.5 DI: `AddDmonMemory()` alone resolves a short-term-only facade; with an `ILongTermMemory` also registered (either order), the facade fuses both
