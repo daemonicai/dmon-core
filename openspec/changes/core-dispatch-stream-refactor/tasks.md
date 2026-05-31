@@ -14,9 +14,9 @@
 
 ## 3. Source stage in RpcHostedService
 
-- [ ] 3.1 Add `private static async IAsyncEnumerable<string> ReadLinesAsync(TextReader input, [EnumeratorCancellation] CancellationToken cancellationToken)` — trims trailing `\r`, skips blank lines, `yield break`s on stdin EOF (`null`) and on `OperationCanceledException`
-- [ ] 3.2 Replace the `while` loop in `ExecuteAsync` with `await foreach (string line in ReadLinesAsync(Console.In, stoppingToken)) await _dispatcher.DispatchAsync(line, stoppingToken);` — preserve `agentReady`-before-first-command ordering and the trailing `_dispatcher.DrainAsync()`
-- [ ] 3.3 Confirm the reader remains strictly single-threaded and sequential (no `Task.Run`/parallel consumption introduced)
+- [x] 3.1 Add `private static async IAsyncEnumerable<string> ReadLinesAsync(TextReader input, [EnumeratorCancellation] CancellationToken cancellationToken)` — trims trailing `\r`, skips blank lines, `yield break`s on stdin EOF (`null`) and on `OperationCanceledException`
+- [x] 3.2 Replace the `while` loop in `ExecuteAsync` with `await foreach (string line in ReadLinesAsync(Console.In, stoppingToken)) await _dispatcher.DispatchAsync(line, stoppingToken);` — preserve `agentReady`-before-first-command ordering and the trailing `_dispatcher.DrainAsync()`
+- [x] 3.3 Confirm the reader remains strictly single-threaded and sequential (no `Task.Run`/parallel consumption introduced)
 
 ## 4. Verification and gates
 
