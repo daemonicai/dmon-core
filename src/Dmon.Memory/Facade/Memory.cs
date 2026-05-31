@@ -102,12 +102,22 @@ public sealed class Memory : IMemory
             return await ShortTerm.SearchAsync(query, scope, limit, cancellationToken).ConfigureAwait(false);
         }
 
-        // Run both tiers concurrently. Both tasks are started before any await so neither
-        // is left unobserved if the other throws.
+        // Start short-term first (always-on tier; its fault propagates).
         Task<IReadOnlyList<MemoryHit>> shortTask = ShortTerm.SearchAsync(query, scope, limit, cancellationToken);
-        Task<IReadOnlyList<MemoryHit>> longTask  = LongTerm.SearchAsync(query, scope, limit, cancellationToken);
 
-        // Await short-term first; a short-term fault propagates (it is the always-on tier).
+        // Start long-term inside a try so a synchronous throw is contained, not propagated.
+        Task<IReadOnlyList<MemoryHit>> longTask;
+        try
+        {
+            longTask = LongTerm.SearchAsync(query, scope, limit, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogWarning(ex, "Long-term memory search faulted — returning short-term results only.");
+            return await shortTask.ConfigureAwait(false);
+        }
+
+        // Await short-term; a short-term fault propagates (it is the always-on tier).
         IReadOnlyList<MemoryHit> shortHits = await shortTask.ConfigureAwait(false);
 
         IReadOnlyList<MemoryHit> longHits;
@@ -117,9 +127,7 @@ public sealed class Memory : IMemory
         }
         catch (Exception ex)
         {
-            // Long-term fault: log and degrade to short-term only.
-            _logger?.LogWarning(ex,
-                "Long-term memory search faulted — returning short-term results only.");
+            _logger?.LogWarning(ex, "Long-term memory search faulted — returning short-term results only.");
             return shortHits;
         }
 

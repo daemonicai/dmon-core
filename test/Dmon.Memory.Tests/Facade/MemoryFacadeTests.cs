@@ -303,6 +303,28 @@ public sealed class MemoryFacadeTests
     }
 
     [Fact]
+    public async Task SearchAsync_LongTermThrowsSynchronously_DegradesToShortTermResults()
+    {
+        // Covers the case where LongTerm.SearchAsync throws *before* returning a Task
+        // (synchronous throw from the implementation). The facade must contain this and
+        // return the short-term results, not propagate the exception.
+        FakeShortTermMemory shortTerm = new();
+        FakeLongTermMemory  longTerm  = new();
+
+        shortTerm.SearchResults =
+        [
+            new MemoryHit("st-1", "survived hit", MemorySource.ShortTerm, 0.9),
+        ];
+        longTerm.SearchOverride = (_, _, _, _) => throw new InvalidOperationException("sync boom");
+
+        Memory memory = new(shortTerm, longTerm);
+        IReadOnlyList<MemoryHit> results = await memory.SearchAsync("q");
+
+        Assert.Single(results);
+        Assert.Equal("st-1", results[0].Id);
+    }
+
+    [Fact]
     public async Task SearchAsync_LongTermTimesOut_DegradesToShortTermResults()
     {
         FakeShortTermMemory shortTerm = new();
