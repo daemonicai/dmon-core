@@ -6,10 +6,10 @@
 
 ## 2. Profile config + two-scope merge (Dmon.Core/Config)
 
-- [ ] 2.1 Define the `profiles:` config entry shape (`persona` | `personaFile`, `assets`, `permissionMode`) and a `defaultProfile` key.
-- [ ] 2.2 Add a profile config reader that reads both `~/.dmon/config.yaml` and `./.dmon/config.yaml` explicitly (not via `IConfiguration` array layering), mirroring `EffectiveExtensionSetReader`.
-- [ ] 2.3 Compute the effective profile set as a union deduplicated by name with project scope winning per-name conflicts (ADR-009 rule).
-- [ ] 2.4 Resolve `personaFile` paths relative to the scope that declared the entry.
+- [x] 2.1 Define the `profiles:` config entry shape (`persona` | `personaFile`, `assets`, `permissionMode`) and a `defaultProfile` key.
+- [x] 2.2 Add a profile config reader that reads both `~/.dmon/config.yaml` and `./.dmon/config.yaml` explicitly (not via `IConfiguration` array layering), mirroring `EffectiveExtensionSetReader`.
+- [x] 2.3 Compute the effective profile set as a union deduplicated by name with project scope winning per-name conflicts (ADR-009 rule).
+- [x] 2.4 Resolve `personaFile` paths relative to the scope that declared the entry.
 
 ## 3. Built-in coding profile + resolver
 
