@@ -42,6 +42,12 @@
     <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
   </PropertyGroup>
 
+  <!-- System.Formats.Asn1 6.0.0 (GHSA-447r-wph3-92pm) is a transitive dep of Dotnet.Script.Core.
+       On .NET 10 the framework provides System.Formats.Asn1 at a safe version; 6.0.0 is never loaded. -->
+  <ItemGroup>
+    <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-447r-wph3-92pm" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="Dotnet.Script.Core" Version="2.0.0" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.8" />
