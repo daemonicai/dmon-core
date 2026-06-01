@@ -10,12 +10,12 @@
 
 ## 2. Session handler migration + retire ResponseEvent
 
-- [ ] 2.1 Rewrite `SessionHandler` emit sites for `create`/`fork`/`clone`/`load`/`list`/`getStats` to emit the corresponding typed result events, threading `cmd.Id` into each event's `id`.
-- [ ] 2.2 Replace `ResponseEvent{success:false}` command-failure paths with `CommandErrorEvent` (carrying `cmd.Id`, the command name, a `code`, and the message). Keep the `sessionLocked` `ErrorEvent` notification where it is a genuine ambient notification (per design D2).
-- [ ] 2.3 Quarantine `session.getMessages`: retain a single transitional untyped path for this one command only (keep `ResponseEvent` solely for `session.getMessages`, marked transitional in an XML doc comment referencing the turn-persistence dependency).
-- [ ] 2.4 Remove `ResponseEvent` usage everywhere except the quarantined `session.getMessages` path; delete now-dead `ResponseEvent` members/discriminators that no longer apply.
-- [ ] 2.5 Update protocol-serialization and `SessionHandler` tests to assert the typed events and `commandError`; add a wire-shape assertion for `session.listResult` (`{type,id,sessions}`) and `session.getStatsResult`.
-- [ ] 2.6 Build and tests green.
+- [x] 2.1 Rewrite `SessionHandler` emit sites for `create`/`fork`/`clone`/`load`/`list`/`getStats` to emit the corresponding typed result events, threading `cmd.Id` into each event's `id`.
+- [x] 2.2 Replace `ResponseEvent{success:false}` command-failure paths with `CommandErrorEvent` (carrying `cmd.Id`, the command name, a `code`, and the message). Keep the `sessionLocked` `ErrorEvent` notification where it is a genuine ambient notification (per design D2).
+- [x] 2.3 Quarantine `session.getMessages`: retain a single transitional untyped path for this one command only (keep `ResponseEvent` solely for `session.getMessages`, marked transitional in an XML doc comment referencing the turn-persistence dependency).
+- [x] 2.4 Remove `ResponseEvent` usage everywhere except the quarantined `session.getMessages` path; delete now-dead `ResponseEvent` members/discriminators that no longer apply.
+- [x] 2.5 Update protocol-serialization and `SessionHandler` tests to assert the typed events and `commandError`; add a wire-shape assertion for `session.listResult` (`{type,id,sessions}`) and `session.getStatsResult`.
+- [x] 2.6 Build and tests green.
 
 ## 3. Retrofit model/auth result events onto ResultEvent
 
@@ -27,8 +27,8 @@
 
 ## 4. Host consumption
 
-- [ ] 4.1 Update `src/Dmon.Terminal` (and any shared RPC client) to consume the per-command typed result events and `commandError` instead of `{type:"response", data}`.
-- [ ] 4.2 Where the host tracks pending requests, correlate completion by the result event's `id`.
+- [x] 4.1 Update `src/Dmon.Terminal` (and any shared RPC client) to consume the per-command typed result events and `commandError` instead of `{type:"response", data}`.
+- [x] 4.2 Where the host tracks pending requests, correlate completion by the result event's `id`.
 - [ ] 4.3 Build and tests green; manual terminal smoke (`session.create`, `session.list`, `/model`, `auth.status`) behaves as before.
 
 ## 5. Finalisation

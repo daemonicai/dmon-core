@@ -29,12 +29,10 @@ public sealed class SessionHandler : ISessionHandler
     public async Task CreateAsync(SessionCreateCommand cmd, CancellationToken cancellationToken)
     {
         SessionMeta meta = await _store.CreateAsync(name: null, cancellationToken).ConfigureAwait(false);
-        await _emitter.EmitAsync(new ResponseEvent
+        await _emitter.EmitAsync(new SessionCreatedResultEvent
         {
-            RequestId = cmd.Id,
-            Command = "session.create",
-            Success = true,
-            Data = meta
+            CommandId = cmd.Id,
+            Session = meta
         }, cancellationToken).ConfigureAwait(false);
     }
 
@@ -42,12 +40,12 @@ public sealed class SessionHandler : ISessionHandler
     {
         if (_currentSession is null)
         {
-            await _emitter.EmitAsync(new ResponseEvent
+            await _emitter.EmitAsync(new CommandErrorEvent
             {
-                RequestId = cmd.Id,
+                CommandId = cmd.Id,
                 Command = "session.fork",
-                Success = false,
-                Error = "No active session to fork."
+                Code    = "noActiveSession",
+                Message = "No active session to fork."
             }, cancellationToken).ConfigureAwait(false);
             return;
         }
@@ -58,12 +56,10 @@ public sealed class SessionHandler : ISessionHandler
             name: null,
             cancellationToken).ConfigureAwait(false);
 
-        await _emitter.EmitAsync(new ResponseEvent
+        await _emitter.EmitAsync(new SessionForkedResultEvent
         {
-            RequestId = cmd.Id,
-            Command = "session.fork",
-            Success = true,
-            Data = forked
+            CommandId = cmd.Id,
+            Session = forked
         }, cancellationToken).ConfigureAwait(false);
     }
 
@@ -71,12 +67,12 @@ public sealed class SessionHandler : ISessionHandler
     {
         if (_currentSession is null)
         {
-            await _emitter.EmitAsync(new ResponseEvent
+            await _emitter.EmitAsync(new CommandErrorEvent
             {
-                RequestId = cmd.Id,
+                CommandId = cmd.Id,
                 Command = "session.clone",
-                Success = false,
-                Error = "No active session to clone."
+                Code    = "noActiveSession",
+                Message = "No active session to clone."
             }, cancellationToken).ConfigureAwait(false);
             return;
         }
@@ -86,12 +82,10 @@ public sealed class SessionHandler : ISessionHandler
             name: null,
             cancellationToken).ConfigureAwait(false);
 
-        await _emitter.EmitAsync(new ResponseEvent
+        await _emitter.EmitAsync(new SessionClonedResultEvent
         {
-            RequestId = cmd.Id,
-            Command = "session.clone",
-            Success = true,
-            Data = cloned
+            CommandId = cmd.Id,
+            Session = cloned
         }, cancellationToken).ConfigureAwait(false);
     }
 
@@ -110,12 +104,12 @@ public sealed class SessionHandler : ISessionHandler
         }
         else
         {
-            await _emitter.EmitAsync(new ResponseEvent
+            await _emitter.EmitAsync(new CommandErrorEvent
             {
-                RequestId = cmd.Id,
+                CommandId = cmd.Id,
                 Command = "session.load",
-                Success = false,
-                Error = "No session id or path supplied and no active session."
+                Code    = "noSessionIdOrPath",
+                Message = "No session id or path supplied and no active session."
             }, cancellationToken).ConfigureAwait(false);
             return;
         }
@@ -131,20 +125,20 @@ public sealed class SessionHandler : ISessionHandler
         {
             _logger.LogWarning("Session {SessionId} is locked by another process.", sessionId);
 
-            // Emit the command response so the host's pending request.load completes.
-            await _emitter.EmitAsync(new ResponseEvent
+            // Command failure: correlate by id so the host's pending request completes.
+            await _emitter.EmitAsync(new CommandErrorEvent
             {
-                RequestId = cmd.Id,
+                CommandId = cmd.Id,
                 Command = "session.load",
-                Success = false,
-                Error = "Session is locked by another dmon process."
+                Code    = "sessionLocked",
+                Message = "Session is locked by another dmon process."
             }, cancellationToken).ConfigureAwait(false);
 
-            // Also emit the named error event for host notification surfaces.
+            // Ambient notification: kept as a genuine ErrorEvent (no originating command to correlate).
             await _emitter.EmitAsync(new ErrorEvent
             {
-                Code = "sessionLocked",
-                Message = $"Session '{sessionId}' is locked by another process.",
+                Code        = "sessionLocked",
+                Message     = $"Session '{sessionId}' is locked by another process.",
                 Recoverable = false
             }, cancellationToken).ConfigureAwait(false);
             return;
@@ -157,24 +151,20 @@ public sealed class SessionHandler : ISessionHandler
         SessionMeta meta = await _store.LoadAsync(sessionId, cancellationToken).ConfigureAwait(false);
         _currentSession = meta;
 
-        await _emitter.EmitAsync(new ResponseEvent
+        await _emitter.EmitAsync(new SessionLoadedResultEvent
         {
-            RequestId = cmd.Id,
-            Command = "session.load",
-            Success = true,
-            Data = meta
+            CommandId = cmd.Id,
+            Session = meta
         }, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task ListAsync(SessionListCommand cmd, CancellationToken cancellationToken)
     {
         IReadOnlyList<SessionMeta> sessions = await _store.ListAsync(cancellationToken).ConfigureAwait(false);
-        await _emitter.EmitAsync(new ResponseEvent
+        await _emitter.EmitAsync(new SessionListResultEvent
         {
-            RequestId = cmd.Id,
-            Command = "session.list",
-            Success = true,
-            Data = sessions
+            CommandId = cmd.Id,
+            Sessions  = sessions
         }, cancellationToken).ConfigureAwait(false);
     }
 
@@ -182,12 +172,12 @@ public sealed class SessionHandler : ISessionHandler
     {
         if (_currentSession is null)
         {
-            await _emitter.EmitAsync(new ResponseEvent
+            await _emitter.EmitAsync(new CommandErrorEvent
             {
-                RequestId = cmd.Id,
-                Command = "session.setName",
-                Success = false,
-                Error = "No active session."
+                CommandId = cmd.Id,
+                Command   = "session.setName",
+                Code      = "noActiveSession",
+                Message   = "No active session."
             }, cancellationToken).ConfigureAwait(false);
             return;
         }
@@ -199,23 +189,21 @@ public sealed class SessionHandler : ISessionHandler
         await _emitter.EmitAsync(new SessionUpdatedEvent
         {
             SessionId = updated.Id,
-            Title = updated.Name ?? updated.Id
+            Title     = updated.Name ?? updated.Id
         }, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task GetStatsAsync(SessionGetStatsCommand cmd, CancellationToken cancellationToken)
     {
-        await _emitter.EmitAsync(new ResponseEvent
+        await _emitter.EmitAsync(new SessionStatsResultEvent
         {
-            RequestId = cmd.Id,
-            Command = "session.getStats",
-            Success = true,
-            Data = new
+            CommandId = cmd.Id,
+            Stats     = new SessionStats
             {
-                tokens = 0,
-                cost = 0m,
-                contextUsage = 0,
-                currentModel = (string?)null
+                Tokens       = 0,
+                Cost         = 0m,
+                ContextUsage = 0,
+                CurrentModel = null
             }
         }, cancellationToken).ConfigureAwait(false);
     }
@@ -224,12 +212,12 @@ public sealed class SessionHandler : ISessionHandler
     {
         if (_currentSession is null)
         {
-            await _emitter.EmitAsync(new ResponseEvent
+            await _emitter.EmitAsync(new CommandErrorEvent
             {
-                RequestId = cmd.Id,
-                Command = "session.getMessages",
-                Success = false,
-                Error = "No active session."
+                CommandId = cmd.Id,
+                Command   = "session.getMessages",
+                Code      = "noActiveSession",
+                Message   = "No active session."
             }, cancellationToken).ConfigureAwait(false);
             return;
         }
@@ -241,9 +229,9 @@ public sealed class SessionHandler : ISessionHandler
         await _emitter.EmitAsync(new ResponseEvent
         {
             RequestId = cmd.Id,
-            Command = "session.getMessages",
-            Success = true,
-            Data = messages
+            Command   = "session.getMessages",
+            Success   = true,
+            Data      = messages
         }, cancellationToken).ConfigureAwait(false);
     }
 }

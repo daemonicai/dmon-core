@@ -171,13 +171,12 @@ public sealed class CoreProcessManagerRestartTests
     }
 
     /// <summary>
-    /// Reads JSONL lines from stdout until a <c>response</c> with the given request id arrives,
-    /// then returns the session id from <c>data.id</c>, or null if the response failed.
+    /// Reads JSONL lines from stdout until a <c>session.createResult</c> with the given
+    /// command id arrives, then returns the session id from <c>session.id</c>, or null on failure.
     /// </summary>
     private static async Task<string?> ReadSessionIdFromResponseAsync(StreamReader stdout, string requestId)
     {
         using CancellationTokenSource cts = new(TimeSpan.FromSeconds(10));
-        JsonSerializerOptions options = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 
         for (int i = 0; i < 50; i++)
         {
@@ -186,7 +185,7 @@ public sealed class CoreProcessManagerRestartTests
             catch (OperationCanceledException) { break; }
 
             if (line is null) break;
-            if (!line.Contains("\"response\"")) continue;
+            if (!line.Contains("\"session.createResult\"")) continue;
 
             try
             {
@@ -194,9 +193,8 @@ public sealed class CoreProcessManagerRestartTests
                 JsonElement root = doc.RootElement;
                 if (!root.TryGetProperty("id", out JsonElement idProp)) continue;
                 if (idProp.GetString() != requestId) continue;
-                if (!root.TryGetProperty("success", out JsonElement successProp) || !successProp.GetBoolean()) return null;
-                if (!root.TryGetProperty("data", out JsonElement data)) return null;
-                if (!data.TryGetProperty("id", out JsonElement sessionIdProp)) return null;
+                if (!root.TryGetProperty("session", out JsonElement session)) return null;
+                if (!session.TryGetProperty("id", out JsonElement sessionIdProp)) return null;
                 return sessionIdProp.GetString();
             }
             catch (JsonException) { continue; }
@@ -206,8 +204,8 @@ public sealed class CoreProcessManagerRestartTests
     }
 
     /// <summary>
-    /// Reads JSONL lines from stdout until a <c>response</c> with the given request id arrives,
-    /// then returns its <c>success</c> value.
+    /// Reads JSONL lines from stdout until a <c>session.loadResult</c> or <c>commandError</c>
+    /// with the given command id arrives, then returns <c>true</c> for load success.
     /// </summary>
     private static async Task<bool> ReadResponseSuccessAsync(StreamReader stdout, string requestId)
     {
@@ -220,7 +218,10 @@ public sealed class CoreProcessManagerRestartTests
             catch (OperationCanceledException) { break; }
 
             if (line is null) break;
-            if (!line.Contains("\"response\"")) continue;
+
+            bool isLoadResult = line.Contains("\"session.loadResult\"");
+            bool isError      = line.Contains("\"commandError\"");
+            if (!isLoadResult && !isError) continue;
 
             try
             {
@@ -228,8 +229,8 @@ public sealed class CoreProcessManagerRestartTests
                 JsonElement root = doc.RootElement;
                 if (!root.TryGetProperty("id", out JsonElement idProp)) continue;
                 if (idProp.GetString() != requestId) continue;
-                if (!root.TryGetProperty("success", out JsonElement successProp)) return false;
-                return successProp.GetBoolean();
+                // session.loadResult = success; commandError = failure.
+                return isLoadResult;
             }
             catch (JsonException) { continue; }
         }

@@ -40,17 +40,17 @@ public class IntegrationSmokeTest : IClassFixture<CoreProcessFixture>
         string cmdId = Guid.NewGuid().ToString("N");
         await SendAsync(new { type = "session.create", id = cmdId });
 
-        string? respLine = await ReadResponseAsync(cmdId);
+        string? respLine = await ReadEventAsync("session.createResult");
         Assert.NotNull(respLine);
 
         using JsonDocument doc = JsonDocument.Parse(respLine);
         JsonElement root = doc.RootElement;
 
-        Assert.Equal("response", root.GetProperty("type").GetString());
-        Assert.True(root.GetProperty("success").GetBoolean());
+        Assert.Equal("session.createResult", root.GetProperty("type").GetString());
+        Assert.Equal(cmdId, root.GetProperty("id").GetString());
 
-        JsonElement payload = root.GetProperty("data");
-        Assert.NotNull(payload.GetProperty("id").GetString());
+        JsonElement session = root.GetProperty("session");
+        Assert.NotNull(session.GetProperty("id").GetString());
     }
 
     [Fact]

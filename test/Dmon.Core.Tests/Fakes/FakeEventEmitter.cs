@@ -12,6 +12,8 @@ internal sealed class FakeEventEmitter : IEventEmitter
 
     public IReadOnlyList<Event> Emitted => _emitted;
 
+    public void Clear() => _emitted.Clear();
+
     public Task EmitAsync<T>(T evt, CancellationToken cancellationToken = default) where T : Event
     {
         _emitted.Add(evt);

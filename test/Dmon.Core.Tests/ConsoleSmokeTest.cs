@@ -39,7 +39,7 @@ public class ConsoleSmokeTest : IClassFixture<CoreProcessFixture>
         {
             string? line = await _fixture.ReadLineWithTimeoutAsync(TimeSpan.FromSeconds(2));
             if (line is null) break;
-            if (line.Contains("\"response\"") && line.Contains(cmdId))
+            if (line.Contains("\"session.listResult\"") && line.Contains(cmdId))
             {
                 respLine = line;
                 break;
@@ -48,8 +48,8 @@ public class ConsoleSmokeTest : IClassFixture<CoreProcessFixture>
 
         Assert.NotNull(respLine);
         JsonDocument respDoc = JsonDocument.Parse(respLine);
-        Assert.Equal("response", respDoc.RootElement.GetProperty("type").GetString());
-        Assert.True(respDoc.RootElement.GetProperty("success").GetBoolean());
+        Assert.Equal("session.listResult", respDoc.RootElement.GetProperty("type").GetString());
+        Assert.Equal(JsonValueKind.Array, respDoc.RootElement.GetProperty("sessions").ValueKind);
     }
 
     [Fact]
