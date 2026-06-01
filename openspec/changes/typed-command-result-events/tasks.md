@@ -1,12 +1,12 @@
 ## 1. Protocol foundations (additive)
 
-- [ ] 1.1 Add `abstract record ResultEvent : Event` in `src/Dmon.Protocol/Events` with `[JsonPropertyName("id")] CommandId` (required).
-- [ ] 1.2 Add `CommandErrorEvent : ResultEvent { command, code, message }` (discriminator `commandError`).
-- [ ] 1.3 Add `SessionStats` record (`tokens`, `cost`, `contextUsage`, `currentModel`) in `src/Dmon.Protocol`.
-- [ ] 1.4 Add the session result events: `SessionCreatedResultEvent`, `SessionForkedResultEvent`, `SessionClonedResultEvent`, `SessionLoadedResultEvent` (each carrying `SessionMeta`), `SessionListResultEvent { sessions: SessionMeta[] }`, `SessionStatsResultEvent { stats: SessionStats }` — all `: ResultEvent`.
-- [ ] 1.5 Register every new event on the `Event` `[JsonDerivedType]` table with `<command>Result` discriminators (`session.createResult`, `session.forkResult`, `session.cloneResult`, `session.loadResult`, `session.listResult`, `session.getStatsResult`, `commandError`).
-- [ ] 1.6 Bump `ProtocolVersion.Current` to `"0.2"`.
-- [ ] 1.7 Build is green (additive change; nothing consumes the new types yet).
+- [x] 1.1 Add `abstract record ResultEvent : Event` in `src/Dmon.Protocol/Events` with `[JsonPropertyName("id")] CommandId` (required).
+- [x] 1.2 Add `CommandErrorEvent : ResultEvent { command, code, message }` (discriminator `commandError`).
+- [x] 1.3 Add `SessionStats` record (`tokens`, `cost`, `contextUsage`, `currentModel`) in `src/Dmon.Protocol`.
+- [x] 1.4 Add the session result events: `SessionCreatedResultEvent`, `SessionForkedResultEvent`, `SessionClonedResultEvent`, `SessionLoadedResultEvent` (each carrying `SessionMeta`), `SessionListResultEvent { sessions: SessionMeta[] }`, `SessionStatsResultEvent { stats: SessionStats }` — all `: ResultEvent`.
+- [x] 1.5 Register every new event on the `Event` `[JsonDerivedType]` table with `<command>Result` discriminators (`session.createResult`, `session.forkResult`, `session.cloneResult`, `session.loadResult`, `session.listResult`, `session.getStatsResult`, `commandError`).
+- [x] 1.6 Bump `ProtocolVersion.Current` to `"0.2"`.
+- [x] 1.7 Build is green (additive change; nothing consumes the new types yet).
 
 ## 2. Session handler migration + retire ResponseEvent
 

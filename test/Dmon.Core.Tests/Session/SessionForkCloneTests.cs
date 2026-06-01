@@ -1,4 +1,5 @@
 using Dmon.Core.Session;
+using Dmon.Protocol.Sessions;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 

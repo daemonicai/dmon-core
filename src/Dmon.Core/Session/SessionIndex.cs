@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text.Json;
+using Dmon.Protocol.Sessions;
 using Microsoft.Data.Sqlite;
 
 namespace Dmon.Core.Session;

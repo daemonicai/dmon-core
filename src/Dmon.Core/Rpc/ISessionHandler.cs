@@ -1,5 +1,6 @@
 using Dmon.Core.Session;
 using Dmon.Protocol.Commands;
+using Dmon.Protocol.Sessions;
 
 namespace Dmon.Core.Rpc;
 

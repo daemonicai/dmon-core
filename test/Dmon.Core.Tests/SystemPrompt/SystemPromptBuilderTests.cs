@@ -8,6 +8,7 @@ using Dmon.Core.Providers;
 using Dmon.Core.Rpc;
 using Dmon.Core.Session;
 using Dmon.Core.SystemPrompt;
+using Dmon.Protocol.Sessions;
 using Dmon.Core.Tests.Fakes;
 using Dmon.Extensions;
 using Dmon.Protocol.Commands;

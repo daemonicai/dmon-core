@@ -6,6 +6,7 @@ using Dmon.Core.Rpc;
 using Dmon.Core.Session;
 using Dmon.Extensions;
 using Dmon.Protocol.Commands;
+using Dmon.Protocol.Sessions;
 using Dmon.Protocol.Enums;
 using Dmon.Protocol.Events;
 using Dmon.Protocol.Permissions;

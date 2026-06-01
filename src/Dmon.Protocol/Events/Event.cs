@@ -41,6 +41,13 @@ namespace Dmon.Protocol.Events;
 [JsonDerivedType(typeof(ProviderConfiguredEvent), typeDiscriminator: "providerConfigured")]
 [JsonDerivedType(typeof(SystemNoticeEvent), typeDiscriminator: "system.notice")]
 [JsonDerivedType(typeof(WizardStepEvent), typeDiscriminator: "wizard.step")]
+[JsonDerivedType(typeof(CommandErrorEvent), typeDiscriminator: "commandError")]
+[JsonDerivedType(typeof(SessionCreatedResultEvent), typeDiscriminator: "session.createResult")]
+[JsonDerivedType(typeof(SessionForkedResultEvent), typeDiscriminator: "session.forkResult")]
+[JsonDerivedType(typeof(SessionClonedResultEvent), typeDiscriminator: "session.cloneResult")]
+[JsonDerivedType(typeof(SessionLoadedResultEvent), typeDiscriminator: "session.loadResult")]
+[JsonDerivedType(typeof(SessionListResultEvent), typeDiscriminator: "session.listResult")]
+[JsonDerivedType(typeof(SessionStatsResultEvent), typeDiscriminator: "session.getStatsResult")]
 public abstract record Event
 {
 }

@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace Dmon.Core.Session;
+namespace Dmon.Protocol.Sessions;
 
 public sealed record SessionMeta
 {

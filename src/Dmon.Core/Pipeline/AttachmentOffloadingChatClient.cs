@@ -2,6 +2,7 @@ using System.Runtime.CompilerServices;
 using System.Text.Json;
 using Dmon.Core.Rpc;
 using Dmon.Core.Session;
+using Dmon.Protocol.Sessions;
 using Microsoft.Extensions.AI;
 
 namespace Dmon.Core.Pipeline;

@@ -6,7 +6,7 @@ namespace Dmon.Protocol;
 /// </summary>
 public static class ProtocolVersion
 {
-    public const string Current = "0.1";
+    public const string Current = "0.2";
 
     /// <summary>
     /// Parses a 2- or 3-part version string and returns the "Major.Minor" segment.

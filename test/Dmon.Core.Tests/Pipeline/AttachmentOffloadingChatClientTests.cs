@@ -2,6 +2,7 @@ using Dmon.Core.Pipeline;
 using Dmon.Core.Rpc;
 using Dmon.Core.Session;
 using Dmon.Protocol.Commands;
+using Dmon.Protocol.Sessions;
 using Microsoft.Extensions.AI;
 
 namespace Dmon.Core.Tests.Pipeline;
