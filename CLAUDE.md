@@ -42,6 +42,8 @@ Key accepted decisions:
 | ADR-012 | Remote access transport: a WebSocket gateway with connection-decoupled, resumable sessions; **Tailscale** is the auth/encryption boundary (single-tenant, home-server); optional shared key for defense-in-depth. |
 | ADR-013 | Agent profiles: a named bundle (persona + per-session `assets/` toggle + permission mode) selected per session; built-in `coding` profile preserves today's behaviour; non-coding personas are config. |
 | ADR-014 | Gateway event replay uses an in-memory per-session `seq` buffer in the live handler, **not** `messages.jsonl` (which holds only conversational turns, written only by the core). Amends ADR-012 Decision 4. |
+| ADR-015 | Command results are dedicated typed events correlated by command `id` (`ResultEvent` base; `CommandErrorEvent` for failures); the generic `{type:"response", data}` envelope is retired. Makes the wire contract describable for client generation. Amends ADR-003's response framing. |
+| ADR-016 | Conversation persistence: session-storage owns a lossless, dmon-owned **parts** record (memory tiers derive their index from it); no third-party types in the API definition; lenient mapping preserves unmodelled content as render-only opaque `UnknownPart`. Amends ADR-004/ADR-014; supplies ADR-015's deferred `getMessages` DTO. |
 
 New ADRs belong in `docs/adrs/ADR-NNN-<slug>.md`. Use the existing ADRs as the format template.
 
