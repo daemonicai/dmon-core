@@ -29,7 +29,8 @@ public sealed class SessionStoreTests : IDisposable
     {
         FakeResolver resolver = new(sessionsRoot);
         IConfiguration config = new ConfigurationBuilder().Build();
-        return new SessionStore(resolver, NullLogger<SessionStore>.Instance, NullLoggerFactory.Instance, config);
+        IAttachmentStore attachmentStore = new AttachmentStore(resolver, config);
+        return new SessionStore(resolver, attachmentStore, NullLogger<SessionStore>.Instance, NullLoggerFactory.Instance, config);
     }
 
     [Fact]

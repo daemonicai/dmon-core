@@ -20,7 +20,8 @@ public sealed class CompactionTests : IDisposable
         FakeResolver resolver = new(_tempRoot);
         IConfiguration config = new ConfigurationBuilder().Build();
 
-        _store = new SessionStore(resolver, NullLogger<SessionStore>.Instance, NullLoggerFactory.Instance, config);
+        IAttachmentStore attachmentStore = new AttachmentStore(resolver, config);
+        _store = new SessionStore(resolver, attachmentStore, NullLogger<SessionStore>.Instance, NullLoggerFactory.Instance, config);
         _appender = new MessageAppender(resolver);
     }
 

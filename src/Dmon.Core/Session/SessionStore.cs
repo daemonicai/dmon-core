@@ -17,22 +17,39 @@ public interface ISessionStore
     Task<SessionMeta> ForkAsync(string sourceSessionId, string entryId, string? name = null, CancellationToken cancellationToken = default);
     Task<SessionMeta> CloneAsync(string sourceSessionId, string? name = null, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<object>> ReadMessagesAsync(string sessionId, bool applyCompaction = true, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Serialises <paramref name="parts"/> (with attachment offloading for large tool results),
+    /// mints an <c>entryId</c> and <c>timestamp</c>, appends a <c>type:message</c> record to
+    /// the session log, and returns the minted <c>entryId</c>.
+    /// </summary>
+    Task<string> AppendMessageAsync(string sessionId, string role, IReadOnlyList<Part> parts, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Returns all log records (messages and compaction markers) deserialised via the
+    /// <see cref="SessionLogLine"/> polymorphic base. When <paramref name="applyCompaction"/>
+    /// is <c>true</c> (default), records superseded by the last compaction marker are excluded.
+    /// </summary>
+    Task<IReadOnlyList<SessionLogLine>> ReadRecordsAsync(string sessionId, bool applyCompaction = true, CancellationToken cancellationToken = default);
 }
 
 public sealed class SessionStore : ISessionStore
 {
     private readonly ISessionDirectoryResolver _resolver;
+    private readonly IAttachmentStore _attachmentStore;
     private readonly ILogger<SessionStore> _logger;
     private readonly ILoggerFactory _loggerFactory;
     private readonly int _compactionThreshold;
 
     public SessionStore(
         ISessionDirectoryResolver resolver,
+        IAttachmentStore attachmentStore,
         ILogger<SessionStore> logger,
         ILoggerFactory loggerFactory,
         IConfiguration configuration)
     {
         _resolver = resolver;
+        _attachmentStore = attachmentStore;
         _logger = logger;
         _loggerFactory = loggerFactory;
         _compactionThreshold = configuration.GetValue("Dmon:Session:Compaction:Threshold", 100);
@@ -332,6 +349,190 @@ public sealed class SessionStore : ISessionStore
         }
 
         return result;
+    }
+
+    public async Task<string> AppendMessageAsync(
+        string sessionId,
+        string role,
+        IReadOnlyList<Part> parts,
+        CancellationToken cancellationToken = default)
+    {
+        string entryId = Guid.NewGuid().ToString();
+        DateTimeOffset timestamp = DateTimeOffset.UtcNow;
+
+        List<Part> offloaded = new(parts.Count);
+
+        foreach (Part part in parts)
+        {
+            if (part is ToolResultPart toolResult && toolResult.Result.HasValue && toolResult.AttachmentRef is null)
+            {
+                string fullText = toolResult.Result.Value.ValueKind == JsonValueKind.String
+                    ? toolResult.Result.Value.GetString() ?? toolResult.Result.Value.GetRawText()
+                    : toolResult.Result.Value.GetRawText();
+
+                string? attachmentRef = await _attachmentStore
+                    .StoreIfLargeAsync(sessionId, toolResult.CallId, fullText, "txt", cancellationToken)
+                    .ConfigureAwait(false);
+
+                if (attachmentRef is not null)
+                {
+                    // Preview: first 200 chars of the full text, truncated.
+                    string previewText = fullText.Length > 200
+                        ? fullText[..200] + "…"
+                        : fullText;
+
+                    JsonElement previewElement = JsonSerializer.SerializeToElement(previewText);
+
+                    offloaded.Add(toolResult with
+                    {
+                        Result = previewElement,
+                        AttachmentRef = attachmentRef,
+                        Truncated = true
+                    });
+                    continue;
+                }
+            }
+
+            offloaded.Add(part);
+        }
+
+        MessageRecord record = new()
+        {
+            EntryId = entryId,
+            Timestamp = timestamp,
+            Role = role,
+            Parts = offloaded
+        };
+
+        string json = JsonSerializer.Serialize<SessionLogLine>(record);
+        await AppendLineAsync(sessionId, json, cancellationToken).ConfigureAwait(false);
+
+        return entryId;
+    }
+
+    public async Task<IReadOnlyList<SessionLogLine>> ReadRecordsAsync(
+        string sessionId,
+        bool applyCompaction = true,
+        CancellationToken cancellationToken = default)
+    {
+        string root = GetRoot();
+        string messagesPath = Path.Combine(root, sessionId, "messages.jsonl");
+
+        if (!File.Exists(messagesPath))
+        {
+            return [];
+        }
+
+        List<string> lines = [];
+
+        await using FileStream stream = new(messagesPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+        using StreamReader reader = new(stream, Encoding.UTF8);
+
+        string? line;
+
+        while ((line = await reader.ReadLineAsync(cancellationToken).ConfigureAwait(false)) is not null)
+        {
+            if (!string.IsNullOrWhiteSpace(line))
+            {
+                lines.Add(line);
+            }
+        }
+
+        List<SessionLogLine> parsed = [];
+
+        foreach (string l in lines)
+        {
+            try
+            {
+                SessionLogLine? record = JsonSerializer.Deserialize<SessionLogLine>(l);
+                if (record is not null)
+                {
+                    parsed.Add(record);
+                }
+            }
+            catch (JsonException)
+            {
+                // Malformed line — skip it.
+            }
+        }
+
+        if (!applyCompaction)
+        {
+            return parsed;
+        }
+
+        // Find the last compaction marker by file position (line index). UUIDs are not
+        // lexicographically monotonic so ordering must be by position, not entryId string.
+        int lastCompactionIndex = -1;
+        string? supersedesUpTo = null;
+
+        for (int i = parsed.Count - 1; i >= 0; i--)
+        {
+            if (parsed[i] is CompactionMessage cm)
+            {
+                lastCompactionIndex = i;
+                supersedesUpTo = cm.SupersedesUpTo;
+                break;
+            }
+        }
+
+        if (lastCompactionIndex < 0)
+        {
+            return parsed;
+        }
+
+        // Find the position of the record whose entryId == supersedesUpTo.
+        int supersedesUpToIndex = -1;
+
+        if (supersedesUpTo is not null)
+        {
+            for (int i = 0; i < lastCompactionIndex; i++)
+            {
+                string? id = parsed[i] switch
+                {
+                    MessageRecord mr => mr.EntryId,
+                    CompactionMessage cm2 => cm2.EntryId,
+                    _ => null
+                };
+
+                if (id == supersedesUpTo)
+                {
+                    supersedesUpToIndex = i;
+                    break;
+                }
+            }
+        }
+
+        List<SessionLogLine> result = [];
+
+        for (int i = 0; i < parsed.Count; i++)
+        {
+            if (supersedesUpToIndex >= 0 && i <= supersedesUpToIndex && i < lastCompactionIndex)
+            {
+                continue;
+            }
+
+            result.Add(parsed[i]);
+        }
+
+        return result;
+    }
+
+    private async Task AppendLineAsync(string sessionId, string json, CancellationToken cancellationToken)
+    {
+        string root = GetRoot();
+        string messagesPath = Path.Combine(root, sessionId, "messages.jsonl");
+
+        await using FileStream stream = new(
+            messagesPath,
+            FileMode.Append,
+            FileAccess.Write,
+            FileShare.Read,
+            bufferSize: 4096,
+            useAsync: true);
+
+        byte[] lineBytes = Encoding.UTF8.GetBytes(json + "\n");
+        await stream.WriteAsync(lineBytes, cancellationToken).ConfigureAwait(false);
     }
 
     private string GetRoot()

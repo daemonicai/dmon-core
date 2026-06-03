@@ -14,10 +14,10 @@
 
 ## 3. Session-storage canonical write path
 
-- [ ] 3.1 Add the canonical append API to session-storage: serialize a `message` record, mint and return its `entryId`, append LF-terminated line to `messages.jsonl`.
-- [ ] 3.2 Implement write-time attachment offloading: tool result over `Daemon:Session:AttachmentThresholdBytes` → full content to `attachments/<callId>`, `ToolResultPart {preview, attachmentRef}`; else inline `result`.
-- [ ] 3.3 Add typed read-back returning the log records (parts model), compaction-aware.
-- [ ] 3.4 Tests for append + offloading threshold + typed read-back. Build and tests green (new API not yet wired into the turn flow).
+- [x] 3.1 Add the canonical append API to session-storage: serialize a `message` record, mint and return its `entryId`, append LF-terminated line to `messages.jsonl`.
+- [x] 3.2 Implement write-time attachment offloading: tool result over `Daemon:Session:AttachmentThresholdBytes` → full content to `attachments/<callId>`, `ToolResultPart {preview, attachmentRef}`; else inline `result`.
+- [x] 3.3 Add typed read-back returning the log records (parts model), compaction-aware.
+- [x] 3.4 Tests for append + offloading threshold + typed read-back. Build and tests green (new API not yet wired into the turn flow).
 
 ## 4. Invert turn-completion wiring (cutover)
 

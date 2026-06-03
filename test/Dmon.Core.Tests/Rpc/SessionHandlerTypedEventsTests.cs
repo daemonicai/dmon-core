@@ -2,6 +2,7 @@ using Dmon.Core.Rpc;
 using Dmon.Core.Session;
 using Dmon.Core.Tests.Fakes;
 using Dmon.Protocol.Commands;
+using Dmon.Protocol.Conversation;
 using Dmon.Protocol.Events;
 using Dmon.Protocol.Sessions;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -436,6 +437,19 @@ internal sealed class FakeSessionStore : ISessionStore
         bool applyCompaction = true,
         CancellationToken cancellationToken = default) =>
         Task.FromResult<IReadOnlyList<object>>([]);
+
+    public Task<string> AppendMessageAsync(
+        string sessionId,
+        string role,
+        IReadOnlyList<Part> parts,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(Guid.NewGuid().ToString());
+
+    public Task<IReadOnlyList<SessionLogLine>> ReadRecordsAsync(
+        string sessionId,
+        bool applyCompaction = true,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<SessionLogLine>>([]);
 }
 
 /// <summary>

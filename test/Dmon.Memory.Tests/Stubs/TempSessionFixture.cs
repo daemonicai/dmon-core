@@ -78,8 +78,10 @@ internal sealed class TempSessionFixture : IAsyncDisposable
         ISessionDirectoryResolver resolver = new FixedRootResolver(_root);
         IConfiguration config = new ConfigurationBuilder().Build();
         IMessageAppender appender = new MessageAppender(resolver);
+        IAttachmentStore attachmentStore = new AttachmentStore(resolver, config);
         SessionStore store = new(
             resolver,
+            attachmentStore,
             NullLogger<SessionStore>.Instance,
             new NullLoggerFactory(),
             config);
