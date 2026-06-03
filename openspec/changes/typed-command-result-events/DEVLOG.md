@@ -32,9 +32,15 @@ Retire the generic `{type:"response", data}` envelope; command results become de
 - **Review:** reviewer approved (2 nits — the Event.cs doc, fixed; and `AuthStatusResultEvent.Providers` being `IReadOnlyList<object>`, pre-existing, deferred to auth implementation).
 - Gates: `make build` 0/0; full `make test` green (Protocol 58, Core 559/+1 skip, Terminal 157, Gateway 123, …, 0 failures, 2 pre-existing skips); `openspec validate --strict` valid.
 
+## 5. Finalisation
+
+- Residual sweep: exactly one `new ResponseEvent` remains (`SessionHandler.GetMessagesAsync` success); no `{type:"response"` literal or `Success = false` shapes anywhere; the `"response"` discriminator survives only in `Event.cs` registration + `ResponseEvent.cs` doc.
+- Gates: `make build` 0/0; full `make test` green (0 failures, 2 pre-existing skips); `openspec validate --strict` valid.
+- **Change is implementation-complete.** All 5 groups ticked.
+
 ## NEXT
 
-- **Up next:** Group 5 — Finalisation: grep for residual `ResponseEvent`/`{type:"response"` (expect only the `getMessages` success path); confirm `make build` clean, `make test` green, `openspec validate --strict`. This is the last group; after it the change is implementation-complete and ready to propose `/opsx:archive`.
+- **Up next:** nothing in this change — implementation-complete. Orchestrator to propose `/opsx:archive` (awaiting user confirmation). Then apply the stacked `change/conversation-persistence`, which un-quarantines `session.getMessages`.
 - **Open questions:** none.
-- **Nits / deferred:** (1) `session.getMessages` success stays on legacy `ResponseEvent` until conversation-persistence supplies the typed DTO. (2) Auth result events are reparented but unemitted — auth emission + replacing `AuthStatusResultEvent.Providers` (`IReadOnlyList<object>`) with a typed shape are deferred to when auth is implemented. (3) Harness follow-up (out of scope): `CoreProcessFixture.FindCoreDll()` prefers `bin/Debug` over `bin/Release` — run `dotnet clean -c Debug` before `make test`.
-- **Carry-forward:** apply runs on `change/typed-command-result-events`; `change/conversation-persistence` stacked on top, applies second.
+- **Deferred (carried to other work):** (1) `session.getMessages` success on legacy `ResponseEvent` → retired by conversation-persistence. (2) Auth result emission + a typed `AuthStatusResultEvent.Providers` → when auth is implemented. (3) Harness: `CoreProcessFixture.FindCoreDll()` prefers `bin/Debug` over `bin/Release` (`dotnet clean -c Debug` before `make test`).
+- **Carry-forward:** branches — `change/typed-command-result-events` (this, complete) ← `change/conversation-persistence` stacked on top.

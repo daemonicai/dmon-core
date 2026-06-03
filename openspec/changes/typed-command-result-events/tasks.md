@@ -33,7 +33,7 @@
 
 ## 5. Finalisation
 
-- [ ] 5.1 Grep the solution for residual `ResponseEvent` / `{type:"response"` references; confirm only the quarantined `session.getMessages` path remains.
-- [ ] 5.2 `make build` clean (no warnings; `TreatWarningsAsErrors`).
-- [ ] 5.3 `make test` (or `dotnet test -c Release`) green across all projects.
-- [ ] 5.4 `openspec validate typed-command-result-events --strict` passes.
+- [x] 5.1 Grep the solution for residual `ResponseEvent` / `{type:"response"` references; confirm only the quarantined `session.getMessages` path remains.
+- [x] 5.2 `make build` clean (no warnings; `TreatWarningsAsErrors`).
+- [x] 5.3 `make test` (or `dotnet test -c Release`) green across all projects.
+- [x] 5.4 `openspec validate typed-command-result-events --strict` passes.
