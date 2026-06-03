@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Dmon.Core.Session;
+using Dmon.Protocol.Conversation;
 using Dmon.Protocol.Sessions;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -59,12 +60,16 @@ public sealed class CompactionTests : IDisposable
 
         Assert.Single(lines);
 
-        CompactionMessage? parsed = JsonSerializer.Deserialize<CompactionMessage>(lines[0]);
-        Assert.NotNull(parsed);
-        Assert.Equal("compaction", parsed.Type);
-        Assert.Equal("c1", parsed.EntryId);
-        Assert.Equal("e5", parsed.SupersedesUpTo);
-        Assert.Equal(10000, parsed.TokensBefore);
+        // Deserialize through the base to verify the "type":"compaction" discriminator is on the wire.
+        SessionLogLine? parsed = JsonSerializer.Deserialize<SessionLogLine>(lines[0]);
+        CompactionMessage? compactionParsed = Assert.IsType<CompactionMessage>(parsed);
+        Assert.Equal("c1", compactionParsed.EntryId);
+        Assert.Equal("e5", compactionParsed.SupersedesUpTo);
+        Assert.Equal(10000, compactionParsed.TokensBefore);
+
+        // Verify the raw JSON contains the discriminator value.
+        JsonElement raw = JsonSerializer.Deserialize<JsonElement>(lines[0]);
+        Assert.Equal("compaction", raw.GetProperty("type").GetString());
     }
 
     [Fact]

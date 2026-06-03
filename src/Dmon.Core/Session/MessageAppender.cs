@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
 using Dmon.Core.Telemetry;
+using Dmon.Protocol.Conversation;
 
 namespace Dmon.Core.Session;
 
@@ -39,7 +40,8 @@ public sealed class MessageAppender : IMessageAppender
     {
         using Activity? activity = DmonTelemetry.Source.StartActivity("session.compact");
 
-        string json = JsonSerializer.Serialize(compaction);
+        // Serialize through the base type so the polymorphic discriminator "type":"compaction" is emitted.
+        string json = JsonSerializer.Serialize<SessionLogLine>(compaction);
         await WriteLineAsync(sessionId, json, cancellationToken).ConfigureAwait(false);
     }
 

@@ -1,9 +1,9 @@
 ## 1. Record and part types (additive)
 
-- [ ] 1.1 Define the log-line union in `src/Dmon.Protocol` (or session-storage record namespace): `message {entryId, timestamp, role, parts}` and the existing `compaction`, discriminated by `type` via `[JsonPolymorphic]`.
-- [ ] 1.2 Define the `Part` union discriminated by `type`: `TextPart`, `ToolCallPart {callId, name, args: JsonElement}`, `ToolResultPart {callId, result?: JsonElement, attachmentRef?, isError, truncated?}`, `ImagePart {mediaType, attachmentRef|dataBase64}`, `ReasoningPart {text}`, `UsagePart`, `UnknownPart {raw: JsonElement, producedBy}`.
-- [ ] 1.3 Register all part types and log-line types on their `[JsonDerivedType]` tables; confirm `JsonSchemaExporter` describes the record (no third-party type names in the schema).
-- [ ] 1.4 Build green (additive; nothing consumes the types yet).
+- [x] 1.1 Define the log-line union in `src/Dmon.Protocol` (or session-storage record namespace): `message {entryId, timestamp, role, parts}` and the existing `compaction`, discriminated by `type` via `[JsonPolymorphic]`.
+- [x] 1.2 Define the `Part` union discriminated by `type`: `TextPart`, `ToolCallPart {callId, name, args: JsonElement}`, `ToolResultPart {callId, result?: JsonElement, attachmentRef?, isError, truncated?}`, `ImagePart {mediaType, attachmentRef|dataBase64}`, `ReasoningPart {text}`, `UsagePart`, `UnknownPart {raw: JsonElement, producedBy}`.
+- [x] 1.3 Register all part types and log-line types on their `[JsonDerivedType]` tables; confirm `JsonSchemaExporter` describes the record (no third-party type names in the schema).
+- [x] 1.4 Build green (additive; nothing consumes the types yet).
 
 ## 2. ChatMessage ⇆ record mapping
 

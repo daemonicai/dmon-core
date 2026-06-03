@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
 using Dmon.Core.Telemetry;
+using Dmon.Protocol.Conversation;
 using Dmon.Protocol.Sessions;
 
 namespace Dmon.Core.Session;
