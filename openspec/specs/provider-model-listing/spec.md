@@ -1,9 +1,7 @@
 ## Purpose
 
 Define how each provider factory exposes a live model list via `GetAvailableModelsAsync`, how the `ModelModelsCommand`/`ModelModelsResultEvent` protocol pair surfaces those lists to the terminal host, and the timeout and fallback behaviour that keeps the picker responsive when a provider endpoint is slow or unreachable.
-
 ## Requirements
-
 ### Requirement: IProviderFactory exposes async model listing
 `IProviderFactory` SHALL declare `ValueTask<IReadOnlyList<ModelInfo>> GetAvailableModelsAsync(string? apiKey, CancellationToken cancellationToken = default)`. A default implementation SHALL be provided that returns an empty list, so existing external implementations do not require immediate changes.
 
@@ -67,7 +65,11 @@ The protocol SHALL include a `ModelModelsCommand` with a required `provider` str
 - **THEN** the core routes it to `ModelModelsHandler` which resolves credentials for the `"anthropic"` provider
 
 ### Requirement: ModelModelsResultEvent carries live model list
-The protocol SHALL include a `ModelModelsResultEvent` with properties `Provider` (string), `Models` (IReadOnlyList<string>), and `ActiveModelId` (string?). This event is emitted in response to `ModelModelsCommand`.
+The protocol SHALL include a `ModelModelsResultEvent` with properties `Id` (string, the originating command id, serialized as `id`), `Provider` (string), `Models` (IReadOnlyList<string>), and `ActiveModelId` (string?). `ModelModelsResultEvent` SHALL derive from the `ResultEvent` correlation base. This event is emitted in response to `ModelModelsCommand` and SHALL carry that command's `id`.
+
+#### Scenario: Event carries originating command id
+- **WHEN** `ModelModelsCommand { Id = "req-1", Provider = "anthropic" }` is handled
+- **THEN** `ModelModelsResultEvent.Id` equals `"req-1"`
 
 #### Scenario: Event carries fetched model IDs
 - **WHEN** `ModelModelsCommand { Provider = "anthropic" }` is handled and the live fetch succeeds
@@ -82,7 +84,11 @@ The protocol SHALL include a `ModelModelsResultEvent` with properties `Provider`
 - **THEN** `ModelModelsResultEvent` is emitted with `Models = []` (empty list, falling back to factory default via `GetAvailableModelsAsync`)
 
 ### Requirement: ModelListResultEvent.ActiveModelId reflects runtime registry state
-`ModelListHandler` SHALL source `ActiveModelId` from `IProviderRegistry.GetCurrentModelId()`, falling back to the active provider's `DefaultModelId` if `GetCurrentModelId()` returns null.
+`ModelListHandler` SHALL source `ActiveModelId` from `IProviderRegistry.GetCurrentModelId()`, falling back to the active provider's `DefaultModelId` if `GetCurrentModelId()` returns null. `ModelListResultEvent` SHALL derive from the `ResultEvent` correlation base and carry the originating `ModelListCommand`'s `id` (serialized as `id`).
+
+#### Scenario: Event carries originating command id
+- **WHEN** `ModelListCommand { Id = "req-2" }` is handled
+- **THEN** `ModelListResultEvent.Id` equals `"req-2"`
 
 #### Scenario: ActiveModelId reflects committed switch
 - **WHEN** the user has previously switched to `"gpt-4o"` and `ModelListCommand` is handled
@@ -98,3 +104,4 @@ The protocol SHALL include a `ModelModelsResultEvent` with properties `Provider`
 #### Scenario: Timeout returns empty list
 - **WHEN** the provider's model endpoint does not respond within 5 seconds
 - **THEN** `ModelModelsResultEvent.Models` is empty and no exception propagates to the caller
+

@@ -1,9 +1,7 @@
 ## Purpose
 
 Define how dmon resolves, stores, and manages provider API credentials — including environment variable precedence, the user-global credentials file format, the `/login` and `/logout` commands, and optional API key support for locally-hosted providers.
-
 ## Requirements
-
 ### Requirement: API key credential resolution
 The system SHALL resolve provider credentials in the following order: environment variable → credentials file (`~/.daemon/credentials/<provider>.json`) → interactive prompt. Credentials SHALL always be stored in user-global scope; never in the project-local `.daemon/` directory.
 
@@ -55,11 +53,11 @@ The system SHALL provide a `/logout <provider>` command that removes stored cred
 - **THEN** the system responds without error
 
 ### Requirement: auth.status query
-The system SHALL respond to `auth.status` with the authentication state of all configured providers.
+The system SHALL respond to `auth.status` with the authentication state of all configured providers, as a typed `auth.statusResult` event derived from the `ResultEvent` correlation base and carrying the originating command's `id` (serialized as `id`). The response SHALL NOT use the generic `{type:"response", data}` envelope.
 
 #### Scenario: Status shows which providers have credentials
-- **WHEN** the host sends `auth.status`
-- **THEN** the response lists all configured providers with `authenticated: true/false` for each
+- **WHEN** the host sends `auth.status` with `id` `"req-1"`
+- **THEN** the core emits an `auth.statusResult` event with `id` = `"req-1"` whose `providers` field lists all configured providers, each with `authenticated: true/false`
 
 ### Requirement: Local providers support optional API key
 Local providers (Ollama, llama.cpp, oMLX) SHALL support an optional `apiKey` field in their config entry, used when the provider is exposed over a network rather than localhost.
@@ -71,3 +69,4 @@ Local providers (Ollama, llama.cpp, oMLX) SHALL support an optional `apiKey` fie
 #### Scenario: Local provider without API key connects unauthenticated
 - **WHEN** an Ollama provider is configured with no `apiKey`
 - **THEN** the `IChatClient` makes requests without an authentication header
+
