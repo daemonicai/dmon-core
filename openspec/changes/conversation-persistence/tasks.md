@@ -7,10 +7,10 @@
 
 ## 2. ChatMessage ⇆ record mapping
 
-- [ ] 2.1 Write `ChatMessage → record` mapping: `TextContent`→`TextPart`, `FunctionCallContent`→`ToolCallPart`, `FunctionResultContent`→`ToolResultPart`; unrecognised `AIContent`→`UnknownPart {raw, producedBy}` (lenient, never throw/drop).
-- [ ] 2.2 Write `record → ChatMessage` replay-subset mapping: reconstruct only `text`/`toolCall`/`toolResult`/`image`; skip `reasoning`/`usage`/`unknown`.
-- [ ] 2.3 Unit tests: round-trip for known parts; unknown content preserved opaquely and excluded from replay; no `Microsoft.Extensions.AI` type appears in serialized output.
-- [ ] 2.4 Build and tests green.
+- [x] 2.1 Write `ChatMessage → record` mapping: `TextContent`→`TextPart`, `FunctionCallContent`→`ToolCallPart`, `FunctionResultContent`→`ToolResultPart`; unrecognised `AIContent`→`UnknownPart {raw, producedBy}` (lenient, never throw/drop).
+- [x] 2.2 Write `record → ChatMessage` replay-subset mapping: reconstruct only `text`/`toolCall`/`toolResult`/`image`; skip `reasoning`/`usage`/`unknown`.
+- [x] 2.3 Unit tests: round-trip for known parts; unknown content preserved opaquely and excluded from replay; no `Microsoft.Extensions.AI` type appears in serialized output.
+- [x] 2.4 Build and tests green.
 
 ## 3. Session-storage canonical write path
 
