@@ -35,7 +35,7 @@ internal sealed class NullModelHandler : IModelHandler
 
     public async Task ListAsync(ModelListCommand cmd, CancellationToken cancellationToken)
     {
-        ModelListResultEvent result = _listHandler.Handle();
+        ModelListResultEvent result = _listHandler.Handle(cmd.Id);
         await _emitter.EmitAsync(result, cancellationToken).ConfigureAwait(false);
     }
 

@@ -114,7 +114,10 @@ public sealed class CoreResolverTests : IDisposable
         Directory.CreateDirectory(cacheExpandedDir);
         await File.WriteAllTextAsync(Path.Combine(cacheExpandedDir, "dmoncore.dll"), "fake");
 
-        NuGetVersion cachedVersion = new("0.1.5");
+        // Derive the cached version from ProtocolVersion.Current so the resolver's
+        // Major.Minor filter matches regardless of future protocol bumps.
+        string currentMM = ProtocolVersion.MajorMinor(ProtocolVersion.Current)!;
+        NuGetVersion cachedVersion = NuGetVersion.Parse($"{currentMM}.5");
         FakeCoreAcquisitionSource source = new(
             cachedEntry: (cachedVersion, cacheExpandedDir));
 

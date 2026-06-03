@@ -4,6 +4,7 @@ using Dcli;
 using Dmon.Protocol.Commands;
 using Dmon.Protocol.Enums;
 using Dmon.Protocol.Events;
+using Dmon.Protocol.Sessions;
 using Dmon.Protocol.Wizard;
 
 namespace Dmon.Terminal;
@@ -144,10 +145,8 @@ internal sealed class ConsoleEventHandler
                 }
                 break;
 
-            case ResponseEvent response when !response.Success:
-                string failMessage = response.Error is not null
-                    ? $"[Failed] {response.Command}: {response.Error}"
-                    : $"[Failed] {response.Command}";
+            case CommandErrorEvent cmdError:
+                string failMessage = $"[Failed] {cmdError.Command}: {cmdError.Message}";
                 _renderer.AddSystemLine(failMessage);
                 break;
 
@@ -206,9 +205,20 @@ internal sealed class ConsoleEventHandler
                 await RunModelPickerAsync(modelsResult, cancellationToken).ConfigureAwait(false);
                 break;
 
-            case ResponseEvent sessionResponse when sessionResponse.Success
-                && sessionResponse.Command is "session.create" or "session.load" or "session.fork" or "session.clone":
-                TrackActiveSession(sessionResponse);
+            case SessionCreatedResultEvent created:
+                TrackActiveSession(created.Session);
+                break;
+
+            case SessionForkedResultEvent forked:
+                TrackActiveSession(forked.Session);
+                break;
+
+            case SessionClonedResultEvent cloned:
+                TrackActiveSession(cloned.Session);
+                break;
+
+            case SessionLoadedResultEvent loaded:
+                TrackActiveSession(loaded.Session);
                 break;
 
             case ProviderConfiguredEvent configured when _wizardActive:
@@ -596,13 +606,10 @@ internal sealed class ConsoleEventHandler
         await _sendCommand(submitCommand, cancellationToken).ConfigureAwait(false);
     }
 
-    private void TrackActiveSession(ResponseEvent response)
+    private void TrackActiveSession(SessionMeta session)
     {
-        if (response.Data is not JsonElement element) return;
-        if (!element.TryGetProperty("id", out JsonElement idProp)) return;
-        string? id = idProp.GetString();
-        if (!string.IsNullOrEmpty(id))
-            ActiveSessionId = id;
+        if (!string.IsNullOrEmpty(session.Id))
+            ActiveSessionId = session.Id;
     }
 
     private static string? ExtractDeltaText(object delta)

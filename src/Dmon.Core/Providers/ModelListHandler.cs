@@ -16,7 +16,7 @@ public sealed class ModelListHandler
         _factories = factories.ToDictionary(f => f.AdapterName, StringComparer.OrdinalIgnoreCase);
     }
 
-    public ModelListResultEvent Handle()
+    public ModelListResultEvent Handle(string commandId)
     {
         IReadOnlyList<ProviderConfig> all = _registry.GetAll();
         ProviderConfig current = _registry.GetCurrentConfig();
@@ -45,6 +45,7 @@ public sealed class ModelListHandler
 
         return new ModelListResultEvent
         {
+            CommandId = commandId,
             Models = models,
             ActiveProvider = current.Name,
             ActiveModelId = _registry.GetCurrentModelId() ?? current.DefaultModelId ?? string.Empty

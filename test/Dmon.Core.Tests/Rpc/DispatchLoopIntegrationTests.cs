@@ -7,6 +7,7 @@ using Dmon.Core.Session;
 using Dmon.Protocol.Commands;
 using Dmon.Protocol.Enums;
 using Dmon.Protocol.Events;
+using Dmon.Protocol.Sessions;
 using Dmon.Protocol.Wizard;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging.Abstractions;

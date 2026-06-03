@@ -3,16 +3,16 @@ namespace Dmon.Protocol.Tests;
 public sealed class ProtocolVersionTests
 {
     [Fact]
-    public void Current_Is_ZeroDotOne()
+    public void Current_Is_ZeroDotTwo()
     {
-        Assert.Equal("0.1", ProtocolVersion.Current);
+        Assert.Equal("0.2", ProtocolVersion.Current);
     }
 
     [Fact]
     public void MajorMinor_Current_ReturnsMajorMinorSegment()
     {
         string? result = ProtocolVersion.MajorMinor(ProtocolVersion.Current);
-        Assert.Equal("0.1", result);
+        Assert.Equal("0.2", result);
     }
 
     [Fact]
@@ -54,9 +54,10 @@ public sealed class ProtocolVersionTests
     public void MajorMinor_CompatibilityCheck_SameMajorMinor_IsCompatible()
     {
         // Simulate the group-3 gate: compare reported protocolVersion against Current.
-        string reported = "0.1.7";
+        // Use a patch build of the current Major.Minor so this stays valid after future bumps.
+        string currentMM = ProtocolVersion.MajorMinor(ProtocolVersion.Current)!;
+        string reported = $"{currentMM}.7";
         string? reportedMM = ProtocolVersion.MajorMinor(reported);
-        string? currentMM  = ProtocolVersion.MajorMinor(ProtocolVersion.Current);
 
         Assert.Equal(currentMM, reportedMM);
     }

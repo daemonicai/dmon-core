@@ -30,6 +30,7 @@ public sealed class ModelModelsHandler
         {
             return new ModelModelsResultEvent
             {
+                CommandId = cmd.Id,
                 Provider = cmd.Provider,
                 Models = [],
                 ActiveModelId = _registry.GetCurrentModelId()
@@ -62,6 +63,7 @@ public sealed class ModelModelsHandler
 
         return new ModelModelsResultEvent
         {
+            CommandId = cmd.Id,
             Provider = cmd.Provider,
             Models = modelIds,
             ActiveModelId = _registry.GetCurrentModelId()

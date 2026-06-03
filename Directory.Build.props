@@ -44,9 +44,9 @@
                       PrivateAssets="all" />
   </ItemGroup>
 
-  <!-- Version floor: untagged builds produce 0.1.0-alpha.0 (matching ProtocolVersion.Current = "0.1") -->
+  <!-- Version floor: untagged builds produce 0.2.0-alpha.0 (matching ProtocolVersion.Current = "0.2") -->
   <PropertyGroup>
-    <MinVerMinimumMajorMinor>0.1</MinVerMinimumMajorMinor>
+    <MinVerMinimumMajorMinor>0.2</MinVerMinimumMajorMinor>
   </PropertyGroup>
 
   <!-- ====================================================================

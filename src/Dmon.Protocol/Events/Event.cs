@@ -4,7 +4,8 @@ namespace Dmon.Protocol.Events;
 
 /// <summary>
 /// Base type for all core-to-host events.
-/// Events are emitted without an <c>id</c> field — they are not request-response.
+/// Streaming and notification events are emitted without an <c>id</c> field; command-result
+/// events (<see cref="ResultEvent"/> subclasses) carry the originating command's <c>id</c>.
 /// </summary>
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "type")]
 [JsonDerivedType(typeof(AgentReadyEvent), typeDiscriminator: "agentReady")]
@@ -41,6 +42,13 @@ namespace Dmon.Protocol.Events;
 [JsonDerivedType(typeof(ProviderConfiguredEvent), typeDiscriminator: "providerConfigured")]
 [JsonDerivedType(typeof(SystemNoticeEvent), typeDiscriminator: "system.notice")]
 [JsonDerivedType(typeof(WizardStepEvent), typeDiscriminator: "wizard.step")]
+[JsonDerivedType(typeof(CommandErrorEvent), typeDiscriminator: "commandError")]
+[JsonDerivedType(typeof(SessionCreatedResultEvent), typeDiscriminator: "session.createResult")]
+[JsonDerivedType(typeof(SessionForkedResultEvent), typeDiscriminator: "session.forkResult")]
+[JsonDerivedType(typeof(SessionClonedResultEvent), typeDiscriminator: "session.cloneResult")]
+[JsonDerivedType(typeof(SessionLoadedResultEvent), typeDiscriminator: "session.loadResult")]
+[JsonDerivedType(typeof(SessionListResultEvent), typeDiscriminator: "session.listResult")]
+[JsonDerivedType(typeof(SessionStatsResultEvent), typeDiscriminator: "session.getStatsResult")]
 public abstract record Event
 {
 }

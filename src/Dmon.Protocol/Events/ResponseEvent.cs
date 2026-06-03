@@ -3,8 +3,17 @@ using System.Text.Json.Serialization;
 namespace Dmon.Protocol.Events;
 
 /// <summary>
-/// Response envelope for command requests. Matches the shape:
-/// {"id": "req-1", "type": "response", "command": "...", "success": true, "data": {...}}
+/// <para>
+/// <b>Transitional — success path only:</b> this type is quarantined to the
+/// <c>session.getMessages</c> <em>success</em> response while conversation-persistence work
+/// (turn-persistence change) is pending. All other commands, and all failure paths (including
+/// <c>session.getMessages</c> failure), emit <see cref="CommandErrorEvent"/> or typed
+/// <see cref="ResultEvent"/> subtypes. Once turn-persistence lands and
+/// <c>session.getMessages</c> is retired, this record and its <c>"response"</c> discriminator
+/// will be removed from the <see cref="Event"/> polymorphic table.
+/// </para>
+/// Response envelope for <c>session.getMessages</c> success. Matches the shape:
+/// {"id": "req-1", "type": "response", "command": "session.getMessages", "success": true, "data": {...}}
 /// </summary>
 public sealed record ResponseEvent : Event
 {
