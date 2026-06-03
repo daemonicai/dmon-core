@@ -1,4 +1,5 @@
 using Dmon.Abstractions;
+using Dmon.Abstractions.Memory;
 using Dmon.Abstractions.Profiles;
 using Dmon.Abstractions.Providers;
 using Dmon.Core.Auth;
@@ -110,8 +111,18 @@ public static class DmonServiceExtensions
     public static IServiceCollection AddDmonCore(this IServiceCollection services)
     {
         services.AddSingleton<ISessionDirectoryResolver, SessionDirectoryResolver>();
-        services.AddSingleton<ISessionStore, SessionStore>();
         services.AddSingleton<IAttachmentStore, AttachmentStore>();
+
+        // Lazy<IMemory?> breaks the construction cycle: SessionStore → IMemory → IShortTermMemory → ISessionStore.
+        // The Lazy defers IMemory resolution to after the DI container is fully built.
+        services.AddSingleton(sp => new Lazy<IMemory?>(() => sp.GetService<IMemory>()));
+        services.AddSingleton<ISessionStore>(sp => new SessionStore(
+            sp.GetRequiredService<ISessionDirectoryResolver>(),
+            sp.GetRequiredService<IAttachmentStore>(),
+            sp.GetRequiredService<ILogger<SessionStore>>(),
+            sp.GetRequiredService<ILoggerFactory>(),
+            sp.GetRequiredService<IConfiguration>(),
+            sp.GetRequiredService<Lazy<IMemory?>>()));
 
         // Permission runtime dependencies
         services.AddSingleton<IPermissionSettings>(_ =>

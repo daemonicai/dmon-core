@@ -2,7 +2,7 @@ using Dmon.Abstractions.Memory;
 using Dmon.Memory.Embedding;
 using Dmon.Memory.Index;
 using Dmon.Memory.Tests.Stubs;
-using Microsoft.Extensions.AI;
+using Dmon.Protocol.Conversation;
 
 namespace Dmon.Memory.Tests.Index;
 
@@ -32,10 +32,10 @@ public sealed class FlushBarrierTests : IAsyncLifetime
         (ShortTermMemory memory, string sessionIdA) = await _fixture.BuildMemoryAsync();
         await using ShortTermMemory memA = memory;
 
-        await memA.RecordAsync([new ChatMessage(ChatRole.User, text)]);
+        await memA.RecordAsync([MakeRecord("user", text)]);
 
         // Explicit flush barrier (no-op with inline indexing, but must still make
-        // the written turns searchable per the spec contract).
+        // the indexed turns searchable per the spec contract).
         await memA.FlushAsync();
 
         IReadOnlyList<MemoryHit> hits = await memA.SearchAsync(query);
@@ -61,8 +61,8 @@ public sealed class FlushBarrierTests : IAsyncLifetime
         await using ShortTermMemory memB = memory;
 
         await memB.RecordAsync([
-            new ChatMessage(ChatRole.User, text1),
-            new ChatMessage(ChatRole.Assistant, text2),
+            MakeRecord("user",      text1),
+            MakeRecord("assistant", text2),
         ]);
 
         await memB.FlushAsync();
@@ -73,4 +73,13 @@ public sealed class FlushBarrierTests : IAsyncLifetime
         Assert.Contains(hits, h => h.Text == text2);
         _ = sessionIdB;
     }
+
+    private static MessageRecord MakeRecord(string role, string text) =>
+        new()
+        {
+            EntryId   = Guid.NewGuid().ToString(),
+            Timestamp = DateTimeOffset.UtcNow,
+            Role      = role,
+            Parts     = [new TextPart { Text = text }]
+        };
 }

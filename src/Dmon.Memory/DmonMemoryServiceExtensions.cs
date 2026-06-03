@@ -56,12 +56,9 @@ public static class DmonMemoryServiceExtensions
                 sp.GetRequiredService<ModelResolver>(),
                 sp.GetService<ILogger<LocalEmbeddingGenerator>>()));
 
-        services.TryAddSingleton<IMessageAppender, MessageAppender>();
-
         services.TryAddSingleton<IShortTermMemory>(sp =>
             new ShortTermMemory(
                 sp.GetRequiredService<IEmbeddingGenerator<string, Embedding<float>>>(),
-                sp.GetRequiredService<IMessageAppender>(),
                 sp.GetRequiredService<ISessionStore>(),
                 sp.GetRequiredService<ISessionDirectoryResolver>(),
                 sp.GetRequiredService<MemoryContext>(),

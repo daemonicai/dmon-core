@@ -3,6 +3,7 @@ using System.Text.Json;
 using Dmon.Abstractions.Memory;
 using Dmon.Core.Session;
 using Dmon.Memory.Embedding;
+using Dmon.Protocol.Conversation;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
 
@@ -13,15 +14,14 @@ namespace Dmon.Memory.Index;
 /// (<c>vec0</c> + FTS5 + content) in <c>&lt;sessionDir&gt;/index.db</c>.
 ///
 /// Construction does NOT open the database — call <see cref="InitializeAsync"/> first.
-/// The simplest correct design is chosen for <see cref="RecordAsync"/>: JSONL append then
-/// inline SQLite upsert, so <see cref="SearchAsync"/> finds newly recorded turns immediately.
-/// <see cref="FlushAsync"/> is a no-op durability barrier (JSONL is already durable on
-/// each <see cref="RecordAsync"/> return; SQLite WAL checkpoints on close).
+/// <see cref="RecordAsync"/> is index-only: it does NOT write to <c>messages.jsonl</c>
+/// (session-storage owns that write per ADR-016). It keys index rows on the
+/// <c>entryId</c> supplied in each <see cref="MessageRecord"/>.
+/// <see cref="FlushAsync"/> is a no-op durability barrier (SQLite WAL checkpoints on close).
 /// </summary>
 public sealed class ShortTermMemory : IShortTermMemory, IAsyncDisposable
 {
     private readonly IEmbeddingGenerator<string, Embedding<float>> _embeddingGenerator;
-    private readonly IMessageAppender _messageAppender;
     private readonly ISessionStore _sessionStore;
     private readonly ISessionDirectoryResolver _directoryResolver;
     private readonly MemoryContext _context;
@@ -31,19 +31,17 @@ public sealed class ShortTermMemory : IShortTermMemory, IAsyncDisposable
     private IndexConnection? _index;
     private string? _sessionDir;
 
-    // Guards writes for this instance (IMessageAppender is not concurrency-safe per session).
+    // Guards writes for this instance (not concurrency-safe per session).
     private readonly SemaphoreSlim _writeLock = new(1, 1);
 
     public ShortTermMemory(
         IEmbeddingGenerator<string, Embedding<float>> embeddingGenerator,
-        IMessageAppender messageAppender,
         ISessionStore sessionStore,
         ISessionDirectoryResolver directoryResolver,
         MemoryContext context,
         ILogger<ShortTermMemory>? logger = null)
     {
         _embeddingGenerator = embeddingGenerator;
-        _messageAppender = messageAppender;
         _sessionStore = sessionStore;
         _directoryResolver = directoryResolver;
         _context = context;
@@ -108,42 +106,43 @@ public sealed class ShortTermMemory : IShortTermMemory, IAsyncDisposable
 
     /// <inheritdoc />
     /// <remarks>
-    /// Ordering (synchronous inline design):
-    /// 1. For each turn, serialize to <see cref="TurnLineRecord"/> and append to
-    ///    <c>messages.jsonl</c> via <see cref="IMessageAppender"/> (durable source of truth).
-    /// 2. Embed all turn texts in one batch (<c>search_document:</c> prefix).
+    /// Index-only (ADR-016): does NOT write to <c>messages.jsonl</c>; session-storage
+    /// owns that write and supplies the <c>entryId</c> on each record.
+    ///
+    /// Ordering:
+    /// 1. Extract index text from each record's <see cref="TextPart"/>s.
+    /// 2. Embed all texts in one batch (<c>search_document:</c> prefix).
     /// 3. Upsert content + vec0 + FTS5 in ONE SQLite transaction.
     ///
-    /// A failure between steps 1 and 3 leaves JSONL lines written but not yet indexed.
-    /// The index is recoverable by calling <c>InitializeAsync</c> again after a mismatch
-    /// triggers rebuild, or by deleting <c>index.db</c>.
+    /// A failure at step 3 leaves the index inconsistent for those records.
+    /// Re-run <c>InitializeAsync</c> (which triggers a rebuild when the model pin
+    /// mismatches) or delete <c>index.db</c> to recover.
     /// </remarks>
     public async Task RecordAsync(
-        IReadOnlyList<ChatMessage> turns,
+        IReadOnlyList<MessageRecord> records,
         MemoryScope scope = MemoryScope.Agent,
         CancellationToken cancellationToken = default)
     {
         EnsureInitialized();
 
-        if (turns.Count == 0)
+        if (records.Count == 0)
             return;
 
-        // Collect the text + metadata for each turn before acquiring the write lock
+        // Extract indexable text from each record's TextParts before acquiring the lock
         // (embedding is CPU-intensive; keep the lock window minimal).
-        DateTimeOffset now = DateTimeOffset.UtcNow;
-        List<(TurnLineRecord LineRecord, string Text)> prepared = [];
+        List<(string EntryId, string Role, string Text, DateTimeOffset Timestamp)> prepared = [];
 
-        foreach (ChatMessage turn in turns)
+        foreach (MessageRecord record in records)
         {
-            string text = ExtractText(turn);
-            TurnLineRecord line = new(
-                EntryId:   Guid.NewGuid().ToString(),
-                Timestamp: now,
-                Role:      turn.Role.Value,
-                Text:      text,
-                Scope:     scope);
-            prepared.Add((line, text));
+            string text = ExtractText(record);
+            if (string.IsNullOrWhiteSpace(text))
+                continue;
+
+            prepared.Add((record.EntryId, record.Role, text, record.Timestamp));
         }
+
+        if (prepared.Count == 0)
+            return;
 
         // Embed all texts in one batch (search_document: prefix for storage).
         string[] prefixed = [.. prepared.Select(p => NomicEmbedding.ApplyDocumentPrefix(p.Text))];
@@ -151,33 +150,24 @@ public sealed class ShortTermMemory : IShortTermMemory, IAsyncDisposable
             await _embeddingGenerator.GenerateAsync(prefixed, cancellationToken: cancellationToken)
             .ConfigureAwait(false);
 
-        // Build index entries from embeddings.
+        // Build index entries from embeddings, keyed on the supplied entryId.
         List<IndexEntry> entries = [];
         for (int i = 0; i < prepared.Count; i++)
         {
-            (TurnLineRecord line, string text) = prepared[i];
+            (string entryId, string role, string text, DateTimeOffset timestamp) = prepared[i];
             entries.Add(new IndexEntry(
-                EntryId:   line.EntryId,
-                Role:      line.Role,
+                EntryId:   entryId,
+                Role:      role,
                 Text:      text,
-                Timestamp: line.Timestamp,
+                Timestamp: timestamp,
                 Scope:     scope,
                 Embedding: embeddings[i].Vector.ToArray()));
         }
 
-        // Serialise writes: JSONL append then SQLite upsert under one lock.
+        // Serialise SQLite writes under one lock.
         await _writeLock.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            // Step 1: append each turn to messages.jsonl (durable source of truth).
-            foreach ((TurnLineRecord line, _) in prepared)
-            {
-                await _messageAppender
-                    .AppendAsync(_context.ConversationId, line, cancellationToken)
-                    .ConfigureAwait(false);
-            }
-
-            // Step 2: upsert into the hybrid index in a single transaction.
             await _index!.UpsertBatchAsync(entries, cancellationToken).ConfigureAwait(false);
         }
         finally
@@ -316,17 +306,17 @@ public sealed class ShortTermMemory : IShortTermMemory, IAsyncDisposable
 
     // ── Helpers ──────────────────────────────────────────────────────────────
 
-    private static string ExtractText(ChatMessage turn)
+    private static string ExtractText(MessageRecord record)
     {
-        // Concatenate all text content parts.
+        // Concatenate text from all TextPart instances in the record.
         StringBuilder sb = new();
-        foreach (AIContent part in turn.Contents)
+        foreach (Part part in record.Parts)
         {
-            if (part is TextContent tc)
+            if (part is TextPart tp && !string.IsNullOrEmpty(tp.Text))
             {
                 if (sb.Length > 0)
                     sb.Append(' ');
-                sb.Append(tc.Text);
+                sb.Append(tp.Text);
             }
         }
 
@@ -335,52 +325,30 @@ public sealed class ShortTermMemory : IShortTermMemory, IAsyncDisposable
 
     /// <summary>
     /// Attempts to parse a raw JSONL line into an <see cref="IndexEntry"/> for rebuild.
-    /// Recognizes the <see cref="TurnLineRecord"/> shape written by this implementation.
-    /// Skips lines that do not match (e.g. compaction markers, future unknown types).
-    /// Lines written before the <c>scope</c> field was added default to
-    /// <see cref="MemoryScope.Agent"/> for forward-compatibility.
+    /// Parses the canonical <see cref="MessageRecord"/> shape (type: "message") and
+    /// derives index text from <see cref="TextPart"/>s.
+    /// Skips lines that are not <c>type:message</c>, have no text parts, or are malformed.
     /// </summary>
     private static IndexEntry? TryParseLineToEntry(string line)
     {
         try
         {
-            using JsonDocument doc = JsonDocument.Parse(line);
-            JsonElement root = doc.RootElement;
+            SessionLogLine? logLine = JsonSerializer.Deserialize<SessionLogLine>(line);
 
-            if (!root.TryGetProperty("entryId", out JsonElement entryIdEl) ||
-                !root.TryGetProperty("role",    out JsonElement roleEl)    ||
-                !root.TryGetProperty("text",    out JsonElement textEl)    ||
-                !root.TryGetProperty("timestamp", out JsonElement tsEl))
-            {
+            if (logLine is not MessageRecord record)
                 return null;
-            }
 
-            string entryId = entryIdEl.GetString() ?? string.Empty;
-            string role    = roleEl.GetString()    ?? string.Empty;
-            string text    = textEl.GetString()    ?? string.Empty;
-
+            string text = ExtractText(record);
             if (string.IsNullOrWhiteSpace(text))
                 return null;
 
-            DateTimeOffset timestamp = tsEl.TryGetDateTimeOffset(out DateTimeOffset dto)
-                ? dto
-                : DateTimeOffset.UtcNow;
-
-            // Legacy lines pre-dating the scope field default to Agent (most common case).
-            MemoryScope scope = MemoryScope.Agent;
-            if (root.TryGetProperty("scope", out JsonElement scopeEl) &&
-                scopeEl.TryGetInt32(out int scopeInt))
-            {
-                scope = (MemoryScope)scopeInt;
-            }
-
             // Placeholder embedding — caller must overwrite before upserting.
             return new IndexEntry(
-                EntryId:   entryId,
-                Role:      role,
+                EntryId:   record.EntryId,
+                Role:      record.Role,
                 Text:      text,
-                Timestamp: timestamp,
-                Scope:     scope,
+                Timestamp: record.Timestamp,
+                Scope:     MemoryScope.Agent,
                 Embedding: []);
         }
         catch (JsonException)

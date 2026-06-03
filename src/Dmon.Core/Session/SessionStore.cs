@@ -1,9 +1,13 @@
 using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
+using Dmon.Abstractions.Memory;
 using Dmon.Core.Telemetry;
 using Dmon.Protocol.Conversation;
 using Dmon.Protocol.Sessions;
+using Microsoft.Extensions.AI;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 
 namespace Dmon.Core.Session;
 
@@ -26,6 +30,20 @@ public interface ISessionStore
     Task<string> AppendMessageAsync(string sessionId, string role, IReadOnlyList<Part> parts, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Maps each <paramref name="messages"/> via <see cref="ConversationMapper"/>, appends each
+    /// as a canonical <c>type:message</c> record (minting <c>entryId</c>), and — after all writes
+    /// succeed — drives the memory index (if available) for index-only ingestion.
+    /// Returns the minted <c>entryId</c>s in input order.
+    /// System-role messages are skipped (the system prompt is rebuilt on load, not persisted
+    /// as a conversational turn).
+    /// </summary>
+    Task<IReadOnlyList<string>> AppendMessagesAsync(
+        string sessionId,
+        IReadOnlyList<ChatMessage> messages,
+        MemoryScope scope = MemoryScope.Agent,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Returns all log records (messages and compaction markers) deserialised via the
     /// <see cref="SessionLogLine"/> polymorphic base. When <paramref name="applyCompaction"/>
     /// is <c>true</c> (default), records superseded by the last compaction marker are excluded.
@@ -40,19 +58,24 @@ public sealed class SessionStore : ISessionStore
     private readonly ILogger<SessionStore> _logger;
     private readonly ILoggerFactory _loggerFactory;
     private readonly int _compactionThreshold;
+    // Lazy and nullable to break the DI cycle: IMemory → IShortTermMemory → ISessionStore → IMemory.
+    // Canonical append always runs; indexing runs only when memory resolves non-null.
+    private readonly Lazy<IMemory?> _memory;
 
     public SessionStore(
         ISessionDirectoryResolver resolver,
         IAttachmentStore attachmentStore,
         ILogger<SessionStore> logger,
         ILoggerFactory loggerFactory,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        Lazy<IMemory?>? memory = null)
     {
         _resolver = resolver;
         _attachmentStore = attachmentStore;
         _logger = logger;
         _loggerFactory = loggerFactory;
         _compactionThreshold = configuration.GetValue("Dmon:Session:Compaction:Threshold", 100);
+        _memory = memory ?? new Lazy<IMemory?>(() => null);
     }
 
     /// <summary>
@@ -357,6 +380,64 @@ public sealed class SessionStore : ISessionStore
         IReadOnlyList<Part> parts,
         CancellationToken cancellationToken = default)
     {
+        MessageRecord record = await BuildAndWriteRecordAsync(sessionId, role, parts, cancellationToken)
+            .ConfigureAwait(false);
+        return record.EntryId;
+    }
+
+    public async Task<IReadOnlyList<string>> AppendMessagesAsync(
+        string sessionId,
+        IReadOnlyList<ChatMessage> messages,
+        MemoryScope scope = MemoryScope.Agent,
+        CancellationToken cancellationToken = default)
+    {
+        List<MessageRecord> written = new(messages.Count);
+
+        foreach (ChatMessage message in messages)
+        {
+            // System prompt is rebuilt on load — not persisted as a conversational turn.
+            if (message.Role == ChatRole.System)
+                continue;
+
+            (string role, IReadOnlyList<Part> parts) = ConversationMapper.ToParts(message);
+            MessageRecord record = await BuildAndWriteRecordAsync(sessionId, role, parts, cancellationToken)
+                .ConfigureAwait(false);
+            written.Add(record);
+        }
+
+        if (written.Count == 0)
+            return [];
+
+        // Storage-first: all canonical writes are durable before index ingestion.
+        IMemory? memory = _memory.Value;
+        if (memory is not null)
+        {
+            try
+            {
+                await memory.RecordAsync(written, scope, cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Memory indexing failed for session {SessionId} — canonical record is intact.", sessionId);
+            }
+        }
+
+        return written.Select(r => r.EntryId).ToList();
+    }
+
+    /// <summary>
+    /// Mints an <c>entryId</c> and <c>timestamp</c>, offloads large tool results to attachments,
+    /// serialises the resulting <see cref="MessageRecord"/>, appends it to the session log, and
+    /// returns the record. The returned record is reference-identical in content to the line
+    /// written to <c>messages.jsonl</c> — callers that need to forward the record to the memory
+    /// tier should use this return value rather than reconstructing it.
+    /// </summary>
+    private async Task<MessageRecord> BuildAndWriteRecordAsync(
+        string sessionId,
+        string role,
+        IReadOnlyList<Part> parts,
+        CancellationToken cancellationToken)
+    {
         string entryId = Guid.NewGuid().ToString();
         DateTimeOffset timestamp = DateTimeOffset.UtcNow;
 
@@ -407,7 +488,7 @@ public sealed class SessionStore : ISessionStore
         string json = JsonSerializer.Serialize<SessionLogLine>(record);
         await AppendLineAsync(sessionId, json, cancellationToken).ConfigureAwait(false);
 
-        return entryId;
+        return record;
     }
 
     public async Task<IReadOnlyList<SessionLogLine>> ReadRecordsAsync(

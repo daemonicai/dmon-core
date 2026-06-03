@@ -22,6 +22,9 @@ internal sealed class TempSessionFixture : IAsyncDisposable
 
     public StubEmbeddingGenerator EmbeddingGenerator { get; } = new();
 
+    /// <summary>The root directory containing all session subdirectories for this fixture.</summary>
+    public string Root => _root;
+
     private TempSessionFixture(string root)
     {
         _root = root;
@@ -77,7 +80,6 @@ internal sealed class TempSessionFixture : IAsyncDisposable
         IEmbeddingGenerator<string, Embedding<float>> gen = generator ?? EmbeddingGenerator;
         ISessionDirectoryResolver resolver = new FixedRootResolver(_root);
         IConfiguration config = new ConfigurationBuilder().Build();
-        IMessageAppender appender = new MessageAppender(resolver);
         IAttachmentStore attachmentStore = new AttachmentStore(resolver, config);
         SessionStore store = new(
             resolver,
@@ -87,9 +89,26 @@ internal sealed class TempSessionFixture : IAsyncDisposable
             config);
         MemoryContext context = new("test-dp", "dmon", sessionId);
 
-        ShortTermMemory memory = new(gen, appender, store, resolver, context);
+        ShortTermMemory memory = new(gen, store, resolver, context);
         await memory.InitializeAsync(cancellationToken).ConfigureAwait(false);
         return (memory, sessionId);
+    }
+
+    /// <summary>
+    /// Creates a <see cref="SessionStore"/> backed by this fixture's root directory.
+    /// Useful for populating <c>messages.jsonl</c> in rebuild tests.
+    /// </summary>
+    public SessionStore CreateSessionStore()
+    {
+        ISessionDirectoryResolver resolver = new FixedRootResolver(_root);
+        IConfiguration config = new Microsoft.Extensions.Configuration.ConfigurationBuilder().Build();
+        IAttachmentStore attachmentStore = new AttachmentStore(resolver, config);
+        return new SessionStore(
+            resolver,
+            attachmentStore,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<SessionStore>.Instance,
+            new Microsoft.Extensions.Logging.Abstractions.NullLoggerFactory(),
+            config);
     }
 
     /// <summary>Returns the absolute path to <c>index.db</c> for a session.</summary>

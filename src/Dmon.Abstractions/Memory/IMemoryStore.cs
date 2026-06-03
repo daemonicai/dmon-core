@@ -1,4 +1,4 @@
-using Microsoft.Extensions.AI;
+using Dmon.Protocol.Conversation;
 
 namespace Dmon.Abstractions.Memory;
 
@@ -15,9 +15,10 @@ namespace Dmon.Abstractions.Memory;
 /// <para>
 /// Short-term memory (<see cref="IShortTermMemory"/>) provides <em>read-your-writes</em>
 /// semantics within a session, subject to indexing latency. After a <see cref="RecordAsync"/>
-/// call returns, the canonical JSONL is durable; the derived hybrid index becomes
-/// searchable after the next <see cref="FlushAsync"/> call (or sooner, at implementation
-/// discretion).
+/// call returns, the index is updated; the derived hybrid index becomes searchable after
+/// the next <see cref="FlushAsync"/> call (or sooner, at implementation discretion).
+/// Canonical JSONL durability is the responsibility of session-storage, which calls
+/// <see cref="RecordAsync"/> only after a successful canonical append (ADR-016).
 /// </para>
 /// <para>
 /// Long-term memory (<see cref="ILongTermMemory"/>) is <em>eventually consistent</em>
@@ -35,16 +36,16 @@ namespace Dmon.Abstractions.Memory;
 public interface IMemoryStore
 {
     /// <summary>
-    /// Records one or more conversation turns into this store.
-    /// Best-effort — a successful return guarantees canonical persistence for short-term
-    /// but does NOT guarantee immediate searchability. Call <see cref="FlushAsync"/> to
-    /// ensure the index is up to date before querying.
+    /// Indexes one or more already-persisted conversation records into this store.
+    /// Each record carries its <c>entryId</c> (minted by session-storage); the store
+    /// keys its index rows on those ids rather than minting its own.
+    /// Does NOT write to canonical JSONL — session-storage owns that write (ADR-016).
     /// </summary>
-    /// <param name="turns">The turns to ingest.</param>
-    /// <param name="scope">The scope that applies to every turn in this batch.</param>
+    /// <param name="records">The persisted records to index.</param>
+    /// <param name="scope">The scope that applies to every record in this batch.</param>
     /// <param name="cancellationToken">Propagates cancellation.</param>
     Task RecordAsync(
-        IReadOnlyList<ChatMessage> turns,
+        IReadOnlyList<MessageRecord> records,
         MemoryScope scope = MemoryScope.Agent,
         CancellationToken cancellationToken = default);
 

@@ -1,5 +1,5 @@
 using Dmon.Abstractions.Memory;
-using Microsoft.Extensions.AI;
+using Dmon.Protocol.Conversation;
 
 namespace Dmon.Memory.Tests.Facade.Fakes;
 
@@ -10,7 +10,7 @@ namespace Dmon.Memory.Tests.Facade.Fakes;
 internal sealed class FakeShortTermMemory : IShortTermMemory
 {
     public int RecordCallCount { get; private set; }
-    public IReadOnlyList<ChatMessage>? LastRecordedTurns { get; private set; }
+    public IReadOnlyList<MessageRecord>? LastRecordedRecords { get; private set; }
     public MemoryScope LastRecordedScope { get; private set; }
 
     public int FlushCallCount { get; private set; }
@@ -20,12 +20,12 @@ internal sealed class FakeShortTermMemory : IShortTermMemory
     public Func<string, MemoryScope, int, CancellationToken, Task<IReadOnlyList<MemoryHit>>>? SearchOverride { get; set; }
 
     public Task RecordAsync(
-        IReadOnlyList<ChatMessage> turns,
+        IReadOnlyList<MessageRecord> records,
         MemoryScope scope = MemoryScope.Agent,
         CancellationToken cancellationToken = default)
     {
         RecordCallCount++;
-        LastRecordedTurns = turns;
+        LastRecordedRecords = records;
         LastRecordedScope = scope;
         return Task.CompletedTask;
     }

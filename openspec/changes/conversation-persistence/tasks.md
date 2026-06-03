@@ -21,11 +21,11 @@
 
 ## 4. Invert turn-completion wiring (cutover)
 
-- [ ] 4.1 At turn completion, append via session-storage **first** (minting `entryId`), then call `IMemory.RecordAsync(turns)` passing the minted `entryId` for index-only ingestion.
-- [ ] 4.2 Strip canonical-JSONL writing and id-minting from `ShortTermMemory.RecordAsync` (index-only, keyed on supplied `entryId`).
-- [ ] 4.3 Update `ShortTermMemory.RebuildFromJsonlAsync` to parse the parts record and derive index text from `TextPart`s.
-- [ ] 4.4 Delete `TurnLineRecord`.
-- [ ] 4.5 Update memory/session-storage tests for the new ownership. Build and tests green.
+- [x] 4.1 At turn completion, append via session-storage **first** (minting `entryId`), then call `IMemory.RecordAsync(turns)` passing the minted `entryId` for index-only ingestion.
+- [x] 4.2 Strip canonical-JSONL writing and id-minting from `ShortTermMemory.RecordAsync` (index-only, keyed on supplied `entryId`).
+- [x] 4.3 Update `ShortTermMemory.RebuildFromJsonlAsync` to parse the parts record and derive index text from `TextPart`s.
+- [x] 4.4 Delete `TurnLineRecord`.
+- [x] 4.5 Update memory/session-storage tests for the new ownership. Build and tests green.
 
 ## 5. Faithful session resume
 

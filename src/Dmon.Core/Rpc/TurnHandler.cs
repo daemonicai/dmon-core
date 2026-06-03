@@ -30,6 +30,7 @@ public sealed class TurnHandler : ITurnHandler
     private readonly IPermissionPolicy _policy;
     private readonly IThinkingHandler _thinking;
     private readonly ISessionHandler _sessionHandler;
+    private readonly ISessionStore? _sessionStore;
     private readonly IAttachmentStore _attachmentStore;
     private readonly ISystemPromptBuilder _systemPromptBuilder;
     private readonly MiddlewarePipelineBuilder _pipelineBuilder;
@@ -55,6 +56,9 @@ public sealed class TurnHandler : ITurnHandler
     private readonly List<ChatMessage> _history = [];
     private bool _systemPromptInjected;
 
+    // Tracks how many _history entries have been persisted; only new entries are written each turn.
+    private int _persistedCount;
+
     public TurnHandler(
         IProviderRegistry providers,
         IActiveModelStore activeModelStore,
@@ -70,7 +74,8 @@ public sealed class TurnHandler : ITurnHandler
         IAgentProfileResolver profileResolver,
         AgentProfileContext profileContext,
         ISessionAssetProvisioner assetProvisioner,
-        ILogger<TurnHandler> logger)
+        ILogger<TurnHandler> logger,
+        ISessionStore? sessionStore = null)
     {
         _providers = providers;
         _activeModelStore = activeModelStore;
@@ -79,6 +84,7 @@ public sealed class TurnHandler : ITurnHandler
         _policy = policy;
         _thinking = thinking;
         _sessionHandler = sessionHandler;
+        _sessionStore = sessionStore;
         _attachmentStore = attachmentStore;
         _systemPromptBuilder = systemPromptBuilder;
         _pipelineBuilder = pipelineBuilder;
@@ -392,11 +398,48 @@ public sealed class TurnHandler : ITurnHandler
         DmonTelemetry.RecordTurn(provider, model, stopReason);
         DmonTelemetry.RecordTurnDuration(turnTimer.Elapsed.TotalMilliseconds, provider, model, stopReason);
 
+        // Persist the new _history entries added during this turn (best-effort).
+        await PersistNewHistoryEntriesAsync(CancellationToken.None).ConfigureAwait(false);
+
         await _emitter.EmitAsync(new TurnEndEvent
         {
             Message = lastMessage,
             ToolResults = toolResults
         }, CancellationToken.None).ConfigureAwait(false);
+    }
+
+    private async Task PersistNewHistoryEntriesAsync(CancellationToken cancellationToken)
+    {
+        if (_sessionStore is null || _sessionHandler.CurrentSession is null)
+            return;
+
+        string sessionId = _sessionHandler.CurrentSession.Id;
+
+        // Slice only the entries added since the last persist, excluding system messages.
+        List<ChatMessage> newEntries = _history
+            .Skip(_persistedCount)
+            .Where(m => m.Role != ChatRole.System)
+            .ToList();
+
+        if (newEntries.Count == 0)
+        {
+            _persistedCount = _history.Count;
+            return;
+        }
+
+        try
+        {
+            await _sessionStore.AppendMessagesAsync(sessionId, newEntries, cancellationToken: cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Turn persistence failed for session {SessionId} — turn completed but not persisted.", sessionId);
+        }
+        finally
+        {
+            _persistedCount = _history.Count;
+        }
     }
 
     private void ApplyThinkingToOptions(ChatOptions options)

@@ -1,5 +1,6 @@
 using Dmon.Abstractions.Memory;
 using Dmon.Memory.Tests.Facade.Fakes;
+using Dmon.Protocol.Conversation;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -14,20 +15,20 @@ public sealed class MemoryFacadeTests
     // ── 3.1  Record / flush fan-out ─────────────────────────────────────────
 
     [Fact]
-    public async Task RecordAsync_BothTiersPresent_InvokesBothWithSameTurnsAndScope()
+    public async Task RecordAsync_BothTiersPresent_InvokesBothWithSameRecordsAndScope()
     {
         FakeShortTermMemory shortTerm = new();
         FakeLongTermMemory  longTerm  = new();
         Memory memory = new(shortTerm, longTerm);
 
-        List<ChatMessage> turns = [new ChatMessage(ChatRole.User, "hello")];
+        List<MessageRecord> records = [MakeRecord("user", "hello")];
 
-        await memory.RecordAsync(turns, MemoryScope.Session);
+        await memory.RecordAsync(records, MemoryScope.Session);
 
         Assert.Equal(1, shortTerm.RecordCallCount);
         Assert.Equal(1, longTerm.RecordCallCount);
-        Assert.Same(turns, shortTerm.LastRecordedTurns);
-        Assert.Same(turns, longTerm.LastRecordedTurns);
+        Assert.Same(records, shortTerm.LastRecordedRecords);
+        Assert.Same(records, longTerm.LastRecordedRecords);
         Assert.Equal(MemoryScope.Session, shortTerm.LastRecordedScope);
         Assert.Equal(MemoryScope.Session, longTerm.LastRecordedScope);
     }
@@ -246,8 +247,8 @@ public sealed class MemoryFacadeTests
         FakeShortTermMemory shortTerm = new();
         Memory memory = new(shortTerm);
 
-        List<ChatMessage> turns = [new ChatMessage(ChatRole.Assistant, "reply")];
-        await memory.RecordAsync(turns, MemoryScope.User);
+        List<MessageRecord> records = [MakeRecord("assistant", "reply")];
+        await memory.RecordAsync(records, MemoryScope.User);
 
         Assert.Equal(1, shortTerm.RecordCallCount);
         Assert.Equal(MemoryScope.User, shortTerm.LastRecordedScope);
@@ -473,4 +474,13 @@ public sealed class MemoryFacadeTests
         Assert.Contains(results, r => r.Id == "st-1");
         Assert.Contains(results, r => r.Id == "lt-1");
     }
+
+    private static MessageRecord MakeRecord(string role, string text) =>
+        new()
+        {
+            EntryId   = Guid.NewGuid().ToString(),
+            Timestamp = DateTimeOffset.UtcNow,
+            Role      = role,
+            Parts     = [new TextPart { Text = text }]
+        };
 }

@@ -1,3 +1,4 @@
+using Dmon.Abstractions.Memory;
 using Dmon.Core.Rpc;
 using Dmon.Core.Session;
 using Dmon.Core.Tests.Fakes;
@@ -5,6 +6,7 @@ using Dmon.Protocol.Commands;
 using Dmon.Protocol.Conversation;
 using Dmon.Protocol.Events;
 using Dmon.Protocol.Sessions;
+using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Dmon.Core.Tests.Rpc;
@@ -444,6 +446,16 @@ internal sealed class FakeSessionStore : ISessionStore
         IReadOnlyList<Part> parts,
         CancellationToken cancellationToken = default) =>
         Task.FromResult(Guid.NewGuid().ToString());
+
+    public Task<IReadOnlyList<string>> AppendMessagesAsync(
+        string sessionId,
+        IReadOnlyList<ChatMessage> messages,
+        MemoryScope scope = MemoryScope.Agent,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<string>>(
+            messages.Where(m => m.Role != ChatRole.System)
+                    .Select(_ => Guid.NewGuid().ToString())
+                    .ToList());
 
     public Task<IReadOnlyList<SessionLogLine>> ReadRecordsAsync(
         string sessionId,

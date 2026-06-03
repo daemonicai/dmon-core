@@ -1,10 +1,13 @@
 using System.Text.Json;
 using Dmon.Abstractions.Memory;
+using Dmon.Core.Session;
 using Dmon.Memory.Embedding;
 using Dmon.Memory.Index;
 using Dmon.Memory.Tests.Stubs;
+using Dmon.Protocol.Conversation;
 using Microsoft.Data.Sqlite;
-using Microsoft.Extensions.AI;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Dmon.Memory.Tests.Index;
 
@@ -37,10 +40,10 @@ public sealed class RecordPathTests : IAsyncLifetime
 
         (ShortTermMemory memory, string sessionId) = await _fixture.BuildMemoryAsync();
 
-        // Record two good turns.
+        // Record two good turns (index-only — no canonical write).
         await memory.RecordAsync([
-            new ChatMessage(ChatRole.User, goodText1),
-            new ChatMessage(ChatRole.Assistant, goodText2),
+            MakeRecord("user", goodText1),
+            MakeRecord("assistant", goodText2),
         ]);
 
         int rowsBefore = CountContentRows(_fixture.IndexDbPath(sessionId));
@@ -48,7 +51,7 @@ public sealed class RecordPathTests : IAsyncLifetime
 
         // Attempt to record the faulting turn — should throw.
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            memory.RecordAsync([new ChatMessage(ChatRole.User, faultText)]));
+            memory.RecordAsync([MakeRecord("user", faultText)]));
 
         // memory_content must have exactly 2 rows — the faulted turn's rows must not be committed.
         // content, vec, and fts are all written in one transaction, so content row count is
@@ -63,12 +66,13 @@ public sealed class RecordPathTests : IAsyncLifetime
         Assert.Equal(2, CountFtsRows(_fixture.IndexDbPath(sessionId)));
 
         await memory.DisposeAsync();
+        _ = sessionId;
     }
 
-    // ── 4.4.2 ReadMessagesAsync matches verbatim messages.jsonl ─────────────
+    // ── 4.4.2 RecordAsync is index-only — does not write to messages.jsonl ──
 
     [Fact]
-    public async Task ReadMessagesAsync_MatchesVerbatimJsonlContent()
+    public async Task RecordAsync_DoesNotWriteToMessagesJsonl()
     {
         const string text1 = "ribosomes translate messenger RNA into proteins";
         const string text2 = "ATP synthase produces adenosine triphosphate";
@@ -76,49 +80,92 @@ public sealed class RecordPathTests : IAsyncLifetime
         (ShortTermMemory memory, string sessionId) = await _fixture.BuildMemoryAsync();
         await using ShortTermMemory _ = memory;
 
+        string[] linesBefore = await File.ReadAllLinesAsync(_fixture.MessagesJsonlPath(sessionId));
+        int countBefore = linesBefore.Count(l => !string.IsNullOrWhiteSpace(l));
+
         await memory.RecordAsync([
-            new ChatMessage(ChatRole.User, text1),
-            new ChatMessage(ChatRole.Assistant, text2),
+            MakeRecord("user",      text1),
+            MakeRecord("assistant", text2),
         ]);
 
-        // ReadMessagesAsync returns deserialized objects (via SessionStore).
-        IReadOnlyList<object> messages = await memory.ReadMessagesAsync(applyCompaction: false);
+        string[] linesAfter = await File.ReadAllLinesAsync(_fixture.MessagesJsonlPath(sessionId));
+        int countAfter = linesAfter.Count(l => !string.IsNullOrWhiteSpace(l));
 
-        // Read the raw JSONL for comparison.
-        string[] rawLines = await File.ReadAllLinesAsync(_fixture.MessagesJsonlPath(sessionId));
-        string[] nonEmpty = rawLines.Where(l => !string.IsNullOrWhiteSpace(l)).ToArray();
-
-        // The count must match.
-        Assert.Equal(nonEmpty.Length, messages.Count);
-
-        // Each message, when re-serialized, must round-trip to contain the original text.
-        string combined = JsonSerializer.Serialize(messages);
-        Assert.Contains(text1, combined, StringComparison.Ordinal);
-        Assert.Contains(text2, combined, StringComparison.Ordinal);
+        // Index-only: messages.jsonl must be unchanged.
+        Assert.Equal(countBefore, countAfter);
     }
 
+    // ── 4.4.3 RecordAsync keys index on supplied entryId ────────────────────
+
     [Fact]
-    public async Task ReadMessagesAsync_TextsPreservedVerbatim()
+    public async Task RecordAsync_KeysIndexOnSuppliedEntryId()
     {
         const string text = "CRISPR-Cas9 enables precise genome editing in living cells";
+        string expectedEntryId = Guid.NewGuid().ToString();
+
+        _fixture.EmbeddingGenerator.SetGroupVector("crispr-group",
+            NomicEmbedding.ApplyDocumentPrefix(text),
+            NomicEmbedding.ApplyQueryPrefix(text));
 
         (ShortTermMemory memory, string sessionId) = await _fixture.BuildMemoryAsync();
-        await using ShortTermMemory _ = memory;
+        await using ShortTermMemory mem = memory;
 
-        await memory.RecordAsync([new ChatMessage(ChatRole.User, text)]);
+        MessageRecord record = MakeRecord("user", text, expectedEntryId);
+        await mem.RecordAsync([record]);
 
-        // The raw JSONL must contain the exact text.
-        string[] rawLines = await File.ReadAllLinesAsync(_fixture.MessagesJsonlPath(sessionId));
-        string rawContent = string.Join('\n', rawLines);
-        Assert.Contains(text, rawContent, StringComparison.Ordinal);
+        IReadOnlyList<MemoryHit> hits = await mem.SearchAsync(text);
 
-        // ReadMessagesAsync must also surface it.
-        IReadOnlyList<object> messages = await memory.ReadMessagesAsync(applyCompaction: false);
+        Assert.Single(hits);
+        Assert.Equal(expectedEntryId, hits[0].Id);
+        _ = sessionId;
+    }
+
+    // ── 4.4.4 ReadMessagesAsync still works (delegates to SessionStore JSONL) ─
+
+    [Fact]
+    public async Task ReadMessagesAsync_ReturnsCanonicalJsonlContent()
+    {
+        const string text1 = "ribosomes translate messenger RNA into proteins";
+        const string text2 = "ATP synthase produces adenosine triphosphate";
+
+        (ShortTermMemory memory, string sessionId) = await _fixture.BuildMemoryAsync();
+        await using ShortTermMemory mem = memory;
+
+        // Write directly to the session log (simulating what session-storage does).
+        IConfiguration config = new ConfigurationBuilder().Build();
+        FixedRootResolver resolver = new(_fixture.Root);
+        IAttachmentStore attachmentStore = new AttachmentStore(resolver, config);
+        SessionStore store = new(resolver, attachmentStore,
+            NullLogger<SessionStore>.Instance,
+            NullLoggerFactory.Instance, config);
+
+        await store.AppendMessageAsync(sessionId, "user", [new TextPart { Text = text1 }]);
+        await store.AppendMessageAsync(sessionId, "assistant", [new TextPart { Text = text2 }]);
+
+        IReadOnlyList<object> messages = await mem.ReadMessagesAsync(applyCompaction: false);
         string messagesJson = JsonSerializer.Serialize(messages);
-        Assert.Contains(text, messagesJson, StringComparison.Ordinal);
+
+        Assert.Equal(2, messages.Count);
+        Assert.Contains(text1, messagesJson, StringComparison.Ordinal);
+        Assert.Contains(text2, messagesJson, StringComparison.Ordinal);
+        _ = sessionId;
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────
+
+    private static MessageRecord MakeRecord(string role, string text, string? entryId = null) =>
+        new()
+        {
+            EntryId   = entryId ?? Guid.NewGuid().ToString(),
+            Timestamp = DateTimeOffset.UtcNow,
+            Role      = role,
+            Parts     = [new TextPart { Text = text }]
+        };
+
+    private sealed class FixedRootResolver(string root) : ISessionDirectoryResolver
+    {
+        public string Resolve(string workingDirectory) => root;
+    }
 
     private static int CountContentRows(string dbPath)
         => CountRows(dbPath, "SELECT COUNT(*) FROM memory_content");

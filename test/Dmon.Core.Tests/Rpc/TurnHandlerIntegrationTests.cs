@@ -1,5 +1,6 @@
 using System.Runtime.CompilerServices;
 using Dmon.Abstractions;
+using Dmon.Abstractions.Memory;
 using Dmon.Abstractions.Profiles;
 using Dmon.Abstractions.Providers;
 using Dmon.Core.Extensions;
@@ -8,6 +9,7 @@ using Dmon.Core.Permissions;
 using Dmon.Core.Profiles;
 using Dmon.Core.Session;
 using Dmon.Protocol.Commands;
+using Dmon.Protocol.Conversation;
 using Dmon.Protocol.Enums;
 using Dmon.Protocol.Events;
 using Dmon.Protocol.Permissions;
@@ -260,13 +262,15 @@ internal static class TurnHandlerFactory
     public static (TurnHandler handler, TestEventEmitter emitter) Create(
         IProviderRegistry providers,
         TestEventEmitter? emitter = null,
-        IActiveModelStore? store = null)
+        IActiveModelStore? store = null,
+        ISessionHandler? sessionHandler = null,
+        ISessionStore? sessionStore = null)
     {
         emitter ??= new TestEventEmitter();
         EmptyToolRegistry tools = new();
         PermitAllPolicy policy = new();
         NoopThinkingHandler thinking = new();
-        StubSessionHandler sessionHandler = new();
+        sessionHandler ??= new StubSessionHandler();
         StubAttachmentStore attachmentStore = new();
         StubSystemPromptBuilder systemPromptBuilder = new();
         IConfiguration configuration = new ConfigurationBuilder().Build();
@@ -289,7 +293,8 @@ internal static class TurnHandlerFactory
             new StubAgentProfileResolver(),
             new AgentProfileContext(),
             new NoopSessionAssetProvisioner(),
-            NullLogger<TurnHandler>.Instance);
+            NullLogger<TurnHandler>.Instance,
+            sessionStore);
 
         return (handler, emitter);
     }
@@ -554,6 +559,77 @@ public sealed class TurnHandlerIntegrationTests
 
         Assert.Equal(0, store.SaveCount);
     }
+
+    // ── Turn persistence (Group 4.1) ─────────────────────────────────────────
+
+    [Fact]
+    public async Task Submit_WithActiveSession_PersistsUserAndAssistantMessages()
+    {
+        const string userMessage      = "Hello, what is two plus two?";
+        const string assistantMessage = "Two plus two is four.";
+
+        StubChatClient client = new(assistantMessage);
+        SpySessionStore spyStore = new();
+        ActiveSessionHandler sessionHandler = new("session-123");
+
+        StubProviderRegistry providers = new(client);
+        (TurnHandler handler, _) = TurnHandlerFactory.Create(
+            providers,
+            sessionHandler: sessionHandler,
+            sessionStore: spyStore);
+
+        TurnSubmitCommand cmd = new() { Id = "req-1", Message = userMessage };
+        await handler.SubmitAsync(cmd, CancellationToken.None);
+
+        // AppendMessagesAsync must have been called exactly once (one turn = one batch call).
+        Assert.Equal(1, spyStore.AppendMessagesCallCount);
+
+        IReadOnlyList<ChatMessage> persisted = spyStore.AppendMessagesCalls[0].Messages;
+
+        // System message must be excluded.
+        Assert.DoesNotContain(persisted, m => m.Role == ChatRole.System);
+
+        // User message must be present.
+        Assert.Contains(persisted, m => m.Role == ChatRole.User);
+
+        // Assistant message must be present.
+        Assert.Contains(persisted, m => m.Role == ChatRole.Assistant);
+
+        // Session id must match the active session.
+        Assert.Equal("session-123", spyStore.AppendMessagesCalls[0].SessionId);
+    }
+
+    [Fact]
+    public async Task Submit_WithNoActiveSession_DoesNotCallSessionStore()
+    {
+        StubChatClient client = new("response");
+        SpySessionStore spyStore = new();
+        // StubSessionHandler returns CurrentSession = null.
+
+        StubProviderRegistry providers = new(client);
+        (TurnHandler handler, _) = TurnHandlerFactory.Create(
+            providers,
+            sessionStore: spyStore);
+
+        TurnSubmitCommand cmd = new() { Id = "req-1", Message = "Hello" };
+        await handler.SubmitAsync(cmd, CancellationToken.None);
+
+        Assert.Equal(0, spyStore.AppendMessagesCallCount);
+    }
+
+    [Fact]
+    public async Task Submit_WithNoSessionStore_CompletesNormally()
+    {
+        // TurnHandler without ISessionStore should still complete the turn.
+        StubChatClient client = new("response");
+        StubProviderRegistry providers = new(client);
+        (TurnHandler handler, TestEventEmitter emitter) = TurnHandlerFactory.Create(providers);
+
+        TurnSubmitCommand cmd = new() { Id = "req-1", Message = "Hello" };
+        await handler.SubmitAsync(cmd, CancellationToken.None);
+
+        Assert.Contains(emitter.Events, e => e is TurnEndEvent);
+    }
 }
 
 /// <summary>
@@ -563,4 +639,87 @@ public sealed class TurnHandlerIntegrationTests
 internal sealed class NoopSessionAssetProvisioner : ISessionAssetProvisioner
 {
     public string? Provision(AgentProfile profile, string? sessionId) => null;
+}
+
+/// <summary>
+/// ISessionHandler stub that returns a fixed non-null current session.
+/// Used in turn-persistence tests to make TurnHandler believe a session is active.
+/// </summary>
+internal sealed class ActiveSessionHandler : ISessionHandler
+{
+    public ActiveSessionHandler(string sessionId)
+    {
+        CurrentSession = new SessionMeta { Id = sessionId, Created = DateTimeOffset.UtcNow, Modified = DateTimeOffset.UtcNow };
+    }
+
+    public SessionMeta? CurrentSession { get; }
+
+    public Task CreateAsync(SessionCreateCommand cmd, CancellationToken cancellationToken) => Task.CompletedTask;
+    public Task ForkAsync(SessionForkCommand cmd, CancellationToken cancellationToken) => Task.CompletedTask;
+    public Task CloneAsync(SessionCloneCommand cmd, CancellationToken cancellationToken) => Task.CompletedTask;
+    public Task LoadAsync(SessionLoadCommand cmd, CancellationToken cancellationToken) => Task.CompletedTask;
+    public Task ListAsync(SessionListCommand cmd, CancellationToken cancellationToken) => Task.CompletedTask;
+    public Task SetNameAsync(SessionSetNameCommand cmd, CancellationToken cancellationToken) => Task.CompletedTask;
+    public Task GetStatsAsync(SessionGetStatsCommand cmd, CancellationToken cancellationToken) => Task.CompletedTask;
+    public Task GetMessagesAsync(SessionGetMessagesCommand cmd, CancellationToken cancellationToken) => Task.CompletedTask;
+}
+
+/// <summary>
+/// ISessionStore spy that captures all AppendMessagesAsync calls.
+/// Canonical writes are no-ops (no disk); memory is not tested here.
+/// </summary>
+internal sealed class SpySessionStore : ISessionStore
+{
+    private readonly List<(string SessionId, IReadOnlyList<ChatMessage> Messages, MemoryScope Scope)> _calls = [];
+
+    public IReadOnlyList<(string SessionId, IReadOnlyList<ChatMessage> Messages, MemoryScope Scope)> AppendMessagesCalls => _calls;
+
+    public int AppendMessagesCallCount => _calls.Count;
+
+    public Task<IReadOnlyList<string>> AppendMessagesAsync(
+        string sessionId,
+        IReadOnlyList<ChatMessage> messages,
+        MemoryScope scope = MemoryScope.Agent,
+        CancellationToken cancellationToken = default)
+    {
+        _calls.Add((sessionId, messages, scope));
+        // Return a fake entryId per message (excluding system).
+        string[] ids = messages
+            .Where(m => m.Role != ChatRole.System)
+            .Select(_ => Guid.NewGuid().ToString())
+            .ToArray();
+        return Task.FromResult<IReadOnlyList<string>>(ids);
+    }
+
+    // ── Remaining ISessionStore members (not exercised by TurnHandler) ────────
+
+    public Task<SessionMeta> CreateAsync(string? name = null, CancellationToken cancellationToken = default)
+        => throw new NotSupportedException();
+
+    public Task<SessionMeta> LoadAsync(string sessionId, CancellationToken cancellationToken = default)
+        => throw new NotSupportedException();
+
+    public Task<IReadOnlyList<SessionMeta>> ListAsync(CancellationToken cancellationToken = default)
+        => throw new NotSupportedException();
+
+    public Task UpdateMetaAsync(SessionMeta meta, CancellationToken cancellationToken = default)
+        => throw new NotSupportedException();
+
+    public string GetSessionDirectory(string sessionId)
+        => throw new NotSupportedException();
+
+    public Task<SessionMeta> ForkAsync(string sourceSessionId, string entryId, string? name = null, CancellationToken cancellationToken = default)
+        => throw new NotSupportedException();
+
+    public Task<SessionMeta> CloneAsync(string sourceSessionId, string? name = null, CancellationToken cancellationToken = default)
+        => throw new NotSupportedException();
+
+    public Task<IReadOnlyList<object>> ReadMessagesAsync(string sessionId, bool applyCompaction = true, CancellationToken cancellationToken = default)
+        => throw new NotSupportedException();
+
+    public Task<string> AppendMessageAsync(string sessionId, string role, IReadOnlyList<Part> parts, CancellationToken cancellationToken = default)
+        => throw new NotSupportedException();
+
+    public Task<IReadOnlyList<SessionLogLine>> ReadRecordsAsync(string sessionId, bool applyCompaction = true, CancellationToken cancellationToken = default)
+        => throw new NotSupportedException();
 }
