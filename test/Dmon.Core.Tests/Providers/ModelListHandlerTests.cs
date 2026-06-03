@@ -54,7 +54,7 @@ public sealed class ModelListHandlerTests
         IProviderRegistry registry = CreateRegistry([config]);
         ModelListHandler handler = CreateHandler(registry);
 
-        ModelListResultEvent result = handler.Handle();
+        ModelListResultEvent result = handler.Handle("test-cmd-id");
 
         Assert.Single(result.Models);
     }
@@ -76,7 +76,7 @@ public sealed class ModelListHandlerTests
         };
         ModelListHandler handler = CreateHandler(registry, factory);
 
-        ModelListResultEvent result = handler.Handle();
+        ModelListResultEvent result = handler.Handle("test-cmd-id");
 
         Model model = result.Models[0];
         Assert.True(model.ToolCalling);
@@ -93,7 +93,7 @@ public sealed class ModelListHandlerTests
         IProviderRegistry registry = CreateRegistry([first, second]);
         ModelListHandler handler = CreateHandler(registry);
 
-        ModelListResultEvent result = handler.Handle();
+        ModelListResultEvent result = handler.Handle("test-cmd-id");
 
         Assert.Equal("alpha", result.ActiveProvider);
         Assert.Equal("alpha-model", result.ActiveModelId);
@@ -110,7 +110,7 @@ public sealed class ModelListHandlerTests
         registry.CommitPendingSwitch();
 
         ModelListHandler handler = CreateHandler(registry);
-        ModelListResultEvent result = handler.Handle();
+        ModelListResultEvent result = handler.Handle("test-cmd-id");
 
         Assert.Equal("beta", result.ActiveProvider);
         Assert.Equal("beta-model", result.ActiveModelId);
@@ -128,7 +128,7 @@ public sealed class ModelListHandlerTests
         IProviderRegistry registry = CreateRegistry(configs);
         ModelListHandler handler = CreateHandler(registry);
 
-        ModelListResultEvent result = handler.Handle();
+        ModelListResultEvent result = handler.Handle("test-cmd-id");
 
         Assert.Equal(3, result.Models.Count);
         Assert.Equal("a", result.Models[0].Provider);
@@ -143,9 +143,21 @@ public sealed class ModelListHandlerTests
         IProviderRegistry registry = CreateRegistry([config]);
         ModelListHandler handler = CreateHandler(registry);
 
-        ModelListResultEvent result = handler.Handle();
+        ModelListResultEvent result = handler.Handle("test-cmd-id");
 
         Assert.Equal("http://localhost:11434/v1", result.Models[0].BaseUrl);
+    }
+
+    [Fact]
+    public void Handle_ThreadsCommandId()
+    {
+        ProviderConfig config = MakeConfig("alpha", modelId: "alpha-model");
+        IProviderRegistry registry = CreateRegistry([config]);
+        ModelListHandler handler = CreateHandler(registry);
+
+        ModelListResultEvent result = handler.Handle("cmd-abc-123");
+
+        Assert.Equal("cmd-abc-123", result.CommandId);
     }
 
     private sealed class NullCredentialResolver : ICredentialResolver

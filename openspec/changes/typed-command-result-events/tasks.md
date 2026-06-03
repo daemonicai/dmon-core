@@ -19,17 +19,17 @@
 
 ## 3. Retrofit model/auth result events onto ResultEvent
 
-- [ ] 3.1 Reparent `ModelListResultEvent` and `ModelModelsResultEvent` onto `ResultEvent` (add `id`); thread the originating `ModelListCommand`/`ModelModelsCommand` `id` through their emit sites in `src/Dmon.Core/Providers`.
-- [ ] 3.2 Reparent `AuthStatusResultEvent` (and the auth completion result events) onto `ResultEvent` (add `id`); thread the originating command `id` through the auth handler emit sites.
-- [ ] 3.3 Confirm each retrofitted event has a real originating command `id` at its emit site; if any emit site has no originating command, stop and raise it (per design risk note) rather than synthesising an id.
-- [ ] 3.4 Update model-listing / auth tests to assert the correlation `id` on the result events.
-- [ ] 3.5 Build and tests green.
+- [x] 3.1 Reparent `ModelListResultEvent` and `ModelModelsResultEvent` onto `ResultEvent` (add `id`); thread the originating `ModelListCommand`/`ModelModelsCommand` `id` through their emit sites in `src/Dmon.Core/Providers`.
+- [x] 3.2 Reparent `AuthStatusResultEvent` (and the auth completion result events) onto `ResultEvent` (add `id`); thread the originating command `id` through the auth handler emit sites.
+- [x] 3.3 Confirm each retrofitted event has a real originating command `id` at its emit site; if any emit site has no originating command, stop and raise it (per design risk note) rather than synthesising an id.
+- [x] 3.4 Update model-listing / auth tests to assert the correlation `id` on the result events.
+- [x] 3.5 Build and tests green.
 
 ## 4. Host consumption
 
 - [x] 4.1 Update `src/Dmon.Terminal` (and any shared RPC client) to consume the per-command typed result events and `commandError` instead of `{type:"response", data}`.
 - [x] 4.2 Where the host tracks pending requests, correlate completion by the result event's `id`.
-- [ ] 4.3 Build and tests green; manual terminal smoke (`session.create`, `session.list`, `/model`, `auth.status`) behaves as before.
+- [x] 4.3 Build and tests green; manual terminal smoke (`session.create`, `session.list`, `/model`, `auth.status`) behaves as before.
 
 ## 5. Finalisation
 

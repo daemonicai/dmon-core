@@ -4,7 +4,8 @@ namespace Dmon.Protocol.Events;
 
 /// <summary>
 /// Base type for all core-to-host events.
-/// Events are emitted without an <c>id</c> field — they are not request-response.
+/// Streaming and notification events are emitted without an <c>id</c> field; command-result
+/// events (<see cref="ResultEvent"/> subclasses) carry the originating command's <c>id</c>.
 /// </summary>
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "type")]
 [JsonDerivedType(typeof(AgentReadyEvent), typeDiscriminator: "agentReady")]

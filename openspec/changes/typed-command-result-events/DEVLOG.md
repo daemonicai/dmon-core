@@ -23,9 +23,18 @@ Retire the generic `{type:"response", data}` envelope; command results become de
 - Added wire-shape serialization tests (`SessionResultEventSerializationTests`), `SessionHandlerTypedEventsTests`, and `SessionTypedEventHandlerTests` (host).
 - Gates: `make build` 0/0; full `make test` green (Core 558/+1 skip, Terminal 157, Protocol 49, Gateway 123, …, 0 failures, 2 pre-existing skips); `openspec validate --strict` valid.
 
+## 3. Retrofit model/auth result events onto ResultEvent
+
+- Reparented `ModelListResultEvent` + `ModelModelsResultEvent` onto `ResultEvent`. Threaded the real command id: `ModelModelsHandler` sets `CommandId = cmd.Id` (both returns); `ModelListHandler.Handle()` → `Handle(string commandId)`, fed `cmd.Id` from `NullModelHandler.ListAsync`. No fabricated ids.
+- **Decision / finding:** the four auth result events (`AuthStatusResultEvent`, `AuthLoginCompleteEvent`, `AuthLogoutCompleteEvent`, `AuthLoginFailedEvent`) are **never emitted in the core** — auth is stubbed (`NullAuthHandler` throws `NotImplementedException`); they're only consumed by the host. So the retrofit is **contract-only**: the types now derive from `ResultEvent` (gain `id`), but there are no emit sites to thread an id through (task 3.3's "no originating command" condition). Did NOT implement auth emission (out of scope) and did NOT fabricate ids. When auth is implemented later, the contract is already id-correlated.
+- Fixed `Event.cs` base doc comment (reviewer nit): it now notes `ResultEvent` subclasses carry the originating command `id`, while streaming/notification events don't.
+- Tests: model-listing tests assert id correlation (`Handle_ThreadsCommandId`); new `ModelAndAuthResultEventSerializationTests` asserts both model + all four auth events carry `id` and round-trip with correct `type` discriminators.
+- **Review:** reviewer approved (2 nits — the Event.cs doc, fixed; and `AuthStatusResultEvent.Providers` being `IReadOnlyList<object>`, pre-existing, deferred to auth implementation).
+- Gates: `make build` 0/0; full `make test` green (Protocol 58, Core 559/+1 skip, Terminal 157, Gateway 123, …, 0 failures, 2 pre-existing skips); `openspec validate --strict` valid.
+
 ## NEXT
 
-- **Up next:** Group 3 — retrofit `ModelListResultEvent`/`ModelModelsResultEvent`/`AuthStatusResultEvent` (+ auth completion events) onto `ResultEvent` (add `id`), threading the originating command id through their emit sites in `src/Dmon.Core/Providers` and the auth handler.
+- **Up next:** Group 5 — Finalisation: grep for residual `ResponseEvent`/`{type:"response"` (expect only the `getMessages` success path); confirm `make build` clean, `make test` green, `openspec validate --strict`. This is the last group; after it the change is implementation-complete and ready to propose `/opsx:archive`.
 - **Open questions:** none.
-- **Nits / deferred:** (1) **Task 4.3 manual terminal smoke** is NOT yet ticked — automated coverage is strong (Terminal.Tests 157 + integration smoke tests updated/green) but the interactive `/model` + `auth.status` flows want a human smoke before ticking. (2) `session.getMessages` success stays on legacy `ResponseEvent` until conversation-persistence. (3) Harness follow-up (out of scope): `CoreProcessFixture.FindCoreDll()` prefers `bin/Debug` over `bin/Release` — run `dotnet clean -c Debug` before `make test`.
+- **Nits / deferred:** (1) `session.getMessages` success stays on legacy `ResponseEvent` until conversation-persistence supplies the typed DTO. (2) Auth result events are reparented but unemitted — auth emission + replacing `AuthStatusResultEvent.Providers` (`IReadOnlyList<object>`) with a typed shape are deferred to when auth is implemented. (3) Harness follow-up (out of scope): `CoreProcessFixture.FindCoreDll()` prefers `bin/Debug` over `bin/Release` — run `dotnet clean -c Debug` before `make test`.
 - **Carry-forward:** apply runs on `change/typed-command-result-events`; `change/conversation-persistence` stacked on top, applies second.

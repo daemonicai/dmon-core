@@ -3,7 +3,7 @@ using Dmon.Protocol.Models;
 
 namespace Dmon.Protocol.Events;
 
-public sealed record ModelListResultEvent : Event
+public sealed record ModelListResultEvent : ResultEvent
 {
     [JsonPropertyName("models")]
     public required IReadOnlyList<Model> Models { get; init; }
@@ -15,7 +15,7 @@ public sealed record ModelListResultEvent : Event
     public required string ActiveModelId { get; init; }
 }
 
-public sealed record ModelModelsResultEvent : Event
+public sealed record ModelModelsResultEvent : ResultEvent
 {
     [JsonPropertyName("provider")]
     public required string Provider { get; init; }

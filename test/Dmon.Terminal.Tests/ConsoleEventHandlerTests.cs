@@ -261,6 +261,7 @@ public sealed class ConsoleEventHandlerTests
 
         ModelListResultEvent evt = new()
         {
+            CommandId = "cmd-list-1",
             Models =
             [
                 new Model { Id = "claude-3", Name = "Claude 3", Provider = "anthropic", Input = [InputType.Text] },
@@ -296,6 +297,7 @@ public sealed class ConsoleEventHandlerTests
 
         ModelListResultEvent evt = new()
         {
+            CommandId = "cmd-list-2",
             Models = [new Model { Id = "claude-3", Name = "Claude 3", Provider = "anthropic", Input = [InputType.Text] }],
             ActiveProvider = "anthropic",
             ActiveModelId  = "claude-3",
@@ -321,6 +323,7 @@ public sealed class ConsoleEventHandlerTests
 
         ModelListResultEvent evt = new()
         {
+            CommandId = "cmd-list-3",
             Models         = [],
             ActiveProvider = string.Empty,
             ActiveModelId  = string.Empty,
@@ -354,6 +357,7 @@ public sealed class ConsoleEventHandlerTests
 
         ModelModelsResultEvent evt = new()
         {
+            CommandId = "cmd-models-1",
             Provider      = "openai",
             Models        = ["gpt-4o", "gpt-4o-mini"],
             ActiveModelId = "gpt-4o",
