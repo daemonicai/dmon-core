@@ -77,9 +77,16 @@ Session-storage owns a lossless, dmon-owned **parts** conversation record; the m
 - **Review:** APPROVE, no blockers/nits.
 - Gates: `make build` 0/0; `make test` green (Core 581/+1 skip, Protocol 67, all 10 projects pass); `openspec validate --strict` valid.
 
+## 8. Finalisation
+
+- **8.1 Grep gate (all zero in src+test):** `TurnLineRecord` 0; `AttachmentOffloadingChatClient` 0; `ResponseEvent` 0; `Microsoft.Extensions.AI` in `Dmon.Protocol` (the persisted-record + wire-schema project) 0. The no-third-party-type guarantee is additionally enforced at runtime by `ConversationRecordSchemaTests` (JsonSchemaExporter) and the event-serialization tests.
+- **8.2/8.3/8.4 Final gates:** `make build` 0 warnings / 0 errors (`TreatWarningsAsErrors`); `make test` green across all 10 projects (Protocol 67, Core 581, Terminal 157, Gateway 123, Memory 51, BuiltinTools 102, Omlx 41, Extensions 26, Providers 23, Runtime 14 — 0 failures, 2 pre-existing network-gated skips); `openspec validate conversation-persistence --strict` valid.
+- No new feature code — verification/cleanup only.
+
 ## NEXT
 
-- **Up next:** Group 8 — finalisation: grep the solution for no `TurnLineRecord`/`AttachmentOffloadingChatClient`/residual `ResponseEvent` and no `Microsoft.Extensions.AI` type in any persisted-record or wire schema; final `make build` (no warnings) + `make test` green + `openspec validate --strict`. This is the verification/cleanup group — no new feature code expected.
-- **Open questions:** none (tool-result fidelity is a known Group 9.5 dependency, not a blocker).
+- **Up next:** Change implementation complete — all 8 groups ticked. Awaiting user decision to push `change/conversation-persistence` / open a PR, then `/opsx:archive`.
+- **Open questions:** none.
+- **Carry-forward:** tool-result fidelity in `_history` is a known Group 9.5 (`FunctionInvokingChatClient` integration) dependency in a *separate* change — resume restores text + tool-calls today; full structured tool results flow through the same persistence path unchanged once 9.5 lands. Deferred nits from earlier groups (best-effort persistence no-retry; rebuild defaults scope to Agent; `AttachmentStore` callId path-traversal guard before live tool-call ids are offloaded) remain open for follow-up changes.
 - **Nits / deferred:** (1) **best-effort persistence, no retry** — `TurnHandler._persistedCount` advances in `finally`, so a failed `AppendMessagesAsync` logs but never retries → permanent loss of that turn from the session. Accepted for V1 (no production data); revisit for durability. (2) **rebuild defaults all entries to `MemoryScope.Agent`** (scope isn't carried on `MessageRecord`), so a `Session`-scoped live record becomes agent-scoped after rebuild — pre-existing; owner = whichever change persists memory scope. (3) **guard `AttachmentStore` against `callId` path-traversal before Group 9.5** wires live tool-call ids into the offload path (no `ToolResultPart`s are offloaded yet). (4) `ConversationMapper` `producedBy` default never reaches type-name fallback. (5) `ReadRecordsAsync`/`ReadMessagesAsync` duplicate the read+compaction scan — acceptable while `ReadMessagesAsync` is on its way out.
 - **Carry-forward:** branch `change/conversation-persistence`. Apply gates: `dotnet clean -c Debug` before `make test` (stale-`bin/Debug` hazard). Group 6 deletes `AttachmentOffloadingChatClient` (still wired in the pipeline today); group 7 un-quarantines `session.getMessages` → `SessionMessagesResultEvent`.

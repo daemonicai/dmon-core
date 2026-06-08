@@ -46,7 +46,7 @@
 
 ## 8. Finalisation
 
-- [ ] 8.1 Grep the solution: no `TurnLineRecord`, no `AttachmentOffloadingChatClient`, no residual `ResponseEvent`; no `Microsoft.Extensions.AI` type in any persisted-record or wire schema.
-- [ ] 8.2 `make build` clean (no warnings; `TreatWarningsAsErrors`).
-- [ ] 8.3 `make test` (or `dotnet test -c Release`) green across all projects.
-- [ ] 8.4 `openspec validate conversation-persistence --strict` passes.
+- [x] 8.1 Grep the solution: no `TurnLineRecord`, no `AttachmentOffloadingChatClient`, no residual `ResponseEvent`; no `Microsoft.Extensions.AI` type in any persisted-record or wire schema.
+- [x] 8.2 `make build` clean (no warnings; `TreatWarningsAsErrors`).
+- [x] 8.3 `make test` (or `dotnet test -c Release`) green across all projects.
+- [x] 8.4 `openspec validate conversation-persistence --strict` passes.
