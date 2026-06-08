@@ -33,11 +33,11 @@ providers:
       envVar: GEMINI_API_KEY
 
   ollama:
-    adapter: openai
-    defaultModelId: llama3.2
-    baseUrl: http://localhost:11434/v1
+    adapter: ollama
+    defaultModelId: gemma4:31b-nvfp4
     auth:
-      type: none
+      type: envVar
+      envVar: OLLAMA_HOST
 
   llama.cpp:
     adapter: openai

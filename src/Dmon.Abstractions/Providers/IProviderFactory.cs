@@ -15,7 +15,7 @@ public interface IProviderFactory
     string DefaultEnvVar { get; }
     ChatClientCapabilities GetCapabilities(string modelId);
     ValueTask<IChatClient> CreateAsync(ProviderConfig config, string? apiKey, CancellationToken cancellationToken = default);
-    ValueTask<IReadOnlyList<ModelInfo>> GetAvailableModelsAsync(string? apiKey, CancellationToken cancellationToken = default)
+    ValueTask<IReadOnlyList<ModelInfo>> GetAvailableModelsAsync(string? apiKey, string? baseUrl = null, CancellationToken cancellationToken = default)
         => ValueTask.FromResult<IReadOnlyList<ModelInfo>>([]);
 
     /// <summary>

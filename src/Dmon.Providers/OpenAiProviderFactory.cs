@@ -10,6 +10,15 @@ namespace Dmon.Providers;
 
 public sealed class OpenAiProviderFactory : IProviderFactory
 {
+    private readonly HttpMessageHandler? _httpMessageHandler;
+
+    public OpenAiProviderFactory() { }
+
+    internal OpenAiProviderFactory(HttpMessageHandler httpMessageHandler)
+    {
+        _httpMessageHandler = httpMessageHandler;
+    }
+
     public string AdapterName => "openai";
     public string DisplayName => "OpenAI";
     public string DefaultModelId => "gpt-4o";
@@ -44,7 +53,7 @@ public sealed class OpenAiProviderFactory : IProviderFactory
         if (modelStep is null || !modelStep.IsAnswered)
         {
             IReadOnlyList<ModelInfo> models = await GetAvailableModelsAsync(
-                apiKeyStep.Value, cancellationToken).ConfigureAwait(false);
+                apiKeyStep.Value, cancellationToken: cancellationToken).ConfigureAwait(false);
 
             IReadOnlyList<WizardOption> options = models.Count > 0
                 ? models.Select(m => new WizardOption(m.Id, m.Id)).ToList()
@@ -85,7 +94,16 @@ public sealed class OpenAiProviderFactory : IProviderFactory
     };
 
     public async ValueTask<IReadOnlyList<ModelInfo>> GetAvailableModelsAsync(
-        string? apiKey, CancellationToken cancellationToken = default)
+        string? apiKey, string? baseUrl = null, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(baseUrl))
+            return await FetchOpenAiCloudModelsAsync(apiKey, cancellationToken).ConfigureAwait(false);
+
+        return await FetchCustomEndpointModelsAsync(apiKey, baseUrl, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async ValueTask<IReadOnlyList<ModelInfo>> FetchOpenAiCloudModelsAsync(
+        string? apiKey, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(apiKey))
             return FallbackModels;
@@ -95,7 +113,7 @@ public sealed class OpenAiProviderFactory : IProviderFactory
             using CancellationTokenSource timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             timeoutCts.CancelAfter(TimeSpan.FromSeconds(5));
 
-            using HttpClient http = new();
+            using HttpClient http = CreateHttpClient();
             http.DefaultRequestHeaders.Add("Authorization", $"Bearer {apiKey}");
 
             using HttpResponseMessage response = await http.GetAsync(
@@ -134,6 +152,56 @@ public sealed class OpenAiProviderFactory : IProviderFactory
             return FallbackModels;
         }
     }
+
+    private async ValueTask<IReadOnlyList<ModelInfo>> FetchCustomEndpointModelsAsync(
+        string? apiKey, string baseUrl, CancellationToken cancellationToken)
+    {
+        try
+        {
+            using CancellationTokenSource timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeoutCts.CancelAfter(TimeSpan.FromSeconds(5));
+
+            using HttpClient http = CreateHttpClient();
+            if (!string.IsNullOrEmpty(apiKey))
+                http.DefaultRequestHeaders.Add("Authorization", $"Bearer {apiKey}");
+
+            string url = $"{baseUrl.TrimEnd('/')}/models";
+            using HttpResponseMessage response = await http.GetAsync(url, timeoutCts.Token).ConfigureAwait(false);
+
+            if (!response.IsSuccessStatusCode)
+                return [];
+
+            string json = await response.Content.ReadAsStringAsync(timeoutCts.Token).ConfigureAwait(false);
+            using JsonDocument doc = JsonDocument.Parse(json);
+
+            if (!doc.RootElement.TryGetProperty("data", out JsonElement dataElement))
+                return [];
+
+            List<ModelInfo> models = [];
+            foreach (JsonElement model in dataElement.EnumerateArray())
+            {
+                if (!model.TryGetProperty("id", out JsonElement idElement))
+                    continue;
+
+                string id = idElement.GetString() ?? string.Empty;
+                if (string.IsNullOrEmpty(id))
+                    continue;
+
+                models.Add(new ModelInfo { Id = id, Capabilities = GetCapabilities(id) });
+            }
+
+            return models;
+        }
+        catch
+        {
+            return [];
+        }
+    }
+
+    private HttpClient CreateHttpClient() =>
+        _httpMessageHandler is not null
+            ? new HttpClient(_httpMessageHandler, disposeHandler: false)
+            : new HttpClient();
 
     public ValueTask<IChatClient> CreateAsync(ProviderConfig config, string? apiKey, CancellationToken cancellationToken = default)
     {

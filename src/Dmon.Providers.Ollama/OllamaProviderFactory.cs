@@ -37,7 +37,7 @@ public sealed class OllamaProviderFactory : IProviderFactory
     }
 
     public async ValueTask<IReadOnlyList<DmonModelInfo>> GetAvailableModelsAsync(
-        string? apiKey, CancellationToken cancellationToken = default)
+        string? apiKey, string? baseUrl = null, CancellationToken cancellationToken = default)
     {
         Uri uri = NormalizeOllamaBaseUri(apiKey);
 
@@ -118,7 +118,7 @@ public sealed class OllamaProviderFactory : IProviderFactory
         if (modelStep is null || !modelStep.IsAnswered)
         {
             string baseUrl = baseUrlStep.Value ?? baseUrlStep.Default ?? "http://localhost:11434";
-            IReadOnlyList<DmonModelInfo> models = await GetAvailableModelsAsync(baseUrl, cancellationToken).ConfigureAwait(false);
+            IReadOnlyList<DmonModelInfo> models = await GetAvailableModelsAsync(baseUrl, cancellationToken: cancellationToken).ConfigureAwait(false);
 
             IReadOnlyList<WizardOption> options = models.Count > 0
                 ? models.Select(m => new WizardOption(m.Id, m.Id)).ToList()
