@@ -58,16 +58,31 @@ The agent core SHALL compact the session context when token usage approaches the
 - **WHEN** the host sends `session.compact`
 - **THEN** compaction is triggered immediately regardless of current token usage
 
+### Requirement: Faithful session resume
+On `session.load`, the agent core SHALL rehydrate the turn loop's conversation history from the canonical record so a freshly started core resumes with full tool-call and tool-result context, not text alone. The core SHALL read the canonical log, apply the compaction rule (records with `entryId` ≤ `supersedesUpTo` are skipped; the summary seeds the effective context start), and reconstruct in-memory `ChatMessage` history from the **replay subset** of parts: `text`, `toolCall`, `toolResult`, and `image`. `reasoning`, `usage`, and `unknown` parts SHALL NOT be replayed into LLM context. Reconstruction SHALL use dmon-owned record types mapped to `ChatMessage`; no third-party type appears in the persisted record.
+
+#### Scenario: Resume restores tool context
+- **WHEN** a session containing prior tool calls and results is loaded in a fresh core
+- **THEN** the reconstructed history includes those tool calls and results (not just their text), so the next turn runs with faithful context
+
+#### Scenario: Non-replayable parts are excluded from context
+- **WHEN** the canonical record contains `reasoning`, `usage`, or `unknown` parts
+- **THEN** they are preserved in the record but are not reconstructed into the LLM context on resume
+
+#### Scenario: Compaction is honoured on resume
+- **WHEN** the canonical record contains a `CompactionMessage`
+- **THEN** records with `entryId` ≤ `supersedesUpTo` are skipped and the summary seeds the effective context start
+
 ### Requirement: State queries
-The agent core SHALL respond to state query commands with current session and agent state, as typed events correlated by the originating command `id` (per "Typed, correlated command results").
+The agent core SHALL respond to state query commands with current session and agent state, as typed events correlated by the originating command `id`.
 
 #### Scenario: Get state
-- **WHEN** the host sends `session.getStats` with `id` `"req-3"`
-- **THEN** the core emits a `session.getStatsResult` event with `id` = `"req-3"` carrying a typed `SessionStats` payload (`tokens`, `cost`, `contextUsage`, `currentModel`) — not an anonymous object inside a `data` field
+- **WHEN** the host sends `session.getStats` with `id` `"req-1"`
+- **THEN** the core emits a `session.getStatsResult` event with `id` = `"req-1"` carrying a typed `SessionStats` payload
 
-#### Scenario: Get messages (deferred typing)
-- **WHEN** the host sends `session.getMessages`
-- **THEN** the core responds with the full message history for the current session; `session.getMessages` is the single command permitted to retain an untyped payload until the canonical turn-persistence change defines the conversation-message DTO, at which point it SHALL convert to a typed `session.getMessagesResult` event
+#### Scenario: Get messages
+- **WHEN** the host sends `session.getMessages` with `id` `"req-2"`
+- **THEN** the core emits a typed `SessionMessagesResultEvent` (`session.getMessagesResult`) with `id` = `"req-2"` carrying the session's full history as dmon-owned `message`/`compaction` records (the parts model), with no third-party type in the payload
 
 ### Requirement: Transient-error retry
 The agent core SHALL retry provider calls that fail with retryable errors (HTTP 5xx, 429 rate-limit, provider-specific `overloaded`) using exponential backoff with jitter. Defaults — `baseDelay: 1s`, `maxDelay: 30s`, `maxAttempts: 5` — are overridable via `IConfiguration` under `Daemon:Provider:Retry:*`. The core SHALL honour `Retry-After` response headers when present.
