@@ -20,11 +20,11 @@
 
 ## 4. Tests and finalisation
 
-- [ ] 4.1 Integration test: a turn that calls a tool records assistant `toolCall` + tool `toolResult` parts in `messages.jsonl`; resuming in a fresh core restores them into context (replay subset).
-- [ ] 4.2 Test: `toolExecutionEnd` carries the real tool result and correct `isError` (no placeholder); `TurnEndEvent.ToolResults` reflects real results.
-- [ ] 4.3 Test: a large tool result is offloaded at write-time to `attachments/<safe-callId>` and the historical turn replays in preview form (D6) on the next turn.
-- [ ] 4.4 Grep: no residual placeholder result / `TODO(Group 9.5)` in `TurnHandler`; no `Microsoft.Extensions.AI` type leaks into any persisted-record or wire payload.
-- [ ] 4.5 `make build` clean (no warnings; `TreatWarningsAsErrors`).
-- [ ] 4.6 `make test` (or `dotnet test -c Release`) green across all projects.
-- [ ] 4.7 `openspec validate tool-call-history-capture --strict` passes.
+- [x] 4.1 Integration test: a turn that calls a tool records assistant `toolCall` + tool `toolResult` parts in `messages.jsonl`; resuming in a fresh core restores them into context (replay subset).
+- [x] 4.2 Test: `toolExecutionEnd` carries the real tool result and correct `isError` (no placeholder); `TurnEndEvent.ToolResults` reflects real results.
+- [x] 4.3 Test: a large tool result is offloaded at write-time to `attachments/<safe-callId>` and the historical turn replays in preview form (D6) on the next turn.
+- [x] 4.4 Grep: no residual placeholder result / `TODO(Group 9.5)` in `TurnHandler`; no `Microsoft.Extensions.AI` type leaks into any persisted-record or wire payload.
+- [x] 4.5 `make build` clean (no warnings; `TreatWarningsAsErrors`).
+- [x] 4.6 `make test` (or `dotnet test -c Release`) green across all projects.
+- [x] 4.7 `openspec validate tool-call-history-capture --strict` passes.
 </content>
