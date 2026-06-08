@@ -291,6 +291,13 @@ public sealed class TurnHandler : ITurnHandler
             if (!string.IsNullOrWhiteSpace(activeModelId))
                 options.ModelId = activeModelId;
 
+            // Declared outside try so the catch block can run the anomaly sweep on abort.
+            Dictionary<string, FunctionCallContent> accumulatedCalls = [];
+            List<string> callOrder = [];
+            Dictionary<string, FunctionResultContent> accumulatedResults = [];
+            HashSet<string> startedCallIds = [];
+            HashSet<string> endedCallIds = [];
+
             try
             {
                 // Apply any pending steer before the LLM call.
@@ -342,11 +349,54 @@ public sealed class TurnHandler : ITurnHandler
                         }
                         else if (content is FunctionCallContent call)
                         {
-                            await HandleToolCallAsync(call, toolResults, cancellationToken)
-                                .ConfigureAwait(false);
+                            string callId = call.CallId ?? string.Empty;
+
+                            // Track insertion order; only record the first time a callId is seen.
+                            if (!accumulatedCalls.ContainsKey(callId))
+                                callOrder.Add(callId);
+
+                            // Last-write-wins: later updates carry more-complete Name/Arguments.
+                            accumulatedCalls[callId] = call;
+
+                            // Fire toolExecutionStart exactly once per distinct callId.
+                            if (startedCallIds.Add(callId))
+                            {
+                                await EmitToolExecutionStartAsync(call, cancellationToken)
+                                    .ConfigureAwait(false);
+                            }
+                        }
+                        else if (content is FunctionResultContent result)
+                        {
+                            string resultCallId = result.CallId ?? string.Empty;
+                            // Last-write-wins for results too.
+                            accumulatedResults[resultCallId] = result;
+
+                            // Emit toolExecutionEnd exactly once per callId as results arrive.
+                            if (endedCallIds.Add(resultCallId))
+                            {
+                                int? argsSizeBytes = accumulatedCalls.TryGetValue(resultCallId, out FunctionCallContent? matchedCall)
+                                    ? JsonSerializer.SerializeToUtf8Bytes(matchedCall.Arguments ?? new Dictionary<string, object?>()).Length
+                                    : null;
+                                await EmitToolExecutionEndAsync(
+                                    resultCallId,
+                                    matchedCall?.Name ?? resultCallId,
+                                    result,
+                                    toolResults,
+                                    argsSizeBytes,
+                                    cancellationToken).ConfigureAwait(false);
+                            }
                         }
                     }
                 }
+
+                // Anomaly sweep: any call that got a toolExecutionStart but no observed
+                // FunctionResultContent (provider delivered no result before stream end) gets
+                // a toolExecutionEnd with an error marker so the host UI never hangs.
+                // Currently shadowed by PermissionGateChatClient's full-buffering; exists as the
+                // D3 guarantee for a future non-buffering middleware that yields items incrementally.
+                await EmitMissingToolEndEventsAsync(
+                    startedCallIds, endedCallIds, accumulatedCalls, toolResults,
+                    CancellationToken.None).ConfigureAwait(false);
 
                 string fullText = accumulatedText.ToString();
 
@@ -364,7 +414,33 @@ public sealed class TurnHandler : ITurnHandler
                 await _emitter.EmitAsync(new MessageEndEvent { Message = lastMessage }, cancellationToken)
                     .ConfigureAwait(false);
 
-                _history.Add(new ChatMessage(ChatRole.Assistant, fullText));
+                // Build the canonical assistant message: text first, then function calls in
+                // the order they were first observed in the stream.
+                List<AIContent> assistantContents = [];
+                if (fullText.Length > 0)
+                    assistantContents.Add(new TextContent(fullText));
+                foreach (string callId in callOrder)
+                    assistantContents.Add(accumulatedCalls[callId]);
+                _history.Add(new ChatMessage(ChatRole.Assistant, assistantContents));
+
+                // Append the tool-role message only when at least one result was captured.
+                if (accumulatedResults.Count > 0)
+                {
+                    List<AIContent> toolContents = [];
+                    // Emit results in the same order as their corresponding calls.
+                    foreach (string callId in callOrder)
+                    {
+                        if (accumulatedResults.TryGetValue(callId, out FunctionResultContent? resultContent))
+                            toolContents.Add(resultContent);
+                    }
+                    // Any results whose callId had no matching call go at the end.
+                    foreach (KeyValuePair<string, FunctionResultContent> kv in accumulatedResults)
+                    {
+                        if (!accumulatedCalls.ContainsKey(kv.Key))
+                            toolContents.Add(kv.Value);
+                    }
+                    _history.Add(new ChatMessage(ChatRole.Tool, toolContents));
+                }
 
                 // Apply any queued follow-up as an additional iteration.
                 string? followUp = Volatile.Read(ref _pendingFollowUp);
@@ -379,6 +455,11 @@ public sealed class TurnHandler : ITurnHandler
             {
                 _logger.LogDebug("Turn cancelled.");
                 stopReason = "cancelled";
+
+                // On abort: emit error-marker ends for any calls that started but never resolved.
+                await EmitMissingToolEndEventsAsync(
+                    startedCallIds, endedCallIds, accumulatedCalls, toolResults,
+                    CancellationToken.None).ConfigureAwait(false);
             }
 
             break;
@@ -548,50 +629,100 @@ public sealed class TurnHandler : ITurnHandler
         }
     }
 
-    private async Task HandleToolCallAsync(
+    private async Task EmitToolExecutionStartAsync(
         FunctionCallContent call,
-        List<object> toolResults,
         CancellationToken cancellationToken)
     {
-        using Activity? toolActivity = DmonTelemetry.Source.StartActivity("tool.execute");
-
-        int argsSizeBytes = JsonSerializer.SerializeToUtf8Bytes(call.Arguments ?? new Dictionary<string, object?>()).Length;
-
-        if (toolActivity is not null)
-        {
-            toolActivity.SetTag("dmon.tool.name", call.Name);
-            toolActivity.SetTag("dmon.tool.args.size_bytes", argsSizeBytes);
-        }
-
         await _emitter.EmitAsync(new ToolExecutionStartEvent
         {
             CallId = call.CallId,
             Name = call.Name,
             Args = call.Arguments ?? new Dictionary<string, object?>()
         }, cancellationToken).ConfigureAwait(false);
+    }
 
-        // TODO(Group 9.5): Tool results are obtained from FunctionInvokingChatClient in the pipeline.
-        object result = new { callId = call.CallId, name = call.Name };
-        bool isError = false;
+    /// <summary>
+    /// Emits toolExecutionEnd carrying the REAL result from FunctionResultContent.
+    /// FunctionResultContent.Exception (M.E.AI 10.5.1) is set when the invoked function threw;
+    /// isError derives from that property. fr.Result is the raw object? the AIFunction returned.
+    /// </summary>
+    private async Task EmitToolExecutionEndAsync(
+        string callId,
+        string toolName,
+        FunctionResultContent fr,
+        List<object> toolResults,
+        int? argsSizeBytes,
+        CancellationToken cancellationToken)
+    {
+        // FunctionResultContent.Exception is non-null when the AIFunction threw.
+        bool isError = fr.Exception is not null;
+        object result = isError
+            ? new { error = fr.Exception!.Message }
+            : (fr.Result ?? new { });
 
-        int resultSizeBytes = JsonSerializer.SerializeToUtf8Bytes(result).Length;
-
+        using Activity? toolActivity = DmonTelemetry.Source.StartActivity("tool.execute");
         if (toolActivity is not null)
         {
-            toolActivity.SetTag("dmon.tool.result.size_bytes", resultSizeBytes);
+            toolActivity.SetTag("dmon.tool.name", toolName);
+            if (argsSizeBytes.HasValue)
+                toolActivity.SetTag("dmon.tool.args.size_bytes", argsSizeBytes.Value);
+            toolActivity.SetTag("dmon.tool.result.size_bytes",
+                JsonSerializer.SerializeToUtf8Bytes(result).Length);
             toolActivity.SetTag("dmon.tool.is_error", isError);
         }
 
         await _emitter.EmitAsync(new ToolExecutionEndEvent
         {
-            CallId = call.CallId,
+            CallId = callId,
             Result = result,
             IsError = isError
         }, cancellationToken).ConfigureAwait(false);
 
         toolResults.Add(result);
+        DmonTelemetry.RecordToolInvocation(toolName, isError);
+    }
 
-        DmonTelemetry.RecordToolInvocation(call.Name, isError);
+    /// <summary>
+    /// For any callId that got a toolExecutionStart but never an observed FunctionResultContent,
+    /// emit toolExecutionEnd with an error marker so the host UI never hangs.
+    /// Always called with CancellationToken.None so these emits reach the host even on abort.
+    /// </summary>
+    internal async Task EmitMissingToolEndEventsAsync(
+        HashSet<string> startedCallIds,
+        HashSet<string> endedCallIds,
+        Dictionary<string, FunctionCallContent> accumulatedCalls,
+        List<object> toolResults,
+        CancellationToken cancellationToken)
+    {
+        foreach (string callId in startedCallIds)
+        {
+            if (endedCallIds.Add(callId))
+            {
+                string toolName = accumulatedCalls.TryGetValue(callId, out FunctionCallContent? call)
+                    ? call.Name
+                    : callId;
+                object errorResult = new { error = "Tool result not received from provider." };
+
+                using Activity? toolActivity = DmonTelemetry.Source.StartActivity("tool.execute");
+                if (toolActivity is not null)
+                {
+                    toolActivity.SetTag("dmon.tool.name", toolName);
+                    toolActivity.SetTag("dmon.tool.is_error", true);
+                    toolActivity.SetTag("dmon.tool.result.size_bytes",
+                        JsonSerializer.SerializeToUtf8Bytes(errorResult).Length);
+                }
+
+                await _emitter.EmitAsync(new ToolExecutionEndEvent
+                {
+                    CallId = callId,
+                    Result = errorResult,
+                    IsError = true
+                }, cancellationToken).ConfigureAwait(false);
+
+                toolResults.Add(errorResult);
+                DmonTelemetry.RecordToolInvocation(toolName, true);
+            }
+        }
     }
 
     private async Task<bool> HandleConfirmRequestAsync(

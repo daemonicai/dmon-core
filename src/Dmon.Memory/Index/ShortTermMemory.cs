@@ -164,7 +164,7 @@ public sealed class ShortTermMemory : IShortTermMemory, IAsyncDisposable
                 Embedding: embeddings[i].Vector.ToArray()));
         }
 
-        // Serialise SQLite writes under one lock.
+        // Serialize SQLite writes under one lock.
         await _writeLock.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
