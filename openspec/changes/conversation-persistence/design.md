@@ -27,7 +27,7 @@ The orchestration point (turn handler) appends the record via session-storage **
 
 ### D3 — Replay subset reconstruction on `session.load`
 
-`session.load` reads the canonical log via session-storage, maps it through D1's replay path, and seeds `TurnHandler._history`. Compaction markers are honoured (entries with `entryId ≤ supersedesUpTo` are skipped, the summary seeds context) — the same rule the memory tier's reader already applies. Rationale: resume fidelity is the headline correctness win; reusing the compaction-aware read keeps one interpretation of the log.
+`session.load` reads the canonical log via session-storage, maps it through D1's replay path, and seeds `TurnHandler._history`. Compaction markers are honoured (entries with `entryId ≤ supersedesUpTo` are skipped, the summary seeds context) — the same rule the memory tier's reader already applies. Rationale: resume fidelity is the headline correctness win; reusing the compaction-aware read keeps one interpretation of the log. Note (decided in group 5): the compaction summary is replayed as a synthetic `ChatRole.Assistant` message in file-position order; the memory tier never reconstructs a `ChatMessage` from it, so this interpretation is first established here.
 
 ### D4 — Write-time offloading replaces the provider-input pass
 

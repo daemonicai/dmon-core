@@ -394,6 +394,7 @@ public sealed class DispatchLoopIntegrationTests : IDisposable
         public Task FollowUpAsync(TurnFollowUpCommand cmd, CancellationToken cancellationToken) => Task.CompletedTask;
         public Task AbortAsync(TurnAbortCommand cmd, CancellationToken cancellationToken) => Task.CompletedTask;
         public Task UiInputResponseAsync(UiInputResponseCommand cmd, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task SeedHistoryFromSessionAsync(string sessionId, CancellationToken cancellationToken) => Task.CompletedTask;
     }
 
     // ─── Registry stub ────────────────────────────────────────────────────────────────────
@@ -424,6 +425,7 @@ public sealed class DispatchLoopIntegrationTests : IDisposable
         public Task AbortAsync(TurnAbortCommand cmd, CancellationToken cancellationToken) => Task.CompletedTask;
         public Task ConfirmResponseAsync(ToolConfirmResponseCommand cmd, CancellationToken cancellationToken) => Task.CompletedTask;
         public Task UiInputResponseAsync(UiInputResponseCommand cmd, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task SeedHistoryFromSessionAsync(string sessionId, CancellationToken cancellationToken) => Task.CompletedTask;
     }
 
     private sealed class NoOpModelHandler : IModelHandler
@@ -529,6 +531,7 @@ public sealed class DispatchLoopIntegrationTests : IDisposable
         public Task AbortAsync(TurnAbortCommand cmd, CancellationToken cancellationToken) => Task.CompletedTask;
         public Task ConfirmResponseAsync(ToolConfirmResponseCommand cmd, CancellationToken cancellationToken) => Task.CompletedTask;
         public Task UiInputResponseAsync(UiInputResponseCommand cmd, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task SeedHistoryFromSessionAsync(string sessionId, CancellationToken cancellationToken) => Task.CompletedTask;
     }
 
     // ─── Scenarios F–I: dispatch-level proof that bad input is rejected without killing the
@@ -685,5 +688,6 @@ public sealed class DispatchLoopIntegrationTests : IDisposable
         public Task FollowUpAsync(TurnFollowUpCommand cmd, CancellationToken cancellationToken) => Task.CompletedTask;
         public Task ConfirmResponseAsync(ToolConfirmResponseCommand cmd, CancellationToken cancellationToken) => Task.CompletedTask;
         public Task UiInputResponseAsync(UiInputResponseCommand cmd, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task SeedHistoryFromSessionAsync(string sessionId, CancellationToken cancellationToken) => Task.CompletedTask;
     }
 }

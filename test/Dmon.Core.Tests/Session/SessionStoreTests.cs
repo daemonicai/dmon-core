@@ -134,12 +134,12 @@ public sealed class SessionStoreTests : IDisposable
             new ChatMessage(ChatRole.Assistant, "Hi! How can I help?"),
         ];
 
-        IReadOnlyList<string> entryIds = await _store.AppendMessagesAsync(session.Id, messages);
+        IReadOnlyList<MessageRecord> written = await _store.AppendMessagesAsync(session.Id, messages);
 
-        // One entryId per non-system message.
-        Assert.Equal(2, entryIds.Count);
-        Assert.All(entryIds, id => Assert.False(string.IsNullOrWhiteSpace(id)));
-        Assert.Distinct(entryIds);
+        // One record per non-system message.
+        Assert.Equal(2, written.Count);
+        Assert.All(written, r => Assert.False(string.IsNullOrWhiteSpace(r.EntryId)));
+        Assert.Distinct(written.Select(r => r.EntryId));
 
         // Canonical JSONL must have exactly 2 lines.
         string jsonlPath = Path.Combine(_store.GetSessionDirectory(session.Id), "messages.jsonl");
@@ -164,10 +164,10 @@ public sealed class SessionStoreTests : IDisposable
             new ChatMessage(ChatRole.User, "Hello"),
         ];
 
-        IReadOnlyList<string> entryIds = await _store.AppendMessagesAsync(session.Id, messages);
+        IReadOnlyList<MessageRecord> written = await _store.AppendMessagesAsync(session.Id, messages);
 
         // Only the user message should be persisted.
-        Assert.Single(entryIds);
+        Assert.Single(written);
 
         string jsonlPath = Path.Combine(_store.GetSessionDirectory(session.Id), "messages.jsonl");
         string[] lines = (await File.ReadAllLinesAsync(jsonlPath))
@@ -191,7 +191,7 @@ public sealed class SessionStoreTests : IDisposable
         ];
 
         // Act
-        IReadOnlyList<string> entryIds = await storeWithMemory.AppendMessagesAsync(session.Id, messages);
+        IReadOnlyList<MessageRecord> written = await storeWithMemory.AppendMessagesAsync(session.Id, messages);
 
         // Assert: memory was called exactly once (after storage).
         Assert.Equal(1, memSpy.RecordCallCount);
@@ -200,8 +200,8 @@ public sealed class SessionStoreTests : IDisposable
         IReadOnlyList<MessageRecord>? indexedRecords = memSpy.LastRecordedRecords;
         Assert.NotNull(indexedRecords);
         Assert.Equal(2, indexedRecords.Count);
-        Assert.Equal(entryIds[0], indexedRecords[0].EntryId);
-        Assert.Equal(entryIds[1], indexedRecords[1].EntryId);
+        Assert.Equal(written[0].EntryId, indexedRecords[0].EntryId);
+        Assert.Equal(written[1].EntryId, indexedRecords[1].EntryId);
     }
 
     [Fact]

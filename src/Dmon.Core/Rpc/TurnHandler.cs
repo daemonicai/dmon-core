@@ -13,6 +13,7 @@ using Dmon.Core.Providers;
 using Dmon.Core.Session;
 using Dmon.Core.Telemetry;
 using Dmon.Protocol.Commands;
+using Dmon.Protocol.Conversation;
 using Dmon.Protocol.Delta;
 using Dmon.Protocol.Enums;
 using Dmon.Protocol.Events;
@@ -132,6 +133,9 @@ public sealed class TurnHandler : ITurnHandler
                 ChatMessage systemMessage = await _systemPromptBuilder.BuildAsync(_turnCts.Token).ConfigureAwait(false);
                 _history.Insert(0, systemMessage);
                 _systemPromptInjected = true;
+                // The Insert shifts all existing entries up by 1. Advance _persistedCount to
+                // keep it pointing past the already-persisted seeded entries.
+                _persistedCount++;
             }
 
             ChatMessage userMessage = new(ChatRole.User, cmd.Message);
@@ -415,22 +419,48 @@ public sealed class TurnHandler : ITurnHandler
 
         string sessionId = _sessionHandler.CurrentSession.Id;
 
-        // Slice only the entries added since the last persist, excluding system messages.
-        List<ChatMessage> newEntries = _history
-            .Skip(_persistedCount)
-            .Where(m => m.Role != ChatRole.System)
-            .ToList();
+        // Collect the _history indices of non-system entries added since the last persist.
+        // We need the indices (not just a copy) so we can splice the preview form back in place.
+        List<int> newIndices = [];
+        for (int i = _persistedCount; i < _history.Count; i++)
+        {
+            if (_history[i].Role != ChatRole.System)
+                newIndices.Add(i);
+        }
 
-        if (newEntries.Count == 0)
+        if (newIndices.Count == 0)
         {
             _persistedCount = _history.Count;
             return;
         }
 
+        List<ChatMessage> newEntries = newIndices.Select(i => _history[i]).ToList();
+
         try
         {
-            await _sessionStore.AppendMessagesAsync(sessionId, newEntries, cancellationToken: cancellationToken)
-                .ConfigureAwait(false);
+            IReadOnlyList<MessageRecord> written = await _sessionStore.AppendMessagesAsync(
+                sessionId, newEntries, cancellationToken: cancellationToken).ConfigureAwait(false);
+
+            // D6 reconciliation: replace the just-persisted history entries with their persisted
+            // preview form (attachment refs resolved, offloaded results truncated to null).
+            // This ensures subsequent turns send the shrunk form rather than the full in-memory content.
+            // written is in 1:1 correspondence with newIndices (AppendMessagesAsync skips system, which
+            // we already filtered out above).
+            int writeIdx = 0;
+            foreach (int historyIdx in newIndices)
+            {
+                if (writeIdx < written.Count)
+                {
+                    ChatMessage spliced = ConversationMapper.ToMessage(written[writeIdx]);
+                    // Mirror the empty-content skip from SeedHistoryFromSessionAsync: if the
+                    // record maps to zero replay-subset contents (e.g. an offloaded-only turn),
+                    // leave the in-memory entry unchanged rather than replacing it with an empty
+                    // ChatMessage that some providers reject.
+                    if (spliced.Contents.Count > 0)
+                        _history[historyIdx] = spliced;
+                    writeIdx++;
+                }
+            }
         }
         catch (Exception ex)
         {
@@ -440,6 +470,44 @@ public sealed class TurnHandler : ITurnHandler
         {
             _persistedCount = _history.Count;
         }
+    }
+
+    public async Task SeedHistoryFromSessionAsync(string sessionId, CancellationToken cancellationToken)
+    {
+        if (_sessionStore is null)
+            return;
+
+        IReadOnlyList<SessionLogLine> records = await _sessionStore
+            .ReadRecordsAsync(sessionId, applyCompaction: true, cancellationToken)
+            .ConfigureAwait(false);
+
+        _history.Clear();
+        _systemPromptInjected = false;
+        _persistedCount = 0;
+
+        foreach (SessionLogLine line in records)
+        {
+            switch (line)
+            {
+                case MessageRecord mr:
+                {
+                    ChatMessage message = ConversationMapper.ToMessage(mr);
+                    // Skip messages that map to empty content (e.g. offloaded-only assistant turns).
+                    if (message.Contents.Count > 0)
+                        _history.Add(message);
+                    break;
+                }
+                case CompactionMessage cm:
+                    // The compaction summary stands in for all superseded turns.
+                    // Seed it as a synthetic assistant message so the model has context about
+                    // what happened before the compaction boundary.
+                    _history.Add(new ChatMessage(ChatRole.Assistant, cm.Summary));
+                    break;
+            }
+        }
+
+        // All seeded entries are already persisted; mark them so the next turn doesn't re-append.
+        _persistedCount = _history.Count;
     }
 
     private void ApplyThinkingToOptions(ChatOptions options)

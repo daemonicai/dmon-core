@@ -133,7 +133,7 @@ public sealed class CommandDispatcher
             SessionCreateCommand c => _session.CreateAsync(c, cancellationToken),
             SessionForkCommand c => _session.ForkAsync(c, cancellationToken),
             SessionCloneCommand c => _session.CloneAsync(c, cancellationToken),
-            SessionLoadCommand c => _session.LoadAsync(c, cancellationToken),
+            SessionLoadCommand c => LoadAndSeedAsync(c, cancellationToken),
             SessionListCommand c => _session.ListAsync(c, cancellationToken),
             SessionSetNameCommand c => _session.SetNameAsync(c, cancellationToken),
             SessionGetStatsCommand c => _session.GetStatsAsync(c, cancellationToken),
@@ -152,6 +152,19 @@ public sealed class CommandDispatcher
             WizardAnswerCommand c => _providerSetup.AnswerWizardAsync(c, cancellationToken),
             _ => throw new InvalidOperationException($"No route for {cmd.GetType().Name}.")
         };
+    }
+
+    private async Task LoadAndSeedAsync(SessionLoadCommand cmd, CancellationToken cancellationToken)
+    {
+        await _session.LoadAsync(cmd, cancellationToken).ConfigureAwait(false);
+
+        // Seed turn history from the loaded session so the next turn resumes from persisted state.
+        // ISessionHandler.CurrentSession is set by LoadAsync before this returns.
+        string? sessionId = _session.CurrentSession?.Id;
+        if (sessionId is not null)
+        {
+            await _turn.SeedHistoryFromSessionAsync(sessionId, cancellationToken).ConfigureAwait(false);
+        }
     }
 
     // Total parse stage: never throws for any string input.

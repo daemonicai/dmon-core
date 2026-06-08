@@ -447,14 +447,24 @@ internal sealed class FakeSessionStore : ISessionStore
         CancellationToken cancellationToken = default) =>
         Task.FromResult(Guid.NewGuid().ToString());
 
-    public Task<IReadOnlyList<string>> AppendMessagesAsync(
+    public Task<IReadOnlyList<MessageRecord>> AppendMessagesAsync(
         string sessionId,
         IReadOnlyList<ChatMessage> messages,
         MemoryScope scope = MemoryScope.Agent,
         CancellationToken cancellationToken = default) =>
-        Task.FromResult<IReadOnlyList<string>>(
+        Task.FromResult<IReadOnlyList<MessageRecord>>(
             messages.Where(m => m.Role != ChatRole.System)
-                    .Select(_ => Guid.NewGuid().ToString())
+                    .Select(m =>
+                    {
+                        (string role, IReadOnlyList<Part> parts) = ConversationMapper.ToParts(m);
+                        return new MessageRecord
+                        {
+                            EntryId = Guid.NewGuid().ToString(),
+                            Timestamp = DateTimeOffset.UtcNow,
+                            Role = role,
+                            Parts = parts
+                        };
+                    })
                     .ToList());
 
     public Task<IReadOnlyList<SessionLogLine>> ReadRecordsAsync(

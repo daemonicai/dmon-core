@@ -676,19 +676,29 @@ internal sealed class SpySessionStore : ISessionStore
 
     public int AppendMessagesCallCount => _calls.Count;
 
-    public Task<IReadOnlyList<string>> AppendMessagesAsync(
+    public Task<IReadOnlyList<MessageRecord>> AppendMessagesAsync(
         string sessionId,
         IReadOnlyList<ChatMessage> messages,
         MemoryScope scope = MemoryScope.Agent,
         CancellationToken cancellationToken = default)
     {
         _calls.Add((sessionId, messages, scope));
-        // Return a fake entryId per message (excluding system).
-        string[] ids = messages
+        // Return a fake MessageRecord per non-system message.
+        MessageRecord[] records = messages
             .Where(m => m.Role != ChatRole.System)
-            .Select(_ => Guid.NewGuid().ToString())
+            .Select(m =>
+            {
+                (string role, IReadOnlyList<Part> parts) = ConversationMapper.ToParts(m);
+                return new MessageRecord
+                {
+                    EntryId = Guid.NewGuid().ToString(),
+                    Timestamp = DateTimeOffset.UtcNow,
+                    Role = role,
+                    Parts = parts
+                };
+            })
             .ToArray();
-        return Task.FromResult<IReadOnlyList<string>>(ids);
+        return Task.FromResult<IReadOnlyList<MessageRecord>>(records);
     }
 
     // ── Remaining ISessionStore members (not exercised by TurnHandler) ────────

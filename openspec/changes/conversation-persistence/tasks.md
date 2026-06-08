@@ -29,9 +29,9 @@
 
 ## 5. Faithful session resume
 
-- [ ] 5.1 On `session.load`, read the canonical record via session-storage, apply the compaction rule, and seed `TurnHandler._history` via the replay-subset mapping.
-- [ ] 5.2 After each completed turn is persisted, reconcile that turn's `_history` entries to the persisted preview form (D6) so subsequent live turns send shrunk historical tool results.
-- [ ] 5.3 Tests: resume restores tool-call/result context; reasoning/usage/unknown excluded from context; compaction honoured. Build and tests green.
+- [x] 5.1 On `session.load`, read the canonical record via session-storage, apply the compaction rule, and seed `TurnHandler._history` via the replay-subset mapping.
+- [x] 5.2 After each completed turn is persisted, reconcile that turn's `_history` entries to the persisted preview form (D6) so subsequent live turns send shrunk historical tool results.
+- [x] 5.3 Tests: resume restores tool-call/result context; reasoning/usage/unknown excluded from context; compaction honoured. Build and tests green.
 
 ## 6. Remove the provider-input offloading middleware
 

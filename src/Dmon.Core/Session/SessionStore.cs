@@ -36,8 +36,11 @@ public interface ISessionStore
     /// Returns the minted <c>entryId</c>s in input order.
     /// System-role messages are skipped (the system prompt is rebuilt on load, not persisted
     /// as a conversational turn).
+    /// Returns the <see cref="MessageRecord"/>s exactly as written to disk (with any attachment
+    /// offloading already applied), so callers can splice the persisted preview form back into
+    /// their in-memory history without a second disk read.
     /// </summary>
-    Task<IReadOnlyList<string>> AppendMessagesAsync(
+    Task<IReadOnlyList<MessageRecord>> AppendMessagesAsync(
         string sessionId,
         IReadOnlyList<ChatMessage> messages,
         MemoryScope scope = MemoryScope.Agent,
@@ -385,7 +388,7 @@ public sealed class SessionStore : ISessionStore
         return record.EntryId;
     }
 
-    public async Task<IReadOnlyList<string>> AppendMessagesAsync(
+    public async Task<IReadOnlyList<MessageRecord>> AppendMessagesAsync(
         string sessionId,
         IReadOnlyList<ChatMessage> messages,
         MemoryScope scope = MemoryScope.Agent,
@@ -422,7 +425,7 @@ public sealed class SessionStore : ISessionStore
             }
         }
 
-        return written.Select(r => r.EntryId).ToList();
+        return written;
     }
 
     /// <summary>
