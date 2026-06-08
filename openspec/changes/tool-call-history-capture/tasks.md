@@ -1,8 +1,8 @@
 ## 1. AttachmentStore callId path-traversal guard
 
-- [ ] 1.1 In `AttachmentStore`, before constructing the attachment filename from `callId`, validate it: reject empty, path separators (`/`, `\`), `..`, or any value that could escape `attachments/`. For an unsafe `callId`, derive a deterministic, collision-resistant safe filename (e.g. a stable hash/escape) so distinct ids map to distinct files and the returned `attachmentRef` still resolves.
-- [ ] 1.2 Ensure the resolved write path is provably inside the session's `attachments/` directory (e.g. full-path containment check) and never resolves outside it.
-- [ ] 1.3 Unit tests: safe `callId` written as `attachments/<callId>.<ext>`; `callId = "../../etc/evil"` stays inside `attachments/` under a derived name and writes no file outside it; two distinct unsafe ids do not collide. Build and tests green.
+- [x] 1.1 In `AttachmentStore`, before constructing the attachment filename from `callId`, validate it: reject empty, path separators (`/`, `\`), `..`, or any value that could escape `attachments/`. For an unsafe `callId`, derive a deterministic, collision-resistant safe filename (e.g. a stable hash/escape) so distinct ids map to distinct files and the returned `attachmentRef` still resolves.
+- [x] 1.2 Ensure the resolved write path is provably inside the session's `attachments/` directory (e.g. full-path containment check) and never resolves outside it.
+- [x] 1.3 Unit tests: safe `callId` written as `attachments/<callId>.<ext>`; `callId = "../../etc/evil"` stays inside `attachments/` under a derived name and writes no file outside it; two distinct unsafe ids do not collide. Build and tests green.
 
 ## 2. Capture structured tool content into history
 

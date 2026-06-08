@@ -107,6 +107,79 @@ public sealed class AttachmentStoreTests : IDisposable
         Assert.True(File.Exists(Path.Combine(_tempRoot, sessionId, "attachments", "call99.json")));
     }
 
+    // ---- Path-traversal guard tests (task 1.1–1.3) ----
+
+    [Fact]
+    public async Task StoreIfLargeAsync_SafeCallId_WritesUnderCallIdName()
+    {
+        string sessionId = Guid.NewGuid().ToString();
+        CreateSession(sessionId);
+
+        IAttachmentStore store = CreateStore(thresholdBytes: 1);
+        string content = new string('z', 50);
+
+        string? result = await store.StoreIfLargeAsync(sessionId, "safe-call_01", content, "txt");
+
+        Assert.Equal("attachments/safe-call_01.txt", result);
+        Assert.True(File.Exists(Path.Combine(_tempRoot, sessionId, "attachments", "safe-call_01.txt")));
+    }
+
+    [Fact]
+    public async Task StoreIfLargeAsync_TraversalCallId_WritesInsideAttachmentsDir()
+    {
+        string sessionId = Guid.NewGuid().ToString();
+        CreateSession(sessionId);
+
+        IAttachmentStore store = CreateStore(thresholdBytes: 1);
+        string content = new string('e', 50);
+
+        string? result = await store.StoreIfLargeAsync(sessionId, "../../etc/evil", content, "txt");
+
+        Assert.NotNull(result);
+
+        // The attachmentRef must be resolvable inside the session attachments dir.
+        string attachmentsDir = Path.Combine(_tempRoot, sessionId, "attachments");
+        string resolvedRef = Path.GetFullPath(Path.Combine(attachmentsDir, result!["attachments/".Length..]));
+        string resolvedAttachmentsDir = Path.GetFullPath(attachmentsDir) + Path.DirectorySeparatorChar;
+        Assert.StartsWith(resolvedAttachmentsDir, resolvedRef, StringComparison.Ordinal);
+
+        // No file must have been written at the traversal target.
+        string evilTarget = Path.GetFullPath(Path.Combine(_tempRoot, sessionId, "../../etc/evil.txt"));
+        Assert.False(File.Exists(evilTarget));
+
+        // The written file must exist and contain the expected content.
+        string writtenPath = Path.GetFullPath(Path.Combine(attachmentsDir, result!["attachments/".Length..]));
+        Assert.True(File.Exists(writtenPath));
+        Assert.Equal(content, await File.ReadAllTextAsync(writtenPath));
+    }
+
+    [Fact]
+    public async Task StoreIfLargeAsync_TwoDistinctUnsafeCallIds_ProduceDistinctFiles()
+    {
+        string sessionId = Guid.NewGuid().ToString();
+        CreateSession(sessionId);
+
+        IAttachmentStore store = CreateStore(thresholdBytes: 1);
+        string content1 = new string('a', 50);
+        string content2 = new string('b', 50);
+
+        string? ref1 = await store.StoreIfLargeAsync(sessionId, "../../etc/evil", content1, "txt");
+        string? ref2 = await store.StoreIfLargeAsync(sessionId, "../other/path", content2, "txt");
+
+        Assert.NotNull(ref1);
+        Assert.NotNull(ref2);
+        Assert.NotEqual(ref1, ref2);
+
+        string attachmentsDir = Path.Combine(_tempRoot, sessionId, "attachments");
+        string file1 = Path.Combine(attachmentsDir, ref1!["attachments/".Length..]);
+        string file2 = Path.Combine(attachmentsDir, ref2!["attachments/".Length..]);
+
+        Assert.True(File.Exists(file1));
+        Assert.True(File.Exists(file2));
+        Assert.Equal(content1, await File.ReadAllTextAsync(file1));
+        Assert.Equal(content2, await File.ReadAllTextAsync(file2));
+    }
+
     private sealed class FakeResolver : ISessionDirectoryResolver
     {
         private readonly string _root;
