@@ -79,7 +79,6 @@ public sealed class TurnHandlerSystemPromptTests
         PermitAllPolicy policy = new();
         NoopThinkingHandler thinking = new();
         StubSessionHandler sessionHandler = new();
-        StubAttachmentStore attachmentStore = new();
         ISystemPromptBuilder promptBuilder = systemPromptBuilder ?? new FixedSystemPromptBuilder(SystemPromptText);
         IConfiguration configuration = new ConfigurationBuilder().Build();
 
@@ -93,7 +92,6 @@ public sealed class TurnHandlerSystemPromptTests
             policy,
             thinking,
             sessionHandler,
-            attachmentStore,
             promptBuilder,
             pipelineBuilder,
             configuration,

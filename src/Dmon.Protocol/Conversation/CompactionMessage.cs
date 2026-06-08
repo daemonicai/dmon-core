@@ -1,12 +1,13 @@
 using System.Text.Json.Serialization;
 
-namespace Dmon.Core.Session;
+namespace Dmon.Protocol.Conversation;
 
-public sealed record CompactionMessage
+/// <summary>
+/// Records a compaction event in the session log. The discriminator "compaction" is emitted by
+/// the <see cref="SessionLogLine"/> polymorphic base — no manual Type property.
+/// </summary>
+public sealed record CompactionMessage : SessionLogLine
 {
-    [JsonPropertyName("type")]
-    public string Type { get; init; } = "compaction";
-
     [JsonPropertyName("entryId")]
     public required string EntryId { get; init; }
 

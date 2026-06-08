@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Dmon.Protocol.Conversation;
 using Dmon.Protocol.Events;
 using Dmon.Protocol.Sessions;
 
@@ -227,30 +228,110 @@ public sealed class SessionResultEventSerializationTests
         Assert.Equal("noActiveSession", result.Code);
     }
 
-    // ── ResponseEvent discriminator retained ─────────────────────────────────
+    // ── session.getMessagesResult ─────────────────────────────────────────────
 
     [Fact]
-    public void ResponseEvent_DiscriminatorStillRegistered_RoundTrips()
+    public void SessionMessagesResultEvent_SerializesWithCorrectDiscriminatorAndFields()
     {
-        // session.getMessages still emits ResponseEvent; its discriminator must stay on the table.
-        ResponseEvent original = new()
+        SessionMessagesResultEvent evt = new()
         {
-            RequestId = "req-1",
-            Command   = "session.getMessages",
-            Success   = true,
-            Data      = null
+            CommandId = "req-2",
+            Messages  =
+            [
+                new MessageRecord
+                {
+                    EntryId   = "e1",
+                    Timestamp = DateTimeOffset.UnixEpoch,
+                    Role      = "user",
+                    Parts     = [new TextPart { Text = "hello" }]
+                }
+            ]
         };
 
-        string json = Serialize(original);
+        string json = Serialize(evt);
 
         using JsonDocument doc = JsonDocument.Parse(json);
-        Assert.Equal("response", doc.RootElement.GetProperty("type").GetString());
+        JsonElement root = doc.RootElement;
 
-        Event deserialized = Deserialize(json);
-        ResponseEvent result = Assert.IsType<ResponseEvent>(deserialized);
-        Assert.Equal("req-1",               result.RequestId);
-        Assert.Equal("session.getMessages", result.Command);
-        Assert.True(result.Success);
+        Assert.Equal("session.getMessagesResult", root.GetProperty("type").GetString());
+        Assert.Equal("req-2",                     root.GetProperty("id").GetString());
+        Assert.Equal(1,                           root.GetProperty("messages").GetArrayLength());
+        Assert.Equal("message",                   root.GetProperty("messages")[0].GetProperty("type").GetString());
+        Assert.Equal("user",                      root.GetProperty("messages")[0].GetProperty("role").GetString());
+    }
+
+    [Fact]
+    public void SessionMessagesResultEvent_SerializedJson_ContainsNoThirdPartyTypes()
+    {
+        SessionMessagesResultEvent evt = new()
+        {
+            CommandId = "req-2",
+            Messages  =
+            [
+                new MessageRecord
+                {
+                    EntryId   = "e1",
+                    Timestamp = DateTimeOffset.UnixEpoch,
+                    Role      = "assistant",
+                    Parts     = [new TextPart { Text = "hi" }]
+                }
+            ]
+        };
+
+        string json = Serialize(evt);
+
+        Assert.DoesNotContain("ChatMessage",  json, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("AIContent",    json, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Microsoft",    json, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void SessionMessagesResultEvent_RoundTrips()
+    {
+        SessionMessagesResultEvent original = new()
+        {
+            CommandId = "req-2",
+            Messages  =
+            [
+                new MessageRecord
+                {
+                    EntryId   = "e1",
+                    Timestamp = DateTimeOffset.UnixEpoch,
+                    Role      = "user",
+                    Parts     = [new TextPart { Text = "hello" }]
+                },
+                new CompactionMessage
+                {
+                    EntryId        = "c1",
+                    Timestamp      = DateTimeOffset.UnixEpoch,
+                    Summary        = "compacted",
+                    SupersedesUpTo = "e0",
+                    Reason         = "threshold",
+                    TokensBefore   = 100
+                }
+            ]
+        };
+
+        Event deserialized = Deserialize(Serialize(original));
+
+        SessionMessagesResultEvent result = Assert.IsType<SessionMessagesResultEvent>(deserialized);
+        Assert.Equal("req-2",  result.CommandId);
+        Assert.Equal(2,        result.Messages.Count);
+        MessageRecord msg = Assert.IsType<MessageRecord>(result.Messages[0]);
+        Assert.Equal("user",   msg.Role);
+        Assert.IsType<CompactionMessage>(result.Messages[1]);
+    }
+
+    [Fact]
+    public void SessionMessagesResultEvent_EmptyMessages_RoundTrips()
+    {
+        SessionMessagesResultEvent original = new() { CommandId = "req-2", Messages = [] };
+
+        Event deserialized = Deserialize(Serialize(original));
+
+        SessionMessagesResultEvent result = Assert.IsType<SessionMessagesResultEvent>(deserialized);
+        Assert.Equal("req-2", result.CommandId);
+        Assert.Empty(result.Messages);
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────

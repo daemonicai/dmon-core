@@ -1,6 +1,6 @@
 using System.Text;
 using Dmon.Abstractions.Memory;
-using Microsoft.Extensions.AI;
+using Dmon.Protocol.Conversation;
 using Microsoft.Extensions.Logging;
 
 namespace Dmon.Memory;
@@ -63,22 +63,22 @@ public sealed class Memory : IMemory
 
     /// <inheritdoc />
     /// <remarks>
-    /// Always writes to short-term. When long-term is configured both run concurrently;
+    /// Always indexes to short-term. When long-term is configured both run concurrently;
     /// all exceptions propagate (spec is silent on record fault containment).
     /// </remarks>
     public async Task RecordAsync(
-        IReadOnlyList<ChatMessage> turns,
+        IReadOnlyList<MessageRecord> records,
         MemoryScope scope = MemoryScope.Agent,
         CancellationToken cancellationToken = default)
     {
         if (LongTerm is null)
         {
-            await ShortTerm.RecordAsync(turns, scope, cancellationToken).ConfigureAwait(false);
+            await ShortTerm.RecordAsync(records, scope, cancellationToken).ConfigureAwait(false);
             return;
         }
 
-        Task shortTask = ShortTerm.RecordAsync(turns, scope, cancellationToken);
-        Task longTask  = LongTerm.RecordAsync(turns, scope, cancellationToken);
+        Task shortTask = ShortTerm.RecordAsync(records, scope, cancellationToken);
+        Task longTask  = LongTerm.RecordAsync(records, scope, cancellationToken);
         await Task.WhenAll(shortTask, longTask).ConfigureAwait(false);
     }
 

@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Dmon.Core.Session;
+using Dmon.Protocol.Conversation;
 
 namespace Dmon.Core.Tests.Session;
 
@@ -95,12 +96,16 @@ public sealed class MessageAppenderTests : IDisposable
 
         string messagesPath = Path.Combine(_tempRoot, sessionId, "messages.jsonl");
         string line = (await File.ReadAllTextAsync(messagesPath)).TrimEnd('\n');
-        CompactionMessage? parsed = JsonSerializer.Deserialize<CompactionMessage>(line);
 
-        Assert.NotNull(parsed);
-        Assert.Equal("compaction", parsed.Type);
-        Assert.Equal("c1", parsed.EntryId);
-        Assert.Equal("e10", parsed.SupersedesUpTo);
+        // Deserialize through the base type to verify the "type":"compaction" discriminator is on the wire.
+        SessionLogLine? parsed = JsonSerializer.Deserialize<SessionLogLine>(line);
+        CompactionMessage? compactionParsed = Assert.IsType<CompactionMessage>(parsed);
+        Assert.Equal("c1", compactionParsed.EntryId);
+        Assert.Equal("e10", compactionParsed.SupersedesUpTo);
+
+        // Verify the raw JSON wire value contains the discriminator.
+        JsonElement raw = JsonSerializer.Deserialize<JsonElement>(line);
+        Assert.Equal("compaction", raw.GetProperty("type").GetString());
     }
 
     private sealed class FakeResolver : ISessionDirectoryResolver

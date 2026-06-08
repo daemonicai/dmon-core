@@ -249,7 +249,7 @@ internal sealed class ConsoleEventHandler
             case AuthLoginFailedEvent:
             case AuthStatusResultEvent:
             case CapabilityIgnoredEvent:
-            case ResponseEvent:
+            case SessionMessagesResultEvent:
             default:
                 break;
         }

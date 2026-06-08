@@ -1,5 +1,6 @@
 using Dmon.Core.Session;
 using Dmon.Protocol.Commands;
+using Dmon.Protocol.Conversation;
 using Dmon.Protocol.Events;
 using Dmon.Protocol.Sessions;
 
@@ -222,16 +223,15 @@ public sealed class SessionHandler : ISessionHandler
             return;
         }
 
-        IReadOnlyList<object> messages = await _store.ReadMessagesAsync(
+        IReadOnlyList<SessionLogLine> records = await _store.ReadRecordsAsync(
             _currentSession.Id,
+            applyCompaction: false,
             cancellationToken: cancellationToken).ConfigureAwait(false);
 
-        await _emitter.EmitAsync(new ResponseEvent
+        await _emitter.EmitAsync(new SessionMessagesResultEvent
         {
-            RequestId = cmd.Id,
-            Command   = "session.getMessages",
-            Success   = true,
-            Data      = messages
+            CommandId = cmd.Id,
+            Messages  = records
         }, cancellationToken).ConfigureAwait(false);
     }
 }

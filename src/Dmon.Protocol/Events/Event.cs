@@ -37,7 +37,6 @@ namespace Dmon.Protocol.Events;
 [JsonDerivedType(typeof(AuthStatusResultEvent), typeDiscriminator: "auth.statusResult")]
 [JsonDerivedType(typeof(ModelListResultEvent), typeDiscriminator: "model.listResult")]
 [JsonDerivedType(typeof(ModelModelsResultEvent), typeDiscriminator: "model.models.result")]
-[JsonDerivedType(typeof(ResponseEvent), typeDiscriminator: "response")]
 [JsonDerivedType(typeof(SetupRequiredEvent), typeDiscriminator: "setupRequired")]
 [JsonDerivedType(typeof(ProviderConfiguredEvent), typeDiscriminator: "providerConfigured")]
 [JsonDerivedType(typeof(SystemNoticeEvent), typeDiscriminator: "system.notice")]
@@ -49,6 +48,7 @@ namespace Dmon.Protocol.Events;
 [JsonDerivedType(typeof(SessionLoadedResultEvent), typeDiscriminator: "session.loadResult")]
 [JsonDerivedType(typeof(SessionListResultEvent), typeDiscriminator: "session.listResult")]
 [JsonDerivedType(typeof(SessionStatsResultEvent), typeDiscriminator: "session.getStatsResult")]
+[JsonDerivedType(typeof(SessionMessagesResultEvent), typeDiscriminator: "session.getMessagesResult")]
 public abstract record Event
 {
 }
