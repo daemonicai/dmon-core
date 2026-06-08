@@ -170,12 +170,12 @@ public sealed class SessionTypedEventHandlerTests
         Assert.False(cts.IsCancellationRequested);
     }
 
-    // ── Legacy ResponseEvent path (session.getMessages success only) ─────────
+    // ── session.getMessages result path ──────────────────────────────────────
 
     [Fact]
     public async Task GetMessagesAsync_NoActiveSession_CommandErrorEvent_RendersFailedLine()
     {
-        // session.getMessages failure is now CommandErrorEvent — verify the host renders it.
+        // session.getMessages failure is CommandErrorEvent — verify the host renders it.
         FakeTerminal fake = new();
         List<Command> cmds = [];
         using CancellationTokenSource cts = new();
@@ -201,26 +201,22 @@ public sealed class SessionTypedEventHandlerTests
     }
 
     [Fact]
-    public async Task ResponseEvent_SuccessTrue_DoesNotSetActiveSessionId()
+    public async Task SessionMessagesResultEvent_DoesNotSetActiveSessionId()
     {
-        // A success ResponseEvent no longer drives session tracking —
-        // only the typed session result events do.
+        // SessionMessagesResultEvent is a history fetch — it must not affect session tracking.
         FakeTerminal fake = new();
         List<Command> cmds = [];
         using CancellationTokenSource cts = new();
         ConsoleEventHandler handler = BuildHandler(fake, cmds, cts);
 
-        ResponseEvent evt = new()
+        SessionMessagesResultEvent evt = new()
         {
-            RequestId = "req-msg",
-            Command   = "session.getMessages",
-            Success   = true,
-            Data      = null
+            CommandId = "req-msg",
+            Messages  = []
         };
 
         await handler.HandleRpcEventAsync((Event)evt, CancellationToken.None);
 
-        // ActiveSessionId must remain unset — success ResponseEvent is now only for getMessages.
         Assert.Null(handler.ActiveSessionId);
     }
 }

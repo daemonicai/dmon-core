@@ -51,15 +51,6 @@ public sealed class SessionHandlerTypedEventsTests
         Assert.NotNull(evt.Session);
     }
 
-    [Fact]
-    public async Task CreateAsync_DoesNotEmitResponseEvent()
-    {
-        var (handler, emitter, _) = Build();
-        await handler.CreateAsync(new SessionCreateCommand { Id = "cmd-1" }, CancellationToken.None);
-
-        Assert.Empty(emitter.Emitted.OfType<ResponseEvent>());
-    }
-
     // ── ForkAsync ─────────────────────────────────────────────────────────────
 
     [Fact]
@@ -92,14 +83,6 @@ public sealed class SessionHandlerTypedEventsTests
         Assert.Equal("session.fork",     err.Command);
         Assert.Equal("noActiveSession",  err.Code);
         Assert.NotEmpty(err.Message);
-    }
-
-    [Fact]
-    public async Task ForkAsync_NoActiveSession_DoesNotEmitResponseEvent()
-    {
-        var (handler, emitter, _) = Build();
-        await handler.ForkAsync(new SessionForkCommand { Id = "x", EntryId = "e" }, CancellationToken.None);
-        Assert.Empty(emitter.Emitted.OfType<ResponseEvent>());
     }
 
     // ── CloneAsync ────────────────────────────────────────────────────────────
@@ -243,14 +226,6 @@ public sealed class SessionHandlerTypedEventsTests
         Assert.Equal(2, evt.Sessions.Count);
     }
 
-    [Fact]
-    public async Task ListAsync_DoesNotEmitResponseEvent()
-    {
-        var (handler, emitter, _) = Build();
-        await handler.ListAsync(new SessionListCommand { Id = "cmd-list" }, CancellationToken.None);
-        Assert.Empty(emitter.Emitted.OfType<ResponseEvent>());
-    }
-
     // ── GetStatsAsync ─────────────────────────────────────────────────────────
 
     [Fact]
@@ -270,18 +245,10 @@ public sealed class SessionHandlerTypedEventsTests
         Assert.Equal(0,  evt.Stats.ContextUsage);
     }
 
-    [Fact]
-    public async Task GetStatsAsync_DoesNotEmitResponseEvent()
-    {
-        var (handler, emitter, _) = Build();
-        await handler.GetStatsAsync(new SessionGetStatsCommand { Id = "cmd-stats" }, CancellationToken.None);
-        Assert.Empty(emitter.Emitted.OfType<ResponseEvent>());
-    }
-
-    // ── GetMessagesAsync — quarantined legacy path ────────────────────────────
+    // ── GetMessagesAsync ──────────────────────────────────────────────────────
 
     [Fact]
-    public async Task GetMessagesAsync_StillEmitsResponseEvent()
+    public async Task GetMessagesAsync_WithActiveSession_EmitsSessionMessagesResultEvent()
     {
         using TempSessionDir tmpDir = new();
         var (handler, emitter, store) = Build();
@@ -293,10 +260,9 @@ public sealed class SessionHandlerTypedEventsTests
         SessionGetMessagesCommand cmd = new() { Id = "cmd-msg-1" };
         await handler.GetMessagesAsync(cmd, CancellationToken.None);
 
-        ResponseEvent evt = Assert.Single(emitter.Emitted.OfType<ResponseEvent>());
-        Assert.Equal("cmd-msg-1",          evt.RequestId);
-        Assert.Equal("session.getMessages", evt.Command);
-        Assert.True(evt.Success);
+        SessionMessagesResultEvent evt = Assert.Single(emitter.Emitted.OfType<SessionMessagesResultEvent>());
+        Assert.Equal("cmd-msg-1", evt.CommandId);
+        Assert.NotNull(evt.Messages);
     }
 
     [Fact]
@@ -312,14 +278,6 @@ public sealed class SessionHandlerTypedEventsTests
         Assert.Equal("session.getMessages", err.Command);
         Assert.Equal("noActiveSession",     err.Code);
         Assert.NotEmpty(err.Message);
-    }
-
-    [Fact]
-    public async Task GetMessagesAsync_NoActiveSession_DoesNotEmitResponseEvent()
-    {
-        var (handler, emitter, _) = Build();
-        await handler.GetMessagesAsync(new SessionGetMessagesCommand { Id = "cmd-msg-fail-2" }, CancellationToken.None);
-        Assert.Empty(emitter.Emitted.OfType<ResponseEvent>());
     }
 
     // ── SetNameAsync ──────────────────────────────────────────────────────────
@@ -339,14 +297,8 @@ public sealed class SessionHandlerTypedEventsTests
         Assert.NotEmpty(err.Message);
     }
 
-    [Fact]
-    public async Task SetNameAsync_NoActiveSession_DoesNotEmitResponseEvent()
-    {
-        var (handler, emitter, _) = Build();
-        await handler.SetNameAsync(new SessionSetNameCommand { Id = "cmd-setname-fail-2", Name = "x" }, CancellationToken.None);
-        Assert.Empty(emitter.Emitted.OfType<ResponseEvent>());
-    }
 }
+
 
 // ── Supporting fakes ──────────────────────────────────────────────────────────
 

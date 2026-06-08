@@ -40,9 +40,9 @@
 
 ## 7. Un-quarantine session.getMessages
 
-- [ ] 7.1 Add `SessionMessagesResultEvent : ResultEvent` (from the typed-command-result-events change) carrying the log records (parts model).
-- [ ] 7.2 Convert `session.getMessages` from the legacy quarantined path to emit `SessionMessagesResultEvent`; remove the last `ResponseEvent` usage.
-- [ ] 7.3 Update host/RPC consumers and tests for the typed event. Build and tests green.
+- [x] 7.1 Add `SessionMessagesResultEvent : ResultEvent` (from the typed-command-result-events change) carrying the log records (parts model).
+- [x] 7.2 Convert `session.getMessages` from the legacy quarantined path to emit `SessionMessagesResultEvent`; remove the last `ResponseEvent` usage.
+- [x] 7.3 Update host/RPC consumers and tests for the typed event. Build and tests green.
 
 ## 8. Finalisation
 
