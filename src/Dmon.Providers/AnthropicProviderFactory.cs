@@ -32,7 +32,7 @@ public sealed class AnthropicProviderFactory : IProviderFactory
     };
 
     public async ValueTask<IReadOnlyList<ModelInfo>> GetAvailableModelsAsync(
-        string? apiKey, CancellationToken cancellationToken = default)
+        string? apiKey, string? baseUrl = null, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(apiKey))
             return FallbackModels;
@@ -109,7 +109,7 @@ public sealed class AnthropicProviderFactory : IProviderFactory
         if (modelStep is null || !modelStep.IsAnswered)
         {
             IReadOnlyList<ModelInfo> models = await GetAvailableModelsAsync(
-                apiKeyStep.Value, cancellationToken).ConfigureAwait(false);
+                apiKeyStep.Value, cancellationToken: cancellationToken).ConfigureAwait(false);
 
             IReadOnlyList<WizardOption> options = models.Count > 0
                 ? models.Select(m => new WizardOption(m.Id, m.Id)).ToList()

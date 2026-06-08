@@ -49,7 +49,7 @@ public sealed class ModelModelsHandler
             using CancellationTokenSource timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             timeout.CancelAfter(TimeSpan.FromSeconds(5));
 
-            IReadOnlyList<ModelInfo> models = await factory.GetAvailableModelsAsync(apiKey, timeout.Token).ConfigureAwait(false);
+            IReadOnlyList<ModelInfo> models = await factory.GetAvailableModelsAsync(apiKey, config.BaseUrl, timeout.Token).ConfigureAwait(false);
             modelIds = models.Select(m => m.Id).ToList();
         }
         catch (OperationCanceledException)
