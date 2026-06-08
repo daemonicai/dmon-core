@@ -13,10 +13,10 @@
 
 ## 3. Real-result tool events
 
-- [ ] 3.1 Emit `toolExecutionEnd` when the matching `FunctionResultContent` (same `callId`) is observed, carrying the real result value and `isError`; remove the placeholder `{callId, name}` object and the `TODO(Group 9.5)` from `HandleToolCallAsync`.
-- [ ] 3.2 Accumulate the real results into `TurnEndEvent.ToolResults`.
-- [ ] 3.3 Handle the anomaly of a tool call with no observed result in the stream (provider/abort): emit `toolExecutionEnd` with an error marker rather than fabricating success or hanging; record whatever parts exist.
-- [ ] 3.4 Build and tests green.
+- [x] 3.1 Emit `toolExecutionEnd` when the matching `FunctionResultContent` (same `callId`) is observed, carrying the real result value and `isError`; remove the placeholder `{callId, name}` object and the `TODO(Group 9.5)` from `HandleToolCallAsync`.
+- [x] 3.2 Accumulate the real results into `TurnEndEvent.ToolResults`.
+- [x] 3.3 Handle the anomaly of a tool call with no observed result in the stream (provider/abort): emit `toolExecutionEnd` with an error marker rather than fabricating success or hanging; record whatever parts exist.
+- [x] 3.4 Build and tests green.
 
 ## 4. Tests and finalisation
 

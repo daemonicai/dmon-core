@@ -250,10 +250,11 @@ internal static class TurnHandlerFactory
         TestEventEmitter? emitter = null,
         IActiveModelStore? store = null,
         ISessionHandler? sessionHandler = null,
-        ISessionStore? sessionStore = null)
+        ISessionStore? sessionStore = null,
+        IToolRegistry? tools = null)
     {
         emitter ??= new TestEventEmitter();
-        EmptyToolRegistry tools = new();
+        IToolRegistry toolRegistry = tools ?? new EmptyToolRegistry();
         PermitAllPolicy policy = new();
         NoopThinkingHandler thinking = new();
         sessionHandler ??= new StubSessionHandler();
@@ -266,7 +267,7 @@ internal static class TurnHandlerFactory
         TurnHandler handler = new(
             providers,
             store,
-            tools,
+            toolRegistry,
             emitter,
             policy,
             thinking,
@@ -1031,6 +1032,337 @@ public sealed class TurnHandlerToolHistoryTests
         // At least one tool record must contain a ToolResultPart.
         Assert.Contains(rtStore.Records,
             r => r.Role == "tool" && r.Parts.OfType<ToolResultPart>().Any());
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Group 3: real-result tool events
+// ---------------------------------------------------------------------------
+
+/// <summary>
+/// Provider stub that emits a FunctionCallContent with no matching FunctionResultContent,
+/// then emits a text response. Used with StubProviderRegistry (CurrentSupportsToolCalling=false)
+/// so ChatOptions.Tools is empty; FunctionInvokingChatClient passes the FunctionCallContent
+/// through without dispatching (no tool registered). TurnHandler sees the FunctionCallContent
+/// in the outer stream (emits toolExecutionStart) but never sees a FunctionResultContent,
+/// so the end-of-stream anomaly sweep fires.
+///
+/// _callCount guard: FICC re-invokes the inner provider after seeing an unresolved call.
+/// On the second invocation we yield only terminating text so FICC's internal loop exits.
+/// </summary>
+internal sealed class OrphanCallProviderStub : IChatClient
+{
+    private readonly string _callId;
+    private readonly string _toolName;
+    private int _callCount;
+
+    public OrphanCallProviderStub(string callId = "orphan-1", string toolName = "phantom_tool")
+    {
+        _callId = callId;
+        _toolName = toolName;
+    }
+
+    public object? GetService(Type serviceType, object? serviceKey = null) => null;
+
+    public Task<ChatResponse> GetResponseAsync(
+        IEnumerable<ChatMessage> messages,
+        ChatOptions? options = null,
+        CancellationToken cancellationToken = default)
+        => throw new NotSupportedException();
+
+    public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
+        IEnumerable<ChatMessage> messages,
+        ChatOptions? options = null,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        await Task.Yield();
+        int call = System.Threading.Interlocked.Increment(ref _callCount);
+        if (call == 1)
+        {
+            // First call: emit a FunctionCallContent with no corresponding FunctionResultContent.
+            // FICC sees the unresolved call and re-invokes the provider (call == 2 below).
+            yield return new ChatResponseUpdate(ChatRole.Assistant,
+                [new FunctionCallContent(_callId, _toolName, new Dictionary<string, object?> { ["x"] = "1" })]);
+        }
+        else
+        {
+            // Subsequent calls: emit only terminating text — no function call.
+            // This bounds FICC's internal loop to ≤2 inner invocations.
+            yield return new ChatResponseUpdate(ChatRole.Assistant, "Done.");
+        }
+    }
+
+    public void Dispose() { }
+}
+
+/// <summary>
+/// Provider stub used by the abort-path sweep test. On the first call it emits a
+/// FunctionCallContent for a registered tool so FICC dispatches it. On the second call
+/// (FICC re-invokes after dispatch) it blocks indefinitely on the cancellation token,
+/// ensuring the OperationCanceledException path in TurnHandler fires when the caller
+/// cancels via cts.Cancel().
+/// </summary>
+internal sealed class AbortingProviderStub : IChatClient
+{
+    private int _callCount;
+
+    public object? GetService(Type serviceType, object? serviceKey = null) => null;
+
+    public Task<ChatResponse> GetResponseAsync(
+        IEnumerable<ChatMessage> messages,
+        ChatOptions? options = null,
+        CancellationToken cancellationToken = default)
+        => throw new NotSupportedException();
+
+    public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
+        IEnumerable<ChatMessage> messages,
+        ChatOptions? options = null,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        await Task.Yield();
+        int call = System.Threading.Interlocked.Increment(ref _callCount);
+        if (call == 1)
+        {
+            // First call: emit a tool call so FICC dispatches it then re-invokes us.
+            yield return new ChatResponseUpdate(ChatRole.Assistant,
+                [new FunctionCallContent("cid-abort", "abort_tool", new Dictionary<string, object?> { ["input"] = "x" })]);
+        }
+        else
+        {
+            // Second call: block until the cancellation token fires. The caller cancels via
+            // cts.Cancel() after SubmitAsync starts, which propagates through the linked
+            // TurnHandler token and causes OperationCanceledException here.
+            await Task.Delay(Timeout.Infinite, cancellationToken);
+        }
+    }
+
+    public void Dispose() { }
+}
+
+
+public sealed class TurnHandlerRealToolResultTests
+{
+    private static AIFunction MakeStubTool(string name, string result = "real-result")
+        => AIFunctionFactory.Create(
+            (string input) => result,
+            name,
+            $"Stub tool {name}");
+
+    private static AIFunction MakeThrowingTool(string name)
+        => AIFunctionFactory.Create(
+            (string input) => ThrowToolException(),
+            name,
+            $"Throwing stub tool {name}");
+
+    private static string ThrowToolException()
+        => throw new InvalidOperationException("tool-error-message");
+
+    // ── 3.1 / 3.2: real result value in toolExecutionEnd and TurnEndEvent ────
+
+    [Fact]
+    public async Task Submit_WithSuccessfulToolCall_ToolExecutionEndCarriesRealResult()
+    {
+        AIFunction tool = MakeStubTool("stub_tool", "real-result");
+        StubToolRegistry tools = new(tool);
+        FunctionCallProviderStub provider = new("stub_tool", "Done.");
+
+        (TurnHandler handler, TestEventEmitter emitter) = ToolTurnHandlerFactory.Create(provider, tools);
+
+        await handler.SubmitAsync(new TurnSubmitCommand { Id = "r1", Message = "go" }, CancellationToken.None);
+
+        ToolExecutionEndEvent? endEvt = emitter.Events.OfType<ToolExecutionEndEvent>()
+            .FirstOrDefault(e => e.CallId == "cid-1");
+
+        Assert.NotNull(endEvt);
+        Assert.False(endEvt.IsError);
+        // Result must be the real tool return value, not a placeholder {callId,name} object.
+        Assert.Equal("real-result", endEvt.Result?.ToString());
+    }
+
+    [Fact]
+    public async Task Submit_WithSuccessfulToolCall_TurnEndEventToolResultsContainRealResult()
+    {
+        AIFunction tool = MakeStubTool("stub_tool", "real-result");
+        StubToolRegistry tools = new(tool);
+        FunctionCallProviderStub provider = new("stub_tool", "Done.");
+
+        (TurnHandler handler, TestEventEmitter emitter) = ToolTurnHandlerFactory.Create(provider, tools);
+
+        await handler.SubmitAsync(new TurnSubmitCommand { Id = "r1", Message = "go" }, CancellationToken.None);
+
+        TurnEndEvent? turnEnd = emitter.Events.OfType<TurnEndEvent>().FirstOrDefault();
+        Assert.NotNull(turnEnd);
+
+        // ToolResults must contain the real result value.
+        Assert.Contains(turnEnd.ToolResults, r => r.ToString() == "real-result");
+
+        // Must NOT contain the old placeholder shape — no object with callId property matching the tool's callId.
+        Assert.DoesNotContain(turnEnd.ToolResults, r =>
+        {
+            System.Text.Json.JsonElement? el = r as System.Text.Json.JsonElement?;
+            if (r is System.Text.Json.JsonElement je && je.ValueKind == System.Text.Json.JsonValueKind.Object)
+                return je.TryGetProperty("callId", out _);
+            // Also check anonymous object via ToString pattern.
+            string? s = r.ToString();
+            return s is not null && s.Contains("callId") && s.Contains("cid-1");
+        });
+    }
+
+    // ── 3.1 (error path): throwing tool → isError = true ────────────────────
+
+    [Fact]
+    public async Task Submit_WithThrowingTool_ToolExecutionEndHasIsErrorTrue()
+    {
+        AIFunction tool = MakeThrowingTool("bad_tool");
+        StubToolRegistry tools = new(tool);
+        FunctionCallProviderStub provider = new("bad_tool", "Done.");
+
+        (TurnHandler handler, TestEventEmitter emitter) = ToolTurnHandlerFactory.Create(provider, tools);
+
+        await handler.SubmitAsync(new TurnSubmitCommand { Id = "r1", Message = "go" }, CancellationToken.None);
+
+        ToolExecutionEndEvent? endEvt = emitter.Events.OfType<ToolExecutionEndEvent>()
+            .FirstOrDefault(e => e.CallId == "cid-1");
+
+        Assert.NotNull(endEvt);
+        Assert.True(endEvt.IsError);
+        // Result must carry the error message, not the (null) function return.
+        string? resultStr = endEvt.Result?.ToString();
+        Assert.NotNull(resultStr);
+        Assert.Contains("tool-error-message", resultStr);
+    }
+
+    // ── 3.3: anomaly — FunctionCallContent in stream with no matching registered tool ─────
+
+    [Fact]
+    public async Task Submit_WithOrphanCall_EmitsExactlyOneToolExecutionEndAndCompletes()
+    {
+        // OrphanCallProviderStub emits a FunctionCallContent for phantom_tool, which has no
+        // AIFunction registered in options.Tools (CurrentSupportsToolCalling=false → options.Tools
+        // null). FunctionInvokingChatClient synthesises a FunctionResultContent for the unresolvable
+        // call rather than hanging. PermissionGateChatClient (using StubToolRegistry so FindExtension
+        // returns AllowAllExtension → Allow) passes the call through.
+        //
+        // Empirical finding: FICC synthesises a FunctionResultContent with Exception=null for an
+        // unresolvable call, so TurnHandler emits toolExecutionEnd with IsError=false via the normal
+        // result path. The end-of-stream sweep (EmitMissingToolEndEventsAsync) is not reached here;
+        // it is exercised only by the abort path (see Submit_WithAbortedTurn_CompletesWithoutHangAndEmitsTurnEnd).
+        OrphanCallProviderStub provider = new("orphan-1", "phantom_tool");
+        StubProviderRegistry registry = new(provider);
+        // StubToolRegistry: GetAll() returns [] (options.Tools stays null), FindExtension returns
+        // AllowAllExtension so PermissionGateChatClient grants Allow rather than Prompt (which hangs).
+        StubToolRegistry allowingTools = new();
+
+        (TurnHandler handler, TestEventEmitter emitter) = TurnHandlerFactory.Create(registry, tools: allowingTools);
+
+        // Turn must complete without hanging.
+        await handler.SubmitAsync(new TurnSubmitCommand { Id = "r1", Message = "go" }, CancellationToken.None);
+
+        // toolExecutionStart must have been emitted for orphan-1.
+        Assert.Equal(1, emitter.Events.OfType<ToolExecutionStartEvent>().Count(e => e.CallId == "orphan-1"));
+
+        // Exactly one toolExecutionEnd — from FICC's synthesised result, no duplicates.
+        List<ToolExecutionEndEvent> endEvts = emitter.Events.OfType<ToolExecutionEndEvent>()
+            .Where(e => e.CallId == "orphan-1")
+            .ToList();
+        Assert.Single(endEvts);
+
+        // Turn must have completed.
+        Assert.Contains(emitter.Events, e => e is TurnEndEvent);
+    }
+
+    [Fact]
+    public async Task Submit_WithAbortedTurn_CompletesWithoutHangAndEmitsTurnEnd()
+    {
+        // The abort path calls EmitMissingToolEndEventsAsync with CancellationToken.None.
+        // Because PermissionGateChatClient fully buffers each cycle, startedCallIds is empty
+        // at abort time, so the sweep is a no-op. This test guards the no-hang/no-throw contract.
+        using CancellationTokenSource cts = new();
+        AbortingProviderStub provider = new();
+        AIFunction tool = MakeStubTool("abort_tool");
+        StubToolRegistry tools = new(tool);
+
+        (TurnHandler handler, TestEventEmitter emitter) = ToolTurnHandlerFactory.Create(provider, tools);
+
+        // Cancel after a brief delay so the turn reaches the second provider invocation
+        // (after FICC dispatches the first tool call) before the token fires.
+        // cts.Token is passed to SubmitAsync so TurnHandler's linked token propagates into
+        // the pipeline and into AbortingProviderStub's second GetStreamingResponseAsync call.
+        cts.CancelAfter(TimeSpan.FromMilliseconds(500));
+        await handler.SubmitAsync(new TurnSubmitCommand { Id = "r1", Message = "go" }, cts.Token);
+
+        // TurnEnd must be emitted (abort path emits it with CancellationToken.None even on cancel).
+        TurnEndEvent? turnEnd = emitter.Events.OfType<TurnEndEvent>().FirstOrDefault();
+        Assert.NotNull(turnEnd);
+
+        // No hang and no unhandled exception — the sweep + abort path ran to completion.
+    }
+
+    // ── 3.4 (D3 marker-emission): direct unit test of EmitMissingToolEndEventsAsync ──
+
+    [Fact]
+    public async Task EmitMissingToolEndEventsAsync_WithUnresolvedCallId_EmitsErrorMarkerAndPopulatesToolResults()
+    {
+        // Direct call to verify the D3 sweep emits exactly one ToolExecutionEndEvent
+        // with IsError=true and the canonical error string for any unresolved callId.
+        StubToolRegistry tools = new(MakeStubTool("any_tool"));
+        FunctionCallProviderStub provider = new("any_tool", "Done.");
+        (TurnHandler handler, TestEventEmitter emitter) = ToolTurnHandlerFactory.Create(provider, tools);
+
+        HashSet<string> startedCallIds = ["unresolved-1"];
+        HashSet<string> endedCallIds = [];
+        Dictionary<string, FunctionCallContent> accumulatedCalls = new()
+        {
+            ["unresolved-1"] = new FunctionCallContent("unresolved-1", "my_tool")
+        };
+        List<object> toolResults = [];
+
+        await handler.EmitMissingToolEndEventsAsync(
+            startedCallIds, endedCallIds, accumulatedCalls, toolResults,
+            CancellationToken.None);
+
+        ToolExecutionEndEvent? endEvt = emitter.Events.OfType<ToolExecutionEndEvent>()
+            .SingleOrDefault(e => e.CallId == "unresolved-1");
+        Assert.NotNull(endEvt);
+        Assert.True(endEvt.IsError);
+
+        string resultJson = System.Text.Json.JsonSerializer.Serialize(endEvt.Result);
+        Assert.Contains("Tool result not received from provider.", resultJson);
+
+        Assert.Single(toolResults);
+    }
+
+    // ── 3.5 (exactly-one-end guarantee): real result + no double-end ─────────
+
+    [Fact]
+    public async Task Submit_WithSuccessfulToolCall_EmitsExactlyOneToolExecutionEndPerCallId()
+    {
+        AIFunction tool = MakeStubTool("stub_tool");
+        StubToolRegistry tools = new(tool);
+        FunctionCallProviderStub provider = new("stub_tool", "Done.");
+
+        (TurnHandler handler, TestEventEmitter emitter) = ToolTurnHandlerFactory.Create(provider, tools);
+
+        await handler.SubmitAsync(new TurnSubmitCommand { Id = "r1", Message = "go" }, CancellationToken.None);
+
+        int endCount = emitter.Events.OfType<ToolExecutionEndEvent>().Count(e => e.CallId == "cid-1");
+        Assert.Equal(1, endCount);
+    }
+
+    [Fact]
+    public async Task Submit_WithTwoToolCalls_EmitsExactlyOneToolExecutionEndPerCallId()
+    {
+        AIFunction toolA = MakeStubTool("stub_tool");
+        AIFunction toolB = MakeStubTool("stub_tool_b");
+        StubToolRegistry tools = new(toolA, toolB);
+        FunctionCallProviderStub provider = new("stub_tool", "Done.", twoTools: true);
+
+        (TurnHandler handler, TestEventEmitter emitter) = ToolTurnHandlerFactory.Create(provider, tools);
+
+        await handler.SubmitAsync(new TurnSubmitCommand { Id = "r1", Message = "go" }, CancellationToken.None);
+
+        Assert.Equal(1, emitter.Events.OfType<ToolExecutionEndEvent>().Count(e => e.CallId == "cid-1"));
+        Assert.Equal(1, emitter.Events.OfType<ToolExecutionEndEvent>().Count(e => e.CallId == "cid-2"));
     }
 }
 
