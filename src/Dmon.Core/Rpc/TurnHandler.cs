@@ -7,7 +7,6 @@ using Dmon.Abstractions.Profiles;
 using Dmon.Abstractions.Providers;
 using Dmon.Core.Extensions;
 using Dmon.Core.Permissions;
-using Dmon.Core.Pipeline;
 using Dmon.Core.Profiles;
 using Dmon.Core.Providers;
 using Dmon.Core.Session;
@@ -32,7 +31,6 @@ public sealed class TurnHandler : ITurnHandler
     private readonly IThinkingHandler _thinking;
     private readonly ISessionHandler _sessionHandler;
     private readonly ISessionStore? _sessionStore;
-    private readonly IAttachmentStore _attachmentStore;
     private readonly ISystemPromptBuilder _systemPromptBuilder;
     private readonly MiddlewarePipelineBuilder _pipelineBuilder;
     private readonly RetryPolicy _retryPolicy;
@@ -68,7 +66,6 @@ public sealed class TurnHandler : ITurnHandler
         IPermissionPolicy policy,
         IThinkingHandler thinking,
         ISessionHandler sessionHandler,
-        IAttachmentStore attachmentStore,
         ISystemPromptBuilder systemPromptBuilder,
         MiddlewarePipelineBuilder pipelineBuilder,
         IConfiguration configuration,
@@ -86,7 +83,6 @@ public sealed class TurnHandler : ITurnHandler
         _thinking = thinking;
         _sessionHandler = sessionHandler;
         _sessionStore = sessionStore;
-        _attachmentStore = attachmentStore;
         _systemPromptBuilder = systemPromptBuilder;
         _pipelineBuilder = pipelineBuilder;
         _retryPolicy = RetryPolicy.FromConfiguration(configuration);
@@ -279,8 +275,7 @@ public sealed class TurnHandler : ITurnHandler
             // fresh providerClient (rebuilt on model/provider switch) is always the innermost layer.
             providerClient = _pipelineBuilder.Apply(providerClient);
             IChatClient retrying = new RetryingChatClient(providerClient, _retryPolicy, _emitter, provider, model);
-            IChatClient offloading = new AttachmentOffloadingChatClient(retrying, _sessionHandler, _attachmentStore);
-            IChatClient functionInvoker = new FunctionInvokingChatClient(offloading);
+            IChatClient functionInvoker = new FunctionInvokingChatClient(retrying);
             IChatClient pipeline = new PermissionGateChatClient(functionInvoker, _policy, _tools, ConfirmCallback, _profileContext, _sessionHandler);
 
             IReadOnlyList<AIFunction> toolList = _tools.GetAll();

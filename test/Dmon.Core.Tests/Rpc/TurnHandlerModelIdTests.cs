@@ -93,7 +93,6 @@ public sealed class TurnHandlerModelIdTests
         PermitAllPolicy policy = new();
         NoopThinkingHandler thinking = new();
         StubSessionHandler sessionHandler = new();
-        StubAttachmentStore attachmentStore = new();
         StubSystemPromptBuilder systemPromptBuilder = new();
         IConfiguration configuration = new ConfigurationBuilder().Build();
 
@@ -107,7 +106,6 @@ public sealed class TurnHandlerModelIdTests
             policy,
             thinking,
             sessionHandler,
-            attachmentStore,
             systemPromptBuilder,
             pipelineBuilder,
             configuration,

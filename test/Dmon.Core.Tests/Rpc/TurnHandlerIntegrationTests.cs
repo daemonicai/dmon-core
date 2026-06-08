@@ -218,20 +218,6 @@ internal sealed class StubSessionHandler : ISessionHandler
     public Task GetMessagesAsync(SessionGetMessagesCommand cmd, CancellationToken cancellationToken) => Task.CompletedTask;
 }
 
-/// <summary>
-/// IAttachmentStore stub that never offloads (always returns null).
-/// </summary>
-internal sealed class StubAttachmentStore : IAttachmentStore
-{
-    public Task<string?> StoreIfLargeAsync(
-        string sessionId,
-        string callId,
-        string content,
-        string extension = "txt",
-        CancellationToken cancellationToken = default)
-        => Task.FromResult<string?>(null);
-}
-
 // ---------------------------------------------------------------------------
 // Factory
 // ---------------------------------------------------------------------------
@@ -271,7 +257,6 @@ internal static class TurnHandlerFactory
         PermitAllPolicy policy = new();
         NoopThinkingHandler thinking = new();
         sessionHandler ??= new StubSessionHandler();
-        StubAttachmentStore attachmentStore = new();
         StubSystemPromptBuilder systemPromptBuilder = new();
         IConfiguration configuration = new ConfigurationBuilder().Build();
         store ??= new NoopActiveModelStore();
@@ -286,7 +271,6 @@ internal static class TurnHandlerFactory
             policy,
             thinking,
             sessionHandler,
-            attachmentStore,
             systemPromptBuilder,
             pipelineBuilder,
             configuration,

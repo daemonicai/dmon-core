@@ -35,8 +35,8 @@
 
 ## 6. Remove the provider-input offloading middleware
 
-- [ ] 6.1 Delete `AttachmentOffloadingChatClient` and remove it from the turn pipeline assembly (`PermissionGateChatClient → FunctionInvokingChatClient → RetryingChatClient → provider`).
-- [ ] 6.2 Remove/retarget its tests; confirm the in-flight turn now sees full tool results and historical turns use preview form. Build and tests green.
+- [x] 6.1 Delete `AttachmentOffloadingChatClient` and remove it from the turn pipeline assembly (`PermissionGateChatClient → FunctionInvokingChatClient → RetryingChatClient → provider`).
+- [x] 6.2 Remove/retarget its tests; confirm the in-flight turn now sees full tool results and historical turns use preview form. Build and tests green.
 
 ## 7. Un-quarantine session.getMessages
 
