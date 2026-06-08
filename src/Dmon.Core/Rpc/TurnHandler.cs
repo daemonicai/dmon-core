@@ -303,6 +303,19 @@ public sealed class TurnHandler : ITurnHandler
 
                 StringBuilder accumulatedText = new();
 
+                // Accumulate function calls and results by callId across all stream updates.
+                // M.E.AI may fragment a single call across multiple updates; last-write-wins
+                // on Name/Arguments since later updates carry the most-complete form.
+                Dictionary<string, FunctionCallContent> accumulatedCalls = [];
+                // Preserve insertion order for canonical assistant message content ordering.
+                List<string> callOrder = [];
+                Dictionary<string, FunctionResultContent> accumulatedResults = [];
+
+                // Track which callIds have already had toolExecutionStart emitted so that
+                // fragmented updates (multiple updates sharing the same callId) don't fire
+                // duplicate start events.
+                HashSet<string> startedCallIds = [];
+
                 await _emitter.EmitAsync(new MessageStartEvent { Message = new { } }, cancellationToken)
                     .ConfigureAwait(false);
 
@@ -342,8 +355,27 @@ public sealed class TurnHandler : ITurnHandler
                         }
                         else if (content is FunctionCallContent call)
                         {
-                            await HandleToolCallAsync(call, toolResults, cancellationToken)
-                                .ConfigureAwait(false);
+                            string callId = call.CallId ?? string.Empty;
+
+                            // Track insertion order; only record the first time a callId is seen.
+                            if (!accumulatedCalls.ContainsKey(callId))
+                                callOrder.Add(callId);
+
+                            // Last-write-wins: later updates carry more-complete Name/Arguments.
+                            accumulatedCalls[callId] = call;
+
+                            // Fire toolExecutionStart exactly once per distinct callId.
+                            if (startedCallIds.Add(callId))
+                            {
+                                await HandleToolCallAsync(call, toolResults, cancellationToken)
+                                    .ConfigureAwait(false);
+                            }
+                        }
+                        else if (content is FunctionResultContent result)
+                        {
+                            string resultCallId = result.CallId ?? string.Empty;
+                            // Last-write-wins for results too.
+                            accumulatedResults[resultCallId] = result;
                         }
                     }
                 }
@@ -364,7 +396,33 @@ public sealed class TurnHandler : ITurnHandler
                 await _emitter.EmitAsync(new MessageEndEvent { Message = lastMessage }, cancellationToken)
                     .ConfigureAwait(false);
 
-                _history.Add(new ChatMessage(ChatRole.Assistant, fullText));
+                // Build the canonical assistant message: text first, then function calls in
+                // the order they were first observed in the stream.
+                List<AIContent> assistantContents = [];
+                if (fullText.Length > 0)
+                    assistantContents.Add(new TextContent(fullText));
+                foreach (string callId in callOrder)
+                    assistantContents.Add(accumulatedCalls[callId]);
+                _history.Add(new ChatMessage(ChatRole.Assistant, assistantContents));
+
+                // Append the tool-role message only when at least one result was captured.
+                if (accumulatedResults.Count > 0)
+                {
+                    List<AIContent> toolContents = [];
+                    // Emit results in the same order as their corresponding calls.
+                    foreach (string callId in callOrder)
+                    {
+                        if (accumulatedResults.TryGetValue(callId, out FunctionResultContent? resultContent))
+                            toolContents.Add(resultContent);
+                    }
+                    // Any results whose callId had no matching call go at the end.
+                    foreach (KeyValuePair<string, FunctionResultContent> kv in accumulatedResults)
+                    {
+                        if (!accumulatedCalls.ContainsKey(kv.Key))
+                            toolContents.Add(kv.Value);
+                    }
+                    _history.Add(new ChatMessage(ChatRole.Tool, toolContents));
+                }
 
                 // Apply any queued follow-up as an additional iteration.
                 string? followUp = Volatile.Read(ref _pendingFollowUp);

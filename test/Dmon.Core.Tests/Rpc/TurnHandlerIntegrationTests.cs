@@ -616,6 +616,479 @@ public sealed class TurnHandlerIntegrationTests
     }
 }
 
+// ---------------------------------------------------------------------------
+// Group 2: structured tool-call history capture tests
+// ---------------------------------------------------------------------------
+
+/// <summary>
+/// Inner provider stub for tool-call integration tests. On the first call it
+/// emits a FunctionCallContent matching a registered AIFunction; on the second
+/// call (after FunctionInvokingChatClient has appended the result to history)
+/// it emits a final text response.
+///
+/// This is the innermost provider; FunctionInvokingChatClient wraps it and
+/// handles actual tool dispatch, producing FunctionCallContent and
+/// FunctionResultContent in the outer stream that TurnHandler observes.
+/// </summary>
+internal sealed class FunctionCallProviderStub : IChatClient
+{
+    private readonly string _toolName;
+    private readonly string _finalText;
+    private readonly bool _twoTools;
+    private int _callCount;
+
+    public FunctionCallProviderStub(string toolName = "stub_tool", string finalText = "Done.", bool twoTools = false)
+    {
+        _toolName = toolName;
+        _finalText = finalText;
+        _twoTools = twoTools;
+    }
+
+    public object? GetService(Type serviceType, object? serviceKey = null) => null;
+
+    public Task<ChatResponse> GetResponseAsync(
+        IEnumerable<ChatMessage> messages,
+        ChatOptions? options = null,
+        CancellationToken cancellationToken = default)
+        => throw new NotSupportedException();
+
+    public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
+        IEnumerable<ChatMessage> messages,
+        ChatOptions? options = null,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        await Task.Yield();
+        int call = System.Threading.Interlocked.Increment(ref _callCount);
+        if (call == 1)
+        {
+            // First call: emit function call(s) — FunctionInvokingChatClient will execute them.
+            yield return new ChatResponseUpdate(ChatRole.Assistant,
+                [new FunctionCallContent("cid-1", _toolName, new Dictionary<string, object?> { ["input"] = "test" })]);
+            if (_twoTools)
+                yield return new ChatResponseUpdate(ChatRole.Assistant,
+                    [new FunctionCallContent("cid-2", _toolName + "_b", new Dictionary<string, object?> { ["input"] = "test2" })]);
+        }
+        else
+        {
+            // Subsequent calls: emit final text.
+            yield return new ChatResponseUpdate(ChatRole.Assistant, _finalText);
+        }
+    }
+
+    public void Dispose() { }
+}
+
+/// <summary>
+/// Provider stub that on first call emits the same callId twice (simulating
+/// fragmented streaming of a single function call's arguments). FunctionInvokingChatClient
+/// coalesces by callId naturally; the test verifies TurnHandler's capture layer
+/// also sees only one call in _history.
+/// </summary>
+internal sealed class FragmentedCallProviderStub : IChatClient
+{
+    private readonly string _toolName;
+    private int _callCount;
+
+    public FragmentedCallProviderStub(string toolName = "stub_tool")
+    {
+        _toolName = toolName;
+    }
+
+    public object? GetService(Type serviceType, object? serviceKey = null) => null;
+
+    public Task<ChatResponse> GetResponseAsync(
+        IEnumerable<ChatMessage> messages,
+        ChatOptions? options = null,
+        CancellationToken cancellationToken = default)
+        => throw new NotSupportedException();
+
+    public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
+        IEnumerable<ChatMessage> messages,
+        ChatOptions? options = null,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        await Task.Yield();
+        int call = System.Threading.Interlocked.Increment(ref _callCount);
+        if (call == 1)
+        {
+            // Two updates with the same callId — fragmented argument streaming.
+            yield return new ChatResponseUpdate(ChatRole.Assistant,
+                [new FunctionCallContent("cid-1", _toolName, new Dictionary<string, object?> { ["input"] = "par" })]);
+            yield return new ChatResponseUpdate(ChatRole.Assistant,
+                [new FunctionCallContent("cid-1", _toolName, new Dictionary<string, object?> { ["input"] = "partial_then_complete" })]);
+        }
+        else
+        {
+            yield return new ChatResponseUpdate(ChatRole.Assistant, "Completed.");
+        }
+    }
+
+    public void Dispose() { }
+}
+
+/// <summary>
+/// Provider registry that exposes CurrentSupportsToolCalling = true and a
+/// fixed tool list so FunctionInvokingChatClient can actually execute the stub tool.
+/// </summary>
+internal sealed class ToolSupportingProviderRegistry : IProviderRegistry
+{
+    private readonly IChatClient _client;
+
+    public ToolSupportingProviderRegistry(IChatClient client)
+    {
+        _client = client;
+    }
+
+    public ValueTask<IChatClient> GetCurrentAsync(CancellationToken cancellationToken = default) =>
+        ValueTask.FromResult(_client);
+
+    public ProviderConfig GetCurrentConfig() => new()
+    {
+        Name = "stub",
+        Adapter = "stub",
+        Auth = new ProviderAuthConfig { Type = "none" }
+    };
+
+    public IReadOnlyList<ProviderConfig> GetAll() => [GetCurrentConfig()];
+    public void SetProvider(string name) { }
+    public void SetModel(string modelId) { }
+    public void CycleProvider() { }
+    public Task RegisterExtensionAsync(IProviderExtension extension, CancellationToken cancellationToken = default) => Task.CompletedTask;
+    public void AddDynamicProvider(ProviderConfig config) { }
+    public string? GetCurrentModelId() => null;
+    public ProviderSwitchResult? CommitPendingSwitch() => null;
+    public bool CurrentSupportsToolCalling => true;
+    public bool CurrentSupportsReasoning => false;
+}
+
+/// <summary>
+/// IDmonExtension stub that allows all tool calls unconditionally.
+/// </summary>
+internal sealed class AllowAllExtension : IDmonExtension
+{
+    public string Name => "allow-all";
+    public string Description => "Test stub that allows all calls.";
+    public IEnumerable<AIFunction> Tools => [];
+
+    public PermissionResult Evaluate(
+        FunctionCallContent call,
+        IPermissionSettings project,
+        IPermissionSettings? global)
+        => PermissionResult.Allow;
+}
+
+/// <summary>
+/// Tool registry with one or two AIFunction stubs registered, so
+/// FunctionInvokingChatClient can locate and execute the function by name.
+/// FindExtension returns an AllowAll extension so PermissionGateChatClient
+/// does not prompt for confirmation in tests.
+/// </summary>
+internal sealed class StubToolRegistry : IToolRegistry
+{
+    private readonly List<AIFunction> _tools;
+    private readonly AllowAllExtension _extension = new();
+
+    public StubToolRegistry(params AIFunction[] tools)
+    {
+        _tools = [.. tools];
+    }
+
+    public IReadOnlyList<AIFunction> GetAll() => _tools;
+    public void Register(string extensionName, IDmonExtension extension, IEnumerable<AIFunction> tools) { }
+    public IDmonExtension? FindExtension(string toolName) => _extension;
+    public void Unregister(string extensionName) { }
+    public IReadOnlyList<RegisteredExtensionSnapshot> GetSnapshot() => [];
+    public void Clear() { }
+}
+
+/// <summary>
+/// Creates a TurnHandler wired with real tool support (ToolSupportingProviderRegistry +
+/// StubToolRegistry) so FunctionInvokingChatClient can execute the stub AIFunction.
+/// </summary>
+internal static class ToolTurnHandlerFactory
+{
+    public static (TurnHandler handler, TestEventEmitter emitter) Create(
+        IChatClient providerClient,
+        IToolRegistry tools,
+        ISessionHandler? sessionHandler = null,
+        ISessionStore? sessionStore = null)
+    {
+        TestEventEmitter emitter = new();
+        ToolSupportingProviderRegistry providers = new(providerClient);
+        PermitAllPolicy policy = new();
+        NoopThinkingHandler thinking = new();
+        sessionHandler ??= new StubSessionHandler();
+        StubSystemPromptBuilder systemPromptBuilder = new();
+        IConfiguration configuration = new ConfigurationBuilder().Build();
+        NoopActiveModelStore store = new();
+        MiddlewarePipelineBuilder pipelineBuilder = new(new MiddlewareRegistry(), configuration);
+
+        TurnHandler handler = new(
+            providers,
+            store,
+            tools,
+            emitter,
+            policy,
+            thinking,
+            sessionHandler,
+            systemPromptBuilder,
+            pipelineBuilder,
+            configuration,
+            new StubAgentProfileResolver(),
+            new AgentProfileContext(),
+            new NoopSessionAssetProvisioner(),
+            NullLogger<TurnHandler>.Instance,
+            sessionStore);
+
+        return (handler, emitter);
+    }
+}
+
+public sealed class TurnHandlerToolHistoryTests
+{
+    // Build a deterministic AIFunction that returns a fixed string result.
+    private static AIFunction MakeStubTool(string name, string result = "tool-result")
+        => AIFunctionFactory.Create(
+            (string input) => result,
+            name,
+            $"Stub tool {name}");
+
+    // ── 2.2: canonical assistant + tool-role messages appended to history ─────
+
+    [Fact]
+    public async Task Submit_WithToolCall_PersistsAssistantMessageWithFunctionCallContent()
+    {
+        AIFunction tool = MakeStubTool("stub_tool");
+        StubToolRegistry tools = new(tool);
+        FunctionCallProviderStub provider = new("stub_tool", "Done.");
+        SpySessionStore spyStore = new();
+        ActiveSessionHandler sessionHandler = new("sess-1");
+
+        (TurnHandler handler, _) = ToolTurnHandlerFactory.Create(provider, tools, sessionHandler, spyStore);
+
+        await handler.SubmitAsync(new TurnSubmitCommand { Id = "r1", Message = "go" }, CancellationToken.None);
+
+        // Flatten all persisted batches (may be called once per turn or per follow-up).
+        List<ChatMessage> allPersisted = spyStore.AppendMessagesCalls
+            .SelectMany(c => c.Messages)
+            .ToList();
+
+        // There must be at least one assistant message carrying a FunctionCallContent.
+        Assert.Contains(allPersisted,
+            m => m.Role == ChatRole.Assistant && m.Contents.OfType<FunctionCallContent>().Any());
+    }
+
+    [Fact]
+    public async Task Submit_WithToolCall_PersistsToolRoleMessageWithFunctionResultContent()
+    {
+        AIFunction tool = MakeStubTool("stub_tool");
+        StubToolRegistry tools = new(tool);
+        FunctionCallProviderStub provider = new("stub_tool", "Done.");
+        SpySessionStore spyStore = new();
+        ActiveSessionHandler sessionHandler = new("sess-1");
+
+        (TurnHandler handler, _) = ToolTurnHandlerFactory.Create(provider, tools, sessionHandler, spyStore);
+
+        await handler.SubmitAsync(new TurnSubmitCommand { Id = "r1", Message = "go" }, CancellationToken.None);
+
+        List<ChatMessage> allPersisted = spyStore.AppendMessagesCalls
+            .SelectMany(c => c.Messages)
+            .ToList();
+
+        // There must be a tool-role message carrying a FunctionResultContent.
+        Assert.Contains(allPersisted,
+            m => m.Role == ChatRole.Tool && m.Contents.OfType<FunctionResultContent>().Any());
+    }
+
+    [Fact]
+    public async Task Submit_TextOnly_DoesNotAppendToolRoleMessage()
+    {
+        StubChatClient client = new("just text");
+        SpySessionStore spyStore = new();
+        ActiveSessionHandler sessionHandler = new("sess-1");
+        StubProviderRegistry providers = new(client);
+
+        (TurnHandler handler, _) = TurnHandlerFactory.Create(providers, sessionHandler: sessionHandler, sessionStore: spyStore);
+
+        await handler.SubmitAsync(new TurnSubmitCommand { Id = "r1", Message = "hello" }, CancellationToken.None);
+
+        List<ChatMessage> allPersisted = spyStore.AppendMessagesCalls
+            .SelectMany(c => c.Messages)
+            .ToList();
+        Assert.DoesNotContain(allPersisted, m => m.Role == ChatRole.Tool);
+    }
+
+    // ── 2.1: fragmented call coalescing ──────────────────────────────────────
+
+    [Fact]
+    public async Task Submit_WithFragmentedCall_CoalescesToSingleFunctionCallContentInHistory()
+    {
+        // FragmentedCallProviderStub emits two updates with the same callId on the first call.
+        // FunctionInvokingChatClient sees one logical call (it coalesces by callId); the outer
+        // stream surfaced to TurnHandler should therefore contain only one FunctionCallContent.
+        AIFunction tool = MakeStubTool("stub_tool");
+        StubToolRegistry tools = new(tool);
+        FragmentedCallProviderStub provider = new("stub_tool");
+        SpySessionStore spyStore = new();
+        ActiveSessionHandler sessionHandler = new("sess-1");
+
+        (TurnHandler handler, TestEventEmitter emitter) = ToolTurnHandlerFactory.Create(provider, tools, sessionHandler, spyStore);
+
+        await handler.SubmitAsync(new TurnSubmitCommand { Id = "r1", Message = "go" }, CancellationToken.None);
+
+        List<ChatMessage> allPersisted = spyStore.AppendMessagesCalls
+            .SelectMany(c => c.Messages)
+            .ToList();
+
+        // At most one FunctionCallContent per distinct callId across all assistant messages.
+        int functionCallCount = allPersisted
+            .Where(m => m.Role == ChatRole.Assistant)
+            .SelectMany(m => m.Contents.OfType<FunctionCallContent>())
+            .Count(fc => fc.CallId == "cid-1");
+        Assert.Equal(1, functionCallCount);
+
+        // toolExecutionStart must have been emitted exactly once for callId cid-1.
+        int startCount = emitter.Events.OfType<ToolExecutionStartEvent>()
+            .Count(e => e.CallId == "cid-1");
+        Assert.Equal(1, startCount);
+    }
+
+    // ── 2.4: two-tool turn ordering guarantee ────────────────────────────────
+
+    [Fact]
+    public async Task Submit_WithTwoToolCalls_PreservesCallOrderInHistoryAndEmitsUniqueStartEvents()
+    {
+        // FunctionCallProviderStub with twoTools=true emits cid-1 (stub_tool) then cid-2 (stub_tool_b).
+        AIFunction toolA = MakeStubTool("stub_tool");
+        AIFunction toolB = MakeStubTool("stub_tool_b");
+        StubToolRegistry tools = new(toolA, toolB);
+        FunctionCallProviderStub provider = new("stub_tool", "Done.", twoTools: true);
+        SpySessionStore spyStore = new();
+        ActiveSessionHandler sessionHandler = new("sess-two");
+
+        (TurnHandler handler, TestEventEmitter emitter) = ToolTurnHandlerFactory.Create(provider, tools, sessionHandler, spyStore);
+
+        await handler.SubmitAsync(new TurnSubmitCommand { Id = "r1", Message = "go" }, CancellationToken.None);
+
+        List<ChatMessage> allPersisted = spyStore.AppendMessagesCalls
+            .SelectMany(c => c.Messages)
+            .ToList();
+
+        // The assistant message must carry both FunctionCallContents.
+        List<FunctionCallContent> assistantCalls = allPersisted
+            .Where(m => m.Role == ChatRole.Assistant)
+            .SelectMany(m => m.Contents.OfType<FunctionCallContent>())
+            .ToList();
+
+        Assert.Contains(assistantCalls, fc => fc.CallId == "cid-1");
+        Assert.Contains(assistantCalls, fc => fc.CallId == "cid-2");
+
+        // cid-1 must appear before cid-2 (first-seen call order preserved).
+        int idx1 = assistantCalls.FindIndex(fc => fc.CallId == "cid-1");
+        int idx2 = assistantCalls.FindIndex(fc => fc.CallId == "cid-2");
+        Assert.True(idx1 < idx2, $"Expected cid-1 (index {idx1}) before cid-2 (index {idx2}).");
+
+        // The tool-role message must carry FunctionResultContents for both calls
+        // in the same order (cid-1 result before cid-2 result).
+        List<FunctionResultContent> toolResults = allPersisted
+            .Where(m => m.Role == ChatRole.Tool)
+            .SelectMany(m => m.Contents.OfType<FunctionResultContent>())
+            .ToList();
+
+        Assert.Contains(toolResults, fr => fr.CallId == "cid-1");
+        Assert.Contains(toolResults, fr => fr.CallId == "cid-2");
+
+        int ridx1 = toolResults.FindIndex(fr => fr.CallId == "cid-1");
+        int ridx2 = toolResults.FindIndex(fr => fr.CallId == "cid-2");
+        Assert.True(ridx1 < ridx2, $"Expected cid-1 result (index {ridx1}) before cid-2 result (index {ridx2}).");
+
+        // Exactly one ToolExecutionStartEvent per distinct callId — no duplicates.
+        int startCid1 = emitter.Events.OfType<ToolExecutionStartEvent>().Count(e => e.CallId == "cid-1");
+        int startCid2 = emitter.Events.OfType<ToolExecutionStartEvent>().Count(e => e.CallId == "cid-2");
+        Assert.Equal(1, startCid1);
+        Assert.Equal(1, startCid2);
+    }
+
+    // ── 2.3: persistence round-trip via ConversationMapper ───────────────────
+
+    [Fact]
+    public async Task Submit_WithToolCall_PersistenceRoundTripMapsToToolCallAndResultParts()
+    {
+        AIFunction tool = MakeStubTool("stub_tool", "42");
+        StubToolRegistry tools = new(tool);
+        FunctionCallProviderStub provider = new("stub_tool", "Computed.");
+        RoundTripSpySessionStore rtStore = new();
+        ActiveSessionHandler sessionHandler = new("sess-rt");
+
+        (TurnHandler handler, _) = ToolTurnHandlerFactory.Create(provider, tools, sessionHandler, rtStore);
+
+        await handler.SubmitAsync(new TurnSubmitCommand { Id = "r1", Message = "compute" }, CancellationToken.None);
+
+        // At least one assistant record must contain a ToolCallPart.
+        Assert.Contains(rtStore.Records,
+            r => r.Role == "assistant" && r.Parts.OfType<ToolCallPart>().Any());
+
+        // At least one tool record must contain a ToolResultPart.
+        Assert.Contains(rtStore.Records,
+            r => r.Role == "tool" && r.Parts.OfType<ToolResultPart>().Any());
+    }
+}
+
+/// <summary>
+/// Session store spy that exposes the MessageRecord list produced by
+/// ConversationMapper.ToParts, allowing assertions on the persisted Part shape.
+/// </summary>
+internal sealed class RoundTripSpySessionStore : ISessionStore
+{
+    private readonly List<MessageRecord> _records = [];
+
+    public IReadOnlyList<MessageRecord> Records => _records;
+
+    public Task<IReadOnlyList<MessageRecord>> AppendMessagesAsync(
+        string sessionId,
+        IReadOnlyList<ChatMessage> messages,
+        MemoryScope scope = MemoryScope.Agent,
+        CancellationToken cancellationToken = default)
+    {
+        MessageRecord[] records = messages
+            .Where(m => m.Role != ChatRole.System)
+            .Select(m =>
+            {
+                (string role, IReadOnlyList<Part> parts) = ConversationMapper.ToParts(m);
+                return new MessageRecord
+                {
+                    EntryId = Guid.NewGuid().ToString(),
+                    Timestamp = DateTimeOffset.UtcNow,
+                    Role = role,
+                    Parts = parts
+                };
+            })
+            .ToArray();
+        _records.AddRange(records);
+        return Task.FromResult<IReadOnlyList<MessageRecord>>(records);
+    }
+
+    public Task<SessionMeta> CreateAsync(string? name = null, CancellationToken cancellationToken = default)
+        => throw new NotSupportedException();
+    public Task<SessionMeta> LoadAsync(string sessionId, CancellationToken cancellationToken = default)
+        => throw new NotSupportedException();
+    public Task<IReadOnlyList<SessionMeta>> ListAsync(CancellationToken cancellationToken = default)
+        => throw new NotSupportedException();
+    public Task UpdateMetaAsync(SessionMeta meta, CancellationToken cancellationToken = default)
+        => throw new NotSupportedException();
+    public string GetSessionDirectory(string sessionId) => throw new NotSupportedException();
+    public Task<SessionMeta> ForkAsync(string sourceSessionId, string entryId, string? name = null, CancellationToken cancellationToken = default)
+        => throw new NotSupportedException();
+    public Task<SessionMeta> CloneAsync(string sourceSessionId, string? name = null, CancellationToken cancellationToken = default)
+        => throw new NotSupportedException();
+    public Task<IReadOnlyList<object>> ReadMessagesAsync(string sessionId, bool applyCompaction = true, CancellationToken cancellationToken = default)
+        => throw new NotSupportedException();
+    public Task<string> AppendMessageAsync(string sessionId, string role, IReadOnlyList<Part> parts, CancellationToken cancellationToken = default)
+        => throw new NotSupportedException();
+    public Task<IReadOnlyList<SessionLogLine>> ReadRecordsAsync(string sessionId, bool applyCompaction = true, CancellationToken cancellationToken = default)
+        => throw new NotSupportedException();
+}
+
 /// <summary>
 /// ISessionAssetProvisioner stub that is a no-op — used in tests that do not
 /// exercise asset-directory provisioning.

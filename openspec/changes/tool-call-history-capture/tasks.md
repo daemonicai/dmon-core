@@ -6,10 +6,10 @@
 
 ## 2. Capture structured tool content into history
 
-- [ ] 2.1 In `TurnHandler.RunTurnAsync`, extend the streaming loop to collect each `FunctionCallContent` and `FunctionResultContent` (correlated by `callId`) in addition to text, without switching off streaming.
-- [ ] 2.2 Replace the text-only `_history.Add(new ChatMessage(ChatRole.Assistant, fullText))` with appending the turn in M.E.AI-canonical shape: an assistant `ChatMessage` carrying the accumulated `TextContent` plus the turn's `FunctionCallContent`(s), followed by a tool `ChatMessage` (`ChatRole.Tool`) carrying the `FunctionResultContent`(s) — the shape `ConversationMapper`/replay already round-trips.
-- [ ] 2.3 Confirm the existing per-turn persistence (`PersistNewHistoryEntriesAsync` → `ConversationMapper.ToParts` → write-time offloading → D6 reconciliation) records the tool parts with no new mapping code; do not add a parallel recording path.
-- [ ] 2.4 Build and tests green (existing turn/persistence tests still pass with structured history).
+- [x] 2.1 In `TurnHandler.RunTurnAsync`, extend the streaming loop to collect each `FunctionCallContent` and `FunctionResultContent` (correlated by `callId`) in addition to text, without switching off streaming.
+- [x] 2.2 Replace the text-only `_history.Add(new ChatMessage(ChatRole.Assistant, fullText))` with appending the turn in M.E.AI-canonical shape: an assistant `ChatMessage` carrying the accumulated `TextContent` plus the turn's `FunctionCallContent`(s), followed by a tool `ChatMessage` (`ChatRole.Tool`) carrying the `FunctionResultContent`(s) — the shape `ConversationMapper`/replay already round-trips.
+- [x] 2.3 Confirm the existing per-turn persistence (`PersistNewHistoryEntriesAsync` → `ConversationMapper.ToParts` → write-time offloading → D6 reconciliation) records the tool parts with no new mapping code; do not add a parallel recording path.
+- [x] 2.4 Build and tests green (existing turn/persistence tests still pass with structured history).
 
 ## 3. Real-result tool events
 
