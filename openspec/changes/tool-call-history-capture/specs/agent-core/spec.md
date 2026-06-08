@@ -25,7 +25,7 @@ The agent core SHALL execute turns by calling the active `IChatClient`, handling
 
 #### Scenario: Turn abort
 - **WHEN** the host sends `turn.abort` during an active turn
-- **THEN** the current LLM call and any pending tool invocations are cancelled and `turnEnd` is emitted with `stopReason: aborted`
+- **THEN** the current LLM call and any pending tool invocations are cancelled and `turnEnd` is emitted with `stopReason: cancelled`
 
 #### Scenario: System message present on first turn
 - **WHEN** the host sends the first `turn.submit` of a session
