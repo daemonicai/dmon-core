@@ -135,6 +135,24 @@ public sealed class GatewayConnectionEndpoint
     {
     }
 
+    /// <summary>
+    /// Test constructor: supplies a real <see cref="IAgentProfileResolver"/> and
+    /// <see cref="EffectiveProfileSetResolver"/> so tests can exercise the profile-validation
+    /// and rejection paths inside <see cref="HandleCreateAsync"/> without spawning a real core.
+    /// <c>_coreLauncher</c> is set to <c>null!</c> — this ctor must only be used when the test
+    /// is asserting a path that returns BEFORE the spawn step (i.e. profile validation rejects).
+    /// </summary>
+    internal GatewayConnectionEndpoint(
+        SessionRegistry registry,
+        IAgentProfileResolver profileResolver,
+        EffectiveProfileSetResolver effectiveProfileSetResolver,
+        GatewayProfilePaths gatewayProfilePaths,
+        IOptionsMonitor<GatewayOptions> options,
+        ILogger<GatewayConnectionEndpoint> logger)
+        : this(registry, null!, profileResolver, effectiveProfileSetResolver, gatewayProfilePaths, options, TimeProvider.System, logger)
+    {
+    }
+
     /// <summary>Minimal <see cref="IOptionsMonitor{T}"/> for test / default construction.</summary>
     private sealed class StaticOptionsMonitor : IOptionsMonitor<GatewayOptions>
     {
@@ -282,7 +300,7 @@ public sealed class GatewayConnectionEndpoint
     /// failure the just-spawned core is disposed (no orphaned process) and a typed
     /// <c>createRejected</c> reply is sent.
     /// </summary>
-    private async Task HandleCreateAsync(
+    internal async Task HandleCreateAsync(
         WebSocket socket,
         string rawCreateFrame,
         CancellationToken cancellationToken)

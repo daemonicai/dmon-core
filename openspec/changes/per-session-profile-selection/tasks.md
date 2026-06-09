@@ -29,9 +29,9 @@
 
 ## 6. Gateway — tests
 
-- [ ] 6.1 Test create-with-known-profile: a core is spawned, a session created with the profile stored, the handler registered, and `created {sessionId}` returned; the client can then `attach`.
-- [ ] 6.2 Test create-with-unknown-profile: actionable error returned, registry count unchanged, no orphaned core (5.1 / spec "No handler leaked on rejection").
-- [ ] 6.3 Test create-at-cap: actionable cap error, spawned core torn down, no registry entry; and that reattach to an existing session is exempt from the cap.
+- [x] 6.1 Test create-with-known-profile: a core is spawned, a session created with the profile stored, the handler registered, and `created {sessionId}` returned; the client can then `attach`.
+- [x] 6.2 Test create-with-unknown-profile: actionable error returned, registry count unchanged, no orphaned core (5.1 / spec "No handler leaked on rejection").
+- [x] 6.3 Test create-at-cap: actionable cap error, spawned core torn down, no registry entry; and that reattach to an existing session is exempt from the cap.
 
 ## 7. Close-out
 
