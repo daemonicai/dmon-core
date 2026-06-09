@@ -7,6 +7,7 @@ using Dmon.Core.Config;
 using Dmon.Core.Profiles;
 using Dmon.Gateway.Protocol;
 using Dmon.Gateway.Sessions;
+using Dmon.Protocol.Gateway;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
@@ -86,9 +87,8 @@ public sealed class GatewayCreateFlowTests
         Assert.Equal(sessionId, returned);
 
         // Assert: the create command written to stdin contains the profile field correctly.
-        // JsonOptions has no DefaultIgnoreCondition = WhenWritingNull, so a null profile is
-        // serialised as "profile":null (the key IS present). A non-null profile is serialised
-        // as "profile":"<name>".
+        // WireSerializerOptions.Default has WhenWritingNull, so a null profile is omitted entirely.
+        // A non-null profile is serialised as "profile":"<name>".
         string writtenToCore = stdin.GetWritten();
         if (profile is not null)
         {
@@ -96,8 +96,8 @@ public sealed class GatewayCreateFlowTests
         }
         else
         {
-            // Null profile: the key is emitted as "profile":null, not omitted.
-            Assert.Contains("\"profile\":null", writtenToCore);
+            // Null profile: the key is omitted entirely (WhenWritingNull).
+            Assert.DoesNotContain("\"profile\"", writtenToCore);
             Assert.Contains("\"type\":\"session.create\"", writtenToCore);
         }
     }

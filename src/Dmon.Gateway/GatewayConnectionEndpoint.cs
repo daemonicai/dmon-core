@@ -6,7 +6,9 @@ using Dmon.Core.Config;
 using Dmon.Core.Profiles;
 using Dmon.Gateway.Protocol;
 using Dmon.Gateway.Sessions;
+using Dmon.Protocol;
 using Dmon.Protocol.Commands;
+using Dmon.Protocol.Gateway;
 using Dmon.Protocol.Events;
 using Dmon.Runtime;
 using Microsoft.Extensions.Options;
@@ -56,8 +58,6 @@ namespace Dmon.Gateway;
 /// </summary>
 public sealed class GatewayConnectionEndpoint
 {
-    private static readonly JsonSerializerOptions JsonOptions =
-        new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 
     private readonly SessionRegistry _registry;
     private readonly CoreLauncher? _coreLauncher;
@@ -501,7 +501,7 @@ public sealed class GatewayConnectionEndpoint
             Id = createCommandId,
             Profile = profile,
         };
-        string createJson = JsonSerializer.Serialize(createCmd, JsonOptions);
+        string createJson = JsonSerializer.Serialize(createCmd, WireSerializerOptions.Default);
         await stdin.WriteAsync((createJson + "\n").AsMemory(), cancellationToken).ConfigureAwait(false);
         await stdin.FlushAsync(cancellationToken).ConfigureAwait(false);
 
@@ -513,7 +513,7 @@ public sealed class GatewayConnectionEndpoint
         // Write session.load (no path — loads the session we just created in its default location).
         // Serialize as the base Command type so the [JsonPolymorphic] discriminator "type" is emitted.
         Command loadCmd = new SessionLoadCommand { Id = loadCommandId };
-        string loadJson = JsonSerializer.Serialize(loadCmd, JsonOptions);
+        string loadJson = JsonSerializer.Serialize(loadCmd, WireSerializerOptions.Default);
         await stdin.WriteAsync((loadJson + "\n").AsMemory(), cancellationToken).ConfigureAwait(false);
         await stdin.FlushAsync(cancellationToken).ConfigureAwait(false);
 
@@ -556,7 +556,7 @@ public sealed class GatewayConnectionEndpoint
             Event? evt;
             try
             {
-                evt = JsonSerializer.Deserialize<Event>(line, JsonOptions);
+                evt = JsonSerializer.Deserialize<Event>(line, WireSerializerOptions.Default);
             }
             catch (JsonException)
             {

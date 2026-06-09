@@ -1,5 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Dmon.Protocol;
+using Dmon.Protocol.Gateway;
 
 namespace Dmon.Gateway.Protocol;
 
@@ -10,13 +12,8 @@ namespace Dmon.Gateway.Protocol;
 /// </summary>
 public static class ControlFrameSerializer
 {
-    private static readonly JsonSerializerOptions Options = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-    };
-
     public static string Serialize<T>(T frame) =>
-        JsonSerializer.Serialize(frame, Options);
+        JsonSerializer.Serialize(frame, WireSerializerOptions.Default);
 
     /// <summary>
     /// Returns the "gw" discriminator value if the raw frame text is a control frame,
@@ -74,7 +71,7 @@ public static class ControlFrameSerializer
     {
         try
         {
-            return JsonSerializer.Deserialize<AttachFrame>(rawFrame, Options);
+            return JsonSerializer.Deserialize<AttachFrame>(rawFrame, WireSerializerOptions.Default);
         }
         catch (JsonException)
         {
@@ -90,7 +87,7 @@ public static class ControlFrameSerializer
     {
         try
         {
-            return JsonSerializer.Deserialize<CreateFrame>(rawFrame, Options);
+            return JsonSerializer.Deserialize<CreateFrame>(rawFrame, WireSerializerOptions.Default);
         }
         catch (JsonException)
         {
