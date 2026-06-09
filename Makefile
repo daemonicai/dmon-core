@@ -1,4 +1,4 @@
-.PHONY: all build build-terminal build-core build-extensions build-memory test clean
+.PHONY: all build build-terminal build-core build-extensions build-memory test schema clean
 
 CONFIG            ?= Release
 CORE_OUT          := build/dmoncore
@@ -36,6 +36,10 @@ build-memory:
 
 test:
 	dotnet test -c $(CONFIG)
+
+schema:
+	dotnet run --project src/Dmon.Protocol.SchemaGen/Dmon.Protocol.SchemaGen.csproj \
+		-c $(CONFIG) -- docs/protocol/schema.json
 
 clean:
 	rm -rf build/

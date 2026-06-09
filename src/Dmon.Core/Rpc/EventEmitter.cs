@@ -1,17 +1,11 @@
 using System.Text.Json;
-using System.Text.Json.Serialization;
+using Dmon.Protocol;
 using Dmon.Protocol.Events;
 
 namespace Dmon.Core.Rpc;
 
 public sealed class EventEmitter : IEventEmitter
 {
-    private static readonly JsonSerializerOptions SerializerOptions = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
-    };
-
     private readonly TextWriter _out;
     private readonly SemaphoreSlim _gate = new(1, 1);
 
@@ -22,7 +16,7 @@ public sealed class EventEmitter : IEventEmitter
 
     public async Task EmitAsync<T>(T evt, CancellationToken cancellationToken = default) where T : Event
     {
-        string json = JsonSerializer.Serialize<Event>(evt, SerializerOptions);
+        string json = JsonSerializer.Serialize<Event>(evt, WireSerializerOptions.Default);
 
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try

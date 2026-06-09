@@ -1,0 +1,2398 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "x-protocolVersion": "0.2",
+  "description": "dmon wire protocol: all client-visible frame types.",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/command"
+    },
+    {
+      "$ref": "#/$defs/event"
+    },
+    {
+      "$ref": "#/$defs/part"
+    },
+    {
+      "$ref": "#/$defs/gw.attach"
+    },
+    {
+      "$ref": "#/$defs/gw.attached"
+    },
+    {
+      "$ref": "#/$defs/gw.ack"
+    },
+    {
+      "$ref": "#/$defs/gw.create"
+    },
+    {
+      "$ref": "#/$defs/gw.created"
+    },
+    {
+      "$ref": "#/$defs/gw.createRejected"
+    },
+    {
+      "$ref": "#/$defs/gw.ping"
+    },
+    {
+      "$ref": "#/$defs/gw.pong"
+    }
+  ],
+  "$defs": {
+    "command": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "required": [
+        "type"
+      ],
+      "anyOf": [
+        {
+          "properties": {
+            "type": {
+              "const": "session.create"
+            },
+            "profile": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "session.fork"
+            },
+            "entryId": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "entryId",
+            "id"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "session.clone"
+            },
+            "id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "session.load"
+            },
+            "path": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "session.list"
+            },
+            "id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "session.setName"
+            },
+            "name": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "name",
+            "id"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "session.getStats"
+            },
+            "id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "session.getMessages"
+            },
+            "id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "session.compact"
+            },
+            "id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "turn.submit"
+            },
+            "message": {
+              "type": "string"
+            },
+            "images": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "message",
+            "id"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "turn.steer"
+            },
+            "message": {
+              "type": "string"
+            },
+            "images": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "message",
+            "id"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "turn.followUp"
+            },
+            "message": {
+              "type": "string"
+            },
+            "images": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "message",
+            "id"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "turn.abort"
+            },
+            "id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "tool.confirmResponse"
+            },
+            "confirmed": {
+              "type": "boolean"
+            },
+            "cancelled": {
+              "type": "boolean"
+            },
+            "scope": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "ui.inputResponse"
+            },
+            "value": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "cancelled": {
+              "type": "boolean"
+            },
+            "id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "model.set"
+            },
+            "provider": {
+              "type": "string"
+            },
+            "modelId": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "provider",
+            "modelId",
+            "id"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "model.cycle"
+            },
+            "id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "model.list"
+            },
+            "id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "model.models"
+            },
+            "provider": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "provider",
+            "id"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "extension.load"
+            },
+            "source": {
+              "type": "string"
+            },
+            "scope": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "source",
+            "id"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "extension.unload"
+            },
+            "name": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "name",
+            "id"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "extension.promote"
+            },
+            "name": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "name",
+            "id"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "thinking.set"
+            },
+            "level": {
+              "enum": [
+                "Off",
+                "Low",
+                "Medium",
+                "High"
+              ]
+            },
+            "id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "thinking.cycle"
+            },
+            "id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "auth.login"
+            },
+            "provider": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "provider",
+            "id"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "auth.logout"
+            },
+            "provider": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "provider",
+            "id"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "auth.status"
+            },
+            "provider": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "provider.configure"
+            },
+            "adapter": {
+              "type": "string"
+            },
+            "modelId": {
+              "type": "string"
+            },
+            "envVar": {
+              "type": "string"
+            },
+            "scope": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "adapter",
+            "modelId",
+            "envVar",
+            "scope",
+            "id"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "wizard.start"
+            },
+            "id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "wizard.answer"
+            },
+            "wizardId": {
+              "type": "string"
+            },
+            "outcome": {
+              "enum": [
+                "Answered",
+                "Back",
+                "Cancel"
+              ]
+            },
+            "value": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "wizardId",
+            "id"
+          ]
+        }
+      ]
+    },
+    "event": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "required": [
+        "type"
+      ],
+      "anyOf": [
+        {
+          "properties": {
+            "type": {
+              "const": "agentReady"
+            },
+            "protocolVersion": {
+              "type": "string"
+            },
+            "coreVersion": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "protocolVersion",
+            "coreVersion"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "agentStart"
+            }
+          }
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "agentEnd"
+            },
+            "messages": {
+              "type": "array"
+            }
+          },
+          "required": [
+            "messages"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "bootstrapNotice"
+            },
+            "path": {
+              "type": "string"
+            },
+            "created": {
+              "type": "array",
+              "items": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          },
+          "required": [
+            "path",
+            "created"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "providerSwitched"
+            },
+            "name": {
+              "type": "string"
+            },
+            "model": {
+              "type": "string"
+            },
+            "effectiveNextTurn": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "name",
+            "model"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "capabilityIgnored"
+            },
+            "capability": {
+              "type": "string"
+            },
+            "requestedValue": {
+              "type": "string"
+            },
+            "reason": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "capability",
+            "requestedValue",
+            "reason"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "extensionError"
+            },
+            "source": {
+              "type": "string"
+            },
+            "phase": {
+              "type": "string"
+            },
+            "diagnostics": {
+              "type": "array"
+            }
+          },
+          "required": [
+            "source",
+            "phase",
+            "diagnostics"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "retryAttempt"
+            },
+            "attempt": {
+              "type": "integer"
+            },
+            "maxAttempts": {
+              "type": "integer"
+            },
+            "nextDelayMs": {
+              "type": "integer"
+            },
+            "reason": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "reason"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "error"
+            },
+            "code": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            },
+            "recoverable": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "code",
+            "message"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "ui.inputRequest"
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "enum": [
+                "Text",
+                "Secret",
+                "Select"
+              ]
+            },
+            "prompt": {
+              "type": "string"
+            },
+            "options": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          },
+          "required": [
+            "id",
+            "prompt"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "turnStart"
+            }
+          }
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "turnEnd"
+            },
+            "message": true,
+            "toolResults": {
+              "type": "array"
+            }
+          },
+          "required": [
+            "message",
+            "toolResults"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "messageStart"
+            },
+            "message": true
+          },
+          "required": [
+            "message"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "messageDelta"
+            },
+            "message": true,
+            "delta": true
+          },
+          "required": [
+            "message",
+            "delta"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "messageEnd"
+            },
+            "message": true
+          },
+          "required": [
+            "message"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "toolExecutionStart"
+            },
+            "callId": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "args": true
+          },
+          "required": [
+            "callId",
+            "name",
+            "args"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "toolExecutionEnd"
+            },
+            "callId": {
+              "type": "string"
+            },
+            "result": true,
+            "isError": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "callId",
+            "result"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "tool.confirmRequest"
+            },
+            "id": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "args": true,
+            "risk": {
+              "enum": [
+                "None",
+                "Low",
+                "Medium",
+                "High"
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "name",
+            "args"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "sessionUpdated"
+            },
+            "id": {
+              "type": "string"
+            },
+            "title": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "title"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "extensionLoaded"
+            },
+            "name": {
+              "type": "string"
+            },
+            "tools": {
+              "type": "array",
+              "items": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "providerName": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "name",
+            "tools"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "extensionUnloaded"
+            },
+            "name": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "name"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "compactionStart"
+            },
+            "reason": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "reason"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "compactionEnd"
+            },
+            "reason": {
+              "type": "string"
+            },
+            "result": {
+              "type": "string"
+            },
+            "aborted": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "reason",
+            "result"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "auth.loginComplete"
+            },
+            "provider": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "provider",
+            "id"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "auth.logoutComplete"
+            },
+            "provider": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "provider",
+            "id"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "auth.loginFailed"
+            },
+            "provider": {
+              "type": "string"
+            },
+            "reason": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "provider",
+            "reason",
+            "id"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "auth.statusResult"
+            },
+            "providers": {
+              "type": "array"
+            },
+            "id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "providers",
+            "id"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "model.listResult"
+            },
+            "models": {
+              "type": "array",
+              "items": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "provider": {
+                    "type": "string"
+                  },
+                  "baseUrl": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "reasoning": {
+                    "type": "boolean"
+                  },
+                  "input": {
+                    "type": "array",
+                    "items": {
+                      "enum": [
+                        "Text",
+                        "Image"
+                      ]
+                    }
+                  },
+                  "toolCalling": {
+                    "type": "boolean"
+                  },
+                  "contextWindow": {
+                    "type": "integer"
+                  },
+                  "maxTokens": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "id",
+                  "name",
+                  "provider",
+                  "input"
+                ]
+              }
+            },
+            "activeProvider": {
+              "type": "string"
+            },
+            "activeModelId": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "models",
+            "activeProvider",
+            "activeModelId",
+            "id"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "model.models.result"
+            },
+            "provider": {
+              "type": "string"
+            },
+            "models": {
+              "type": "array",
+              "items": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "activeModelId": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "provider",
+            "models",
+            "id"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "setupRequired"
+            },
+            "adapters": {
+              "type": "array",
+              "items": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "defaultModelId": {
+                    "type": "string"
+                  },
+                  "defaultEnvVar": {
+                    "type": "string"
+                  },
+                  "envVarDetected": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "name",
+                  "defaultModelId",
+                  "defaultEnvVar"
+                ]
+              }
+            }
+          },
+          "required": [
+            "adapters"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "providerConfigured"
+            },
+            "adapter": {
+              "type": "string"
+            },
+            "modelId": {
+              "type": "string"
+            },
+            "scope": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "adapter",
+            "modelId",
+            "scope"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "system.notice"
+            },
+            "message": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "message"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "wizard.step"
+            },
+            "wizardId": {
+              "type": "string"
+            },
+            "step": {
+              "type": "object",
+              "required": [
+                "type"
+              ],
+              "anyOf": [
+                {
+                  "properties": {
+                    "type": {
+                      "const": "wizard.chooseOne"
+                    },
+                    "options": {
+                      "type": "array",
+                      "items": {
+                        "type": [
+                          "object",
+                          "null"
+                        ],
+                        "properties": {
+                          "label": {
+                            "type": "string"
+                          },
+                          "value": {
+                            "type": "string"
+                          },
+                          "description": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "default": null
+                          }
+                        },
+                        "required": [
+                          "label",
+                          "value"
+                        ]
+                      }
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "prompt": {
+                      "type": "string"
+                    },
+                    "isAnswered": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "options",
+                    "id",
+                    "prompt"
+                  ]
+                },
+                {
+                  "properties": {
+                    "type": {
+                      "const": "wizard.chooseMany"
+                    },
+                    "options": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/anyOf/32/properties/step/anyOf/0/properties/options/items"
+                      }
+                    },
+                    "minSelections": {
+                      "type": "integer"
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "prompt": {
+                      "type": "string"
+                    },
+                    "isAnswered": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "options",
+                    "id",
+                    "prompt"
+                  ]
+                },
+                {
+                  "properties": {
+                    "type": {
+                      "const": "wizard.textInput"
+                    },
+                    "default": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "secret": {
+                      "type": "boolean"
+                    },
+                    "required": {
+                      "type": "boolean"
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "prompt": {
+                      "type": "string"
+                    },
+                    "isAnswered": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "prompt"
+                  ]
+                },
+                {
+                  "properties": {
+                    "type": {
+                      "const": "wizard.yesNo"
+                    },
+                    "default": {
+                      "type": "boolean"
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "prompt": {
+                      "type": "string"
+                    },
+                    "isAnswered": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "prompt"
+                  ]
+                },
+                {
+                  "properties": {
+                    "type": {
+                      "const": "wizard.info"
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "prompt": {
+                      "type": "string"
+                    },
+                    "isAnswered": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "prompt"
+                  ]
+                },
+                {
+                  "properties": {
+                    "type": {
+                      "const": "wizard.completed"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "prompt": {
+                      "type": "string"
+                    },
+                    "isAnswered": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "message",
+                    "id",
+                    "prompt"
+                  ]
+                }
+              ]
+            }
+          },
+          "required": [
+            "wizardId",
+            "step"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "commandError"
+            },
+            "command": {
+              "type": "string"
+            },
+            "code": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "command",
+            "code",
+            "message",
+            "id"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "session.createResult"
+            },
+            "session": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "created": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "modified": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "profile": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "parentSession": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "forkEntryId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "tokens": {
+                  "type": "object",
+                  "properties": {
+                    "input": {
+                      "type": "integer"
+                    },
+                    "output": {
+                      "type": "integer"
+                    },
+                    "cacheRead": {
+                      "type": "integer"
+                    },
+                    "cacheWrite": {
+                      "type": "integer"
+                    }
+                  }
+                },
+                "cost": {
+                  "type": "object",
+                  "properties": {
+                    "total": {
+                      "type": "number"
+                    }
+                  }
+                }
+              },
+              "required": [
+                "id"
+              ]
+            },
+            "id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "session",
+            "id"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "session.forkResult"
+            },
+            "session": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "created": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "modified": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "profile": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "parentSession": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "forkEntryId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "tokens": {
+                  "$ref": "#/anyOf/34/properties/session/properties/tokens"
+                },
+                "cost": {
+                  "$ref": "#/anyOf/34/properties/session/properties/cost"
+                }
+              },
+              "required": [
+                "id"
+              ]
+            },
+            "id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "session",
+            "id"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "session.cloneResult"
+            },
+            "session": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "created": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "modified": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "profile": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "parentSession": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "forkEntryId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "tokens": {
+                  "$ref": "#/anyOf/34/properties/session/properties/tokens"
+                },
+                "cost": {
+                  "$ref": "#/anyOf/34/properties/session/properties/cost"
+                }
+              },
+              "required": [
+                "id"
+              ]
+            },
+            "id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "session",
+            "id"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "session.loadResult"
+            },
+            "session": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "created": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "modified": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "profile": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "parentSession": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "forkEntryId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "tokens": {
+                  "$ref": "#/anyOf/34/properties/session/properties/tokens"
+                },
+                "cost": {
+                  "$ref": "#/anyOf/34/properties/session/properties/cost"
+                }
+              },
+              "required": [
+                "id"
+              ]
+            },
+            "id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "session",
+            "id"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "session.listResult"
+            },
+            "sessions": {
+              "type": "array",
+              "items": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "created": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "modified": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "profile": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "parentSession": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "forkEntryId": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "tokens": {
+                    "$ref": "#/anyOf/34/properties/session/properties/tokens"
+                  },
+                  "cost": {
+                    "$ref": "#/anyOf/34/properties/session/properties/cost"
+                  }
+                },
+                "required": [
+                  "id"
+                ]
+              }
+            },
+            "id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "sessions",
+            "id"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "session.getStatsResult"
+            },
+            "stats": {
+              "type": "object",
+              "properties": {
+                "tokens": {
+                  "type": "integer"
+                },
+                "cost": {
+                  "type": "number"
+                },
+                "contextUsage": {
+                  "type": "integer"
+                },
+                "currentModel": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            },
+            "id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "stats",
+            "id"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "session.getMessagesResult"
+            },
+            "messages": {
+              "type": "array",
+              "items": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "required": [
+                  "type"
+                ],
+                "anyOf": [
+                  {
+                    "properties": {
+                      "type": {
+                        "const": "message"
+                      },
+                      "entryId": {
+                        "type": "string"
+                      },
+                      "timestamp": {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      "role": {
+                        "type": "string"
+                      },
+                      "parts": {
+                        "type": "array",
+                        "items": {
+                          "type": [
+                            "object",
+                            "null"
+                          ],
+                          "required": [
+                            "type"
+                          ],
+                          "anyOf": [
+                            {
+                              "properties": {
+                                "type": {
+                                  "const": "text"
+                                },
+                                "text": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "text"
+                              ]
+                            },
+                            {
+                              "properties": {
+                                "type": {
+                                  "const": "toolCall"
+                                },
+                                "callId": {
+                                  "type": "string"
+                                },
+                                "name": {
+                                  "type": "string"
+                                },
+                                "args": true
+                              },
+                              "required": [
+                                "callId",
+                                "name",
+                                "args"
+                              ]
+                            },
+                            {
+                              "properties": {
+                                "type": {
+                                  "const": "toolResult"
+                                },
+                                "callId": {
+                                  "type": "string"
+                                },
+                                "result": true,
+                                "attachmentRef": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "isError": {
+                                  "type": "boolean"
+                                },
+                                "truncated": {
+                                  "type": "boolean"
+                                }
+                              },
+                              "required": [
+                                "callId"
+                              ]
+                            },
+                            {
+                              "properties": {
+                                "type": {
+                                  "const": "image"
+                                },
+                                "mediaType": {
+                                  "type": "string"
+                                },
+                                "attachmentRef": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "dataBase64": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "mediaType"
+                              ]
+                            },
+                            {
+                              "properties": {
+                                "type": {
+                                  "const": "reasoning"
+                                },
+                                "text": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "text"
+                              ]
+                            },
+                            {
+                              "properties": {
+                                "type": {
+                                  "const": "usage"
+                                },
+                                "inputTokens": {
+                                  "type": "integer"
+                                },
+                                "outputTokens": {
+                                  "type": "integer"
+                                }
+                              }
+                            },
+                            {
+                              "properties": {
+                                "type": {
+                                  "const": "unknown"
+                                },
+                                "raw": true,
+                                "producedBy": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "raw",
+                                "producedBy"
+                              ]
+                            }
+                          ]
+                        }
+                      }
+                    },
+                    "required": [
+                      "entryId",
+                      "timestamp",
+                      "role",
+                      "parts"
+                    ]
+                  },
+                  {
+                    "properties": {
+                      "type": {
+                        "const": "compaction"
+                      },
+                      "entryId": {
+                        "type": "string"
+                      },
+                      "timestamp": {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      "summary": {
+                        "type": "string"
+                      },
+                      "supersedesUpTo": {
+                        "type": "string"
+                      },
+                      "reason": {
+                        "type": "string"
+                      },
+                      "tokensBefore": {
+                        "type": "integer"
+                      }
+                    },
+                    "required": [
+                      "entryId",
+                      "timestamp",
+                      "summary",
+                      "supersedesUpTo",
+                      "reason"
+                    ]
+                  }
+                ]
+              }
+            },
+            "id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "messages",
+            "id"
+          ]
+        }
+      ]
+    },
+    "gw.ack": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "gw": {
+          "const": "ack"
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "gw"
+      ]
+    },
+    "gw.attach": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "gw": {
+          "const": "attach"
+        },
+        "sessionId": {
+          "type": "string"
+        },
+        "lastSeq": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "sessionId",
+        "gw"
+      ]
+    },
+    "gw.attached": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "gw": {
+          "const": "attached"
+        },
+        "generation": {
+          "type": "integer"
+        },
+        "headSeq": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "generation",
+        "headSeq",
+        "gw"
+      ]
+    },
+    "gw.create": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "gw": {
+          "const": "create"
+        },
+        "profile": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "gw"
+      ]
+    },
+    "gw.createRejected": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "gw": {
+          "const": "createRejected"
+        },
+        "code": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "code",
+        "message",
+        "gw"
+      ]
+    },
+    "gw.created": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "gw": {
+          "const": "created"
+        },
+        "sessionId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "sessionId",
+        "gw"
+      ]
+    },
+    "gw.ping": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "gw": {
+          "const": "ping"
+        }
+      },
+      "required": [
+        "gw"
+      ]
+    },
+    "gw.pong": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "gw": {
+          "const": "pong"
+        }
+      },
+      "required": [
+        "gw"
+      ]
+    },
+    "part": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "required": [
+        "type"
+      ],
+      "anyOf": [
+        {
+          "properties": {
+            "type": {
+              "const": "text"
+            },
+            "text": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "text"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "toolCall"
+            },
+            "callId": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "args": true
+          },
+          "required": [
+            "callId",
+            "name",
+            "args"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "toolResult"
+            },
+            "callId": {
+              "type": "string"
+            },
+            "result": true,
+            "attachmentRef": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "isError": {
+              "type": "boolean"
+            },
+            "truncated": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "callId"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "image"
+            },
+            "mediaType": {
+              "type": "string"
+            },
+            "attachmentRef": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "dataBase64": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "mediaType"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "reasoning"
+            },
+            "text": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "text"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "usage"
+            },
+            "inputTokens": {
+              "type": "integer"
+            },
+            "outputTokens": {
+              "type": "integer"
+            }
+          }
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "unknown"
+            },
+            "raw": true,
+            "producedBy": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "raw",
+            "producedBy"
+          ]
+        }
+      ]
+    }
+  }
+}

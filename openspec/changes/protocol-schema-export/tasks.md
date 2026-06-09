@@ -6,11 +6,11 @@
 
 ## 2. Schema export
 
-- [ ] 2.1 Locate the canonical `JsonSerializerOptions` used on the wire by the gateway/core; expose or reuse them so the exporter and the runtime share one configuration
-- [ ] 2.2 Add a schema-export routine in `Dmon.Protocol` that calls `JsonSchemaExporter.GetJsonSchema(...)` for `Command`, `Event`, `Part`, and the control-frame family, composing one document with shared leaves in `$defs` and a top-level `x-protocolVersion` from `ProtocolVersion.Current`
-- [ ] 2.3 Make the output deterministically ordered so regeneration produces stable diffs
-- [ ] 2.4 Add a generator entry point (`make schema` target driving a `dotnet run` console exporter or equivalent) that writes `docs/protocol/schema.json`
-- [ ] 2.5 Generate and commit the initial `docs/protocol/schema.json`
+- [x] 2.1 Locate the canonical `JsonSerializerOptions` used on the wire by the gateway/core; expose or reuse them so the exporter and the runtime share one configuration
+- [x] 2.2 Add a schema-export routine in `Dmon.Protocol` that calls `JsonSchemaExporter.GetJsonSchema(...)` for `Command`, `Event`, `Part`, and the control-frame family, composing one document with shared leaves in `$defs` and a top-level `x-protocolVersion` from `ProtocolVersion.Current`
+- [x] 2.3 Make the output deterministically ordered so regeneration produces stable diffs
+- [x] 2.4 Add a generator entry point (`make schema` target driving a `dotnet run` console exporter or equivalent) that writes `docs/protocol/schema.json`
+- [x] 2.5 Generate and commit the initial `docs/protocol/schema.json`
 
 ## 3. Freshness gate
 

@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
+using Dmon.Protocol;
 using Dmon.Protocol.Commands;
 using Dmon.Protocol.Events;
 
@@ -7,13 +8,6 @@ namespace Dmon.Core.Rpc;
 
 public sealed class CommandDispatcher
 {
-    // Polymorphic parse options: camelCase + allows the "type" discriminator to appear
-    // anywhere in the JSON object (after "id"), which is the standard command wire shape.
-    private static readonly JsonSerializerOptions ParseOptions = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        AllowOutOfOrderMetadataProperties = true
-    };
 
     private readonly ITurnHandler _turn;
     private readonly IModelHandler _model;
@@ -210,7 +204,7 @@ public sealed class CommandDispatcher
 
             try
             {
-                Command? cmd = doc.RootElement.Deserialize<Command>(ParseOptions);
+                Command? cmd = doc.RootElement.Deserialize<Command>(WireSerializerOptions.Default);
                 if (cmd is null)
                 {
                     return new ParseFault(new ErrorEvent
