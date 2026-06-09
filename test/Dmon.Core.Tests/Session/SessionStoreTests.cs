@@ -121,6 +121,54 @@ public sealed class SessionStoreTests : IDisposable
         Assert.Equal("updated", reloaded.Name);
     }
 
+    // ── Profile persistence (task 3.1 / 3.2) ─────────────────────────────────
+
+    [Fact]
+    public async Task CreateAsync_WithProfile_PersistsProfileToMetaJson()
+    {
+        SessionMeta meta = await _store.CreateAsync(profile: "researcher");
+
+        string sessionDir = _store.GetSessionDirectory(meta.Id);
+        string json = await File.ReadAllTextAsync(Path.Combine(sessionDir, "meta.json"));
+        SessionMeta? loaded = JsonSerializer.Deserialize<SessionMeta>(json);
+
+        Assert.NotNull(loaded);
+        Assert.Equal("researcher", loaded.Profile);
+    }
+
+    [Fact]
+    public async Task CreateAsync_WithoutProfile_LeavesProfileNull()
+    {
+        SessionMeta meta = await _store.CreateAsync();
+
+        string sessionDir = _store.GetSessionDirectory(meta.Id);
+        string json = await File.ReadAllTextAsync(Path.Combine(sessionDir, "meta.json"));
+        SessionMeta? loaded = JsonSerializer.Deserialize<SessionMeta>(json);
+
+        Assert.NotNull(loaded);
+        Assert.Null(loaded.Profile);
+    }
+
+    [Fact]
+    public async Task LoadAsync_RehydratesPersistedProfile()
+    {
+        SessionMeta created = await _store.CreateAsync(profile: "researcher");
+
+        SessionMeta loaded = await _store.LoadAsync(created.Id);
+
+        Assert.Equal("researcher", loaded.Profile);
+    }
+
+    [Fact]
+    public async Task LoadAsync_SessionWithNoProfile_ProfileRemainsNull()
+    {
+        SessionMeta created = await _store.CreateAsync();
+
+        SessionMeta loaded = await _store.LoadAsync(created.Id);
+
+        Assert.Null(loaded.Profile);
+    }
+
     // ── AppendMessagesAsync ───────────────────────────────────────────────────
 
     [Fact]

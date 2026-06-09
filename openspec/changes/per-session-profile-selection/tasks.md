@@ -12,9 +12,9 @@
 
 ## 3. Core — tests
 
-- [ ] 3.1 Test that `SessionStore.CreateAsync` with a profile persists it to `meta.json`, and that creating without one leaves it null.
-- [ ] 3.2 Test that `LoadAsync` rehydrates the persisted `profile`, and that `TurnHandler` resolves with the persisted profile (and with `null` when none is stored) — assert the resolver receives the expected `requestedProfile`.
-- [ ] 3.3 Test that fork and clone copy the source profile into the new session record, including the no-profile case.
+- [x] 3.1 Test that `SessionStore.CreateAsync` with a profile persists it to `meta.json`, and that creating without one leaves it null.
+- [x] 3.2 Test that `LoadAsync` rehydrates the persisted `profile`, and that `TurnHandler` resolves with the persisted profile (and with `null` when none is stored) — assert the resolver receives the expected `requestedProfile`.
+- [x] 3.3 Test that fork and clone copy the source profile into the new session record, including the no-profile case.
 
 ## 4. Gateway — profile-selecting session creation (completes remote-session-gateway 10.1)
 
