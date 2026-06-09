@@ -33,6 +33,6 @@
 
 ## 6. Gates
 
-- [ ] 6.1 `make build` clean (no warnings; `TreatWarningsAsErrors`)
-- [ ] 6.2 `make test` green (new schema/freshness tests and all existing tests)
-- [ ] 6.3 `openspec validate protocol-schema-export --strict`
+- [x] 6.1 `make build` clean (no warnings; `TreatWarningsAsErrors`)
+- [x] 6.2 `make test` green (new schema/freshness tests and all existing tests)
+- [x] 6.3 `openspec validate protocol-schema-export --strict`
