@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json.Nodes;
 
 namespace Dmon.Protocol.Tests;
@@ -141,5 +142,73 @@ public sealed class ProtocolSchemaExporterTests
         Assert.DoesNotContain("ChatMessage",         json, StringComparison.Ordinal);
         Assert.DoesNotContain("AIContent",           json, StringComparison.Ordinal);
         Assert.DoesNotContain("JsonSerializerOptions", json, StringComparison.Ordinal);
+    }
+
+    // ── platform invariance: output must be pure LF ──────────────────────────
+
+    [Fact]
+    public void ExportAsJson_ContainsNoCr()
+    {
+        string json = ProtocolSchemaExporter.ExportAsJson();
+        Assert.DoesNotContain('\r', json);
+    }
+
+    // ── freshness gate: committed artifact must match live types ─────────────
+
+    [Fact]
+    public void CommittedSchema_MatchesLiveExport()
+    {
+        // Walk up from the test binary to the repository root.
+        // Test assembly sits at: <repo>/test/Dmon.Protocol.Tests/bin/<cfg>/<tfm>/
+        // Five levels up lands at <repo>.
+        string repoRoot = Path.GetFullPath(
+            Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", ".."));
+
+        string committedPath = Path.Combine(repoRoot, "docs", "protocol", "schema.json");
+
+        Assert.True(
+            File.Exists(committedPath),
+            $"Committed schema not found at '{committedPath}'. Has it been generated yet? Run: make schema");
+
+        // Compare bytes so encoding or trailing-newline differences are caught.
+        byte[] committedBytes = File.ReadAllBytes(committedPath);
+        byte[] liveBytes      = Encoding.UTF8.GetBytes(ProtocolSchemaExporter.ExportAsJson());
+
+        if (!committedBytes.SequenceEqual(liveBytes))
+        {
+            string committedText = Encoding.UTF8.GetString(committedBytes);
+            string liveText      = Encoding.UTF8.GetString(liveBytes);
+
+            int firstDiff = -1;
+            int minLen = Math.Min(committedText.Length, liveText.Length);
+            for (int i = 0; i < minLen; i++)
+            {
+                if (committedText[i] != liveText[i])
+                {
+                    firstDiff = i;
+                    break;
+                }
+            }
+
+            string hint = firstDiff >= 0
+                ? $"First difference at character {firstDiff}: " +
+                  $"committed='{Escape(committedText, firstDiff)}' " +
+                  $"live='{Escape(liveText, firstDiff)}'"
+                : $"Length differs: committed={committedBytes.Length} bytes, live={liveBytes.Length} bytes";
+
+            Assert.Fail(
+                $"docs/protocol/schema.json is stale — it does not match the output of " +
+                $"ProtocolSchemaExporter.ExportAsJson(). {hint}. " +
+                $"Regenerate it by running: make schema");
+        }
+    }
+
+    private static string Escape(string text, int index)
+    {
+        int start  = Math.Max(0, index - 10);
+        int length = Math.Min(20, text.Length - start);
+        return text.Substring(start, length)
+            .Replace("\n", "\\n", StringComparison.Ordinal)
+            .Replace("\r", "\\r", StringComparison.Ordinal);
     }
 }

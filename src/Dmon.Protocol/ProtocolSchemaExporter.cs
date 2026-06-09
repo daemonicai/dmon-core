@@ -121,7 +121,7 @@ public static class ProtocolSchemaExporter
     {
         JsonNode schema = Export();
         string json = schema.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
-        return json + Environment.NewLine;
+        return json + "\n";
     }
 
     // Moves all entries from a schema's "$defs" node into the shared allDefs map,

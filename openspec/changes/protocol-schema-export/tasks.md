@@ -14,9 +14,9 @@
 
 ## 3. Freshness gate
 
-- [ ] 3.1 Add a test in the protocol test project that regenerates the schema in-memory and asserts byte-equality with the committed `docs/protocol/schema.json`
-- [ ] 3.2 On mismatch, emit an actionable message naming the regeneration command (`make schema`)
-- [ ] 3.3 Verify the gate fails on a deliberate type change and passes once the artifact is regenerated
+- [x] 3.1 Add a test in the protocol test project that regenerates the schema in-memory and asserts byte-equality with the committed `docs/protocol/schema.json`
+- [x] 3.2 On mismatch, emit an actionable message naming the regeneration command (`make schema`)
+- [x] 3.3 Verify the gate fails on a deliberate type change and passes once the artifact is regenerated
 
 ## 4. Schema content verification
 
