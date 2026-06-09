@@ -1,6 +1,9 @@
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
+using Dmon.Abstractions.Profiles;
+using Dmon.Core.Config;
+using Dmon.Core.Profiles;
 using Dmon.Gateway.Protocol;
 using Dmon.Gateway.Sessions;
 using Dmon.Protocol.Commands;
@@ -20,7 +23,10 @@ namespace Dmon.Gateway;
 ///      - Known: wrap the socket in <see cref="WebSocketGatewayConnection"/>, call
 ///        <see cref="SessionHandler.Attach"/>, reply <c>attached {generation, headSeq}</c>.
 ///   2b. On <c>create {profile?}</c>:
-///      - [Group 5 seam] Pre-spawn profile validation against the gateway's resolver goes here.
+///      - Validate the requested profile (if named) against <see cref="IAgentProfileResolver"/>;
+///        an unknown profile name → <c>createRejected {code="unknown_profile"}</c>, no core spawned;
+///        a name that exists but whose config is invalid → <c>createRejected {code="invalid_profile"}</c>.
+///        (Design D3: gateway check is early-rejection convenience; core resolution is authoritative.)
 ///      - Spawn a core via <see cref="CoreLauncher"/>; drive the create+load handshake over the
 ///        raw stdio pipes BEFORE constructing <see cref="SessionHandler"/> (so the handshake
 ///        result events are not seq-assigned into the replay log — ADR-014).
@@ -55,6 +61,9 @@ public sealed class GatewayConnectionEndpoint
 
     private readonly SessionRegistry _registry;
     private readonly CoreLauncher? _coreLauncher;
+    private readonly IAgentProfileResolver? _profileResolver;
+    private readonly EffectiveProfileSetResolver? _effectiveProfileSetResolver;
+    private readonly GatewayProfilePaths? _gatewayProfilePaths;
     private readonly IOptionsMonitor<GatewayOptions> _options;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<GatewayConnectionEndpoint> _logger;
@@ -73,12 +82,18 @@ public sealed class GatewayConnectionEndpoint
     public GatewayConnectionEndpoint(
         SessionRegistry registry,
         CoreLauncher coreLauncher,
+        IAgentProfileResolver profileResolver,
+        EffectiveProfileSetResolver effectiveProfileSetResolver,
+        GatewayProfilePaths gatewayProfilePaths,
         IOptionsMonitor<GatewayOptions> options,
         TimeProvider timeProvider,
         ILogger<GatewayConnectionEndpoint> logger)
     {
         _registry = registry;
         _coreLauncher = coreLauncher;
+        _profileResolver = profileResolver;
+        _effectiveProfileSetResolver = effectiveProfileSetResolver;
+        _gatewayProfilePaths = gatewayProfilePaths;
         _options = options;
         _timeProvider = timeProvider;
         _logger = logger;
@@ -86,18 +101,20 @@ public sealed class GatewayConnectionEndpoint
 
     /// <summary>
     /// Test constructor: injects a specific options monitor and time provider without a
-    /// <see cref="CoreLauncher"/> (for tests that do not exercise session creation).
+    /// <see cref="CoreLauncher"/> or <see cref="IAgentProfileResolver"/> (for tests that do not
+    /// exercise session creation).
     /// </summary>
     /// <remarks>
-    /// Not valid for create-flow tests — <c>_coreLauncher</c> is null and will throw on
-    /// any path that calls <see cref="CoreLauncher.StartProtocolCompatibleCoreAsync"/>.
+    /// Not valid for create-flow tests — <c>_coreLauncher</c> and <c>_profileResolver</c> are
+    /// null and will throw on any path that calls
+    /// <see cref="CoreLauncher.StartProtocolCompatibleCoreAsync"/> or validates a profile.
     /// </remarks>
     internal GatewayConnectionEndpoint(
         SessionRegistry registry,
         IOptionsMonitor<GatewayOptions> options,
         TimeProvider timeProvider,
         ILogger<GatewayConnectionEndpoint> logger)
-        : this(registry, null!, options, timeProvider, logger)
+        : this(registry, null!, null!, null!, null!, options, timeProvider, logger)
     {
     }
 
@@ -107,13 +124,14 @@ public sealed class GatewayConnectionEndpoint
     /// logger continue to compile without modification.
     /// </summary>
     /// <remarks>
-    /// Not valid for create-flow tests — <c>_coreLauncher</c> is null and will throw on
-    /// any path that calls <see cref="CoreLauncher.StartProtocolCompatibleCoreAsync"/>.
+    /// Not valid for create-flow tests — <c>_coreLauncher</c> and <c>_profileResolver</c> are
+    /// null and will throw on any path that calls
+    /// <see cref="CoreLauncher.StartProtocolCompatibleCoreAsync"/> or validates a profile.
     /// </remarks>
     internal GatewayConnectionEndpoint(
         SessionRegistry registry,
         ILogger<GatewayConnectionEndpoint> logger)
-        : this(registry, null!, new StaticOptionsMonitor(new GatewayOptions()), TimeProvider.System, logger)
+        : this(registry, null!, null!, null!, null!, new StaticOptionsMonitor(new GatewayOptions()), TimeProvider.System, logger)
     {
     }
 
@@ -252,13 +270,17 @@ public sealed class GatewayConnectionEndpoint
     }
 
     /// <summary>
-    /// Handles a <c>create</c> first frame: spawns a core, drives the session.create +
-    /// session.load handshake over the raw stdio pipes (BEFORE constructing
-    /// <see cref="SessionHandler"/> so the handshake result events are never seq-assigned),
-    /// registers the handler, and replies <c>created {sessionId}</c>.
+    /// Handles a <c>create</c> first frame: validates the requested profile (if named) against
+    /// the gateway's <see cref="IAgentProfileResolver"/> before spawning any core, then spawns
+    /// a core, drives the session.create + session.load handshake over the raw stdio pipes
+    /// (BEFORE constructing <see cref="SessionHandler"/> so the handshake result events are
+    /// never seq-assigned), registers the handler, and replies <c>created {sessionId}</c>.
     ///
-    /// On cap-reached <see cref="SessionRegistry.TryRegister"/> failure the just-spawned
-    /// core is disposed (no orphaned process) and a typed <c>createRejected</c> reply is sent.
+    /// On unknown profile name the gateway replies <c>createRejected {code="unknown_profile"}</c>;
+    /// on a name that exists but has invalid config it replies <c>createRejected {code="invalid_profile"}</c>
+    /// and returns without spawning. On cap-reached <see cref="SessionRegistry.TryRegister"/>
+    /// failure the just-spawned core is disposed (no orphaned process) and a typed
+    /// <c>createRejected</c> reply is sent.
     /// </summary>
     private async Task HandleCreateAsync(
         WebSocket socket,
@@ -275,11 +297,47 @@ public sealed class GatewayConnectionEndpoint
             return;
         }
 
-        // --- Group 5 seam: pre-spawn profile validation goes here ---
-        // When Group 5 is implemented, call _profileResolver.ResolveAsync(createFrame.Profile, ct)
-        // here. Handle the not-found/error path by replying CreateRejectedFrame{code="unknown_profile"}
-        // and returning without spawning. The gateway forwards the profile NAME only (design D3); the
-        // core's first-turn resolution is authoritative.
+        // --- Pre-spawn profile validation (task 5.1) ---
+        // Design D3: this check is an early-rejection convenience — the core's first-turn resolution
+        // is authoritative. The gateway forwards the profile NAME (not a resolved AgentProfile) to the
+        // core via session.create {profile}; the resolved object returned here is intentionally discarded.
+        // A null/absent profile is valid and resolves to the configured default (do not reject it).
+        if (createFrame.Profile is not null)
+        {
+            try
+            {
+                await _profileResolver!.ResolveAsync(createFrame.Profile, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            catch (AgentProfileConfigException ex)
+            {
+                // Distinguish "name not in the effective set" from "name exists but config is invalid":
+                // ContainsProfile does file I/O once (same as ResolveAsync already did), so the cost
+                // is a second Resolve call only on the error path — acceptable for an early-rejection check.
+                bool nameExists = _effectiveProfileSetResolver!.ContainsProfile(
+                    createFrame.Profile,
+                    _gatewayProfilePaths!.UserConfigPath,
+                    _gatewayProfilePaths.ProjectConfigPath);
+
+                string code = nameExists ? "invalid_profile" : "unknown_profile";
+
+                _logger.LogWarning(
+                    "Session create rejected: {Code} for profile '{Profile}'. {Message}",
+                    code,
+                    createFrame.Profile,
+                    ex.Message);
+
+                await SendControlFrameAsync(
+                    socket,
+                    new CreateRejectedFrame
+                    {
+                        Code = code,
+                        Message = ex.Message,
+                    },
+                    cancellationToken).ConfigureAwait(false);
+                return;
+            }
+        }
 
         CoreSession? coreSession = null;
         try

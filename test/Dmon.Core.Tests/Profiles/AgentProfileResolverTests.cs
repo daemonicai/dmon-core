@@ -424,4 +424,90 @@ public sealed class AgentProfileResolverTests : IDisposable
 
         Assert.Contains("ghost", ex.Message);
     }
+
+    // ── ContainsProfile — membership check for gateway pre-spawn validation ──
+
+    [Fact]
+    public void ContainsProfile_BuiltInCoding_ReturnsTrue()
+    {
+        EffectiveProfileSetResolver resolver = Resolver();
+
+        bool result = resolver.ContainsProfile("coding", AbsentConfigPath("user"), AbsentConfigPath("project"));
+
+        Assert.True(result);
+    }
+
+    [Fact]
+    public void ContainsProfile_BuiltInCodingCaseInsensitive_ReturnsTrue()
+    {
+        EffectiveProfileSetResolver resolver = Resolver();
+
+        bool result = resolver.ContainsProfile("Coding", AbsentConfigPath("user"), AbsentConfigPath("project"));
+
+        Assert.True(result);
+    }
+
+    [Fact]
+    public void ContainsProfile_KnownConfigProfile_ReturnsTrue()
+    {
+        string user = WriteTempConfig("user.yaml", """
+            profiles:
+              writer:
+                persona: "You are a writer."
+                assets: false
+                permissionMode: coding
+            """);
+
+        EffectiveProfileSetResolver resolver = Resolver();
+
+        bool result = resolver.ContainsProfile("writer", user, AbsentConfigPath("project"));
+
+        Assert.True(result);
+    }
+
+    [Fact]
+    public void ContainsProfile_KnownProfileCaseInsensitive_ReturnsTrue()
+    {
+        string project = WriteTempConfig("project.yaml", """
+            profiles:
+              Reviewer:
+                persona: "You are a reviewer."
+                assets: false
+                permissionMode: coding
+            """);
+
+        EffectiveProfileSetResolver resolver = Resolver();
+
+        bool result = resolver.ContainsProfile("reviewer", AbsentConfigPath("user"), project);
+
+        Assert.True(result);
+    }
+
+    [Fact]
+    public void ContainsProfile_UnknownName_ReturnsFalse()
+    {
+        string user = WriteTempConfig("user.yaml", """
+            profiles:
+              writer:
+                persona: "You are a writer."
+                assets: false
+                permissionMode: coding
+            """);
+
+        EffectiveProfileSetResolver resolver = Resolver();
+
+        bool result = resolver.ContainsProfile("ghost", user, AbsentConfigPath("project"));
+
+        Assert.False(result);
+    }
+
+    [Fact]
+    public void ContainsProfile_EmptyConfig_UnknownName_ReturnsFalse()
+    {
+        EffectiveProfileSetResolver resolver = Resolver();
+
+        bool result = resolver.ContainsProfile("anything", AbsentConfigPath("user"), AbsentConfigPath("project"));
+
+        Assert.False(result);
+    }
 }

@@ -123,7 +123,9 @@ public sealed record CreateRejectedFrame
 
     /// <summary>
     /// Machine-readable error identifier. Known values:
-    /// <c>unknown_profile</c> — the requested profile name is not registered;
+    /// <c>unknown_profile</c> — the requested profile name is not in the effective set;
+    /// <c>invalid_profile</c> — the profile name exists but its config is invalid
+    ///   (e.g. incoherent sandbox+assets combination, ambiguous persona source, unreadable personaFile);
     /// <c>cap_reached</c> — the gateway's concurrent-session limit is exhausted;
     /// <c>core_timeout</c> — the core passed <c>agentReady</c> but did not complete
     /// the create+load handshake within <c>GatewayOptions.CreateHandshakeTimeoutSeconds</c>.

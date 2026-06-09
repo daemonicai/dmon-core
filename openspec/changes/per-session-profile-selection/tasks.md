@@ -24,8 +24,8 @@
 
 ## 5. Gateway — pre-spawn profile validation (completes remote-session-gateway 10.2)
 
-- [ ] 5.1 Before spawning any core, validate the requested profile against the effective set via the gateway's wired `IAgentProfileResolver` (`Program.cs`). On an unknown profile, reply with a typed, actionable error naming the profile and spawn no core / register no handler. (Implements remote-session-gateway task 10.2.)
-- [ ] 5.2 Record in code/comment that gateway validation is an early-rejection convenience and the core's first-turn resolution is authoritative (design D3); the gateway forwards the profile *name*, not a resolved `AgentProfile`.
+- [x] 5.1 Before spawning any core, validate the requested profile against the effective set via the gateway's wired `IAgentProfileResolver` (`Program.cs`). On an unknown profile, reply with a typed, actionable error naming the profile and spawn no core / register no handler. (Implements remote-session-gateway task 10.2.)
+- [x] 5.2 Record in code/comment that gateway validation is an early-rejection convenience and the core's first-turn resolution is authoritative (design D3); the gateway forwards the profile *name*, not a resolved `AgentProfile`.
 
 ## 6. Gateway — tests
 
