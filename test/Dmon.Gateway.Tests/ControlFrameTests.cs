@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Dmon.Gateway.Protocol;
+using Dmon.Protocol.Gateway;
 
 namespace Dmon.Gateway.Tests;
 

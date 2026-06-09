@@ -7,6 +7,7 @@ using Dmon.Core.Profiles;
 using Dmon.Gateway.Protocol;
 using Dmon.Gateway.Sessions;
 using Dmon.Protocol.Commands;
+using Dmon.Protocol.Gateway;
 using Dmon.Protocol.Events;
 using Dmon.Runtime;
 using Microsoft.Extensions.Options;

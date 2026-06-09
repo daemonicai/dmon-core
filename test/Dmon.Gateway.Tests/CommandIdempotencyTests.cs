@@ -4,6 +4,7 @@ using System.Threading.Channels;
 using Dmon.Gateway;
 using Dmon.Gateway.Protocol;
 using Dmon.Gateway.Sessions;
+using Dmon.Protocol.Gateway;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Dmon.Gateway.Tests;

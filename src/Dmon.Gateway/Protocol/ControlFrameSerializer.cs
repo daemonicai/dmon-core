@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Dmon.Protocol.Gateway;
 
 namespace Dmon.Gateway.Protocol;
 

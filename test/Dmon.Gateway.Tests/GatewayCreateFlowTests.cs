@@ -7,6 +7,7 @@ using Dmon.Core.Config;
 using Dmon.Core.Profiles;
 using Dmon.Gateway.Protocol;
 using Dmon.Gateway.Sessions;
+using Dmon.Protocol.Gateway;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 

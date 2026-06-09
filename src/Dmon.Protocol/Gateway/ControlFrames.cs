@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace Dmon.Gateway.Protocol;
+namespace Dmon.Protocol.Gateway;
 
 // ---------------------------------------------------------------------------
 // Connection-control frame DTOs (ADR-012 / Group 3)

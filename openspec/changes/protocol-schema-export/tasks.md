@@ -1,8 +1,8 @@
 ## 1. Relocate control frames into Dmon.Protocol
 
-- [ ] 1.1 Move `ControlFrames.cs` from `Dmon.Gateway/Protocol/` into `Dmon.Protocol` (e.g. `Dmon.Protocol/Gateway/ControlFrames.cs`), updating the namespace
-- [ ] 1.2 Update `Dmon.Gateway` (`GatewayConnectionEndpoint`, `WebSocketGatewayConnection`, `SessionHandler`, and any tests) to reference the frames from their new namespace
-- [ ] 1.3 Confirm `make build` is clean and the existing gateway tests pass — the move is namespace-only with no wire-shape change
+- [x] 1.1 Move `ControlFrames.cs` from `Dmon.Gateway/Protocol/` into `Dmon.Protocol` (e.g. `Dmon.Protocol/Gateway/ControlFrames.cs`), updating the namespace
+- [x] 1.2 Update `Dmon.Gateway` (`GatewayConnectionEndpoint`, `WebSocketGatewayConnection`, `SessionHandler`, and any tests) to reference the frames from their new namespace
+- [x] 1.3 Confirm `make build` is clean and the existing gateway tests pass — the move is namespace-only with no wire-shape change
 
 ## 2. Schema export
 
