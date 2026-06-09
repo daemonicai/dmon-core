@@ -1,8 +1,8 @@
 ## 1. Protocol — profile on the wire
 
-- [ ] 1.1 Add an optional `profile` (`string?`, `[JsonPropertyName("profile")]`) to `SessionCreateCommand` in `src/Dmon.Protocol/Commands/SessionCommands.cs`. No field added to `SessionForkCommand`/`SessionCloneCommand` (inherit-only — design D5).
-- [ ] 1.2 Add an optional `profile` (`string?`, `[JsonPropertyName("profile")]`) to `SessionMeta` in `src/Dmon.Protocol/Sessions/SessionMeta.cs`. Confirm it serialises to / deserialises from `meta.json` and that an absent field maps to null (no migration — design "Migration Plan" step 4).
-- [ ] 1.3 Define the gateway `create` / `created` control frames (and the create-error frame) in `src/Dmon.Gateway/Protocol/ControlFrames.cs` as typed records (ADR-015): `create {profile?}` (client→gateway), `created {sessionId}` (gateway→client), and a typed rejection carrying an actionable message. Keep them dmon-owned types (ADR-016).
+- [x] 1.1 Add an optional `profile` (`string?`, `[JsonPropertyName("profile")]`) to `SessionCreateCommand` in `src/Dmon.Protocol/Commands/SessionCommands.cs`. No field added to `SessionForkCommand`/`SessionCloneCommand` (inherit-only — design D5).
+- [x] 1.2 Add an optional `profile` (`string?`, `[JsonPropertyName("profile")]`) to `SessionMeta` in `src/Dmon.Protocol/Sessions/SessionMeta.cs`. Confirm it serialises to / deserialises from `meta.json` and that an absent field maps to null (no migration — design "Migration Plan" step 4).
+- [x] 1.3 Define the gateway `create` / `created` control frames (and the create-error frame) in `src/Dmon.Gateway/Protocol/ControlFrames.cs` as typed records (ADR-015): `create {profile?}` (client→gateway), `created {sessionId}` (gateway→client), and a typed rejection carrying an actionable message. Keep them dmon-owned types (ADR-016).
 
 ## 2. Core — persist and inherit the profile
 
