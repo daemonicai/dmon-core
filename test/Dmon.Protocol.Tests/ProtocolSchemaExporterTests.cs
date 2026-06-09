@@ -1,13 +1,20 @@
 using System.Text;
 using System.Text.Json.Nodes;
+using System.Text.Json.Serialization;
+using Dmon.Protocol.Commands;
+using Dmon.Protocol.Conversation;
+using Dmon.Protocol.Events;
 
 namespace Dmon.Protocol.Tests;
 
 /// <summary>
 /// Verifies the guarantees of <see cref="ProtocolSchemaExporter"/>:
+///  - every [JsonDerivedType] leaf of Command, Event, and Part appears in the schema
 ///  - gw control-frame discriminators are emitted as {"const":"<value>"} and are required
+///  - all 8 gw frames are present as a family distinct from the type-keyed families
 ///  - gw.ping and gw.pong are distinguishable (have different const values)
 ///  - omitted-nullable properties are absent from "required"
+///  - session.getMessagesResult references all 7 Part types in its messages payload
 ///  - the export is deterministic across two calls
 ///  - no third-party type names appear in the output
 /// </summary>
@@ -81,6 +88,264 @@ public sealed class ProtocolSchemaExporterTests
         Assert.Equal("pong", pongConst);
     }
 
+    // ── 4.1: every [JsonDerivedType] leaf is present in the schema ───────────
+    //
+    // The expected discriminator set is derived from the live [JsonDerivedType] attributes
+    // via reflection, so a new leaf added to Command, Event, or Part without a corresponding
+    // schema entry will make this test fail immediately.
+
+    [Fact]
+    public void AllCommandLeaves_AppearInSchema_KeyedByTypeDiscriminator()
+    {
+        IReadOnlySet<string> expectedDiscriminators = GetJsonDerivedTypeDiscriminators(typeof(Command));
+        Assert.NotEmpty(expectedDiscriminators); // guard: reflection must produce results
+
+        JsonObject defs = GetDefs();
+        JsonObject command = (JsonObject)defs["command"]!;
+        JsonArray anyOf = (JsonArray)command["anyOf"]!;
+
+        HashSet<string> schemaDiscriminators = ExtractTypeConstValues(anyOf);
+
+        IEnumerable<string> missing = expectedDiscriminators.Except(schemaDiscriminators);
+        Assert.Empty(missing);
+
+        // The schema must not have MORE command leaves than the source type declares.
+        IEnumerable<string> extra = schemaDiscriminators.Except(expectedDiscriminators);
+        Assert.Empty(extra);
+    }
+
+    [Fact]
+    public void AllEventLeaves_AppearInSchema_KeyedByTypeDiscriminator()
+    {
+        IReadOnlySet<string> expectedDiscriminators = GetJsonDerivedTypeDiscriminators(typeof(Event));
+        Assert.NotEmpty(expectedDiscriminators);
+
+        JsonObject defs = GetDefs();
+        JsonObject eventDef = (JsonObject)defs["event"]!;
+        JsonArray anyOf = (JsonArray)eventDef["anyOf"]!;
+
+        HashSet<string> schemaDiscriminators = ExtractTypeConstValues(anyOf);
+
+        IEnumerable<string> missing = expectedDiscriminators.Except(schemaDiscriminators);
+        Assert.Empty(missing);
+
+        IEnumerable<string> extra = schemaDiscriminators.Except(expectedDiscriminators);
+        Assert.Empty(extra);
+    }
+
+    [Fact]
+    public void AllPartLeaves_AppearInSchema_KeyedByTypeDiscriminator()
+    {
+        IReadOnlySet<string> expectedDiscriminators = GetJsonDerivedTypeDiscriminators(typeof(Part));
+        Assert.NotEmpty(expectedDiscriminators);
+
+        JsonObject defs = GetDefs();
+        JsonObject partDef = (JsonObject)defs["part"]!;
+        JsonArray anyOf = (JsonArray)partDef["anyOf"]!;
+
+        HashSet<string> schemaDiscriminators = ExtractTypeConstValues(anyOf);
+
+        IEnumerable<string> missing = expectedDiscriminators.Except(schemaDiscriminators);
+        Assert.Empty(missing);
+
+        IEnumerable<string> extra = schemaDiscriminators.Except(expectedDiscriminators);
+        Assert.Empty(extra);
+    }
+
+    [Fact]
+    public void CommandLeaf_PropertyNames_AreCamelCase()
+    {
+        JsonObject defs = GetDefs();
+        JsonObject command = (JsonObject)defs["command"]!;
+        JsonArray anyOf = (JsonArray)command["anyOf"]!;
+
+        // Check every leaf object's property keys.
+        foreach (JsonObject leaf in anyOf.OfType<JsonObject>())
+        {
+            if (leaf["properties"] is not JsonObject props)
+                continue;
+
+            foreach (string propertyKey in props.Select(kv => kv.Key))
+            {
+                // Skip the type discriminator itself ("type" is all-lower, fine).
+                // Property keys must start with a lowercase letter.
+                Assert.True(
+                    char.IsLower(propertyKey[0]) || propertyKey[0] == '_' || propertyKey[0] == '$',
+                    $"Command leaf has PascalCase property key '{propertyKey}'. Expected camelCase.");
+            }
+        }
+    }
+
+    [Fact]
+    public void EventLeaf_PropertyNames_AreCamelCase()
+    {
+        JsonObject defs = GetDefs();
+        JsonObject eventDef = (JsonObject)defs["event"]!;
+        JsonArray anyOf = (JsonArray)eventDef["anyOf"]!;
+
+        foreach (JsonObject leaf in anyOf.OfType<JsonObject>())
+        {
+            if (leaf["properties"] is not JsonObject props)
+                continue;
+
+            foreach (string propertyKey in props.Select(kv => kv.Key))
+            {
+                Assert.True(
+                    char.IsLower(propertyKey[0]) || propertyKey[0] == '_' || propertyKey[0] == '$',
+                    $"Event leaf has PascalCase property key '{propertyKey}'. Expected camelCase.");
+            }
+        }
+    }
+
+    [Fact]
+    public void PartLeaf_PropertyNames_AreCamelCase()
+    {
+        JsonObject defs = GetDefs();
+        JsonObject partDef = (JsonObject)defs["part"]!;
+        JsonArray anyOf = (JsonArray)partDef["anyOf"]!;
+
+        foreach (JsonObject leaf in anyOf.OfType<JsonObject>())
+        {
+            if (leaf["properties"] is not JsonObject props)
+                continue;
+
+            foreach (string propertyKey in props.Select(kv => kv.Key))
+            {
+                Assert.True(
+                    char.IsLower(propertyKey[0]) || propertyKey[0] == '_' || propertyKey[0] == '$',
+                    $"Part leaf has PascalCase property key '{propertyKey}'. Expected camelCase.");
+            }
+        }
+    }
+
+    // ── 4.2: all 8 gw frames present as a distinct family ────────────────────
+    //
+    // The per-frame gw-const and gw-required assertions above (ControlFrame_GwProperty_IsConst
+    // and ControlFrame_Gw_IsRequired) verify individual frames. This test verifies the
+    // FAMILY-level invariants: exactly 8 frames are present, each is keyed by a "gw" property
+    // (not "type"), and none bleeds into the command or event anyOf families.
+
+    [Fact]
+    public void ControlFrameFamily_AllEightFramesPresent_InDefs()
+    {
+        string[] expectedGwKeys =
+        [
+            "gw.attach", "gw.attached", "gw.ack",
+            "gw.create", "gw.created", "gw.createRejected",
+            "gw.ping", "gw.pong",
+        ];
+
+        JsonObject defs = GetDefs();
+
+        foreach (string key in expectedGwKeys)
+        {
+            Assert.True(defs.ContainsKey(key), $"$defs is missing control frame '{key}'");
+        }
+
+        // Exactly 8 gw.* keys — no extras.
+        int actualGwCount = defs.Count(kv => kv.Key.StartsWith("gw.", StringComparison.Ordinal));
+        Assert.Equal(8, actualGwCount);
+    }
+
+    [Fact]
+    public void ControlFrameFamily_DiscriminatorIsGw_NotType()
+    {
+        string[] gwKeys = ["gw.attach", "gw.attached", "gw.ack", "gw.create", "gw.created", "gw.createRejected", "gw.ping", "gw.pong"];
+        JsonObject defs = GetDefs();
+
+        foreach (string key in gwKeys)
+        {
+            JsonObject frame = (JsonObject)defs[key]!;
+            JsonObject props = (JsonObject)frame["properties"]!;
+
+            // Has "gw" with a const value.
+            Assert.NotNull(props["gw"]);
+            JsonObject gwProp = (JsonObject)props["gw"]!;
+            Assert.NotNull(gwProp["const"]);
+
+            // Must NOT have a "type" property that acts as the discriminator
+            // (gw frames are not part of the ADR-003 "type" channel).
+            bool hasTypeConst =
+                props["type"] is JsonObject typeProp &&
+                typeProp["const"] is not null;
+
+            Assert.False(hasTypeConst, $"{key}: frame must not carry a 'type' const discriminator; frames use 'gw'.");
+        }
+    }
+
+    [Fact]
+    public void ControlFrameFamily_NoneBleedIntoCommandOrEventAnyOf()
+    {
+        // Collect all gw discriminator values.
+        string[] gwValues = ["attach", "attached", "ack", "create", "created", "createRejected", "ping", "pong"];
+        HashSet<string> gwSet = new(gwValues, StringComparer.Ordinal);
+
+        JsonObject defs = GetDefs();
+
+        // Command anyOf: no entry should have type.const equal to a gw value.
+        JsonArray commandAnyOf = (JsonArray)((JsonObject)defs["command"]!)["anyOf"]!;
+        foreach (string disc in ExtractTypeConstValues(commandAnyOf))
+        {
+            Assert.DoesNotContain(disc, gwSet);
+        }
+
+        // Event anyOf: same check.
+        JsonArray eventAnyOf = (JsonArray)((JsonObject)defs["event"]!)["anyOf"]!;
+        foreach (string disc in ExtractTypeConstValues(eventAnyOf))
+        {
+            Assert.DoesNotContain(disc, gwSet);
+        }
+    }
+
+    // ── 4.3: session.getMessagesResult references Part union; no third-party type names ─
+
+    [Fact]
+    public void SessionGetMessagesResult_MessagesPayload_ContainsAllPartTypes()
+    {
+        IReadOnlySet<string> expectedPartDiscriminators = GetJsonDerivedTypeDiscriminators(typeof(Part));
+        Assert.NotEmpty(expectedPartDiscriminators);
+
+        JsonObject defs = GetDefs();
+        JsonObject eventDef = (JsonObject)defs["event"]!;
+        JsonArray anyOf = (JsonArray)eventDef["anyOf"]!;
+
+        // Find session.getMessagesResult.
+        JsonObject? getMessagesResult = anyOf
+            .OfType<JsonObject>()
+            .FirstOrDefault(o =>
+                o["properties"] is JsonObject p &&
+                p["type"] is JsonObject t &&
+                t["const"] is JsonValue c &&
+                c.TryGetValue(out string? v) && v == "session.getMessagesResult");
+
+        Assert.NotNull(getMessagesResult);
+
+        // messages: array of message records; each message record has parts: array of Part.
+        JsonObject messagesSchema = (JsonObject)getMessagesResult["properties"]!["messages"]!;
+        JsonObject messagesItems  = (JsonObject)messagesSchema["items"]!;
+        JsonArray  messageAnyOf   = (JsonArray)messagesItems["anyOf"]!;
+
+        // Find the "message" variant (not "compaction").
+        JsonObject? messageVariant = messageAnyOf
+            .OfType<JsonObject>()
+            .FirstOrDefault(o =>
+                o["properties"] is JsonObject p &&
+                p["type"] is JsonObject t &&
+                t["const"] is JsonValue c &&
+                c.TryGetValue(out string? v) && v == "message");
+
+        Assert.NotNull(messageVariant);
+
+        JsonObject partsSchema = (JsonObject)messageVariant["properties"]!["parts"]!;
+        JsonObject partsItems  = (JsonObject)partsSchema["items"]!;
+        JsonArray  partsAnyOf  = (JsonArray)partsItems["anyOf"]!;
+
+        HashSet<string> schemaPartTypes = ExtractTypeConstValues(partsAnyOf);
+
+        IEnumerable<string> missing = expectedPartDiscriminators.Except(schemaPartTypes);
+        Assert.Empty(missing);
+    }
+
     // ── omitted-nullable properties are not in required ──────────────────────
 
     [Fact]
@@ -137,11 +402,20 @@ public sealed class ProtocolSchemaExporterTests
     {
         string json = ProtocolSchemaExporter.ExportAsJson();
 
-        Assert.DoesNotContain("Microsoft",           json, StringComparison.Ordinal);
-        Assert.DoesNotContain("Extensions",          json, StringComparison.Ordinal);
-        Assert.DoesNotContain("ChatMessage",         json, StringComparison.Ordinal);
-        Assert.DoesNotContain("AIContent",           json, StringComparison.Ordinal);
-        Assert.DoesNotContain("JsonSerializerOptions", json, StringComparison.Ordinal);
+        // Microsoft.Extensions.AI type names must not appear.
+        Assert.DoesNotContain("Microsoft",              json, StringComparison.Ordinal);
+        Assert.DoesNotContain("Extensions",             json, StringComparison.Ordinal);
+        Assert.DoesNotContain("ChatMessage",            json, StringComparison.Ordinal);
+        Assert.DoesNotContain("AIContent",              json, StringComparison.Ordinal);
+        Assert.DoesNotContain("JsonSerializerOptions",  json, StringComparison.Ordinal);
+        // Additional M.E.AI type names that must not leak.
+        Assert.DoesNotContain("ChatClientMetadata",     json, StringComparison.Ordinal);
+        Assert.DoesNotContain("ChatCompletion",         json, StringComparison.Ordinal);
+        Assert.DoesNotContain("FunctionCallContent",    json, StringComparison.Ordinal);
+        Assert.DoesNotContain("FunctionResultContent",  json, StringComparison.Ordinal);
+        Assert.DoesNotContain("ImageContent",           json, StringComparison.Ordinal);
+        Assert.DoesNotContain("UsageContent",           json, StringComparison.Ordinal);
+        Assert.DoesNotContain("TextContent",            json, StringComparison.Ordinal);
     }
 
     // ── platform invariance: output must be pure LF ──────────────────────────
@@ -210,5 +484,48 @@ public sealed class ProtocolSchemaExporterTests
         return text.Substring(start, length)
             .Replace("\n", "\\n", StringComparison.Ordinal)
             .Replace("\r", "\\r", StringComparison.Ordinal);
+    }
+
+    // ── reflection helpers ────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Returns all string discriminator values declared via <c>[JsonDerivedType(..., typeDiscriminator: "...")]</c>
+    /// on <paramref name="baseType"/>. The returned set is derived from the live assembly, so adding or
+    /// removing a <c>[JsonDerivedType]</c> attribute will change the result immediately.
+    /// </summary>
+    private static IReadOnlySet<string> GetJsonDerivedTypeDiscriminators(Type baseType)
+    {
+        JsonDerivedTypeAttribute[] attributes =
+            (JsonDerivedTypeAttribute[])Attribute.GetCustomAttributes(
+                baseType,
+                typeof(JsonDerivedTypeAttribute));
+
+        HashSet<string> discriminators = new(StringComparer.Ordinal);
+        foreach (JsonDerivedTypeAttribute attr in attributes)
+        {
+            if (attr.TypeDiscriminator is string s)
+                discriminators.Add(s);
+        }
+
+        return discriminators;
+    }
+
+    /// <summary>
+    /// Extracts all <c>properties.type.const</c> string values from an <c>anyOf</c> array.
+    /// </summary>
+    private static HashSet<string> ExtractTypeConstValues(JsonArray anyOf)
+    {
+        HashSet<string> result = new(StringComparer.Ordinal);
+        foreach (JsonObject item in anyOf.OfType<JsonObject>())
+        {
+            if (item["properties"] is JsonObject props &&
+                props["type"] is JsonObject typeProp &&
+                typeProp["const"] is JsonValue constVal &&
+                constVal.TryGetValue(out string? disc))
+            {
+                result.Add(disc);
+            }
+        }
+        return result;
     }
 }

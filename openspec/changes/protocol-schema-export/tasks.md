@@ -20,9 +20,9 @@
 
 ## 4. Schema content verification
 
-- [ ] 4.1 Assert all `Command` and `Event` leaves and all `Part` leaves appear in the schema, keyed by their `type` discriminator, in camelCase
-- [ ] 4.2 Assert the eight `gw` control frames appear keyed by their `gw` discriminator, as a family distinct from the `type` channel
-- [ ] 4.3 Assert `session.getMessages`'s result references the `Part` union, and assert no third-party (`Microsoft.Extensions.AI`) type names leak into the schema
+- [x] 4.1 Assert all `Command` and `Event` leaves and all `Part` leaves appear in the schema, keyed by their `type` discriminator, in camelCase
+- [x] 4.2 Assert the eight `gw` control frames appear keyed by their `gw` discriminator, as a family distinct from the `type` channel
+- [x] 4.3 Assert `session.getMessages`'s result references the `Part` union, and assert no third-party (`Microsoft.Extensions.AI`) type names leak into the schema
 
 ## 5. Consumer-facing protocol guide
 
