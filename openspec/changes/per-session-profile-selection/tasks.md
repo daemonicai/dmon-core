@@ -35,5 +35,5 @@
 
 ## 7. Close-out
 
-- [ ] 7.1 Tick `remote-session-gateway` tasks 10.1 and 10.2 in that change's `tasks.md` (or annotate them as completed by `per-session-profile-selection`), per the deferral note.
-- [ ] 7.2 `make build` clean (TreatWarningsAsErrors), `make test` green, `openspec validate per-session-profile-selection --strict` passes.
+- [x] 7.1 Tick `remote-session-gateway` tasks 10.1 and 10.2 in that change's `tasks.md` (or annotate them as completed by `per-session-profile-selection`), per the deferral note.
+- [x] 7.2 `make build` clean (TreatWarningsAsErrors), `make test` green, `openspec validate per-session-profile-selection --strict` passes.

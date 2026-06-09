@@ -53,8 +53,8 @@
 
 > **DEFERRED to a follow-up change (user decision, 2026-05-31).** Per-session profile selection is not wired into the core RPC protocol — `TurnHandler` resolves the profile with `requestedProfile: null` and a standing comment notes it is unwired; `session.create`/`CoreLauncher` carry no profile. Making "the gateway spawns a handler whose core runs under that profile" true requires changes to `Dmon.Protocol` (profile on the create surface) and `Dmon.Core` (thread `requestedProfile` into `AgentProfileContext.EnsureResolvedAsync`) — outside the `remote-session-gateway` (gateway-only) scope. Split into its own change spanning core + gateway. The `MaxConcurrentHandlers` cap primitive (`SessionRegistry.TryRegister`, §7) and the attach-only flow are ready for that change to build on. See DEVLOG "Decisions & deviations".
 
-- [ ] 10.1 Implement session creation: allocate `sessionId`, resolve the agent profile via the `agent-profiles` resolver, provision the per-session storage dir (ADR-004), spawn the handler. *(Depends on the `agent-profiles` change.)* — **DEFERRED (see note above)**
-- [ ] 10.2 Fail session creation with an actionable error when the requested profile is unknown; spawn no handler. — **DEFERRED (see note above)**
+- [x] 10.1 Implement session creation: allocate `sessionId`, resolve the agent profile via the `agent-profiles` resolver, provision the per-session storage dir (ADR-004), spawn the handler. *(Depends on the `agent-profiles` change.)* — **COMPLETED by change `per-session-profile-selection`** (gateway `create` control frame → spawn core → `session.create {profile}` + load → register under the cap → `created {sessionId}`). Deferral note above is retained as history.
+- [x] 10.2 Fail session creation with an actionable error when the requested profile is unknown; spawn no handler. — **COMPLETED by change `per-session-profile-selection`** (pre-spawn validation rejects `unknown_profile`/`invalid_profile` with no core spawned, no handler registered).
 
 ## 11. Tests and deployment docs
 
