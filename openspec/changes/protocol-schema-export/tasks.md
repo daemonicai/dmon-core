@@ -26,10 +26,10 @@
 
 ## 5. Consumer-facing protocol guide
 
-- [ ] 5.1 Write `docs/protocol/README.md` (or `guide.md`): connection lifecycle, `gw` vs `type` channel routing, attach/create handshakes, `seq`/replay/dedup, generation fencing, heartbeat, id-correlated `ResultEvent`/`CommandErrorEvent`, shared-key `Bearer` auth, `ProtocolVersion`
-- [ ] 5.2 Reference `remote-session-gateway` requirements and ADR-003/012/014/015/016 as the normative source instead of restating them; point at `schema.json` as the type source of truth
-- [ ] 5.3 Add the worked frame-sequence example: connect → `attach` → `turn.submit` → streamed message/turn events → `turnEnd`, with raw JSON frames consistent with the schema
-- [ ] 5.4 Add the reconnect-with-replay example: `attach` with non-zero `lastSeq` and replayed events with greater `seq`, in order
+- [x] 5.1 Write `docs/protocol/README.md` (or `guide.md`): connection lifecycle, `gw` vs `type` channel routing, attach/create handshakes, `seq`/replay/dedup, generation fencing, heartbeat, id-correlated `ResultEvent`/`CommandErrorEvent`, shared-key `Bearer` auth, `ProtocolVersion`
+- [x] 5.2 Reference `remote-session-gateway` requirements and ADR-003/012/014/015/016 as the normative source instead of restating them; point at `schema.json` as the type source of truth
+- [x] 5.3 Add the worked frame-sequence example: connect → `attach` → `turn.submit` → streamed message/turn events → `turnEnd`, with raw JSON frames consistent with the schema
+- [x] 5.4 Add the reconnect-with-replay example: `attach` with non-zero `lastSeq` and replayed events with greater `seq`, in order
 
 ## 6. Gates
 
