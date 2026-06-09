@@ -319,12 +319,13 @@ internal sealed class FakeSessionStore : ISessionStore
 
     public void MapDirectory(string sessionId, string path) => _dirMap[sessionId] = path;
 
-    public Task<SessionMeta> CreateAsync(string? name = null, CancellationToken cancellationToken = default)
+    public Task<SessionMeta> CreateAsync(string? name = null, string? profile = null, CancellationToken cancellationToken = default)
     {
         SessionMeta meta = new()
         {
             Id       = Guid.NewGuid().ToString("N"),
             Name     = name,
+            Profile  = profile,
             Created  = DateTimeOffset.UtcNow,
             Modified = DateTimeOffset.UtcNow
         };

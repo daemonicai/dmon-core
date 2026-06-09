@@ -29,7 +29,7 @@ public sealed class SessionHandler : ISessionHandler
 
     public async Task CreateAsync(SessionCreateCommand cmd, CancellationToken cancellationToken)
     {
-        SessionMeta meta = await _store.CreateAsync(name: null, cancellationToken).ConfigureAwait(false);
+        SessionMeta meta = await _store.CreateAsync(name: null, profile: cmd.Profile, cancellationToken).ConfigureAwait(false);
         await _emitter.EmitAsync(new SessionCreatedResultEvent
         {
             CommandId = cmd.Id,

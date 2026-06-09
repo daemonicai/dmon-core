@@ -1400,7 +1400,7 @@ internal sealed class RoundTripSpySessionStore : ISessionStore
         return Task.FromResult<IReadOnlyList<MessageRecord>>(records);
     }
 
-    public Task<SessionMeta> CreateAsync(string? name = null, CancellationToken cancellationToken = default)
+    public Task<SessionMeta> CreateAsync(string? name = null, string? profile = null, CancellationToken cancellationToken = default)
         => throw new NotSupportedException();
     public Task<SessionMeta> LoadAsync(string sessionId, CancellationToken cancellationToken = default)
         => throw new NotSupportedException();
@@ -1492,7 +1492,7 @@ internal sealed class SpySessionStore : ISessionStore
 
     // ── Remaining ISessionStore members (not exercised by TurnHandler) ────────
 
-    public Task<SessionMeta> CreateAsync(string? name = null, CancellationToken cancellationToken = default)
+    public Task<SessionMeta> CreateAsync(string? name = null, string? profile = null, CancellationToken cancellationToken = default)
         => throw new NotSupportedException();
 
     public Task<SessionMeta> LoadAsync(string sessionId, CancellationToken cancellationToken = default)

@@ -6,9 +6,9 @@
 
 ## 2. Core — persist and inherit the profile
 
-- [ ] 2.1 Thread `profile` through `SessionStore.CreateAsync` (`src/Dmon.Core/Session/SessionStore.cs`) and `ISessionStore`: accept the optional profile and write it into the new session's `meta.json`. Update `SessionHandler.CreateAsync` (`src/Dmon.Core/Rpc/SessionHandler.cs`) to pass `cmd.Profile`.
-- [ ] 2.2 Make `SessionStore.ForkAsync` and `CloneAsync` copy the source session's `profile` into the new `meta.json` (design D5). No new command fields.
-- [ ] 2.3 In `src/Dmon.Core/Rpc/TurnHandler.cs` (line ~121), replace `requestedProfile: null` with `requestedProfile: _sessionHandler.CurrentSession?.Profile`. Do not change `AgentProfileResolver` or `AgentProfileContext`. Update the stale "null until the RPC protocol wires per-session profile selection" comment.
+- [x] 2.1 Thread `profile` through `SessionStore.CreateAsync` (`src/Dmon.Core/Session/SessionStore.cs`) and `ISessionStore`: accept the optional profile and write it into the new session's `meta.json`. Update `SessionHandler.CreateAsync` (`src/Dmon.Core/Rpc/SessionHandler.cs`) to pass `cmd.Profile`.
+- [x] 2.2 Make `SessionStore.ForkAsync` and `CloneAsync` copy the source session's `profile` into the new `meta.json` (design D5). No new command fields.
+- [x] 2.3 In `src/Dmon.Core/Rpc/TurnHandler.cs` (line ~121), replace `requestedProfile: null` with `requestedProfile: _sessionHandler.CurrentSession?.Profile`. Do not change `AgentProfileResolver` or `AgentProfileContext`. Update the stale "null until the RPC protocol wires per-session profile selection" comment.
 
 ## 3. Core — tests
 
