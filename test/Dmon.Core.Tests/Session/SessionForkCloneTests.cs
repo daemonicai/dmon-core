@@ -162,6 +162,52 @@ public sealed class SessionForkCloneTests : IDisposable
             _store.ForkAsync(source.Id, "does-not-exist"));
     }
 
+    // ── Profile inheritance (task 3.3) ────────────────────────────────────────
+
+    [Fact]
+    public async Task ForkAsync_InheritsSourceProfile()
+    {
+        SessionMeta source = await _store.CreateAsync(profile: "researcher");
+        string sourceDir = _store.GetSessionDirectory(source.Id);
+        await AppendLineAsync(sourceDir, "{\"entryId\":\"e1\",\"type\":\"user\"}");
+
+        SessionMeta fork = await _store.ForkAsync(source.Id, "e1");
+
+        Assert.Equal("researcher", fork.Profile);
+    }
+
+    [Fact]
+    public async Task ForkAsync_SourceWithNoProfile_ForkProfileIsNull()
+    {
+        SessionMeta source = await _store.CreateAsync();
+        string sourceDir = _store.GetSessionDirectory(source.Id);
+        await AppendLineAsync(sourceDir, "{\"entryId\":\"e1\",\"type\":\"user\"}");
+
+        SessionMeta fork = await _store.ForkAsync(source.Id, "e1");
+
+        Assert.Null(fork.Profile);
+    }
+
+    [Fact]
+    public async Task CloneAsync_InheritsSourceProfile()
+    {
+        SessionMeta source = await _store.CreateAsync(profile: "researcher");
+
+        SessionMeta clone = await _store.CloneAsync(source.Id);
+
+        Assert.Equal("researcher", clone.Profile);
+    }
+
+    [Fact]
+    public async Task CloneAsync_SourceWithNoProfile_CloneProfileIsNull()
+    {
+        SessionMeta source = await _store.CreateAsync();
+
+        SessionMeta clone = await _store.CloneAsync(source.Id);
+
+        Assert.Null(clone.Profile);
+    }
+
     private sealed class FakeResolver : ISessionDirectoryResolver
     {
         private readonly string _root;

@@ -56,6 +56,26 @@ public sealed class EffectiveProfileSetResolver
     }
 
     /// <summary>
+    /// Returns <see langword="true"/> when <paramref name="name"/> is a member of the
+    /// effective profile set (config union built-in <c>coding</c>). Uses the same
+    /// membership logic as <see cref="AgentProfileResolver"/> so the gateway can
+    /// distinguish "name not in set" from "name exists but config is invalid".
+    /// </summary>
+    public bool ContainsProfile(string name, string userConfigPath, string projectConfigPath)
+    {
+        // The built-in coding profile is always present; check it first to avoid file I/O
+        // when the name is an obvious match.
+        if (string.Equals(name, "coding", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        EffectiveProfileSet effectiveSet = Resolve(userConfigPath, projectConfigPath);
+        return effectiveSet.Profiles.Any(p =>
+            string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>
     /// Pure function — no file I/O. Computes the ordered, deduplicated effective profile set
     /// from two already-read entry lists.
     /// </summary>

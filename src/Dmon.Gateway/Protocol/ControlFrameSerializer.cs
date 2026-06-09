@@ -81,4 +81,20 @@ public static class ControlFrameSerializer
             return null;
         }
     }
+
+    /// <summary>
+    /// Parses a raw frame as a <see cref="CreateFrame"/>. Returns <c>null</c> on parse failure.
+    /// The <c>profile</c> field is optional; a missing field deserialises to <c>null</c>.
+    /// </summary>
+    public static CreateFrame? ParseCreate(string rawFrame)
+    {
+        try
+        {
+            return JsonSerializer.Deserialize<CreateFrame>(rawFrame, Options);
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
 }

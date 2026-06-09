@@ -19,6 +19,9 @@ namespace Dmon.Gateway.Protocol;
 //   ack     (gateway → client): {"gw":"ack","id":"..."}
 //   ping    (either direction):  {"gw":"ping"}
 //   pong    (either direction):  {"gw":"pong"}
+//   create  (client → gateway): {"gw":"create","profile":"..."}   (profile optional)
+//   created (gateway → client): {"gw":"created","sessionId":"..."}
+//   createRejected (gateway → client): {"gw":"createRejected","code":"...","message":"..."}
 // ---------------------------------------------------------------------------
 
 /// <summary>
@@ -73,6 +76,68 @@ public sealed record AckFrame
 
     [JsonPropertyName("id")]
     public required string Id { get; init; }
+}
+
+/// <summary>
+/// Client → gateway: create a new session, optionally selecting a named agent profile.
+/// On success the gateway replies <see cref="CreatedFrame"/>; the client then sends
+/// <see cref="AttachFrame"/> with the returned session id.
+/// </summary>
+public sealed record CreateFrame
+{
+    [JsonPropertyName("gw")]
+    public string Gw => "create";
+
+    /// <summary>
+    /// Agent profile name to activate for the new session.
+    /// Null resolves to the gateway's configured <c>defaultProfile</c> (then the built-in
+    /// <c>coding</c> profile) — identical to the core's own precedence rules.
+    /// </summary>
+    [JsonPropertyName("profile")]
+    public string? Profile { get; init; }
+}
+
+/// <summary>
+/// Gateway → client: session created successfully. The client must follow with
+/// <see cref="AttachFrame"/> using the returned <paramref name="SessionId"/> and
+/// <c>lastSeq: 0</c>.
+/// </summary>
+public sealed record CreatedFrame
+{
+    [JsonPropertyName("gw")]
+    public string Gw => "created";
+
+    [JsonPropertyName("sessionId")]
+    public required string SessionId { get; init; }
+}
+
+/// <summary>
+/// Gateway → client: session creation rejected. Used for both unknown-profile and
+/// concurrent-session-cap-reached errors so the client can distinguish gateway
+/// rejections from ADR-003 error events.
+/// </summary>
+public sealed record CreateRejectedFrame
+{
+    [JsonPropertyName("gw")]
+    public string Gw => "createRejected";
+
+    /// <summary>
+    /// Machine-readable error identifier. Known values:
+    /// <c>unknown_profile</c> — the requested profile name is not in the effective set;
+    /// <c>invalid_profile</c> — the profile name exists but its config is invalid
+    ///   (e.g. incoherent sandbox+assets combination, ambiguous persona source, unreadable personaFile);
+    /// <c>cap_reached</c> — the gateway's concurrent-session limit is exhausted;
+    /// <c>core_timeout</c> — the core passed <c>agentReady</c> but did not complete
+    /// the create+load handshake within <c>GatewayOptions.CreateHandshakeTimeoutSeconds</c>.
+    /// </summary>
+    [JsonPropertyName("code")]
+    public required string Code { get; init; }
+
+    /// <summary>
+    /// Human-readable, actionable message suitable for direct display to the user.
+    /// </summary>
+    [JsonPropertyName("message")]
+    public required string Message { get; init; }
 }
 
 /// <summary>

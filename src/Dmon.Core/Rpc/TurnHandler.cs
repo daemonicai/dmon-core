@@ -116,9 +116,9 @@ public sealed class TurnHandler : ITurnHandler
             if (!_systemPromptInjected)
             {
                 // Resolve the agent profile once per session before building the system prompt.
-                // requestedProfile is null until the RPC protocol wires per-session profile selection
-                // (later in this change); null falls back to defaultProfile or built-in coding.
-                await _profileContext.EnsureResolvedAsync(_profileResolver, requestedProfile: null, _turnCts.Token)
+                // requestedProfile comes from the persisted SessionMeta.Profile written at session creation.
+                // Null when no profile was specified; falls back to defaultProfile or built-in coding.
+                await _profileContext.EnsureResolvedAsync(_profileResolver, requestedProfile: _sessionHandler.CurrentSession?.Profile, _turnCts.Token)
                     .ConfigureAwait(false);
 
                 // Provision assets/<session_id>/ under the workspace root when the profile

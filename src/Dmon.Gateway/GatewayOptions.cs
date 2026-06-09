@@ -46,6 +46,20 @@ public sealed class GatewayOptions
     public int MaxConcurrentHandlers { get; set; } = 10;
 
     /// <summary>
+    /// Timeout for the create+load handshake (seconds). After the core passes the
+    /// <c>agentReady</c> gate it must emit both <c>session.createResult</c> and
+    /// <c>session.loadResult</c> within this window or the just-spawned core is torn
+    /// down and the client receives <c>createRejected {code="core_timeout"}</c>.
+    /// </summary>
+    /// <remarks>
+    /// The handshake is a short synchronous exchange (create + load only), so a small
+    /// value (30 s default) is intentional. A live-but-silent core that passes
+    /// <c>agentReady</c> then stalls on extension load would otherwise park the
+    /// connection indefinitely because EOF (crashed core) does NOT cover this case.
+    /// </remarks>
+    public int CreateHandshakeTimeoutSeconds { get; set; } = 30;
+
+    /// <summary>
     /// Optional pre-shared key for defense-in-depth (D5 / ADR-012 Decision 12).
     /// When <see langword="null"/> or empty, the shared-key check is disabled.
     /// When set, every WebSocket upgrade must carry <c>Authorization: Bearer &lt;key&gt;</c>;

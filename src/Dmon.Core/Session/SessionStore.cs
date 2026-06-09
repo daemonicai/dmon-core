@@ -13,7 +13,7 @@ namespace Dmon.Core.Session;
 
 public interface ISessionStore
 {
-    Task<SessionMeta> CreateAsync(string? name = null, CancellationToken cancellationToken = default);
+    Task<SessionMeta> CreateAsync(string? name = null, string? profile = null, CancellationToken cancellationToken = default);
     Task<SessionMeta> LoadAsync(string sessionId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<SessionMeta>> ListAsync(CancellationToken cancellationToken = default);
     Task UpdateMetaAsync(SessionMeta meta, CancellationToken cancellationToken = default);
@@ -87,7 +87,7 @@ public sealed class SessionStore : ISessionStore
     /// </summary>
     public int CompactionThreshold => _compactionThreshold;
 
-    public async Task<SessionMeta> CreateAsync(string? name = null, CancellationToken cancellationToken = default)
+    public async Task<SessionMeta> CreateAsync(string? name = null, string? profile = null, CancellationToken cancellationToken = default)
     {
         using Activity? activity = DmonTelemetry.Source.StartActivity("session.create");
 
@@ -106,6 +106,7 @@ public sealed class SessionStore : ISessionStore
         {
             Id = id,
             Name = name,
+            Profile = profile,
             Created = now,
             Modified = now
         };
@@ -208,11 +209,13 @@ public sealed class SessionStore : ISessionStore
         PruneUnreferencedAttachments(newDir, retainedLines);
 
         // 4. Rewrite meta.json.
+        SessionMeta sourceMeta = await LoadAsync(sourceSessionId, cancellationToken).ConfigureAwait(false);
         DateTimeOffset now = DateTimeOffset.UtcNow;
         SessionMeta newMeta = new()
         {
             Id = newId,
             Name = name,
+            Profile = sourceMeta.Profile,
             Created = now,
             Modified = now,
             ParentSession = sourceSessionId,
@@ -250,11 +253,13 @@ public sealed class SessionStore : ISessionStore
         // Full recursive copy.
         CopyDirectoryRecursive(sourceDir, newDir);
 
+        SessionMeta sourceMeta = await LoadAsync(sourceSessionId, cancellationToken).ConfigureAwait(false);
         DateTimeOffset now = DateTimeOffset.UtcNow;
         SessionMeta newMeta = new()
         {
             Id = newId,
             Name = name,
+            Profile = sourceMeta.Profile,
             Created = now,
             Modified = now,
             ParentSession = sourceSessionId,

@@ -42,16 +42,18 @@ builder.Services.AddSingleton<CoreLauncher>();
 
 // --- Profile resolution (Dmon.Core; matches DaemonServiceExtensions wiring) ---
 builder.Services.AddSingleton<EffectiveProfileSetResolver>();
+builder.Services.AddSingleton(new GatewayProfilePaths(
+    UserConfigPath: Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+        ".dmon", "config.yaml"),
+    ProjectConfigPath: Path.Combine(
+        Directory.GetCurrentDirectory(),
+        ".dmon", "config.yaml")));
 builder.Services.AddSingleton<IAgentProfileResolver>(sp =>
 {
     EffectiveProfileSetResolver setResolver = sp.GetRequiredService<EffectiveProfileSetResolver>();
-    string userConfigPath = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-        ".dmon", "config.yaml");
-    string projectConfigPath = Path.Combine(
-        Directory.GetCurrentDirectory(),
-        ".dmon", "config.yaml");
-    return new AgentProfileResolver(setResolver, userConfigPath, projectConfigPath);
+    GatewayProfilePaths paths = sp.GetRequiredService<GatewayProfilePaths>();
+    return new AgentProfileResolver(setResolver, paths.UserConfigPath, paths.ProjectConfigPath);
 });
 
 // --- Time provider (injectable for testability — Group 7) ---

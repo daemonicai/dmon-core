@@ -478,7 +478,7 @@ internal sealed class SeededSessionStore : ISessionStore
         return Task.FromResult<IReadOnlyList<MessageRecord>>(records);
     }
 
-    public Task<SessionMeta> CreateAsync(string? name = null, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+    public Task<SessionMeta> CreateAsync(string? name = null, string? profile = null, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     public Task<SessionMeta> LoadAsync(string sessionId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     public Task<IReadOnlyList<SessionMeta>> ListAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
     public Task UpdateMetaAsync(SessionMeta meta, CancellationToken cancellationToken = default) => throw new NotSupportedException();
@@ -531,7 +531,7 @@ internal sealed class RecordingSessionStore : ISessionStore
         return Task.FromResult<IReadOnlyList<MessageRecord>>(records);
     }
 
-    public Task<SessionMeta> CreateAsync(string? name = null, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+    public Task<SessionMeta> CreateAsync(string? name = null, string? profile = null, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     public Task<SessionMeta> LoadAsync(string sessionId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     public Task<IReadOnlyList<SessionMeta>> ListAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
     public Task UpdateMetaAsync(SessionMeta meta, CancellationToken cancellationToken = default) => throw new NotSupportedException();
@@ -584,7 +584,7 @@ internal sealed class OffloadingSessionStore : ISessionStore
         return Task.FromResult<IReadOnlyList<MessageRecord>>(records);
     }
 
-    public Task<SessionMeta> CreateAsync(string? name = null, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+    public Task<SessionMeta> CreateAsync(string? name = null, string? profile = null, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     public Task<SessionMeta> LoadAsync(string sessionId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     public Task<IReadOnlyList<SessionMeta>> ListAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
     public Task UpdateMetaAsync(SessionMeta meta, CancellationToken cancellationToken = default) => throw new NotSupportedException();
