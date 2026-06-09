@@ -364,6 +364,45 @@ public sealed class GatewayIntegrationTests
     }
 
     // =========================================================================
+    // 11.4 — Handshake timeout: DriveSessionHandshakeAsync exits on cancellation
+    // =========================================================================
+
+    /// <summary>
+    /// 11.4 — A core that passes agentReady but then stays silent causes
+    /// <see cref="GatewayConnectionEndpoint.DriveSessionHandshakeAsync"/> to throw
+    /// <see cref="OperationCanceledException"/> when the supplied token is cancelled
+    /// (simulating <c>CreateHandshakeTimeoutSeconds</c> expiry).
+    ///
+    /// This confirms the liveness gap fix: the correlated-result reader exits on cancellation
+    /// and does NOT hang indefinitely on a live-but-silent core.
+    /// </summary>
+    [Fact]
+    public async Task DriveSessionHandshake_TimesOut_WhenCoreIsSilent()
+    {
+        // stdout that blocks until cancellation and then propagates OperationCanceledException —
+        // matching the real StreamReader behaviour when ReadLineAsync is cancelled.
+        BlockingReader silentStdout = new();
+        StringWriter stdin = new();
+
+        using CancellationTokenSource cts = new(TimeSpan.FromMilliseconds(200));
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            GatewayConnectionEndpoint.DriveSessionHandshakeAsync(
+                silentStdout, stdin, profile: null, cts.Token));
+    }
+
+    /// <summary>
+    /// 11.4b — <see cref="GatewayOptions.CreateHandshakeTimeoutSeconds"/> is surfaced and
+    /// defaults to 30, so the option is discoverable and never zero.
+    /// </summary>
+    [Fact]
+    public void GatewayOptions_CreateHandshakeTimeoutSeconds_DefaultsTo30()
+    {
+        GatewayOptions opts = new();
+        Assert.Equal(30, opts.CreateHandshakeTimeoutSeconds);
+    }
+
+    // =========================================================================
     // Helpers
     // =========================================================================
 
@@ -542,7 +581,12 @@ public sealed class GatewayIntegrationTests
         public override void Dispose() { }
     }
 
-    /// <summary>A stdout reader that blocks indefinitely — the pump stays idle.</summary>
+    /// <summary>
+    /// A stdout reader that blocks indefinitely — the pump stays idle.
+    /// Swallows <see cref="OperationCanceledException"/> and returns null (EOF),
+    /// matching the pattern required by <see cref="SessionHandler"/>'s pump loop.
+    /// Not suitable for cancellation-propagation tests — use <see cref="BlockingReader"/> there.
+    /// </summary>
     private sealed class NeverReadingReader : TextReader
     {
         public override async ValueTask<string?> ReadLineAsync(CancellationToken cancellationToken)
@@ -553,6 +597,23 @@ public sealed class GatewayIntegrationTests
             }
             catch (OperationCanceledException) { }
             return null;
+        }
+
+        public override Task<string?> ReadLineAsync() => ReadLineAsync(CancellationToken.None).AsTask();
+    }
+
+    /// <summary>
+    /// A stdout reader that blocks until cancellation and then lets
+    /// <see cref="OperationCanceledException"/> propagate — matching the real
+    /// <see cref="StreamReader.ReadLineAsync(CancellationToken)"/> behaviour.
+    /// Use this to assert that a timeout-linked token actually unblocks callers.
+    /// </summary>
+    private sealed class BlockingReader : TextReader
+    {
+        public override async ValueTask<string?> ReadLineAsync(CancellationToken cancellationToken)
+        {
+            await Task.Delay(Timeout.Infinite, cancellationToken).ConfigureAwait(false);
+            return null; // unreachable; satisfies the compiler.
         }
 
         public override Task<string?> ReadLineAsync() => ReadLineAsync(CancellationToken.None).AsTask();

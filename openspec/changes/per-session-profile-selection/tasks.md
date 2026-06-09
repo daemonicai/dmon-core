@@ -18,9 +18,9 @@
 
 ## 4. Gateway — profile-selecting session creation (completes remote-session-gateway 10.1)
 
-- [ ] 4.1 Parse the `create` frame in `src/Dmon.Gateway/Protocol/ControlFrameSerializer.cs` and accept it as a valid first frame alongside `attach` in `src/Dmon.Gateway/GatewayConnectionEndpoint.cs`.
-- [ ] 4.2 On `create`: spawn a core via `CoreLauncher`, drive it through `session.create {profile}` then `session.load`, construct the `SessionHandler`, register it with `SessionRegistry.TryRegister` under `MaxConcurrentHandlers`, and reply `created {sessionId}`. (Implements remote-session-gateway task 10.1.)
-- [ ] 4.3 On a cap-reached `TryRegister` failure, tear down the just-spawned `CoreSession` (no orphaned process), register nothing, and reply with a typed, actionable cap error.
+- [x] 4.1 Parse the `create` frame in `src/Dmon.Gateway/Protocol/ControlFrameSerializer.cs` and accept it as a valid first frame alongside `attach` in `src/Dmon.Gateway/GatewayConnectionEndpoint.cs`.
+- [x] 4.2 On `create`: spawn a core via `CoreLauncher`, drive it through `session.create {profile}` then `session.load`, construct the `SessionHandler`, register it with `SessionRegistry.TryRegister` under `MaxConcurrentHandlers`, and reply `created {sessionId}`. (Implements remote-session-gateway task 10.1.)
+- [x] 4.3 On a cap-reached `TryRegister` failure, tear down the just-spawned `CoreSession` (no orphaned process), register nothing, and reply with a typed, actionable cap error.
 
 ## 5. Gateway — pre-spawn profile validation (completes remote-session-gateway 10.2)
 

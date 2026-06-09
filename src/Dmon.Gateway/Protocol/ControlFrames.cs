@@ -124,7 +124,9 @@ public sealed record CreateRejectedFrame
     /// <summary>
     /// Machine-readable error identifier. Known values:
     /// <c>unknown_profile</c> — the requested profile name is not registered;
-    /// <c>cap_reached</c> — the gateway's concurrent-session limit is exhausted.
+    /// <c>cap_reached</c> — the gateway's concurrent-session limit is exhausted;
+    /// <c>core_timeout</c> — the core passed <c>agentReady</c> but did not complete
+    /// the create+load handshake within <c>GatewayOptions.CreateHandshakeTimeoutSeconds</c>.
     /// </summary>
     [JsonPropertyName("code")]
     public required string Code { get; init; }
