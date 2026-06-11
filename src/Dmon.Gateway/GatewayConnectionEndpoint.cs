@@ -60,7 +60,7 @@ public sealed class GatewayConnectionEndpoint
 {
 
     private readonly SessionRegistry _registry;
-    private readonly CoreLauncher? _coreLauncher;
+    private readonly ICoreLauncher? _coreLauncher;
     private readonly IAgentProfileResolver? _profileResolver;
     private readonly EffectiveProfileSetResolver? _effectiveProfileSetResolver;
     private readonly GatewayProfilePaths? _gatewayProfilePaths;
@@ -81,7 +81,7 @@ public sealed class GatewayConnectionEndpoint
 
     public GatewayConnectionEndpoint(
         SessionRegistry registry,
-        CoreLauncher coreLauncher,
+        ICoreLauncher coreLauncher,
         IAgentProfileResolver profileResolver,
         EffectiveProfileSetResolver effectiveProfileSetResolver,
         GatewayProfilePaths gatewayProfilePaths,
@@ -101,13 +101,13 @@ public sealed class GatewayConnectionEndpoint
 
     /// <summary>
     /// Test constructor: injects a specific options monitor and time provider without a
-    /// <see cref="CoreLauncher"/> or <see cref="IAgentProfileResolver"/> (for tests that do not
+    /// <see cref="ICoreLauncher"/> or <see cref="IAgentProfileResolver"/> (for tests that do not
     /// exercise session creation).
     /// </summary>
     /// <remarks>
     /// Not valid for create-flow tests — <c>_coreLauncher</c> and <c>_profileResolver</c> are
     /// null and will throw on any path that calls
-    /// <see cref="CoreLauncher.StartProtocolCompatibleCoreAsync"/> or validates a profile.
+    /// <see cref="ICoreLauncher.StartProtocolCompatibleCoreAsync"/> or validates a profile.
     /// </remarks>
     internal GatewayConnectionEndpoint(
         SessionRegistry registry,
@@ -126,7 +126,7 @@ public sealed class GatewayConnectionEndpoint
     /// <remarks>
     /// Not valid for create-flow tests — <c>_coreLauncher</c> and <c>_profileResolver</c> are
     /// null and will throw on any path that calls
-    /// <see cref="CoreLauncher.StartProtocolCompatibleCoreAsync"/> or validates a profile.
+    /// <see cref="ICoreLauncher.StartProtocolCompatibleCoreAsync"/> or validates a profile.
     /// </remarks>
     internal GatewayConnectionEndpoint(
         SessionRegistry registry,
@@ -478,7 +478,7 @@ public sealed class GatewayConnectionEndpoint
     /// Drives the <c>session.create</c> + <c>session.load</c> RPC handshake over the core's
     /// raw stdio streams. Returns the <c>sessionId</c> allocated by the core.
     ///
-    /// This method must be called AFTER <see cref="CoreLauncher.StartProtocolCompatibleCoreAsync"/>
+    /// This method must be called AFTER <see cref="ICoreLauncher.StartProtocolCompatibleCoreAsync"/>
     /// (which consumes <c>agentReady</c>) and BEFORE constructing <see cref="SessionHandler"/>
     /// (whose pump assigns seq to every subsequent stdout line). The handshake result events are
     /// consumed here and never reach the seq log.

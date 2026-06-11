@@ -10,7 +10,7 @@ namespace Dmon.Terminal;
 /// </summary>
 public sealed class EventDispatcher
 {
-    private readonly StreamReader _reader;
+    private readonly TextReader _reader;
     private readonly Channel<Event> _channel;
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -19,7 +19,7 @@ public sealed class EventDispatcher
 
     public ChannelReader<Event> Events => _channel.Reader;
 
-    public EventDispatcher(StreamReader reader)
+    public EventDispatcher(TextReader reader)
     {
         _reader = reader;
         _channel = Channel.CreateUnbounded<Event>(new UnboundedChannelOptions

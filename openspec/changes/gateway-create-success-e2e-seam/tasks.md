@@ -1,0 +1,16 @@
+## 1. Extract the launcher/process seam (pure refactor)
+
+- [x] 1.1 In `src/Dmon.Runtime`, add `ICoreProcess` covering the surface consumed by the gateway: `TextReader StandardOutput`, `TextWriter StandardInput`, `bool IsRunning`, `Task StartAsync(...)`, `Task StopAsync(...)`, `Task RestartAsync(...)`, and `IDisposable.Dispose()`. Confirm the exact member signatures against `CoreProcessManager` and copy them verbatim. Make `CoreProcessManager : ICoreProcess` (no member changes).
+- [x] 1.2 In `src/Dmon.Runtime`, add `ICoreLauncher` with the single method `Task<CoreSession> StartProtocolCompatibleCoreAsync(string? corePathOverride = null, string? workingDirectory = null, Action<string>? onStderrLine = null, CancellationToken cancellationToken = default)`. Make `CoreLauncher : ICoreLauncher` (signature unchanged).
+- [x] 1.3 Change `CoreSession` to `record (ICoreProcess Process, AgentReadyEvent AgentReady)`. Update any production references that relied on the concrete `CoreProcessManager` type.
+- [x] 1.4 In `src/Dmon.Gateway/GatewayConnectionEndpoint.cs`, change the launcher field and constructor parameter from `CoreLauncher` to `ICoreLauncher`. No logic changes to `HandleCreateAsync`/`DriveSessionHandshakeAsync`/`TearDownCoreAsync`.
+- [x] 1.5 In the gateway `Program.cs`, change DI registration to `AddSingleton<ICoreLauncher, CoreLauncher>()` (and any other place `CoreLauncher` is resolved).
+- [x] 1.6 Gate (refactor is behaviour-preserving): `make build` clean (TreatWarningsAsErrors) and `make test` green — all existing tests pass unchanged.
+
+## 2. In-process fake core and create-success e2e tests
+
+- [x] 2.1 In `test/Dmon.Gateway.Tests`, add a `FakeCoreProcess : ICoreProcess` backed by a `FeedableReader` (stdout) and `CapturingWriter` (stdin), recording `StartAsync`/`StopAsync`/`RestartAsync`/`Dispose`/`IsRunning` so teardown can be asserted. Add a `FakeCoreLauncher : ICoreLauncher` returning a `CoreSession(fakeProcess, agentReady)`; allow the test to script the stdout lines and inspect captured stdin.
+- [x] 2.2 Happy-path test: drive the real `HandleCreateAsync` via `FakeCoreLauncher`, scripting `session.createResult` + `session.loadResult` for a known `sessionId`. Assert the gateway writes `session.create` then path-less `session.load` to stdin, replies with a `created` frame carrying that `sessionId`, and the handler is registered/attachable.
+- [x] 2.3 Seq-ordering test (spec: "Create-handshake results are excluded from the event stream"): after the handshake, feed a distinct post-handshake event, attach a recording client, and assert no `seq`-carrying event is `session.createResult`/`session.loadResult` and the lowest assigned `seq` is the post-handshake event.
+- [x] 2.4 Failure-path tests via the same seam: (a) handshake timeout (core never emits the results within `CreateHandshakeTimeoutSeconds`) → `createRejected {code:"core_timeout"}` and the fake core is torn down; (b) spawn/handshake exception → socket close `4500` and core torn down; (c) cap reached (`MaxConcurrentHandlers`) → `createRejected {code:"cap_reached"}`, handler not registered, core torn down (no orphan).
+- [x] 2.5 Gates: `make build` clean (TreatWarningsAsErrors), `make test` green (new + existing), `openspec validate gateway-create-success-e2e-seam --strict`.

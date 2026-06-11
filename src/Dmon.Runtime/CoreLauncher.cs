@@ -8,7 +8,7 @@ namespace Dmon.Runtime;
 /// Resolves, starts, and protocol-gates dmoncore.
 /// This is the single entry point both host surfaces use for core bootstrap.
 /// </summary>
-public sealed class CoreLauncher
+public sealed class CoreLauncher : ICoreLauncher
 {
     private static readonly JsonSerializerOptions JsonOptions =
         new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };

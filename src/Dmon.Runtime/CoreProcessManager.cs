@@ -8,7 +8,7 @@ namespace Dmon.Runtime;
 /// <c>dotnet exec</c> (cached NuGet package tier), connects stdio pipes,
 /// and provides graceful shutdown.
 /// </summary>
-public sealed class CoreProcessManager : IDisposable
+public sealed class CoreProcessManager : ICoreProcess
 {
     private Process? _process;
     private readonly ResolvedCore _resolvedCore;
@@ -95,6 +95,11 @@ public sealed class CoreProcessManager : IDisposable
     /// Whether the core process is currently running.
     /// </summary>
     public bool IsRunning => _process is { HasExited: false };
+
+    // Explicit interface implementations widen the concrete StreamReader/StreamWriter
+    // properties to the TextReader/TextWriter interface surface.
+    TextReader ICoreProcess.StandardOutput => StandardOutput;
+    TextWriter ICoreProcess.StandardInput => StandardInput;
 
     /// <summary>
     /// The OS process ID of the running core process, or null if not started.
