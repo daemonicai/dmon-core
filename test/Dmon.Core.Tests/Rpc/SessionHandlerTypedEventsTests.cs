@@ -121,6 +121,47 @@ public sealed class SessionHandlerTypedEventsTests
     // ── LoadAsync ─────────────────────────────────────────────────────────────
 
     [Fact]
+    public async Task CreateAsync_ThenPathlessLoad_EmitsSessionLoadedResultEventForCreatedSession()
+    {
+        // Arrange: create a session so _currentSession is set (the fix under test).
+        var (handler, emitter, store) = Build();
+        SessionCreateCommand createCmd = new() { Id = "cmd-create-pl-1" };
+        await handler.CreateAsync(createCmd, CancellationToken.None);
+
+        // Get the id that was assigned by FakeSessionStore.CreateAsync.
+        SessionCreatedResultEvent created = Assert.Single(emitter.Emitted.OfType<SessionCreatedResultEvent>());
+        string sessionId = created.Session.Id;
+
+        // FakeSessionStore.GetSessionDirectory returns Path.Combine(GetTempPath(), "dmon-test-sessions", sessionId).
+        // Create that directory so SessionLock.AcquireAsync can write .lock.
+        string sessionDir = store.GetSessionDirectory(sessionId);
+        Directory.CreateDirectory(sessionDir);
+        emitter.Clear();
+
+        try
+        {
+            // Act: path-less load — should re-use _currentSession set by CreateAsync.
+            SessionLoadCommand loadCmd = new() { Id = "cmd-load-pl-1", Path = null };
+            await handler.LoadAsync(loadCmd, CancellationToken.None);
+
+            // Assert: loaded event for the correct session.
+            SessionLoadedResultEvent loaded = Assert.Single(emitter.Emitted.OfType<SessionLoadedResultEvent>());
+            Assert.Equal("cmd-load-pl-1", loaded.CommandId);
+            Assert.Equal(sessionId, loaded.Session.Id);
+
+            // Assert: no noSessionIdOrPath error was emitted.
+            CommandErrorEvent? noPathErr = emitter.Emitted
+                .OfType<CommandErrorEvent>()
+                .FirstOrDefault(e => e.Code == "noSessionIdOrPath");
+            Assert.Null(noPathErr);
+        }
+        finally
+        {
+            try { Directory.Delete(sessionDir, recursive: true); } catch (IOException) { }
+        }
+    }
+
+    [Fact]
     public async Task LoadAsync_NoSessionIdOrPath_EmitsCommandErrorWithNoSessionIdOrPathCode()
     {
         var (handler, emitter, _) = Build();
