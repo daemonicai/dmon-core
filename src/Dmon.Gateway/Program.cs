@@ -38,7 +38,7 @@ if (GatewayBindPolicy.IsNonLoopbackWithOptIn(
 builder.WebHost.UseUrls(gatewayOptions.BindAddress);
 
 // --- Core infrastructure (D6 — reuse Dmon.Runtime bootstrap) ---
-builder.Services.AddSingleton<CoreLauncher>();
+builder.Services.AddSingleton<ICoreLauncher, CoreLauncher>();
 
 // --- Profile resolution (Dmon.Core; matches DaemonServiceExtensions wiring) ---
 builder.Services.AddSingleton<EffectiveProfileSetResolver>();
