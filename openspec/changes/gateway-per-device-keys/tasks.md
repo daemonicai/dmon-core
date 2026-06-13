@@ -1,9 +1,9 @@
 ## 1. Device-key store model and reader
 
-- [ ] 1.1 Add device-credential record types (`keyId`, `name`, `secretHash`, `createdAt`, `revokedAt?`) and a `schemaVersion: 1` envelope for `devices.json`, using dmon-owned types only.
-- [ ] 1.2 Implement a `devices.json` reader that parses the envelope into an immutable active-set snapshot (non-revoked entries only), ignoring unknown fields (room for future `expiresAt` per design D7).
-- [ ] 1.3 Define the active-set snapshot abstraction (immutable, swappable behind a single reference) the auth path and reload path share.
-- [ ] 1.4 Unit tests: valid file → active set excludes revoked; empty/absent file → empty (disabled) set; malformed file → parse error surfaced (consumed by the watcher in group 4).
+- [x] 1.1 Add device-credential record types (`keyId`, `name`, `secretHash`, `createdAt`, `revokedAt?`) and a `schemaVersion: 1` envelope for `devices.json`, using dmon-owned types only.
+- [x] 1.2 Implement a `devices.json` reader that parses the envelope into an immutable active-set snapshot (non-revoked entries only), ignoring unknown fields (room for future `expiresAt` per design D7).
+- [x] 1.3 Define the active-set snapshot abstraction (immutable, swappable behind a single reference) the auth path and reload path share.
+- [x] 1.4 Unit tests: valid file → active set excludes revoked; empty/absent file → empty (disabled) set; malformed file → parse error surfaced (consumed by the watcher in group 4).
 
 ## 2. DeviceKeyAuthenticator
 
