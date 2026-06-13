@@ -42,5 +42,5 @@
 
 ## 8. End-to-end and spec validation
 
-- [ ] 8.1 End-to-end gateway test: empty set → open; pair (file append) → only the matching token attaches; revoke (file write) → 401 + live connection fenced — no restart across the sequence.
-- [ ] 8.2 `make build` clean (TreatWarningsAsErrors), `make test` green, `openspec validate gateway-per-device-keys --strict` passes.
+- [x] 8.1 End-to-end gateway test: empty set → open; pair (file append) → only the matching token attaches; revoke (file write) → 401 + live connection fenced — no restart across the sequence.
+- [x] 8.2 `make build` clean (TreatWarningsAsErrors), `make test` green, `openspec validate gateway-per-device-keys --strict` passes.
