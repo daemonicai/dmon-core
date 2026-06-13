@@ -7,9 +7,9 @@
 
 ## 2. DeviceKeyAuthenticator
 
-- [ ] 2.1 Generalize `SharedKeyAuthenticator` → `DeviceKeyAuthenticator`: keep `Bearer` header parsing (case-insensitive, RFC 7235); SHA-256 the presented token once; `FixedTimeEquals` against each active entry's `secretHash`; return the matched `keyId` (or no-match).
-- [ ] 2.2 Empty active set short-circuits to authorized (byte-for-byte today's `null`-disables semantics).
-- [ ] 2.3 Unit tests: empty set authorizes any/no header; active match authorizes and yields its `keyId`; unknown token, missing header, malformed scheme, and revoked-only match all reject (→ 401 at the endpoint).
+- [x] 2.1 Generalize `SharedKeyAuthenticator` → `DeviceKeyAuthenticator`: keep `Bearer` header parsing (case-insensitive, RFC 7235); SHA-256 the presented token once; `FixedTimeEquals` against each active entry's `secretHash`; return the matched `keyId` (or no-match).
+- [x] 2.2 Empty active set short-circuits to authorized (byte-for-byte today's `null`-disables semantics).
+- [x] 2.3 Unit tests: empty set authorizes any/no header; active match authorizes and yields its `keyId`; unknown token, missing header, malformed scheme, and revoked-only match all reject (→ 401 at the endpoint).
 
 ## 3. Options and config wiring
 
