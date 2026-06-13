@@ -1,7 +1,7 @@
 # ADR-009: Config-Driven Extension Loading
 
 **Date:** 2026-05-27
-**Status:** Accepted
+**Status:** Superseded by ADR-019 (composition-root hosting)
 
 ## Context
 

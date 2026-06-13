@@ -1,7 +1,7 @@
 # ADR-021: The `compose` Permission Tier — Gating Agent Self-Modification of the Composition Root
 
 **Date:** 2026-06-13
-**Status:** Proposed
+**Status:** Accepted
 **Amends:** ADR-006 — adds an apex `compose` tier and **replaces** its "Extension loading" subsection (whose runtime `extension.load` trigger ADR-019 already removed).
 **Closes:** ADR-019 Open Question D.
 **Builds on:** ADR-019 (composition-root hosting), ADR-020 (agent definitions).

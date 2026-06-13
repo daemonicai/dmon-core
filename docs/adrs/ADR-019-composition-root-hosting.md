@@ -1,7 +1,7 @@
 # ADR-019: Composition-Root Hosting — `Dmon.cs` as the Core Entry Point
 
 **Date:** 2026-06-13
-**Status:** Proposed
+**Status:** Accepted
 **Supersedes:** ADR-009 in full; ADR-011 Decisions 2–4 (the host-bundled runtime acquisition path and the runnable-closure package shape) and ADR-008's *dynamic-load mechanism* (runtime `extension.load`, reflection discovery into the Default ALC) plus ADR-002's `.csx` tier and `promote` path.
 **Retains:** the `IDmonExtension` / `AIFunction` contract (ADR-002 core), ADR-008's "one shared load context, restart-as-reclaim" principle, and ADR-011's protocol-keyed versioning + contract packages + cadence-independence (Decisions 1, 5, 6, 8, 9).
 **Reframes:** ADR-006's extension-loading permission tier.

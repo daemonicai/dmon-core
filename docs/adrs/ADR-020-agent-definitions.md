@@ -1,7 +1,7 @@
 # ADR-020: Agent Definitions as `.md` + `.cs` Pairs
 
 **Date:** 2026-06-13
-**Status:** Proposed
+**Status:** Accepted
 **Depends on:** ADR-019 (composition-root hosting).
 **Generalises:** ADR-013 (agent profiles) — and **resolves its Open Question A** (per-profile model / toolset).
 **Stays within:** ADR-010's deferral line (multi-agent orchestration remains deferred).

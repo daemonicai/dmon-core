@@ -36,7 +36,7 @@ Key accepted decisions:
 | ADR-006 | Conservative permission model. Read within CWD is implicit; all writes require a prompt. |
 | ADR-007 | Provider-extension lifecycle: `IsApplicable()` at load, `EnsureRunningAsync()` gated, per-runner `IProviderFactory`. |
 | ADR-008 | Extensions load into the **Default** `AssemblyLoadContext` (no collectible per-load contexts); reclaim via process restart. Supersedes ADR-002's loading mechanism. |
-| ADR-009 | Active extensions are declared in `config.yaml` (user + project), auto-loaded at startup; `/reload` restarts the core. |
+| ADR-009 | *(Superseded by ADR-019.)* Config-driven extension loading (`config.yaml` active-extension list, reflection-loaded at startup) — replaced by composition-root hosting. |
 | ADR-010 | A scoped single-turn in-process `IChatClient` in a tool extension is in scope; multi-agent orchestration (multiple `dmon-core` processes over stdio/RPC) remains deferred. |
 | ADR-011 | Distribution model: granular contract packages on nuget.org; `dmon` (dotnet tool) acquires `dmoncore` at runtime into the global NuGet cache (no bundling); 3-part protocol-keyed version scheme (`Major.Minor` = wire protocol). |
 | ADR-012 | Remote access transport: a WebSocket gateway with connection-decoupled, resumable sessions; **Tailscale** is the auth/encryption boundary (single-tenant, home-server); optional shared key for defense-in-depth. |
@@ -44,6 +44,10 @@ Key accepted decisions:
 | ADR-014 | Gateway event replay uses an in-memory per-session `seq` buffer in the live handler, **not** `messages.jsonl` (which holds only conversational turns, written only by the core). Amends ADR-012 Decision 4. |
 | ADR-015 | Command results are dedicated typed events correlated by command `id` (`ResultEvent` base; `CommandErrorEvent` for failures); the generic `{type:"response", data}` envelope is retired. Makes the wire contract describable for client generation. Amends ADR-003's response framing. |
 | ADR-016 | Conversation persistence: session-storage owns a lossless, dmon-owned **parts** record (memory tiers derive their index from it); no third-party types in the API definition; lenient mapping preserves unmodelled content as render-only opaque `UnknownPart`. Amends ADR-004/ADR-014; supplies ADR-015's deferred `getMessages` DTO. |
+| ADR-018 | Gateway auth: a per-device, revocable key set (file-backed `devices.json`, hot-reloaded, fail-closed to last-good) replaces the single shared key; a match tags the connection with its `keyId` and revocation fences live connections. Amends ADR-012 Decisions 6/10/12. |
+| ADR-019 | Composition-root hosting: `dmoncore` is a **library**; a .NET 10 file-based program `Dmon.cs` (built, then run with `--no-build` so the build phase stays off the stdio wire) is the core entry point and declares its extensions as compile-time `#:package` deps. Supersedes ADR-009 in full, ADR-011 D2–4, ADR-008's dynamic-load mechanism, and ADR-002's `.csx`/`promote` tier. |
+| ADR-020 | Agent definitions are `.md` (persona) + optional `.cs` (composition root) pairs under `.dmon/agents/`; the root `Dmon.cs` is the default agent. Generalises ADR-013 and resolves its Open Question A; per-session selection, single-core (ADR-010 deferral holds). |
+| ADR-021 | Apex `compose` permission tier: an **agent-initiated** reload that changes the composition root is gated (new packages approved by exact pin), never globally suppressible, and parks (never auto-approves) when headless. Amends ADR-006 (replaces its extension-loading gate); closes ADR-019 Open Question D. |
 
 New ADRs belong in `docs/adrs/ADR-NNN-<slug>.md`. Use the existing ADRs as the format template.
 
