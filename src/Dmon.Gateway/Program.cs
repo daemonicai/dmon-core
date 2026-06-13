@@ -95,6 +95,9 @@ builder.Services.AddSingleton<IAgentProfileResolver>(sp =>
 // --- Time provider (injectable for testability — Group 7) ---
 builder.Services.AddSingleton(TimeProvider.System);
 
+// --- Device-key store hot-reload watcher ---
+builder.Services.AddHostedService<DeviceKeyStoreWatcher>();
+
 // --- Session registry, reaper, and WS endpoint handler ---
 builder.Services.AddSingleton<SessionRegistry>();
 builder.Services.AddHostedService<SessionReaper>();

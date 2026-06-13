@@ -20,9 +20,9 @@
 
 ## 4. Hot reload with fail-closed-to-last-good
 
-- [ ] 4.1 Add a debounced `FileSystemWatcher` on `devices.json` that rebuilds the snapshot on change and swaps the shared reference.
-- [ ] 4.2 On parse/IO failure after a prior good load, retain the last-good snapshot and log at warning — never collapse to the empty/disabled set. Absent-at-startup means empty (disabled).
-- [ ] 4.3 Tests: pairing append takes effect with no restart; malformed-after-good keeps enforcing the last-good set; absent-at-startup disables the check.
+- [x] 4.1 Add a debounced `FileSystemWatcher` on `devices.json` that rebuilds the snapshot on change and swaps the shared reference.
+- [x] 4.2 On parse/IO failure after a prior good load, retain the last-good snapshot and log at warning — never collapse to the empty/disabled set. Absent-at-startup means empty (disabled).
+- [x] 4.3 Tests: pairing append takes effect with no restart; malformed-after-good keeps enforcing the last-good set; absent-at-startup disables the check.
 
 ## 5. Connection tagging and by-keyId index
 
