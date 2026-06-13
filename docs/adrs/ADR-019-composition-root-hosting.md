@@ -1,0 +1,88 @@
+# ADR-019: Composition-Root Hosting — `Dmon.cs` as the Core Entry Point
+
+**Date:** 2026-06-13
+**Status:** Proposed
+**Supersedes:** ADR-009 in full; ADR-011 Decisions 2–4 (the host-bundled runtime acquisition path and the runnable-closure package shape) and ADR-008's *dynamic-load mechanism* (runtime `extension.load`, reflection discovery into the Default ALC) plus ADR-002's `.csx` tier and `promote` path.
+**Retains:** the `IDmonExtension` / `AIFunction` contract (ADR-002 core), ADR-008's "one shared load context, restart-as-reclaim" principle, and ADR-011's protocol-keyed versioning + contract packages + cadence-independence (Decisions 1, 5, 6, 8, 9).
+**Reframes:** ADR-006's extension-loading permission tier.
+**Builds on:** .NET 10 *file-based programs* (`dotnet run app.cs`).
+
+## Context
+
+Three independent mechanisms exist today to answer one question — *what code makes up this agent, and how does it get here?*
+
+- **Runtime core acquisition (ADR-011).** `dmoncore` ships as a runnable framework-dependent publish closure (D4) that the `dmon` host fetches at runtime into the global NuGet cache via the `NuGet.Protocol` SDK (D3), then spawns over JSONL/stdio (ADR-003).
+- **Config-driven extension loading (ADR-009).** The "active" extension set is a `union`-merged list across `~/.dmon` and `./.dmon` `config.yaml`, loaded at `dmoncore` startup by reflection into the Default `AssemblyLoadContext` (ADR-008). `/reload` is a process restart.
+- **Dynamic load (ADR-002 `.csx` tier + ADR-006 gate).** `.csx` scripts hot-load via `Dotnet.Script.Core` (whose embedding API ADR-002 itself flags as *spike-required*), and runtime `extension.load` is screened by an elaborate source-fetch-from-nuspec + LLM-source-analysis + confirm pipeline (ADR-006 "Extension loading").
+
+That is three subsystems, one undocumented dependency, a type-identity hazard (ADR-008 Context), and a bespoke runtime NuGet downloader — all to compose a process whose composition rarely changes mid-session anyway (ADR-008/009 already made reload a restart between turns).
+
+.NET 10 ships **file-based programs**: a single `.cs` file with `#:package`, `#:sdk`, and `#:property` directives is compiled as a *virtual project* by the SDK, with normal NuGet restore. Confirmed against the SDK design doc (`dotnet/sdk` `documentation/general/dotnet-run-file.md`): a file with no entry point builds as a library via `#:property OutputType=Library`; `dotnet build file.cs` builds without running; the build emits a normal `.deps.json` dependency closure; an up-to-date check skips rebuilds when nothing changed; `#:include`/`#:ref` allow shared/multi-file composition. A file-based build's `.deps.json` is exactly the input ADR-008's loader wanted and the `.csx`/Dotnet.Script path never cleanly produced.
+
+This ADR replaces all three mechanisms with one: **the user authors the composition root, and the SDK builds it.**
+
+## Decision
+
+1. **`dmoncore` is a framework library, not the entry point.** It exposes a hosting surface — `DmonHost.CreateBuilder(args)` → a builder (provider/model, extensions, permission mode, profile) → `.Build().RunAsync()`, where `RunAsync()` *is* the JSONL/stdio core loop. The wire contract (ADR-003), session storage (ADR-004), and the `IChatClient` permission pipeline (ADR-002/006) are unchanged; only the *entry point* moves out of the package.
+
+2. **`Dmon.cs` is the composition root.** A file-based program in the working directory declares the core and its extensions and wires them:
+
+   ```csharp
+   #:package dmoncore@0.1.*
+   #:package Acme.DmonExt.Postgres@2.1
+
+   using Dmon.Hosting;
+
+   await DmonHost.CreateBuilder(args)
+       .AddExtension<PostgresExtension>()
+       .Build()
+       .RunAsync();
+   ```
+
+   `Dmon.cs` compiles to the core executable. Extensions are **compile-time dependencies** (`#:package` + builder calls), not runtime loads.
+
+3. **The dynamic-load tier is removed.** No runtime `extension.load`, no `.csx` tier, no config-driven extension list, no reflection discovery, no `Dotnet.Script.Core`, no `promote` path. Adding an extension is editing `Dmon.cs` (a `#:package` line + a builder call) and reloading. This is the single, surviving subtraction that motivates the ADR.
+
+4. **The host spawns `dotnet run Dmon.cs` as its stdio child.** The terminal/desktop host (and ADR-012's gateway, via the `ICoreLauncher` seam) launches the file-based program; everything above the socket is identical to today. What changes is only *what is on the other end of the pipe* — a user-composed core rather than a stock binary.
+
+5. **Launcher precedence, file-before-env.** `./Dmon.cs` (or the agent selected per ADR-020) **wins over** `$DMON_CORE`, which wins over a **built-in default composition**. The default is the prebuilt stock core (ADR-011's runnable closure, retained for this path) so an empty directory / first run *just works* with no SDK and no authored C#. `dmon init` scaffolds an editable `Dmon.cs` for users who want to customise. Authoring `Dmon.cs` is the deliberate, opt-in customisation path.
+
+6. **Config is a source; composition code is sovereign.** `config.yaml` (both ADR-009 scopes — *retained for settings, not extension lists*), env, and CLI are exposed to `Dmon.cs` through the builder's configuration, but the code may read them or override them outright (e.g. hardcode `.UseOllama("gemma4:26b")`). This is the law at every level: **markdown/YAML declares, C# overrides.**
+
+7. **Acquisition is `dotnet restore` over the `#:package` set.** dmon ships no runtime NuGet downloader (supersedes ADR-011 D3). ADR-011's protocol-keyed versioning survives intact: `#:package dmoncore@0.1.*` pins the compatible protocol line (ADR-011 D5), and the `agentReady` `protocolVersion` compatibility gate (ADR-011 D6) still fires against the resolved core.
+
+8. **`/reload` re-runs `Dmon.cs`.** Restarting the core re-restores if the `#:package` set changed and recompiles if any `.cs` changed (SDK incremental cache makes the no-change case cheap). This is the same restart-between-turns boundary ADR-008/009 already established.
+
+## Consequences
+
+- **Large net subtraction.** Removes `Dotnet.Script.Core` and its spike, the runtime NuGet downloader, ALC reflection-discovery and the type-identity hazard, the config-driven loading machinery, the `promote` path, and the *primary trigger* of ADR-006's extension-load gate. The riskiest machinery in the design — the agent loading untrusted code into its own process at runtime — is replaced by "compile the agent from a declared package set."
+- **Reproducible and per-project.** `Dmon.cs` commits with the repo and pins core + extension versions; a teammate runs `dotnet run Dmon.cs` and gets an identical agent. The `config.yaml`-list model never gave this cleanly.
+- **A .NET SDK becomes required for the `Dmon.cs` path.** ADR-011 assumed only the .NET *runtime* is present; `dotnet run Dmon.cs` needs the **SDK**. The stock-default path (Decision 5) preserves the runtime-only experience, so this requirement falls only on users who author a `Dmon.cs`. Honestly a new dependency, mitigated, not free.
+- **First run / restore cost.** A new `#:package` set restores on next reload; unchanged sets are SDK-cache hits and `.cs`-only edits drop to `csc`. Consistent with the restart-as-reload model.
+- **Mid-session agent-authored tools are lost.** ADR-002 valued `.csx` scripts written *mid-session* and usable *that turn*. The replacement is edit-`Dmon.cs`-then-reload (available next turn). ADR-008 already conceded same-turn dynamism by making reload a restart, so the marginal loss is "next turn vs this turn," in exchange for a diffable, committable, sandbox-free self-extension loop.
+- **ADR-011's rejected library alternative is revived on new grounds.** ADR-011 rejected "publish `dmoncore` as a plain library" because *`dmon` itself* would have to run `RestoreCommand` and compose a `runtimeconfig`. File-based programs delegate that to the SDK (`dotnet run`), so the rejection's premise no longer holds — the machinery is the SDK's, not dmon's.
+
+## Alternatives
+
+- **Adopt file-based programs only for the `.csx` tier, keep everything else.** This was the first framing explored and rejected: it leaves the runtime downloader, the config-list loader, and the dynamic-load gate all in place, missing that one authored file answers *acquisition, composition, and reload* together.
+- **Keep `dmoncore` as the runnable-closure entry point; layer `Dmon.cs` on top as an optional override.** Rejected as the primary model — it keeps two composition systems. Retained only as the *default/no-SDK fallback* (Decision 5), not as the main path.
+- **Have `dmon` parse `#:` directives and generate a virtual `.csproj` itself** (the part-2 internals show this is ~a dozen lines). Rejected for V1: leaning on the first-party SDK build is simpler and tracks the feature; self-parsing is a fallback if the CLI dependency ever bites.
+
+## Open Questions
+
+- **A. `dmoncore`'s dual packaging.** The default path wants a runnable stock closure (ADR-011 D4); the `Dmon.cs` path wants a `#:package`-able library. Whether these are two package faces, or a library package the closure is built from, is unsettled.
+- **B. SDK detection and fallback.** How the host detects an absent .NET SDK and whether it falls back to the stock core or surfaces an actionable error when a `Dmon.cs` is present but unbuildable.
+- **C. Build-artifact location.** Directing `dotnet build/run Dmon.cs` output and locating the produced core `dll` + `deps.json` for the host to launch (`-o <dir>` vs reading the SDK's managed location).
+- **D. Agent-edits-its-own-`Dmon.cs`.** When the agent itself adds a `#:package` and triggers a recompile-restart, the permission surface relocates here (see ADR-006 reframe). The gate on "modify the composition root + pull the named packages" is left to a permission-model revision.
+- **E. Gateway working directory.** Which `Dmon.cs` a remote/gateway session composes from (whose cwd) — deferred to the gateway track; not blocking.
+
+## Relationship to other ADRs
+
+- **ADR-002** — the `IDmonExtension`/`AIFunction` contract is retained and is now consumed at compile time via the published `Dmon.Abstractions`/`Dmon.Extensions` packages; the `.csx` tier and `promote` path are superseded.
+- **ADR-003 / ADR-004** — wire protocol and session storage are untouched; the core process is the same stdio peer, differently produced.
+- **ADR-006** — the extension-loading multi-step gate loses its runtime trigger; trust shifts to author-time (you committed `Dmon.cs` and its `#:package` set, as for any `dotnet` project). The new gate surface is the agent modifying its own composition root (Open Question D). A permission-model revision should record this.
+- **ADR-008** — the *reflection-discovery / dynamic-load* mechanism is superseded; its deeper principle (one shared context, restart-as-reclaim) is retained and in fact strengthened — a compiled closure has a single, SDK-resolved identity graph, eliminating the type-identity hazard outright.
+- **ADR-009** — superseded in full: composition is code, not a config-driven list. The two-scope `config.yaml` merge survives for *settings* (ADR-013), not for extensions.
+- **ADR-011** — Decisions 2–4 (host-bundled acquisition, runnable-closure-not-library) are superseded for the `Dmon.cs` path; the protocol-keyed versioning, contract packages, cadence-independence, and skew guard (D1, D5, D6, D8, D9) are retained and reused by `#:package dmoncore@<protocol>.*`.
+- **ADR-012** — the `ICoreLauncher`/`ICoreProcess` seam now launches `dotnet run Dmon.cs`; the gateway, transport, and resume protocol are unchanged.
+- **ADR-013 / ADR-020** — profiles remain the per-session selection surface; ADR-020 generalises them into `.md` + `.cs` agent definitions built on this hosting model.
