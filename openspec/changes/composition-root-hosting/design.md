@@ -45,6 +45,30 @@ No dmon-owned downloader. `#:package dmoncore@<ProtocolVersion.Current Major.Min
 
 No data migration (no production deployments). Rollout: ship the `dmoncore` library + prebuilt default; `Dmon.Runtime` gains the new precedence + build-then-run; delete the dynamic-load tier. Existing users with `config.yaml` extension lists migrate by running `dmon init` and moving each entry to a `#:package` + builder call. Rollback is reverting the build; the prebuilt default is inert to older hosts.
 
+## Blast radius and implementation order
+
+Sized against the current tree (a scan of the to-be-deleted machinery).
+
+**The core stays a spawned stdio process.** This change alters *what is on the other end of the pipe*, not that there is a pipe: the host still spawns the core as a JSONL/stdio child via `ICoreLauncher`; only the launch *command* changes (`dotnet exec dmoncore.dll` → `dotnet build Dmon.cs` + `dotnet run Dmon.cs --no-build`). Going in-process would break ADR-012/014 (connection-decoupled resumable sessions, concurrent per-session cores) — so `CoreSession`, the stdio boundary, and the gateway's spawn-per-session are all retained. `CoreLauncher` is a *modification*, not a rip-out.
+
+**Net deletion (~2,200 LOC prod), most of it isolated:**
+
+| Subsystem | Files | ~LOC | Entanglement |
+|---|---|---|---|
+| `.csx` + `Dotnet.Script.Core` | `Dmon.Core/Extensions/CsxScriptLoader.cs` + csproj ref | 236 | Isolated (one `IExtensionLoader`) |
+| ALC reflection loader | `Dmon.Core/Extensions/NuGetExtensionLoader.cs` | 407 | Isolated |
+| `extension.load/unload/list/promote` RPC | `Dmon.Core/Rpc/ConfigExtensionHandler.cs`, `Dmon.Protocol/Commands/ExtensionCommands.cs` + events | 225 | Isolated (optional commands) |
+| Runtime NuGet downloader | `Dmon.Runtime/NuGetCoreAcquisitionSource.cs`, `CoreResolver.cs` | ~300 | Moderate (wired into `CoreLauncher`) |
+| Config-driven extension list | `Dmon.Core/Config/{ExtensionEntry,ExtensionsConfigReader,EffectiveExtensionSetResolver,ExtensionSourceNormalizer}.cs` | ~199 | Moderate (wired into startup loader) |
+
+**Modification / relocation (~1,100 LOC):** `Dmon.Core/Program.cs` (115) extracts into `DmonHost.CreateBuilder()` with `DaemonServiceExtensions.cs` (~700) retained as the public builder; `Dmon.Runtime/CoreLauncher.cs` (164) gets the new command + precedence; `Dmon.Core.csproj` drops the `_AddPublishClosureToPackage` target + `Dotnet.Script` ref and reverts to library packaging (plus the prebuilt-default artifact).
+
+**Tests (~5,700 LOC):** dominated by clean deletions of the extension-loader suites (`NuGetExtensionLoader*` ≈1,260, config ≈800, `ConfigExtensionHandler` ≈384, `CsxScriptLoader` ≈296). Process-spawning integration fixtures (`CoreProcessFixture`, Terminal/Gateway integration) need only a launch-command/fixture tweak, not a rewrite — the process model persists.
+
+**The three care-points (not the launcher):** (1) the `Program → DmonHost` extraction must keep the wire/storage/permission pipeline byte-identical; (2) middleware is currently *config-discovered* via `EffectiveExtensionSetResolver`, so removing config loading requires the builder to expose middleware registration (task 4.5); (3) the `promote` path becomes orphaned when config loading goes (task 4.2) and the prebuilt-default *delivery* is unsettled (OQ-A below).
+
+**Suggested order (matches `tasks.md`):** group 1 (`DmonHost`, with `Program`/`CoreLauncher` as thin shims that call it) → groups 4/5 (delete the isolated tiers) → group 3 (launcher command swap) → groups 6/7 (config settings-only + packaging) → group 8 (e2e). The deletions are mostly independent; the load-bearing work is group 1 and group 3.
+
 ## Open Questions
 
 - **A. Prebuilt-default distribution.** How the no-SDK default core is delivered (bundled in the `dmon` tool vs a separate fetched artifact), reconciling with `package-publishing`'s "tool carries no core payload." (ADR-019 D9 / OQ-B.)
