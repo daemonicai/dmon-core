@@ -17,8 +17,9 @@ WORKDIR /app
 # Copy published output
 COPY --from=build /app/publish .
 
-# Copy ONNX model
+# Copy ONNX model and vocabulary file (both required by AddBertOnnxEmbeddingGenerator)
 COPY models/bge-micro-v2.onnx /app/models/bge-micro-v2.onnx
+COPY models/vocab.txt /app/models/vocab.txt
 
 # Create data directory
 RUN mkdir -p /data
