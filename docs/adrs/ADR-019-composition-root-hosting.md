@@ -53,6 +53,8 @@ This ADR replaces all three mechanisms with one: **the user authors the composit
 
 8. **`/reload` re-runs `Dmon.cs`.** Restarting the core re-restores if the `#:package` set changed and recompiles if any `.cs` changed (SDK incremental cache makes the no-change case cheap). This is the same restart-between-turns boundary ADR-008/009 already established.
 
+9. **`dmoncore` is one **library package**; the stock default is a prebuilt instance of it.** The unit of distribution is the `dmoncore` **library** (`#:package`-able, Decision 2). The no-SDK / first-run **stock default core** (Decision 5) is *not* a separate codebase: it is a **prebuilt framework-dependent publish of a canonical `Dmon.cs`** that references the library with no extra extensions. The default path *is* the `Dmon.cs` path, built ahead of time and shipped so an empty directory runs on the .NET runtime alone. ADR-011 D4's runnable closure survives only in this form — a convenience artifact *derived from the library*, no longer the unit of distribution — which is why ADR-011 D4's closure-as-primary-shape is superseded while the no-SDK experience is preserved. Authoring a `Dmon.cs` is then "rebuild what the default already is, with additions": one mechanism at two build-times, not two systems.
+
 ## Consequences
 
 - **Large net subtraction.** Removes `Dotnet.Script.Core` and its spike, the runtime NuGet downloader, ALC reflection-discovery and the type-identity hazard, the config-driven loading machinery, the `promote` path, and the *primary trigger* of ADR-006's extension-load gate. The riskiest machinery in the design — the agent loading untrusted code into its own process at runtime — is replaced by "compile the agent from a declared package set."
@@ -70,11 +72,11 @@ This ADR replaces all three mechanisms with one: **the user authors the composit
 
 ## Open Questions
 
-- **A. `dmoncore`'s dual packaging.** The default path wants a runnable stock closure (ADR-011 D4); the `Dmon.cs` path wants a `#:package`-able library. Whether these are two package faces, or a library package the closure is built from, is unsettled.
+- **A. ~~`dmoncore`'s dual packaging.~~** *Resolved by Decision 9 — a single `dmoncore` library package; the stock default is a prebuilt publish of a canonical `Dmon.cs` that references it, so "default" and "authored" are the same mechanism at two build-times.*
 - **B. SDK detection and fallback.** How the host detects an absent .NET SDK and whether it falls back to the stock core or surfaces an actionable error when a `Dmon.cs` is present but unbuildable.
 - **C. ~~Build-artifact location.~~** *Resolved by Decision 4.* `dotnet build` then `dotnet run --no-build` leaves binary location, `runtimeconfig`, and cleanup to the SDK's managed output (dmon owns no build directory), and `dotnet build`'s incremental check is the staleness gate. The only thing to confirm at implementation: that `dotnet run Dmon.cs --no-build` for the file-based-program path emits nothing on stdout ahead of the program (and add `--verbosity quiet` / fall back to launching the built assembly directly if it does).
 - **D. ~~Agent-edits-its-own-`Dmon.cs`.~~** *Resolved by ADR-021.* The agent self-modifying its composition root (adding a `#:package`, editing the builder wiring) is gated by a new apex **`compose`** permission tier amending ADR-006: the gate fires at the build/reload chokepoint on an agent-initiated composition change, itemizes new packages (approved by exact pin), is never globally suppressible, and parks (never auto-approves) in a headless/remote session.
-- **E. Gateway working directory.** Which `Dmon.cs` a remote/gateway session composes from (whose cwd) — deferred to the gateway track; not blocking.
+- **E. ~~Gateway working directory.~~** *Resolved via ADR-020 + ADR-021.* A remote/gateway session has no client filesystem, so it composes not from a "cwd" but from the **agent definition selected at `createSession`** (ADR-020), resolved under the **gateway's configured workspace root** — never a client-supplied path. Any `compose` change in such a session **parks** (ADR-021 Decision 6 / park-while-detached), there being no human at the keyboard.
 
 ## Relationship to other ADRs
 
