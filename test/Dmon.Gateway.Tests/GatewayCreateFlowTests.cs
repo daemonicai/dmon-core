@@ -129,7 +129,7 @@ public sealed class GatewayCreateFlowTests
         // used by all other SessionHandler tests — so no real CoreProcessManager is needed.
         FeedableReader liveStdout = new();
         CapturingWriter liveStdin = new();
-        await using SessionHandler handler = new(handshakeSessionId, liveStdout, liveStdin);
+        await using SessionHandler handler = new(handshakeSessionId, new SessionHandlerTestOptions { Stdout = liveStdout, Stdin = liveStdin });
 
         SessionRegistry registry = new();
         bool registered = registry.TryRegister(handshakeSessionId, handler, maxConcurrentHandlers: 10);
@@ -305,15 +305,15 @@ public sealed class GatewayCreateFlowTests
         SessionRegistry registry = new();
 
         // Fill to the cap.
-        await using SessionHandler h1 = new("s-cap-1", new NeverReadingReader(), new StringWriter());
-        await using SessionHandler h2 = new("s-cap-2", new NeverReadingReader(), new StringWriter());
+        await using SessionHandler h1 = new("s-cap-1", new SessionHandlerTestOptions { Stdout = new NeverReadingReader(), Stdin = new StringWriter() });
+        await using SessionHandler h2 = new("s-cap-2", new SessionHandlerTestOptions { Stdout = new NeverReadingReader(), Stdin = new StringWriter() });
 
         Assert.True(registry.TryRegister("s-cap-1", h1, cap));
         Assert.True(registry.TryRegister("s-cap-2", h2, cap));
         Assert.Equal(cap, registry.Count);
 
         // Attempt to register a third session — must fail.
-        await using SessionHandler h3 = new("s-cap-3", new NeverReadingReader(), new StringWriter());
+        await using SessionHandler h3 = new("s-cap-3", new SessionHandlerTestOptions { Stdout = new NeverReadingReader(), Stdin = new StringWriter() });
         bool registered = registry.TryRegister("s-cap-3", h3, cap);
 
         Assert.False(registered);
@@ -358,13 +358,13 @@ public sealed class GatewayCreateFlowTests
         const int cap = 1;
         SessionRegistry registry = new();
 
-        await using SessionHandler existing = new("s-existing", new NeverReadingReader(), new StringWriter());
+        await using SessionHandler existing = new("s-existing", new SessionHandlerTestOptions { Stdout = new NeverReadingReader(), Stdin = new StringWriter() });
         bool firstReg = registry.TryRegister("s-existing", existing, cap);
         Assert.True(firstReg);
         Assert.Equal(1, registry.Count); // at cap
 
         // Re-registering the same session id must succeed even at cap.
-        await using SessionHandler replacement = new("s-existing", new NeverReadingReader(), new StringWriter());
+        await using SessionHandler replacement = new("s-existing", new SessionHandlerTestOptions { Stdout = new NeverReadingReader(), Stdin = new StringWriter() });
         bool reReg = registry.TryRegister("s-existing", replacement, cap);
 
         Assert.True(reReg);              // exempt
@@ -388,13 +388,13 @@ public sealed class GatewayCreateFlowTests
         const int cap = 1;
         SessionRegistry registry = new();
 
-        await using SessionHandler existing = new("s-present", new NeverReadingReader(), new StringWriter());
+        await using SessionHandler existing = new("s-present", new SessionHandlerTestOptions { Stdout = new NeverReadingReader(), Stdin = new StringWriter() });
         registry.TryRegister("s-present", existing, cap);
 
         // Simulate HandleCreateAsync: create handler, try register (fails at cap), dispose.
         FeedableReader orphanStdout = new();
         StringWriter orphanStdin = new();
-        SessionHandler orphan = new("s-orphan", orphanStdout, orphanStdin);
+        SessionHandler orphan = new("s-orphan", new SessionHandlerTestOptions { Stdout = orphanStdout, Stdin = orphanStdin });
 
         bool registered = registry.TryRegister("s-orphan", orphan, cap);
         Assert.False(registered);

@@ -297,7 +297,7 @@ public sealed class GatewayCreateE2ETests
         // Pre-fill the registry to the cap (MaxConcurrentHandlers = 1).
         SessionRegistry registry = new();
         FeedableReader existingStdout = new();
-        await using SessionHandler existingHandler = new(existingSessionId, existingStdout, new StringWriter());
+        await using SessionHandler existingHandler = new(existingSessionId, new SessionHandlerTestOptions { Stdout = existingStdout, Stdin = new StringWriter() });
         bool preRegistered = registry.TryRegister(existingSessionId, existingHandler, maxConcurrentHandlers: 1);
         Assert.True(preRegistered, "pre-registration must succeed");
         Assert.Equal(1, registry.Count);
@@ -532,6 +532,8 @@ public sealed class GatewayCreateE2ETests
         private readonly List<string> _frames = [];
         private readonly Lock _gate = new();
         private TaskCompletionSource _signal = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public string? KeyId => null;
 
         public IReadOnlyList<string> Frames
         {

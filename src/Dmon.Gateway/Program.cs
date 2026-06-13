@@ -98,8 +98,9 @@ builder.Services.AddSingleton(TimeProvider.System);
 // --- Device-key store hot-reload watcher ---
 builder.Services.AddHostedService<DeviceKeyStoreWatcher>();
 
-// --- Session registry, reaper, and WS endpoint handler ---
+// --- Session registry, reaper, WS endpoint handler, and device-connection index ---
 builder.Services.AddSingleton<SessionRegistry>();
+builder.Services.AddSingleton<DeviceConnectionIndex>();
 builder.Services.AddHostedService<SessionReaper>();
 builder.Services.AddSingleton<GatewayConnectionEndpoint>();
 

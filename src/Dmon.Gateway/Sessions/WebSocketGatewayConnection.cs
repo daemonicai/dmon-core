@@ -19,10 +19,13 @@ internal sealed class WebSocketGatewayConnection : IGatewayConnection, IDisposab
     private readonly WebSocket _socket;
     private readonly SemaphoreSlim _sendLock = new(1, 1);
 
-    public WebSocketGatewayConnection(WebSocket socket)
+    public WebSocketGatewayConnection(WebSocket socket, string? keyId = null)
     {
         _socket = socket;
+        KeyId = keyId;
     }
+
+    public string? KeyId { get; }
 
     public async ValueTask SendAsync(string frame, CancellationToken cancellationToken)
     {

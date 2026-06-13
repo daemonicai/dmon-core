@@ -35,7 +35,7 @@ public sealed class ByteUnchangedForwardingTests
 
         CapturingWriter stdin = new();
         FeedableReader stdout = new();
-        await using SessionHandler handler = new("s1", stdout, stdin);
+        await using SessionHandler handler = new("s1", new SessionHandlerTestOptions { Stdout = stdout, Stdin = stdin });
 
         CancellationToken ct = CancellationToken.None;
 
@@ -60,7 +60,7 @@ public sealed class ByteUnchangedForwardingTests
     {
         CapturingWriter stdin = new();
         FeedableReader stdout = new();
-        await using SessionHandler handler = new("s1", stdout, stdin);
+        await using SessionHandler handler = new("s1", new SessionHandlerTestOptions { Stdout = stdout, Stdin = stdin });
 
         await handler.WriteToCoreAsync(frame, CancellationToken.None);
 
@@ -98,7 +98,7 @@ public sealed class ByteUnchangedForwardingTests
         FeedableReader stdout = new();
         StringWriter stdin = new();
 
-        await using SessionHandler handler = new("gen-test", stdout, stdin);
+        await using SessionHandler handler = new("gen-test", new SessionHandlerTestOptions { Stdout = stdout, Stdin = stdin });
 
         RecordingConnection c1 = new();
         RecordingConnection c2 = new();
@@ -120,7 +120,7 @@ public sealed class ByteUnchangedForwardingTests
     {
         FeedableReader stdout = new();
         StringWriter stdin = new();
-        await using SessionHandler handler = new("seq-test", stdout, stdin);
+        await using SessionHandler handler = new("seq-test", new SessionHandlerTestOptions { Stdout = stdout, Stdin = stdin });
         Assert.Equal(0L, handler.HeadSeq);
     }
 
@@ -154,6 +154,8 @@ public sealed class ByteUnchangedForwardingTests
 
     private sealed class RecordingConnection : IGatewayConnection
     {
+        public string? KeyId => null;
+
         public ValueTask SendAsync(string frame, CancellationToken cancellationToken) =>
             ValueTask.CompletedTask;
 

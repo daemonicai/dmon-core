@@ -61,6 +61,7 @@ public sealed class GatewayConnectionEndpoint
 {
 
     private readonly SessionRegistry _registry;
+    private readonly DeviceConnectionIndex _connectionIndex;
     private readonly ICoreLauncher? _coreLauncher;
     private readonly IAgentProfileResolver? _profileResolver;
     private readonly EffectiveProfileSetResolver? _effectiveProfileSetResolver;
@@ -83,6 +84,7 @@ public sealed class GatewayConnectionEndpoint
 
     internal GatewayConnectionEndpoint(
         SessionRegistry registry,
+        DeviceConnectionIndex connectionIndex,
         ICoreLauncher coreLauncher,
         IAgentProfileResolver profileResolver,
         EffectiveProfileSetResolver effectiveProfileSetResolver,
@@ -93,6 +95,7 @@ public sealed class GatewayConnectionEndpoint
         ILogger<GatewayConnectionEndpoint> logger)
     {
         _registry = registry;
+        _connectionIndex = connectionIndex;
         _coreLauncher = coreLauncher;
         _profileResolver = profileResolver;
         _effectiveProfileSetResolver = effectiveProfileSetResolver;
@@ -114,6 +117,7 @@ public sealed class GatewayConnectionEndpoint
         ILogger<GatewayConnectionEndpoint> logger)
         : this(
             registry,
+            options.ConnectionIndex,
             options.CoreLauncher!,
             options.ProfileResolver!,
             options.EffectiveProfileSetResolver!,
@@ -138,6 +142,7 @@ public sealed class GatewayConnectionEndpoint
     internal sealed record TestOptions
     {
         public DeviceKeySetProvider DeviceKeySetProvider { get; init; } = new(DeviceKeySet.Empty);
+        public DeviceConnectionIndex ConnectionIndex { get; init; } = new();
         public IOptionsMonitor<GatewayOptions> Options { get; init; } = new StaticOptionsMonitor(new GatewayOptions());
         public TimeProvider TimeProvider { get; init; } = TimeProvider.System;
         public ICoreLauncher? CoreLauncher { get; init; }
@@ -245,7 +250,7 @@ public sealed class GatewayConnectionEndpoint
             return;
         }
 
-        using WebSocketGatewayConnection connection = new(socket);
+        using WebSocketGatewayConnection connection = new(socket, authResult.KeyId);
         AttachResult attachResult = handler.Attach(connection, attachFrame.LastSeq);
 
         AttachedFrame attachedFrame = new()
@@ -381,7 +386,7 @@ public sealed class GatewayConnectionEndpoint
                 handshakeCts.Token).ConfigureAwait(false);
 
             // Pump starts here — stdout is positioned after session.loadResult.
-            SessionHandler newHandler = new(sessionId, coreSession);
+            SessionHandler newHandler = new(sessionId, coreSession, _connectionIndex);
 
             int maxHandlers = _options.CurrentValue.MaxConcurrentHandlers;
             if (!_registry.TryRegister(sessionId, newHandler, maxHandlers))

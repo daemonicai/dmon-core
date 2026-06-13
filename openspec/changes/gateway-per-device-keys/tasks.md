@@ -26,9 +26,9 @@
 
 ## 5. Connection tagging and by-keyId index
 
-- [ ] 5.1 Tag each authorized `IGatewayConnection` with its matched `keyId` at attach time.
-- [ ] 5.2 Maintain a `keyId → live connections` index alongside `SessionRegistry`/`SessionHandler`, updated in the same attach/detach path that manages generation (remove on detach and on eviction).
-- [ ] 5.3 Tests: index gains a connection on attach, drops it on normal detach and on generation-eviction, and spans multiple sessions for one `keyId`.
+- [x] 5.1 Tag each authorized `IGatewayConnection` with its matched `keyId` at attach time.
+- [x] 5.2 Maintain a `keyId → live connections` index alongside `SessionRegistry`/`SessionHandler`, updated in the same attach/detach path that manages generation (remove on detach and on eviction).
+- [x] 5.3 Tests: index gains a connection on attach, drops it on normal detach and on generation-eviction, and spans multiple sessions for one `keyId`.
 
 ## 6. Revocation fencing
 

@@ -40,7 +40,7 @@ public sealed class GatewayIntegrationTests
         // Arrange: a handler backed by a controlled stdout reader.
         FeedableReader stdout = new();
         StringWriter stdin = new();
-        await using SessionHandler handler = new("s-replay", stdout, stdin);
+        await using SessionHandler handler = new("s-replay", new SessionHandlerTestOptions { Stdout = stdout, Stdin = stdin });
 
         // Feed four events so they accumulate in the seq log before any attach.
         stdout.Feed("""{"event":"e1"}""");
@@ -91,7 +91,7 @@ public sealed class GatewayIntegrationTests
     {
         FeedableReader stdout = new();
         StringWriter stdin = new();
-        await using SessionHandler handler = new("s-full-replay", stdout, stdin);
+        await using SessionHandler handler = new("s-full-replay", new SessionHandlerTestOptions { Stdout = stdout, Stdin = stdin });
 
         int n = 5;
         for (int i = 1; i <= n; i++)
@@ -136,7 +136,7 @@ public sealed class GatewayIntegrationTests
         const string cmd = """{"id":"req-dedup","type":"run","prompt":"hello"}""";
 
         CapturingWriter stdin = new();
-        await using SessionHandler handler = new("s-dedup", new NeverReadingReader(), stdin);
+        await using SessionHandler handler = new("s-dedup", new SessionHandlerTestOptions { Stdout = new NeverReadingReader(), Stdin = stdin });
 
         GatewayConnectionEndpoint endpoint = MakeEndpoint();
 
@@ -195,7 +195,7 @@ public sealed class GatewayIntegrationTests
         // Not await using: the reaper takes ownership and disposes on removal.
         FeedableReader stdout = new();
         StringWriter stdin = new();
-        SessionHandler handler = new("s-inflight", stdout, stdin, time);
+        SessionHandler handler = new("s-inflight", new SessionHandlerTestOptions { Stdout = stdout, Stdin = stdin, TimeProvider = time });
         registry.Register("s-inflight", handler);
 
         // Feed a turnStart so IsTurnInFlight = true.
@@ -240,7 +240,7 @@ public sealed class GatewayIntegrationTests
         // Not await using: the reaper disposes on removal.
         FeedableReader stdout = new();
         StringWriter stdin = new();
-        SessionHandler handler = new("s-idle", stdout, stdin, time);
+        SessionHandler handler = new("s-idle", new SessionHandlerTestOptions { Stdout = stdout, Stdin = stdin, TimeProvider = time });
         registry.Register("s-idle", handler);
 
         RecordingConnection conn = new();
@@ -282,7 +282,7 @@ public sealed class GatewayIntegrationTests
         const string command = """{"id":"req-evict","type":"run","prompt":"should not reach core"}""";
 
         CapturingWriter stdin = new();
-        await using SessionHandler handler = new("s-evict", new NeverReadingReader(), stdin);
+        await using SessionHandler handler = new("s-evict", new SessionHandlerTestOptions { Stdout = new NeverReadingReader(), Stdin = stdin });
 
         GatewayConnectionEndpoint endpoint = MakeEndpoint();
 
@@ -478,6 +478,8 @@ public sealed class GatewayIntegrationTests
         private readonly Lock _gate = new();
         private TaskCompletionSource _signal = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private bool _aborted;
+
+        public string? KeyId => null;
 
         public IReadOnlyList<string> Frames
         {
