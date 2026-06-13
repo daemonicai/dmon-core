@@ -14,7 +14,7 @@ public sealed class SessionHandlerTests
     {
         FeedableReader stdout = new();
         StringWriter stdin = new();
-        await using SessionHandler handler = new("s1", stdout, stdin);
+        await using SessionHandler handler = new("s1", new SessionHandlerTestOptions { Stdout = stdout, Stdin = stdin });
 
         // No connection attached: these accumulate in the retained log.
         stdout.Feed("""{"event":"a"}""");
@@ -37,7 +37,7 @@ public sealed class SessionHandlerTests
     {
         FeedableReader stdout = new();
         StringWriter stdin = new();
-        await using SessionHandler handler = new("s1", stdout, stdin);
+        await using SessionHandler handler = new("s1", new SessionHandlerTestOptions { Stdout = stdout, Stdin = stdin });
 
         // Buffered while detached.
         stdout.Feed("""{"event":"buffered-1"}""");
@@ -61,7 +61,7 @@ public sealed class SessionHandlerTests
     {
         FeedableReader stdout = new();
         StringWriter stdin = new();
-        await using SessionHandler handler = new("s1", stdout, stdin);
+        await using SessionHandler handler = new("s1", new SessionHandlerTestOptions { Stdout = stdout, Stdin = stdin });
 
         RecordingConnection first = new();
         // First attach starts from the beginning.
@@ -99,7 +99,7 @@ public sealed class SessionHandlerTests
     {
         FeedableReader stdout = new();
         StringWriter stdin = new();
-        await using SessionHandler handler = new("s1", stdout, stdin);
+        await using SessionHandler handler = new("s1", new SessionHandlerTestOptions { Stdout = stdout, Stdin = stdin });
 
         int n = 5;
         for (int i = 1; i <= n; i++)
@@ -127,7 +127,7 @@ public sealed class SessionHandlerTests
     {
         FeedableReader stdout = new();
         StringWriter stdin = new();
-        await using SessionHandler handler = new("s1", stdout, stdin);
+        await using SessionHandler handler = new("s1", new SessionHandlerTestOptions { Stdout = stdout, Stdin = stdin });
 
         // Feed M events while fully detached (so no connection delivers them).
         int m = 6;
@@ -174,7 +174,7 @@ public sealed class SessionHandlerTests
     {
         FeedableReader stdout = new();
         StringWriter stdin = new();
-        await using SessionHandler handler = new("s1", stdout, stdin);
+        await using SessionHandler handler = new("s1", new SessionHandlerTestOptions { Stdout = stdout, Stdin = stdin });
 
         // Phase 1: feed events 1..4 while detached; drain them so headSeq=4.
         for (int i = 1; i <= 4; i++)
@@ -223,7 +223,7 @@ public sealed class SessionHandlerTests
     {
         FeedableReader stdout = new();
         StringWriter stdin = new();
-        await using SessionHandler handler = new("s1", stdout, stdin);
+        await using SessionHandler handler = new("s1", new SessionHandlerTestOptions { Stdout = stdout, Stdin = stdin });
 
         // Feed 4 events while detached.
         for (int i = 1; i <= 4; i++)
@@ -263,7 +263,7 @@ public sealed class SessionHandlerTests
     {
         FeedableReader stdout = new();
         StringWriter stdin = new();
-        await using SessionHandler handler = new("s1", stdout, stdin);
+        await using SessionHandler handler = new("s1", new SessionHandlerTestOptions { Stdout = stdout, Stdin = stdin });
 
         // Feed events 1..3 while detached; drain them so headSeq=3.
         for (int i = 1; i <= 3; i++)
@@ -313,7 +313,7 @@ public sealed class SessionHandlerTests
     {
         FeedableReader stdout = new();
         StringWriter stdin = new();
-        await using SessionHandler handler = new("s1", stdout, stdin);
+        await using SessionHandler handler = new("s1", new SessionHandlerTestOptions { Stdout = stdout, Stdin = stdin });
 
         // Feed events 1..5 while detached; drain via a warmup connection so headSeq=5.
         for (int i = 1; i <= 5; i++)
@@ -365,7 +365,7 @@ public sealed class SessionHandlerTests
     {
         FeedableReader stdout = new();
         StringWriter stdin = new();
-        await using SessionHandler handler = new("s1", stdout, stdin);
+        await using SessionHandler handler = new("s1", new SessionHandlerTestOptions { Stdout = stdout, Stdin = stdin });
 
         // Feed events 1..4 while detached so headSeq=4.
         for (int i = 1; i <= 4; i++)
@@ -405,7 +405,7 @@ public sealed class SessionHandlerTests
     {
         FeedableReader stdout = new();
         StringWriter stdin = new();
-        await using SessionHandler handler = new("s1", stdout, stdin);
+        await using SessionHandler handler = new("s1", new SessionHandlerTestOptions { Stdout = stdout, Stdin = stdin });
 
         RecordingConnection connA = new();
         RecordingConnection connB = new();
@@ -429,7 +429,7 @@ public sealed class SessionHandlerTests
     {
         FeedableReader stdout = new();
         StringWriter stdin = new();
-        await using SessionHandler handler = new("s1", stdout, stdin);
+        await using SessionHandler handler = new("s1", new SessionHandlerTestOptions { Stdout = stdout, Stdin = stdin });
 
         AbortingConnection connA = new();
         RecordingConnection connB = new();
@@ -458,7 +458,7 @@ public sealed class SessionHandlerTests
     {
         FeedableReader stdout = new();
         StringWriter stdin = new();
-        await using SessionHandler handler = new("s1", stdout, stdin);
+        await using SessionHandler handler = new("s1", new SessionHandlerTestOptions { Stdout = stdout, Stdin = stdin });
 
         RecordingConnection connA = new();
         RecordingConnection connB = new();
@@ -484,7 +484,7 @@ public sealed class SessionHandlerTests
     {
         FeedableReader stdout = new();
         StringWriter stdin = new();
-        await using SessionHandler handler = new("s1", stdout, stdin);
+        await using SessionHandler handler = new("s1", new SessionHandlerTestOptions { Stdout = stdout, Stdin = stdin });
 
         RecordingConnection connA = new();
         AttachResult r1 = handler.Attach(connA, lastSeq: 0);
@@ -508,6 +508,8 @@ public sealed class SessionHandlerTests
         private readonly List<string> _frames = [];
         private readonly Lock _gate = new();
         private TaskCompletionSource _signal = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public string? KeyId { get; init; }
 
         public IReadOnlyList<string> Frames
         {
@@ -573,6 +575,8 @@ public sealed class SessionHandlerTests
         private readonly TaskCompletionSource _blocked = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public GatedConnection(int blockAfterFrame) => _blockAfterFrame = blockAfterFrame;
+
+        public string? KeyId => null;
 
         public IReadOnlyList<string> Frames
         {
@@ -646,6 +650,8 @@ public sealed class SessionHandlerTests
 
         public FailingConnection(int throwOnFrameIndex) => _throwOnFrameIndex = throwOnFrameIndex;
 
+        public string? KeyId => null;
+
         public IReadOnlyList<string> Frames
         {
             get { lock (_gate) { return [.. _frames]; } }
@@ -710,6 +716,8 @@ public sealed class SessionHandlerTests
         private readonly List<string> _frames = [];
         private readonly Lock _gate = new();
         private bool _aborted;
+
+        public string? KeyId { get; init; }
 
         public IReadOnlyList<string> Frames
         {

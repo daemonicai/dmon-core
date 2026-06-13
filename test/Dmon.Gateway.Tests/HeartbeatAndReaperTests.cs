@@ -28,13 +28,14 @@ public sealed class HeartbeatAndReaperTests
 
         FeedableReader stdout = new();
         StringWriter stdin = new();
-        await using SessionHandler handler = new("s1", stdout, stdin, time);
+        await using SessionHandler handler = new("s1", new SessionHandlerTestOptions { Stdout = stdout, Stdin = stdin, TimeProvider = time });
 
         RecordingConnection connection = new();
         handler.Attach(connection, lastSeq: 0);
 
         GatewayConnectionEndpoint endpoint = new(
-            new SessionRegistry(), options, time,
+            new SessionRegistry(),
+            new GatewayConnectionEndpoint.TestOptions { Options = options, TimeProvider = time },
             NullLogger<GatewayConnectionEndpoint>.Instance);
 
         FakeClientWebSocket socket = new();
@@ -82,13 +83,14 @@ public sealed class HeartbeatAndReaperTests
 
         FeedableReader stdout = new();
         StringWriter stdin = new();
-        await using SessionHandler handler = new("s1", stdout, stdin, time);
+        await using SessionHandler handler = new("s1", new SessionHandlerTestOptions { Stdout = stdout, Stdin = stdin, TimeProvider = time });
 
         RecordingConnection connection = new();
         handler.Attach(connection, lastSeq: 0);
 
         GatewayConnectionEndpoint endpoint = new(
-            new SessionRegistry(), options, time,
+            new SessionRegistry(),
+            new GatewayConnectionEndpoint.TestOptions { Options = options, TimeProvider = time },
             NullLogger<GatewayConnectionEndpoint>.Instance);
 
         FakeClientWebSocket socket = new();
@@ -145,7 +147,7 @@ public sealed class HeartbeatAndReaperTests
 
         FeedableReader stdout = new();
         StringWriter stdin = new();
-        SessionHandler handler = new("s1", stdout, stdin, time);
+        SessionHandler handler = new("s1", new SessionHandlerTestOptions { Stdout = stdout, Stdin = stdin, TimeProvider = time });
         registry.Register("s1", handler);
 
         // Detach so the grace timer starts.
@@ -185,7 +187,7 @@ public sealed class HeartbeatAndReaperTests
 
         FeedableReader stdout = new();
         StringWriter stdin = new();
-        await using SessionHandler handler = new("s1", stdout, stdin, time);
+        await using SessionHandler handler = new("s1", new SessionHandlerTestOptions { Stdout = stdout, Stdin = stdin, TimeProvider = time });
         registry.Register("s1", handler);
 
         RecordingConnection conn = new();
@@ -223,7 +225,7 @@ public sealed class HeartbeatAndReaperTests
 
         FeedableReader stdout = new();
         StringWriter stdin = new();
-        SessionHandler handler = new("s1", stdout, stdin, time);
+        SessionHandler handler = new("s1", new SessionHandlerTestOptions { Stdout = stdout, Stdin = stdin, TimeProvider = time });
         registry.Register("s1", handler);
 
         // Attach, then feed a turnStart to put a turn in flight.
@@ -270,7 +272,7 @@ public sealed class HeartbeatAndReaperTests
 
         FeedableReader stdout = new();
         StringWriter stdin = new();
-        SessionHandler handler = new("s1", stdout, stdin, time);
+        SessionHandler handler = new("s1", new SessionHandlerTestOptions { Stdout = stdout, Stdin = stdin, TimeProvider = time });
         registry.Register("s1", handler);
 
         RecordingConnection conn = new();
@@ -310,9 +312,9 @@ public sealed class HeartbeatAndReaperTests
 
         FeedableReader stdout1 = new(), stdout2 = new(), stdout3 = new();
         StringWriter stdin1 = new(), stdin2 = new(), stdin3 = new();
-        await using SessionHandler h1 = new("s1", stdout1, stdin1);
-        await using SessionHandler h2 = new("s2", stdout2, stdin2);
-        await using SessionHandler h3 = new("s3", stdout3, stdin3);
+        await using SessionHandler h1 = new("s1", new SessionHandlerTestOptions { Stdout = stdout1, Stdin = stdin1 });
+        await using SessionHandler h2 = new("s2", new SessionHandlerTestOptions { Stdout = stdout2, Stdin = stdin2 });
+        await using SessionHandler h3 = new("s3", new SessionHandlerTestOptions { Stdout = stdout3, Stdin = stdin3 });
 
         const int cap = 2;
 
@@ -337,8 +339,8 @@ public sealed class HeartbeatAndReaperTests
 
         FeedableReader stdout1 = new(), stdout2 = new();
         StringWriter stdin1 = new(), stdin2 = new();
-        await using SessionHandler h1a = new("s1", stdout1, stdin1);
-        await using SessionHandler h1b = new("s1", stdout2, stdin2);
+        await using SessionHandler h1a = new("s1", new SessionHandlerTestOptions { Stdout = stdout1, Stdin = stdin1 });
+        await using SessionHandler h1b = new("s1", new SessionHandlerTestOptions { Stdout = stdout2, Stdin = stdin2 });
 
         const int cap = 1;
 
@@ -360,7 +362,7 @@ public sealed class HeartbeatAndReaperTests
     {
         FeedableReader stdout = new();
         StringWriter stdin = new();
-        await using SessionHandler handler = new("s1", stdout, stdin);
+        await using SessionHandler handler = new("s1", new SessionHandlerTestOptions { Stdout = stdout, Stdin = stdin });
 
         Assert.False(handler.IsTurnInFlight);
 
@@ -384,7 +386,7 @@ public sealed class HeartbeatAndReaperTests
     {
         FeedableReader stdout = new();
         StringWriter stdin = new();
-        await using SessionHandler handler = new("s1", stdout, stdin);
+        await using SessionHandler handler = new("s1", new SessionHandlerTestOptions { Stdout = stdout, Stdin = stdin });
 
         stdout.Feed("""{"type":"turnStart","sessionId":"s1"}""");
         await WaitForConditionAsync(() => handler.IsTurnInFlight, TimeSpan.FromSeconds(5));
@@ -401,7 +403,7 @@ public sealed class HeartbeatAndReaperTests
     {
         FeedableReader stdout = new();
         StringWriter stdin = new();
-        await using SessionHandler handler = new("s1", stdout, stdin);
+        await using SessionHandler handler = new("s1", new SessionHandlerTestOptions { Stdout = stdout, Stdin = stdin });
 
         stdout.Feed("""{"type":"turnStart","sessionId":"s1"}""");
         await WaitForConditionAsync(() => handler.IsTurnInFlight, TimeSpan.FromSeconds(5));
@@ -422,7 +424,7 @@ public sealed class HeartbeatAndReaperTests
         FakeTimeProvider time = new();
         FeedableReader stdout = new();
         StringWriter stdin = new();
-        await using SessionHandler handler = new("s1", stdout, stdin, time);
+        await using SessionHandler handler = new("s1", new SessionHandlerTestOptions { Stdout = stdout, Stdin = stdin, TimeProvider = time });
 
         Assert.Null(handler.DetachedAt); // starts with null: no connection was ever attached
 
@@ -494,6 +496,8 @@ public sealed class HeartbeatAndReaperTests
         private readonly Lock _gate = new();
         private TaskCompletionSource _signal =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public string? KeyId => null;
 
         public IReadOnlyList<string> Frames
         {

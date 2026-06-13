@@ -34,6 +34,7 @@ public sealed class SessionHandler : IAsyncDisposable
     private readonly TextReader _stdout;
     private readonly TextWriter _stdin;
     private readonly TimeProvider _timeProvider;
+    private readonly DeviceConnectionIndex _connectionIndex;
 
     // Guards _connection, _seqLog, _headSeq, _sentSeq, _admittedIds,
     // _isTurnInFlight, _detachedAt, and _outstanding together.
@@ -146,19 +147,22 @@ public sealed class SessionHandler : IAsyncDisposable
 
     /// <param name="sessionId">Stable identifier for this session.</param>
     /// <param name="coreSession">An already-started, protocol-gated core session.</param>
-    public SessionHandler(string sessionId, CoreSession coreSession)
-        : this(sessionId, coreSession, TimeProvider.System)
+    /// <param name="connectionIndex">Cross-session index for keyId → live connections.</param>
+    internal SessionHandler(string sessionId, CoreSession coreSession, DeviceConnectionIndex connectionIndex)
+        : this(sessionId, coreSession, connectionIndex, TimeProvider.System)
     {
     }
 
     /// <param name="sessionId">Stable identifier for this session.</param>
     /// <param name="coreSession">An already-started, protocol-gated core session.</param>
+    /// <param name="connectionIndex">Cross-session index for keyId → live connections.</param>
     /// <param name="timeProvider">Time provider for detached-timestamp recording.</param>
-    public SessionHandler(string sessionId, CoreSession coreSession, TimeProvider timeProvider)
+    internal SessionHandler(string sessionId, CoreSession coreSession, DeviceConnectionIndex connectionIndex, TimeProvider timeProvider)
     {
         SessionId = sessionId;
         _coreSession = coreSession;
         _timeProvider = timeProvider;
+        _connectionIndex = connectionIndex;
         _stdout = coreSession.Process.StandardOutput;
         _stdin = coreSession.Process.StandardInput;
         _pumpTask = RunPumpAsync(_pumpCts.Token);
@@ -166,24 +170,17 @@ public sealed class SessionHandler : IAsyncDisposable
 
     /// <summary>
     /// Test seam: drives the pump from arbitrary stdout/stdin streams without spawning a process.
+    /// Pass a <see cref="SessionHandlerTestOptions"/> to override streams, the shared
+    /// <see cref="DeviceConnectionIndex"/>, and/or the <see cref="TimeProvider"/>.
     /// </summary>
-    internal SessionHandler(string sessionId, TextReader stdout, TextWriter stdin)
-        : this(sessionId, stdout, stdin, TimeProvider.System)
-    {
-    }
-
-    /// <summary>
-    /// Test seam: drives the pump from arbitrary stdout/stdin streams without spawning a process.
-    /// Accepts an explicit <paramref name="timeProvider"/> so tests can use
-    /// <c>FakeTimeProvider</c> to control detached timestamps deterministically.
-    /// </summary>
-    internal SessionHandler(string sessionId, TextReader stdout, TextWriter stdin, TimeProvider timeProvider)
+    internal SessionHandler(string sessionId, SessionHandlerTestOptions options)
     {
         SessionId = sessionId;
         _coreSession = null;
-        _timeProvider = timeProvider;
-        _stdout = stdout;
-        _stdin = stdin;
+        _timeProvider = options.TimeProvider;
+        _connectionIndex = options.ConnectionIndex;
+        _stdout = options.Stdout;
+        _stdin = options.Stdin;
         _pumpTask = RunPumpAsync(_pumpCts.Token);
     }
 
@@ -219,6 +216,14 @@ public sealed class SessionHandler : IAsyncDisposable
             _detachedAt = null;
             // Clamp: a lastSeq below 0 or above headSeq is bounded defensively.
             _sentSeq = Math.Clamp(lastSeq, 0L, _headSeq);
+
+            // Maintain the cross-session keyId index atomically with the _connection swap:
+            // add the new connection and remove the evicted one in the same lock scope so the
+            // index never reflects both simultaneously and never misses either.
+            if (connection.KeyId is not null)
+                _connectionIndex.Add(connection.KeyId, connection);
+            if (evicted is not null && evicted.KeyId is not null)
+                _connectionIndex.Remove(evicted.KeyId, evicted);
 
             // Re-surface outstanding permission requests the client already advanced past.
             //
@@ -265,9 +270,20 @@ public sealed class SessionHandler : IAsyncDisposable
     /// This identity guard prevents an evicted loop's cleanup from clobbering the new connection
     /// (Group 6 / 6.3). The handler and its core process remain alive; subsequent core stdout
     /// lines are buffered for the next attach.
+    ///
+    /// The index removal is NOT guarded by the identity check: every connection added to the
+    /// index at its own Attach must be removed when its forwarding loop exits and calls
+    /// Detach(itself). The Attach path already removed the evicted connection from the index
+    /// atomically, so Remove is idempotent and the evicted loop's Detach call is a safe no-op.
     /// </summary>
     public void Detach(IGatewayConnection connection)
     {
+        // Remove from the cross-session index unconditionally — independent of the identity guard
+        // below. Each Attach adds the connection; each Detach (whether current or evicted) removes
+        // it. DeviceConnectionIndex.Remove is idempotent so double-removal is safe.
+        if (connection.KeyId is not null)
+            _connectionIndex.Remove(connection.KeyId, connection);
+
         lock (_lock)
         {
             if (ReferenceEquals(_connection, connection))
@@ -604,4 +620,22 @@ public sealed class SessionHandler : IAsyncDisposable
             }
         }
     }
+}
+
+/// <summary>
+/// Collaborator bag for the <see cref="SessionHandler(string,SessionHandlerTestOptions)"/>
+/// test constructor. Every member defaults to a safe no-op value; tests override only what
+/// the exercised path actually touches.
+///
+/// <see cref="ConnectionIndex"/> intentionally has no cross-test shared default — each record
+/// instance gets its own fresh index. Cross-session tests that need to verify shared key
+/// tracking must pass an explicit shared instance:
+/// <c>new SessionHandlerTestOptions { ConnectionIndex = sharedIndex, ... }</c>.
+/// </summary>
+internal sealed record SessionHandlerTestOptions
+{
+    public TextReader Stdout { get; init; } = TextReader.Null;
+    public TextWriter Stdin { get; init; } = TextWriter.Null;
+    public DeviceConnectionIndex ConnectionIndex { get; init; } = new();
+    public TimeProvider TimeProvider { get; init; } = TimeProvider.System;
 }

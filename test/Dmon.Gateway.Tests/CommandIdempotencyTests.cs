@@ -28,7 +28,7 @@ public sealed class CommandIdempotencyTests
         const string cmd = """{"id":"req-1","type":"run","prompt":"hello"}""";
 
         CapturingWriter stdin = new();
-        await using SessionHandler handler = new("s1", new NeverReadingReader(), stdin);
+        await using SessionHandler handler = new("s1", new SessionHandlerTestOptions { Stdout = new NeverReadingReader(), Stdin = stdin });
 
         FakeSocket socket = new();
         socket.QueueText(cmd);
@@ -57,7 +57,7 @@ public sealed class CommandIdempotencyTests
         const string cmd = """{"id":"dup-1","type":"run","prompt":"hello"}""";
 
         CapturingWriter stdin = new();
-        await using SessionHandler handler = new("s2", new NeverReadingReader(), stdin);
+        await using SessionHandler handler = new("s2", new SessionHandlerTestOptions { Stdout = new NeverReadingReader(), Stdin = stdin });
 
         FakeSocket socket = new();
         socket.QueueText(cmd);
@@ -90,7 +90,7 @@ public sealed class CommandIdempotencyTests
         const string cmd2 = """{"id":"b","type":"run","prompt":"two"}""";
 
         CapturingWriter stdin = new();
-        await using SessionHandler handler = new("s3", new NeverReadingReader(), stdin);
+        await using SessionHandler handler = new("s3", new SessionHandlerTestOptions { Stdout = new NeverReadingReader(), Stdin = stdin });
 
         FakeSocket socket = new();
         socket.QueueText(cmd1);
@@ -124,7 +124,7 @@ public sealed class CommandIdempotencyTests
         const string cmd = """{"id":"cross-1","type":"run","prompt":"hi"}""";
 
         CapturingWriter stdin = new();
-        await using SessionHandler handler = new("s4", new NeverReadingReader(), stdin);
+        await using SessionHandler handler = new("s4", new SessionHandlerTestOptions { Stdout = new NeverReadingReader(), Stdin = stdin });
 
         // --- First connection: admit the command ---
         FakeSocket socket1 = new();
@@ -160,12 +160,16 @@ public sealed class CommandIdempotencyTests
     // -------------------------------------------------------------------------
 
     private static GatewayConnectionEndpoint MakeEndpoint() =>
-        new(new SessionRegistry(), NullLogger<GatewayConnectionEndpoint>.Instance);
+        new(new SessionRegistry(),
+            new GatewayConnectionEndpoint.TestOptions(),
+            NullLogger<GatewayConnectionEndpoint>.Instance);
 
     private sealed class RecordingConnection : IGatewayConnection
     {
         private readonly List<string> _frames = [];
         private readonly Lock _gate = new();
+
+        public string? KeyId => null;
 
         public IReadOnlyList<string> Frames
         {

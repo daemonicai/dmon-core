@@ -1,18 +1,21 @@
+using System.Collections.Immutable;
+using System.Security.Cryptography;
+using System.Text;
 using Dmon.Gateway;
+using Dmon.Gateway.DeviceKeys;
 using Dmon.Gateway.Sessions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
 
 namespace Dmon.Gateway.Tests;
 
 /// <summary>
-/// Group 9 — Tailscale-fronted auth.
+/// Auth and bind tests.
 ///
 /// 9.1 GatewayBindPolicy: loopback-by-default; wildcard always rejected; specific non-loopback
 ///     needs AllowNonLoopbackBind=true.
-/// 9.2 SharedKeyAuthenticator: constant-time bearer-key validation.
-/// 9.2 GatewayConnectionEndpoint.HandleAsync: 401 before socket open when key mismatch.
+/// 3.3 DeviceKeyAuthenticator via GatewayConnectionEndpoint.HandleAsync: 401 before socket
+///     open when auth fails; empty set authorizes regardless.
 /// </summary>
 public sealed class AuthAndBindTests
 {
@@ -128,71 +131,40 @@ public sealed class AuthAndBindTests
     }
 
     // -------------------------------------------------------------------------
-    // 9.2 — SharedKeyAuthenticator
-    // -------------------------------------------------------------------------
-
-    [Theory]
-    [InlineData(null, null)]
-    [InlineData("", null)]
-    [InlineData("   ", null)]
-    [InlineData(null, "Bearer anything")]
-    [InlineData("   ", "Bearer anything")]
-    public void SharedKey_Disabled_Authorized_Regardless(string? sharedKey, string? header)
-    {
-        Assert.True(SharedKeyAuthenticator.IsAuthorized(header, sharedKey));
-    }
-
-    [Fact]
-    public void SharedKey_Disabled_Authorized_WithNoHeader()
-    {
-        Assert.True(SharedKeyAuthenticator.IsAuthorized(authorizationHeader: null, sharedKey: null));
-    }
-
-    [Fact]
-    public void SharedKey_Enabled_CorrectBearer_Authorized()
-    {
-        Assert.True(SharedKeyAuthenticator.IsAuthorized("Bearer s3cr3t", "s3cr3t"));
-    }
-
-    [Fact]
-    public void SharedKey_Enabled_BearerCaseInsensitive_Authorized()
-    {
-        Assert.True(SharedKeyAuthenticator.IsAuthorized("bearer s3cr3t", "s3cr3t"));
-        Assert.True(SharedKeyAuthenticator.IsAuthorized("BEARER s3cr3t", "s3cr3t"));
-    }
-
-    [Fact]
-    public void SharedKey_Enabled_WrongKey_NotAuthorized()
-    {
-        Assert.False(SharedKeyAuthenticator.IsAuthorized("Bearer wrong", "s3cr3t"));
-    }
-
-    [Fact]
-    public void SharedKey_Enabled_MissingHeader_NotAuthorized()
-    {
-        Assert.False(SharedKeyAuthenticator.IsAuthorized(authorizationHeader: null, sharedKey: "s3cr3t"));
-    }
-
-    [Theory]
-    [InlineData("Basic dXNlcjpwYXNz")]
-    [InlineData("s3cr3t")]
-    [InlineData("")]
-    [InlineData("Bearer ")]
-    public void SharedKey_Enabled_MalformedOrWrongScheme_NotAuthorized(string header)
-    {
-        Assert.False(SharedKeyAuthenticator.IsAuthorized(header, "s3cr3t"));
-    }
-
-    // -------------------------------------------------------------------------
-    // 9.2 — HandleAsync: 401 before socket when auth fails
+    // 3.3 — HandleAsync: 401 before socket when device-key auth fails
     // -------------------------------------------------------------------------
 
     [Fact]
-    public async Task HandleAsync_MissingHeader_WithSharedKey_Returns401()
+    public async Task HandleAsync_EmptyKeySet_NoHeader_PassesAuthCheck()
     {
-        GatewayConnectionEndpoint endpoint = MakeEndpointWithKey("s3cr3t");
+        // Empty set → auth disabled; falls through to IsWebSocketRequest check (400, not 401).
+        GatewayConnectionEndpoint endpoint = MakeEndpoint(DeviceKeySet.Empty);
         DefaultHttpContext context = new();
-        // No Authorization header set.
+
+        await endpoint.HandleAsync(context);
+
+        Assert.NotEqual(StatusCodes.Status401Unauthorized, context.Response.StatusCode);
+    }
+
+    [Fact]
+    public async Task HandleAsync_EmptyKeySet_WithHeader_PassesAuthCheck()
+    {
+        GatewayConnectionEndpoint endpoint = MakeEndpoint(DeviceKeySet.Empty);
+        DefaultHttpContext context = new();
+        context.Request.Headers.Authorization = "Bearer anything";
+
+        await endpoint.HandleAsync(context);
+
+        Assert.NotEqual(StatusCodes.Status401Unauthorized, context.Response.StatusCode);
+    }
+
+    [Fact]
+    public async Task HandleAsync_NonEmptySet_MissingHeader_Returns401()
+    {
+        DeviceKeySet set = MakeSet(("k1", "s3cr3t"));
+        GatewayConnectionEndpoint endpoint = MakeEndpoint(set);
+        DefaultHttpContext context = new();
+        // No Authorization header.
 
         await endpoint.HandleAsync(context);
 
@@ -200,11 +172,12 @@ public sealed class AuthAndBindTests
     }
 
     [Fact]
-    public async Task HandleAsync_WrongKey_WithSharedKey_Returns401()
+    public async Task HandleAsync_NonEmptySet_WrongToken_Returns401()
     {
-        GatewayConnectionEndpoint endpoint = MakeEndpointWithKey("s3cr3t");
+        DeviceKeySet set = MakeSet(("k1", "s3cr3t"));
+        GatewayConnectionEndpoint endpoint = MakeEndpoint(set);
         DefaultHttpContext context = new();
-        context.Request.Headers.Authorization = "Bearer wrong-key";
+        context.Request.Headers.Authorization = "Bearer wrong-token";
 
         await endpoint.HandleAsync(context);
 
@@ -212,12 +185,11 @@ public sealed class AuthAndBindTests
     }
 
     [Fact]
-    public async Task HandleAsync_CorrectKey_WithSharedKey_PassesAuthCheck()
+    public async Task HandleAsync_NonEmptySet_CorrectToken_PassesAuthCheck()
     {
-        // After auth passes, HandleAsync falls through to the IsWebSocketRequest check.
-        // DefaultHttpContext has no WebSocket infrastructure so IsWebSocketRequest returns false → 400.
-        // The critical assertion is that it is NOT 401 (auth passed).
-        GatewayConnectionEndpoint endpoint = MakeEndpointWithKey("s3cr3t");
+        // Auth passes → falls through to IsWebSocketRequest (400 non-WS context, not 401).
+        DeviceKeySet set = MakeSet(("k1", "s3cr3t"));
+        GatewayConnectionEndpoint endpoint = MakeEndpoint(set);
         DefaultHttpContext context = new();
         context.Request.Headers.Authorization = "Bearer s3cr3t";
 
@@ -226,44 +198,52 @@ public sealed class AuthAndBindTests
         Assert.NotEqual(StatusCodes.Status401Unauthorized, context.Response.StatusCode);
     }
 
-    [Fact]
-    public async Task HandleAsync_NoSharedKey_NoHeader_PassesAuthCheck()
+    [Theory]
+    [InlineData("Basic dXNlcjpwYXNz")]
+    [InlineData("s3cr3t")]
+    [InlineData("")]
+    [InlineData("Bearer ")]
+    public async Task HandleAsync_NonEmptySet_MalformedOrWrongScheme_Returns401(string header)
     {
-        // When SharedKey is null the check is disabled; request falls through to 400.
-        GatewayConnectionEndpoint endpoint = MakeEndpointWithKey(sharedKey: null);
+        DeviceKeySet set = MakeSet(("k1", "s3cr3t"));
+        GatewayConnectionEndpoint endpoint = MakeEndpoint(set);
         DefaultHttpContext context = new();
+        context.Request.Headers.Authorization = header;
 
         await endpoint.HandleAsync(context);
 
-        Assert.NotEqual(StatusCodes.Status401Unauthorized, context.Response.StatusCode);
+        Assert.Equal(StatusCodes.Status401Unauthorized, context.Response.StatusCode);
     }
 
     // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------
 
-    private static GatewayConnectionEndpoint MakeEndpointWithKey(string? sharedKey)
-    {
-        GatewayOptions opts = new() { SharedKey = sharedKey };
-        LocalOptionsMonitor optsMon = new(opts);
+    /// <summary>Returns the lowercase-hex SHA-256 of <paramref name="token"/> (the stored form).</summary>
+    private static string HashToken(string token) =>
+        Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(token))).ToLowerInvariant();
 
-        return new GatewayConnectionEndpoint(
-            new SessionRegistry(),
-            optsMon,
-            TimeProvider.System,
+    private static DeviceKeySet MakeSet(params (string keyId, string token)[] entries)
+    {
+        ImmutableArray<DeviceCredential>.Builder builder = ImmutableArray.CreateBuilder<DeviceCredential>();
+        foreach ((string keyId, string token) in entries)
+        {
+            builder.Add(new DeviceCredential(
+                KeyId: keyId,
+                Name: keyId,
+                SecretHash: HashToken(token),
+                CreatedAt: DateTimeOffset.UtcNow,
+                RevokedAt: null));
+        }
+
+        return new DeviceKeySet(builder.ToImmutable());
+    }
+
+    private static GatewayConnectionEndpoint MakeEndpoint(DeviceKeySet keySet) =>
+        new(new SessionRegistry(),
+            new GatewayConnectionEndpoint.TestOptions
+            {
+                DeviceKeySetProvider = new DeviceKeySetProvider(keySet),
+            },
             NullLogger<GatewayConnectionEndpoint>.Instance);
-    }
-
-    private sealed class LocalOptionsMonitor : IOptionsMonitor<GatewayOptions>
-    {
-        private readonly GatewayOptions _value;
-
-        public LocalOptionsMonitor(GatewayOptions value) => _value = value;
-
-        public GatewayOptions CurrentValue => _value;
-
-        public GatewayOptions Get(string? name) => _value;
-
-        public IDisposable? OnChange(Action<GatewayOptions, string?> listener) => null;
-    }
 }

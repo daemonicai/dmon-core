@@ -60,12 +60,17 @@ public sealed class GatewayOptions
     public int CreateHandshakeTimeoutSeconds { get; set; } = 30;
 
     /// <summary>
-    /// Optional pre-shared key for defense-in-depth (D5 / ADR-012 Decision 12).
-    /// When <see langword="null"/> or empty, the shared-key check is disabled.
-    /// When set, every WebSocket upgrade must carry <c>Authorization: Bearer &lt;key&gt;</c>;
-    /// mismatches are rejected with HTTP 401 before a socket is opened.
+    /// Override for the device-key store directory.
+    /// When empty or not set, defaults to <c>~/.dmon/gateway/</c> (computed at startup).
+    /// The directory must contain <c>devices.json</c> (and will contain <c>lastseen.json</c>).
     /// </summary>
-    public string? SharedKey { get; set; }
+    public string DeviceKeyStoreDirectory { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Minimum seconds between last-seen timestamp writes for the same device key (group 7).
+    /// Prevents high-frequency writes on busy connections. Defaults to 60.
+    /// </summary>
+    public int LastSeenThrottleSeconds { get; set; } = 60;
 
     /// <summary>
     /// Allows binding to a specific non-loopback address (e.g. a Tailscale IP such as

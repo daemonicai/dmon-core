@@ -1,7 +1,10 @@
+using System.Collections.Immutable;
 using System.Net.WebSockets;
+using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Channels;
 using Dmon.Gateway;
+using Dmon.Gateway.DeviceKeys;
 using Dmon.Gateway.Sessions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -37,7 +40,7 @@ public sealed class GatewayIntegrationTests
         // Arrange: a handler backed by a controlled stdout reader.
         FeedableReader stdout = new();
         StringWriter stdin = new();
-        await using SessionHandler handler = new("s-replay", stdout, stdin);
+        await using SessionHandler handler = new("s-replay", new SessionHandlerTestOptions { Stdout = stdout, Stdin = stdin });
 
         // Feed four events so they accumulate in the seq log before any attach.
         stdout.Feed("""{"event":"e1"}""");
@@ -88,7 +91,7 @@ public sealed class GatewayIntegrationTests
     {
         FeedableReader stdout = new();
         StringWriter stdin = new();
-        await using SessionHandler handler = new("s-full-replay", stdout, stdin);
+        await using SessionHandler handler = new("s-full-replay", new SessionHandlerTestOptions { Stdout = stdout, Stdin = stdin });
 
         int n = 5;
         for (int i = 1; i <= n; i++)
@@ -133,7 +136,7 @@ public sealed class GatewayIntegrationTests
         const string cmd = """{"id":"req-dedup","type":"run","prompt":"hello"}""";
 
         CapturingWriter stdin = new();
-        await using SessionHandler handler = new("s-dedup", new NeverReadingReader(), stdin);
+        await using SessionHandler handler = new("s-dedup", new SessionHandlerTestOptions { Stdout = new NeverReadingReader(), Stdin = stdin });
 
         GatewayConnectionEndpoint endpoint = MakeEndpoint();
 
@@ -192,7 +195,7 @@ public sealed class GatewayIntegrationTests
         // Not await using: the reaper takes ownership and disposes on removal.
         FeedableReader stdout = new();
         StringWriter stdin = new();
-        SessionHandler handler = new("s-inflight", stdout, stdin, time);
+        SessionHandler handler = new("s-inflight", new SessionHandlerTestOptions { Stdout = stdout, Stdin = stdin, TimeProvider = time });
         registry.Register("s-inflight", handler);
 
         // Feed a turnStart so IsTurnInFlight = true.
@@ -237,7 +240,7 @@ public sealed class GatewayIntegrationTests
         // Not await using: the reaper disposes on removal.
         FeedableReader stdout = new();
         StringWriter stdin = new();
-        SessionHandler handler = new("s-idle", stdout, stdin, time);
+        SessionHandler handler = new("s-idle", new SessionHandlerTestOptions { Stdout = stdout, Stdin = stdin, TimeProvider = time });
         registry.Register("s-idle", handler);
 
         RecordingConnection conn = new();
@@ -279,7 +282,7 @@ public sealed class GatewayIntegrationTests
         const string command = """{"id":"req-evict","type":"run","prompt":"should not reach core"}""";
 
         CapturingWriter stdin = new();
-        await using SessionHandler handler = new("s-evict", new NeverReadingReader(), stdin);
+        await using SessionHandler handler = new("s-evict", new SessionHandlerTestOptions { Stdout = new NeverReadingReader(), Stdin = stdin });
 
         GatewayConnectionEndpoint endpoint = MakeEndpoint();
 
@@ -320,12 +323,12 @@ public sealed class GatewayIntegrationTests
     }
 
     // =========================================================================
-    // 11.3b — Shared-key mismatch yields HTTP 401 before socket opened
+    // 11.3b — Device-key mismatch yields HTTP 401 before socket opened
     // =========================================================================
 
     /// <summary>
-    /// 11.3b — When <see cref="GatewayOptions.SharedKey"/> is configured and the client sends
-    /// a wrong (or missing) <c>Authorization</c> header, <see cref="GatewayConnectionEndpoint.HandleAsync"/>
+    /// 11.3b — When the device-key set is non-empty and the client sends a wrong (or missing)
+    /// <c>Authorization</c> header, <see cref="GatewayConnectionEndpoint.HandleAsync"/>
     /// responds with HTTP 401 <em>before</em> opening a WebSocket, preserving the §9 security
     /// boundary.
     ///
@@ -333,9 +336,9 @@ public sealed class GatewayIntegrationTests
     /// </summary>
     [Theory]
     [InlineData(null)]                  // no header
-    [InlineData("Bearer wrong-key")]    // wrong key
+    [InlineData("Bearer wrong-key")]    // wrong token
     [InlineData("Basic dXNlcjpwYXNz")] // wrong scheme
-    public async Task SharedKeyMismatch_Returns401_NoSocketOpened(string? authorizationHeader)
+    public async Task DeviceKeyMismatch_Returns401_NoSocketOpened(string? authorizationHeader)
     {
         GatewayConnectionEndpoint endpoint = MakeEndpointWithKey("correct-key");
         DefaultHttpContext context = new();
@@ -349,13 +352,13 @@ public sealed class GatewayIntegrationTests
     }
 
     /// <summary>
-    /// 11.3b (control) — With no shared key configured the 401 check is disabled,
+    /// 11.3b (control) — With an empty key set auth is disabled,
     /// so the request falls through to the non-WebSocket check (400).
     /// </summary>
     [Fact]
-    public async Task NoSharedKey_NoHeader_AuthCheckDisabled()
+    public async Task EmptyKeySet_NoHeader_AuthCheckDisabled()
     {
-        GatewayConnectionEndpoint endpoint = MakeEndpointWithKey(sharedKey: null);
+        GatewayConnectionEndpoint endpoint = MakeEndpointWithKey(token: null);
         DefaultHttpContext context = new();
 
         await endpoint.HandleAsync(context);
@@ -407,15 +410,32 @@ public sealed class GatewayIntegrationTests
     // =========================================================================
 
     private static GatewayConnectionEndpoint MakeEndpoint() =>
-        new(new SessionRegistry(), NullLogger<GatewayConnectionEndpoint>.Instance);
+        new(new SessionRegistry(),
+            new GatewayConnectionEndpoint.TestOptions(),
+            NullLogger<GatewayConnectionEndpoint>.Instance);
 
-    private static GatewayConnectionEndpoint MakeEndpointWithKey(string? sharedKey)
+    /// <summary>
+    /// Builds an endpoint whose device-key set contains a single entry for <paramref name="token"/>,
+    /// or is empty when <paramref name="token"/> is <see langword="null"/> (auth disabled).
+    /// </summary>
+    private static GatewayConnectionEndpoint MakeEndpointWithKey(string? token)
     {
-        GatewayOptions opts = new() { SharedKey = sharedKey };
+        DeviceKeySet keySet = token is null
+            ? DeviceKeySet.Empty
+            : new DeviceKeySet(ImmutableArray.Create(new DeviceCredential(
+                KeyId: "test-key",
+                Name: "test-key",
+                SecretHash: Convert.ToHexString(
+                    SHA256.HashData(Encoding.UTF8.GetBytes(token))).ToLowerInvariant(),
+                CreatedAt: DateTimeOffset.UtcNow,
+                RevokedAt: null)));
+
         return new GatewayConnectionEndpoint(
             new SessionRegistry(),
-            new StaticOptionsMonitor(opts),
-            TimeProvider.System,
+            new GatewayConnectionEndpoint.TestOptions
+            {
+                DeviceKeySetProvider = new DeviceKeySetProvider(keySet),
+            },
             NullLogger<GatewayConnectionEndpoint>.Instance);
     }
 
@@ -458,6 +478,8 @@ public sealed class GatewayIntegrationTests
         private readonly Lock _gate = new();
         private TaskCompletionSource _signal = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private bool _aborted;
+
+        public string? KeyId => null;
 
         public IReadOnlyList<string> Frames
         {

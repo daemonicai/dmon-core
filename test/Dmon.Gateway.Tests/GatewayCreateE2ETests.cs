@@ -11,7 +11,6 @@ using Dmon.Protocol.Events;
 using Dmon.Protocol.Gateway;
 using Dmon.Runtime;
 using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
 
 namespace Dmon.Gateway.Tests;
 
@@ -298,7 +297,7 @@ public sealed class GatewayCreateE2ETests
         // Pre-fill the registry to the cap (MaxConcurrentHandlers = 1).
         SessionRegistry registry = new();
         FeedableReader existingStdout = new();
-        await using SessionHandler existingHandler = new(existingSessionId, existingStdout, new StringWriter());
+        await using SessionHandler existingHandler = new(existingSessionId, new SessionHandlerTestOptions { Stdout = existingStdout, Stdin = new StringWriter() });
         bool preRegistered = registry.TryRegister(existingSessionId, existingHandler, maxConcurrentHandlers: 1);
         Assert.True(preRegistered, "pre-registration must succeed");
         Assert.Equal(1, registry.Count);
@@ -358,12 +357,14 @@ public sealed class GatewayCreateE2ETests
 
         return new GatewayConnectionEndpoint(
             registry,
-            launcher,
-            new PassthroughProfileResolver(),
-            new EffectiveProfileSetResolver(),
-            paths,
-            new StaticOptionsMonitor(opts),
-            TimeProvider.System,
+            new GatewayConnectionEndpoint.TestOptions
+            {
+                CoreLauncher = launcher,
+                ProfileResolver = new PassthroughProfileResolver(),
+                EffectiveProfileSetResolver = new EffectiveProfileSetResolver(),
+                ProfilePaths = paths,
+                Options = new GatewayConnectionEndpoint.StaticOptionsMonitor(opts),
+            },
             NullLogger<GatewayConnectionEndpoint>.Instance);
     }
 
@@ -523,16 +524,6 @@ public sealed class GatewayCreateE2ETests
                 PermissionMode.Coding));
     }
 
-    /// <summary>Minimal <see cref="IOptionsMonitor{T}"/> backed by a static value.</summary>
-    private sealed class StaticOptionsMonitor : IOptionsMonitor<GatewayOptions>
-    {
-        private readonly GatewayOptions _value;
-        public StaticOptionsMonitor(GatewayOptions value) => _value = value;
-        public GatewayOptions CurrentValue => _value;
-        public GatewayOptions Get(string? name) => _value;
-        public IDisposable? OnChange(Action<GatewayOptions, string?> listener) => null;
-    }
-
     /// <summary>
     /// Records frames in delivery order and lets a test await a target count.
     /// </summary>
@@ -541,6 +532,8 @@ public sealed class GatewayCreateE2ETests
         private readonly List<string> _frames = [];
         private readonly Lock _gate = new();
         private TaskCompletionSource _signal = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public string? KeyId => null;
 
         public IReadOnlyList<string> Frames
         {

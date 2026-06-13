@@ -28,7 +28,7 @@ public sealed class PermissionParkingTests
     {
         FeedableReader stdout = new();
         StringWriter stdin = new();
-        await using SessionHandler handler = new("s1", stdout, stdin);
+        await using SessionHandler handler = new("s1", new SessionHandlerTestOptions { Stdout = stdout, Stdin = stdin });
 
         // No connection — emit turnStart then a confirmRequest while fully detached.
         stdout.Feed("""{"type":"turnStart","sessionId":"s1"}""");
@@ -54,7 +54,7 @@ public sealed class PermissionParkingTests
     {
         FeedableReader stdout = new();
         StringWriter stdin = new();
-        await using SessionHandler handler = new("s1", stdout, stdin);
+        await using SessionHandler handler = new("s1", new SessionHandlerTestOptions { Stdout = stdout, Stdin = stdin });
 
         // Start a turn and emit a confirmRequest.
         stdout.Feed("""{"type":"turnStart","sessionId":"s1"}""");
@@ -95,7 +95,7 @@ public sealed class PermissionParkingTests
     {
         FeedableReader stdout = new();
         StringWriter stdin = new();
-        await using SessionHandler handler = new("s1", stdout, stdin);
+        await using SessionHandler handler = new("s1", new SessionHandlerTestOptions { Stdout = stdout, Stdin = stdin });
 
         // Emit turnStart + confirmRequest while detached.
         stdout.Feed("""{"type":"turnStart","sessionId":"s1"}""");
@@ -128,7 +128,7 @@ public sealed class PermissionParkingTests
     {
         FeedableReader stdout = new();
         StringWriter stdin = new();
-        await using SessionHandler handler = new("s1", stdout, stdin);
+        await using SessionHandler handler = new("s1", new SessionHandlerTestOptions { Stdout = stdout, Stdin = stdin });
 
         stdout.Feed("""{"type":"turnStart","sessionId":"s1"}""");
         stdout.Feed("""{"type":"tool.confirmRequest","id":"req-004","tool":"bash"}""");
@@ -168,7 +168,7 @@ public sealed class PermissionParkingTests
     {
         FeedableReader stdout = new();
         StringWriter stdin = new();
-        await using SessionHandler handler = new("s1", stdout, stdin);
+        await using SessionHandler handler = new("s1", new SessionHandlerTestOptions { Stdout = stdout, Stdin = stdin });
 
         stdout.Feed("""{"type":"turnStart","sessionId":"s1"}""");
         stdout.Feed("""{"type":"tool.confirmRequest","id":"req-005","tool":"bash"}""");
@@ -210,7 +210,7 @@ public sealed class PermissionParkingTests
         FeedableReader stdout = new();
         StringWriter stdin = new();
         // Do NOT use await using — we call StopAsync explicitly to simulate the reaper.
-        SessionHandler handler = new("s1", stdout, stdin);
+        SessionHandler handler = new("s1", new SessionHandlerTestOptions { Stdout = stdout, Stdin = stdin });
 
         stdout.Feed("""{"type":"turnStart","sessionId":"s1"}""");
         stdout.Feed("""{"type":"tool.confirmRequest","id":"req-006","tool":"bash"}""");
@@ -244,7 +244,7 @@ public sealed class PermissionParkingTests
     {
         FeedableReader stdout = new();
         StringWriter stdin = new();
-        await using SessionHandler handler = new("s1", stdout, stdin);
+        await using SessionHandler handler = new("s1", new SessionHandlerTestOptions { Stdout = stdout, Stdin = stdin });
 
         stdout.Feed("""{"type":"turnStart","sessionId":"s1"}""");
         stdout.Feed("""{"type":"ui.inputRequest","id":"ui-001","prompt":"Your name?"}""");
@@ -280,7 +280,7 @@ public sealed class PermissionParkingTests
     {
         FeedableReader stdout = new();
         StringWriter stdin = new();
-        await using SessionHandler handler = new("s1", stdout, stdin);
+        await using SessionHandler handler = new("s1", new SessionHandlerTestOptions { Stdout = stdout, Stdin = stdin });
 
         stdout.Feed("""{"type":"turnStart","sessionId":"s1"}""");
         stdout.Feed("""{"type":"tool.confirmRequest","id":"r1","tool":"bash"}""");
@@ -348,6 +348,8 @@ public sealed class PermissionParkingTests
         private readonly List<string> _frames = [];
         private readonly Lock _gate = new();
         private TaskCompletionSource _signal = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public string? KeyId => null;
 
         public IReadOnlyList<string> Frames
         {

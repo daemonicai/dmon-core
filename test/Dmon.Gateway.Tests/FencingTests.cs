@@ -31,7 +31,7 @@ public sealed class FencingTests
 
         CapturingWriter stdin = new();
         NeverReadingReader stdout = new();
-        await using SessionHandler handler = new("fence-test", stdout, stdin);
+        await using SessionHandler handler = new("fence-test", new SessionHandlerTestOptions { Stdout = stdout, Stdin = stdin });
 
         // connA attaches first; capture its generation.
         RecordingConnection connA = new();
@@ -69,12 +69,16 @@ public sealed class FencingTests
     // -------------------------------------------------------------------------
 
     private static GatewayConnectionEndpoint NewEndpoint() =>
-        new(new SessionRegistry(), NullLogger<GatewayConnectionEndpoint>.Instance);
+        new(new SessionRegistry(),
+            new GatewayConnectionEndpoint.TestOptions(),
+            NullLogger<GatewayConnectionEndpoint>.Instance);
 
     private sealed class RecordingConnection : IGatewayConnection
     {
         private readonly List<string> _frames = [];
         private readonly Lock _gate = new();
+
+        public string? KeyId => null;
 
         public IReadOnlyList<string> Frames
         {

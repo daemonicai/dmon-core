@@ -7,6 +7,12 @@ namespace Dmon.Gateway.Sessions;
 public interface IGatewayConnection
 {
     /// <summary>
+    /// The device key id that authenticated this connection, or <c>null</c> when auth is
+    /// disabled (empty key set). Null connections are never indexed for revocation.
+    /// </summary>
+    string? KeyId { get; }
+
+    /// <summary>
     /// Sends one text frame (a raw JSONL event line) to the connected client.
     /// </summary>
     ValueTask SendAsync(string frame, CancellationToken cancellationToken);

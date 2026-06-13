@@ -23,7 +23,7 @@ public sealed class ForwardingLoopTests
 
         CapturingWriter stdin = new();
         NeverReadingReader stdout = new();
-        await using SessionHandler handler = new("loop-test", stdout, stdin);
+        await using SessionHandler handler = new("loop-test", new SessionHandlerTestOptions { Stdout = stdout, Stdin = stdin });
 
         // Client sends: one ADR-003 command, then a ping, then closes.
         FakeClientWebSocket socket = new();
@@ -34,6 +34,7 @@ public sealed class ForwardingLoopTests
         RecordingConnection connection = new();
         GatewayConnectionEndpoint endpoint = new(
             new SessionRegistry(),
+            new GatewayConnectionEndpoint.TestOptions(),
             NullLogger<GatewayConnectionEndpoint>.Instance);
 
         await endpoint.RunForwardingLoopForTestAsync(
@@ -57,7 +58,7 @@ public sealed class ForwardingLoopTests
 
         CapturingWriter stdin = new();
         NeverReadingReader stdout = new();
-        await using SessionHandler handler = new("numeric-id", stdout, stdin);
+        await using SessionHandler handler = new("numeric-id", new SessionHandlerTestOptions { Stdout = stdout, Stdin = stdin });
 
         FakeClientWebSocket socket = new();
         socket.QueueText(numericId);
@@ -83,7 +84,7 @@ public sealed class ForwardingLoopTests
 
         CapturingWriter stdin = new();
         NeverReadingReader stdout = new();
-        await using SessionHandler handler = new("numeric-gw", stdout, stdin);
+        await using SessionHandler handler = new("numeric-gw", new SessionHandlerTestOptions { Stdout = stdout, Stdin = stdin });
 
         FakeClientWebSocket socket = new();
         socket.QueueText(numericGw);
@@ -109,7 +110,7 @@ public sealed class ForwardingLoopTests
 
         CapturingWriter stdin = new();
         NeverReadingReader stdout = new();
-        await using SessionHandler handler = new("no-id", stdout, stdin);
+        await using SessionHandler handler = new("no-id", new SessionHandlerTestOptions { Stdout = stdout, Stdin = stdin });
 
         FakeClientWebSocket socket = new();
         socket.QueueText(noId);
@@ -137,7 +138,7 @@ public sealed class ForwardingLoopTests
         // Throws on the first write (dead stdin), succeeds and captures on subsequent writes.
         FailFirstWriter stdin = new();
         NeverReadingReader stdout = new();
-        await using SessionHandler handler = new("write-fail", stdout, stdin);
+        await using SessionHandler handler = new("write-fail", new SessionHandlerTestOptions { Stdout = stdout, Stdin = stdin });
 
         // First connection: command fails to reach the core.
         FakeClientWebSocket firstSocket = new();
@@ -175,7 +176,9 @@ public sealed class ForwardingLoopTests
     // -------------------------------------------------------------------------
 
     private static GatewayConnectionEndpoint NewEndpoint() =>
-        new(new SessionRegistry(), NullLogger<GatewayConnectionEndpoint>.Instance);
+        new(new SessionRegistry(),
+            new GatewayConnectionEndpoint.TestOptions(),
+            NullLogger<GatewayConnectionEndpoint>.Instance);
 
     /// <summary>
     /// A stdin writer that throws on its first write (simulating a transiently-dead core stdin),
@@ -209,6 +212,8 @@ public sealed class ForwardingLoopTests
     {
         private readonly List<string> _frames = [];
         private readonly Lock _gate = new();
+
+        public string? KeyId => null;
 
         public IReadOnlyList<string> Frames
         {
