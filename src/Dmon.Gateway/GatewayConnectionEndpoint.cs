@@ -4,6 +4,7 @@ using System.Text.Json;
 using Dmon.Abstractions.Profiles;
 using Dmon.Core.Config;
 using Dmon.Core.Profiles;
+using Dmon.Gateway.DeviceKeys;
 using Dmon.Gateway.Protocol;
 using Dmon.Gateway.Sessions;
 using Dmon.Protocol;
@@ -64,6 +65,7 @@ public sealed class GatewayConnectionEndpoint
     private readonly IAgentProfileResolver? _profileResolver;
     private readonly EffectiveProfileSetResolver? _effectiveProfileSetResolver;
     private readonly GatewayProfilePaths? _gatewayProfilePaths;
+    private readonly DeviceKeySetProvider _deviceKeySetProvider;
     private readonly IOptionsMonitor<GatewayOptions> _options;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<GatewayConnectionEndpoint> _logger;
@@ -79,12 +81,13 @@ public sealed class GatewayConnectionEndpoint
     // WebSocket close status 1009: message too big.
     private const WebSocketCloseStatus MessageTooBig = (WebSocketCloseStatus)1009;
 
-    public GatewayConnectionEndpoint(
+    internal GatewayConnectionEndpoint(
         SessionRegistry registry,
         ICoreLauncher coreLauncher,
         IAgentProfileResolver profileResolver,
         EffectiveProfileSetResolver effectiveProfileSetResolver,
         GatewayProfilePaths gatewayProfilePaths,
+        DeviceKeySetProvider deviceKeySetProvider,
         IOptionsMonitor<GatewayOptions> options,
         TimeProvider timeProvider,
         ILogger<GatewayConnectionEndpoint> logger)
@@ -94,67 +97,57 @@ public sealed class GatewayConnectionEndpoint
         _profileResolver = profileResolver;
         _effectiveProfileSetResolver = effectiveProfileSetResolver;
         _gatewayProfilePaths = gatewayProfilePaths;
+        _deviceKeySetProvider = deviceKeySetProvider;
         _options = options;
         _timeProvider = timeProvider;
         _logger = logger;
     }
 
     /// <summary>
-    /// Test constructor: injects a specific options monitor and time provider without a
-    /// <see cref="ICoreLauncher"/> or <see cref="IAgentProfileResolver"/> (for tests that do not
-    /// exercise session creation).
+    /// Test constructor: accepts a <see cref="TestOptions"/> bag so the five former
+    /// per-scenario overloads collapse into one entry point. Each property has a safe default;
+    /// callers only set the collaborators their test path actually exercises.
     /// </summary>
-    /// <remarks>
-    /// Not valid for create-flow tests — <c>_coreLauncher</c> and <c>_profileResolver</c> are
-    /// null and will throw on any path that calls
-    /// <see cref="ICoreLauncher.StartProtocolCompatibleCoreAsync"/> or validates a profile.
-    /// </remarks>
     internal GatewayConnectionEndpoint(
         SessionRegistry registry,
-        IOptionsMonitor<GatewayOptions> options,
-        TimeProvider timeProvider,
+        TestOptions options,
         ILogger<GatewayConnectionEndpoint> logger)
-        : this(registry, null!, null!, null!, null!, options, timeProvider, logger)
+        : this(
+            registry,
+            options.CoreLauncher!,
+            options.ProfileResolver!,
+            options.EffectiveProfileSetResolver!,
+            options.ProfilePaths!,
+            options.DeviceKeySetProvider,
+            options.Options,
+            options.TimeProvider,
+            logger)
     {
     }
 
     /// <summary>
-    /// Test constructor: uses a fixed <see cref="GatewayOptions"/> snapshot and
-    /// <see cref="TimeProvider.System"/> so legacy tests that only supply a registry and
-    /// logger continue to compile without modification.
+    /// Collaborator bag for the <see cref="GatewayConnectionEndpoint(SessionRegistry,TestOptions,ILogger{GatewayConnectionEndpoint})"/>
+    /// test constructor. Every member defaults to a safe no-op value; tests override only what
+    /// the exercised path actually touches.
     /// </summary>
     /// <remarks>
-    /// Not valid for create-flow tests — <c>_coreLauncher</c> and <c>_profileResolver</c> are
-    /// null and will throw on any path that calls
-    /// <see cref="ICoreLauncher.StartProtocolCompatibleCoreAsync"/> or validates a profile.
+    /// Members that remain <see langword="null"/> (launcher, resolver, paths) will throw a
+    /// <see cref="NullReferenceException"/> if a code path reaches them — which is intentional:
+    /// it proves the tested path exits before the spawn or profile-validation step.
     /// </remarks>
-    internal GatewayConnectionEndpoint(
-        SessionRegistry registry,
-        ILogger<GatewayConnectionEndpoint> logger)
-        : this(registry, null!, null!, null!, null!, new StaticOptionsMonitor(new GatewayOptions()), TimeProvider.System, logger)
+    internal sealed record TestOptions
     {
-    }
-
-    /// <summary>
-    /// Test constructor: supplies a real <see cref="IAgentProfileResolver"/> and
-    /// <see cref="EffectiveProfileSetResolver"/> so tests can exercise the profile-validation
-    /// and rejection paths inside <see cref="HandleCreateAsync"/> without spawning a real core.
-    /// <c>_coreLauncher</c> is set to <c>null!</c> — this ctor must only be used when the test
-    /// is asserting a path that returns BEFORE the spawn step (i.e. profile validation rejects).
-    /// </summary>
-    internal GatewayConnectionEndpoint(
-        SessionRegistry registry,
-        IAgentProfileResolver profileResolver,
-        EffectiveProfileSetResolver effectiveProfileSetResolver,
-        GatewayProfilePaths gatewayProfilePaths,
-        IOptionsMonitor<GatewayOptions> options,
-        ILogger<GatewayConnectionEndpoint> logger)
-        : this(registry, null!, profileResolver, effectiveProfileSetResolver, gatewayProfilePaths, options, TimeProvider.System, logger)
-    {
+        public DeviceKeySetProvider DeviceKeySetProvider { get; init; } = new(DeviceKeySet.Empty);
+        public IOptionsMonitor<GatewayOptions> Options { get; init; } = new StaticOptionsMonitor(new GatewayOptions());
+        public TimeProvider TimeProvider { get; init; } = TimeProvider.System;
+        public ICoreLauncher? CoreLauncher { get; init; }
+        public IAgentProfileResolver? ProfileResolver { get; init; }
+        public EffectiveProfileSetResolver? EffectiveProfileSetResolver { get; init; }
+        public GatewayProfilePaths? ProfilePaths { get; init; }
     }
 
     /// <summary>Minimal <see cref="IOptionsMonitor{T}"/> for test / default construction.</summary>
-    private sealed class StaticOptionsMonitor : IOptionsMonitor<GatewayOptions>
+    internal sealed class StaticOptionsMonitor : IOptionsMonitor<GatewayOptions>
     {
         private readonly GatewayOptions _value;
 
@@ -169,10 +162,12 @@ public sealed class GatewayConnectionEndpoint
 
     public async Task HandleAsync(HttpContext context)
     {
-        // 9.2 — Shared-key check: runs before IsWebSocketRequest so an unauthorized caller
+        // Auth check: runs before IsWebSocketRequest so an unauthorized caller
         // learns nothing about the endpoint (no upgrade attempted, no socket opened).
+        // Empty key set → auth disabled (Authorized == true, KeyId == null).
         string? authHeader = context.Request.Headers.Authorization;
-        if (!SharedKeyAuthenticator.IsAuthorized(authHeader, _options.CurrentValue.SharedKey))
+        DeviceAuthResult authResult = DeviceKeyAuthenticator.Authenticate(authHeader, _deviceKeySetProvider.Current);
+        if (!authResult.Authorized)
         {
             _logger.LogWarning("WebSocket upgrade rejected: missing or mismatched Authorization header.");
             context.Response.StatusCode = StatusCodes.Status401Unauthorized;

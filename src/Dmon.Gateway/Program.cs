@@ -2,6 +2,7 @@ using Dmon.Core.Config;
 using Dmon.Core.Profiles;
 using Dmon.Abstractions.Profiles;
 using Dmon.Gateway;
+using Dmon.Gateway.DeviceKeys;
 using Dmon.Gateway.Sessions;
 using Dmon.Runtime;
 
@@ -36,6 +37,41 @@ if (GatewayBindPolicy.IsNonLoopbackWithOptIn(
 }
 
 builder.WebHost.UseUrls(gatewayOptions.BindAddress);
+
+// --- Device-key store: resolve paths and load once at startup ---
+string deviceKeyStoreDir = string.IsNullOrEmpty(gatewayOptions.DeviceKeyStoreDirectory)
+    ? Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+        ".dmon", "gateway")
+    : gatewayOptions.DeviceKeyStoreDirectory;
+
+GatewayDeviceKeyPaths deviceKeyPaths = new(
+    DevicesPath: Path.Combine(deviceKeyStoreDir, "devices.json"),
+    LastSeenPath: Path.Combine(deviceKeyStoreDir, "lastseen.json"));
+
+DeviceKeySet startupKeySet;
+if (!File.Exists(deviceKeyPaths.DevicesPath))
+{
+    // Absent file → first-run state; auth disabled (fail-open on absent, fail-closed on malformed).
+    startupKeySet = DeviceKeySet.Empty;
+}
+else
+{
+    try
+    {
+        startupKeySet = await DeviceKeyStoreReader.ReadAsync(deviceKeyPaths.DevicesPath)
+            .ConfigureAwait(false);
+    }
+    catch (Exception ex)
+    {
+        Console.Error.WriteLine(
+            $"[dmon-gateway] FATAL: Failed to load device-key store '{deviceKeyPaths.DevicesPath}': {ex.Message}");
+        return 1;
+    }
+}
+
+builder.Services.AddSingleton(deviceKeyPaths);
+builder.Services.AddSingleton(new DeviceKeySetProvider(startupKeySet));
 
 // --- Core infrastructure (D6 — reuse Dmon.Runtime bootstrap) ---
 builder.Services.AddSingleton<ICoreLauncher, CoreLauncher>();

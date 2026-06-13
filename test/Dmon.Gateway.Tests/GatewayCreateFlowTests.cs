@@ -9,7 +9,6 @@ using Dmon.Gateway.Protocol;
 using Dmon.Gateway.Sessions;
 using Dmon.Protocol.Gateway;
 using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
 
 namespace Dmon.Gateway.Tests;
 
@@ -416,8 +415,8 @@ public sealed class GatewayCreateFlowTests
     /// Builds a <see cref="GatewayConnectionEndpoint"/> wired with a real
     /// <see cref="EffectiveProfileSetResolver"/> (default ctor reads from config files;
     /// non-existent paths return an empty set) and the supplied profile resolver.
-    /// <c>_coreLauncher</c> is <c>null!</c> — only valid for tests that assert rejection
-    /// paths that return before the spawn step.
+    /// <c>CoreLauncher</c> is <see langword="null"/> in the options — only valid for tests
+    /// that assert rejection paths that return before the spawn step.
     /// </summary>
     private static GatewayConnectionEndpoint MakeEndpointWithResolver(
         SessionRegistry registry,
@@ -430,10 +429,12 @@ public sealed class GatewayCreateFlowTests
 
         return new GatewayConnectionEndpoint(
             registry,
-            resolver,
-            new EffectiveProfileSetResolver(),
-            paths,
-            new StaticOptionsMonitor(new GatewayOptions()),
+            new GatewayConnectionEndpoint.TestOptions
+            {
+                ProfileResolver = resolver,
+                EffectiveProfileSetResolver = new EffectiveProfileSetResolver(),
+                ProfilePaths = paths,
+            },
             NullLogger<GatewayConnectionEndpoint>.Instance);
     }
 
@@ -471,16 +472,6 @@ public sealed class GatewayCreateFlowTests
                 modified = DateTimeOffset.UtcNow,
             },
         });
-
-    /// <summary>Minimal <see cref="IOptionsMonitor{T}"/> backed by a static value.</summary>
-    private sealed class StaticOptionsMonitor : IOptionsMonitor<GatewayOptions>
-    {
-        private readonly GatewayOptions _value;
-        public StaticOptionsMonitor(GatewayOptions value) => _value = value;
-        public GatewayOptions CurrentValue => _value;
-        public GatewayOptions Get(string? name) => _value;
-        public IDisposable? OnChange(Action<GatewayOptions, string?> listener) => null;
-    }
 
     /// <summary>
     /// Fake <see cref="IAgentProfileResolver"/> that always throws

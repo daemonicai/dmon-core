@@ -69,7 +69,9 @@ public sealed class FencingTests
     // -------------------------------------------------------------------------
 
     private static GatewayConnectionEndpoint NewEndpoint() =>
-        new(new SessionRegistry(), NullLogger<GatewayConnectionEndpoint>.Instance);
+        new(new SessionRegistry(),
+            new GatewayConnectionEndpoint.TestOptions(),
+            NullLogger<GatewayConnectionEndpoint>.Instance);
 
     private sealed class RecordingConnection : IGatewayConnection
     {

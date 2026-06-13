@@ -13,10 +13,10 @@
 
 ## 3. Options and config wiring
 
-- [ ] 3.1 Remove `GatewayOptions.SharedKey`; add `DeviceKeyStoreDirectory` (state-dir-relative default) and a last-seen throttle setting (default 60 s).
-- [ ] 3.2 Update `appsettings.json` (and the Release copy) to drop `SharedKey` and document the store directory.
-- [ ] 3.3 Wire `DeviceKeyAuthenticator` into the upgrade path in `GatewayConnectionEndpoint`/`Program.cs`, rejecting with HTTP 401 before any socket opens; remove the old scalar path.
-- [ ] 3.4 Update existing auth tests (`AuthAndBindTests`) to the device-key model (file-backed set in place of the scalar key).
+- [x] 3.1 Remove `GatewayOptions.SharedKey`; add `DeviceKeyStoreDirectory` (state-dir-relative default) and a last-seen throttle setting (default 60 s).
+- [x] 3.2 Update `appsettings.json` (and the Release copy) to drop `SharedKey` and document the store directory.
+- [x] 3.3 Wire `DeviceKeyAuthenticator` into the upgrade path in `GatewayConnectionEndpoint`/`Program.cs`, rejecting with HTTP 401 before any socket opens; remove the old scalar path.
+- [x] 3.4 Update existing auth tests (`AuthAndBindTests`) to the device-key model (file-backed set in place of the scalar key).
 
 ## 4. Hot reload with fail-closed-to-last-good
 

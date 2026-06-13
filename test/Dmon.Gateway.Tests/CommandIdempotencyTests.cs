@@ -160,7 +160,9 @@ public sealed class CommandIdempotencyTests
     // -------------------------------------------------------------------------
 
     private static GatewayConnectionEndpoint MakeEndpoint() =>
-        new(new SessionRegistry(), NullLogger<GatewayConnectionEndpoint>.Instance);
+        new(new SessionRegistry(),
+            new GatewayConnectionEndpoint.TestOptions(),
+            NullLogger<GatewayConnectionEndpoint>.Instance);
 
     private sealed class RecordingConnection : IGatewayConnection
     {

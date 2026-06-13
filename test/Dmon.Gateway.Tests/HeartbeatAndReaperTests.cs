@@ -34,7 +34,8 @@ public sealed class HeartbeatAndReaperTests
         handler.Attach(connection, lastSeq: 0);
 
         GatewayConnectionEndpoint endpoint = new(
-            new SessionRegistry(), options, time,
+            new SessionRegistry(),
+            new GatewayConnectionEndpoint.TestOptions { Options = options, TimeProvider = time },
             NullLogger<GatewayConnectionEndpoint>.Instance);
 
         FakeClientWebSocket socket = new();
@@ -88,7 +89,8 @@ public sealed class HeartbeatAndReaperTests
         handler.Attach(connection, lastSeq: 0);
 
         GatewayConnectionEndpoint endpoint = new(
-            new SessionRegistry(), options, time,
+            new SessionRegistry(),
+            new GatewayConnectionEndpoint.TestOptions { Options = options, TimeProvider = time },
             NullLogger<GatewayConnectionEndpoint>.Instance);
 
         FakeClientWebSocket socket = new();

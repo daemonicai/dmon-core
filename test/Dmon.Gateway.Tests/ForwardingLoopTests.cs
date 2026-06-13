@@ -34,6 +34,7 @@ public sealed class ForwardingLoopTests
         RecordingConnection connection = new();
         GatewayConnectionEndpoint endpoint = new(
             new SessionRegistry(),
+            new GatewayConnectionEndpoint.TestOptions(),
             NullLogger<GatewayConnectionEndpoint>.Instance);
 
         await endpoint.RunForwardingLoopForTestAsync(
@@ -175,7 +176,9 @@ public sealed class ForwardingLoopTests
     // -------------------------------------------------------------------------
 
     private static GatewayConnectionEndpoint NewEndpoint() =>
-        new(new SessionRegistry(), NullLogger<GatewayConnectionEndpoint>.Instance);
+        new(new SessionRegistry(),
+            new GatewayConnectionEndpoint.TestOptions(),
+            NullLogger<GatewayConnectionEndpoint>.Instance);
 
     /// <summary>
     /// A stdin writer that throws on its first write (simulating a transiently-dead core stdin),
