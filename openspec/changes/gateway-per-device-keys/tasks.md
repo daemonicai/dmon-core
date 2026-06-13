@@ -37,8 +37,8 @@
 
 ## 7. Last-seen telemetry
 
-- [ ] 7.1 Implement the gateway-owned `lastseen.json` writer (`schemaVersion: 1`, per-`keyId` ISO-8601 timestamp), written on attach, throttled per `keyId` per the configured interval, best-effort (failure logged, never affects auth/connection).
-- [ ] 7.2 Tests: attach records a last-seen; repeated attaches within the throttle window coalesce; a write failure does not surface to the connection.
+- [x] 7.1 Implement the gateway-owned `lastseen.json` writer (`schemaVersion: 1`, per-`keyId` ISO-8601 timestamp), written on attach, throttled per `keyId` per the configured interval, best-effort (failure logged, never affects auth/connection).
+- [x] 7.2 Tests: attach records a last-seen; repeated attaches within the throttle window coalesce; a write failure does not surface to the connection.
 
 ## 8. End-to-end and spec validation
 

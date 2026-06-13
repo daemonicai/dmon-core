@@ -69,6 +69,7 @@ public sealed class GatewayConnectionEndpoint
     private readonly DeviceKeySetProvider _deviceKeySetProvider;
     private readonly IOptionsMonitor<GatewayOptions> _options;
     private readonly TimeProvider _timeProvider;
+    private readonly LastSeenWriter _lastSeenWriter;
     private readonly ILogger<GatewayConnectionEndpoint> _logger;
 
     // Receive buffer size; fits any typical JSONL command line.
@@ -92,6 +93,7 @@ public sealed class GatewayConnectionEndpoint
         DeviceKeySetProvider deviceKeySetProvider,
         IOptionsMonitor<GatewayOptions> options,
         TimeProvider timeProvider,
+        LastSeenWriter lastSeenWriter,
         ILogger<GatewayConnectionEndpoint> logger)
     {
         _registry = registry;
@@ -103,6 +105,7 @@ public sealed class GatewayConnectionEndpoint
         _deviceKeySetProvider = deviceKeySetProvider;
         _options = options;
         _timeProvider = timeProvider;
+        _lastSeenWriter = lastSeenWriter;
         _logger = logger;
     }
 
@@ -125,6 +128,7 @@ public sealed class GatewayConnectionEndpoint
             options.DeviceKeySetProvider,
             options.Options,
             options.TimeProvider,
+            options.LastSeenWriter,
             logger)
     {
     }
@@ -145,6 +149,9 @@ public sealed class GatewayConnectionEndpoint
         public DeviceConnectionIndex ConnectionIndex { get; init; } = new();
         public IOptionsMonitor<GatewayOptions> Options { get; init; } = new StaticOptionsMonitor(new GatewayOptions());
         public TimeProvider TimeProvider { get; init; } = TimeProvider.System;
+        // No-op by default: tests that exercise the attach path but do not care about telemetry
+        // remain IO-free even when authResult.KeyId is non-null.
+        public LastSeenWriter LastSeenWriter { get; init; } = LastSeenWriter.CreateNoOp();
         public ICoreLauncher? CoreLauncher { get; init; }
         public IAgentProfileResolver? ProfileResolver { get; init; }
         public EffectiveProfileSetResolver? EffectiveProfileSetResolver { get; init; }
@@ -252,6 +259,12 @@ public sealed class GatewayConnectionEndpoint
 
         using WebSocketGatewayConnection connection = new(socket, authResult.KeyId);
         AttachResult attachResult = handler.Attach(connection, attachFrame.LastSeq);
+
+        // Record telemetry for the connecting device (throttled, best-effort, never affects attach).
+        if (authResult.KeyId is not null)
+        {
+            _lastSeenWriter.RecordAttach(authResult.KeyId);
+        }
 
         AttachedFrame attachedFrame = new()
         {

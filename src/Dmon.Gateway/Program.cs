@@ -98,6 +98,9 @@ builder.Services.AddSingleton(TimeProvider.System);
 // --- Device-key store hot-reload watcher ---
 builder.Services.AddHostedService<DeviceKeyStoreWatcher>();
 
+// --- Last-seen telemetry writer (gateway-owned; sole writer of lastseen.json) ---
+builder.Services.AddSingleton<LastSeenWriter>();
+
 // --- Session registry, reaper, WS endpoint handler, and device-connection index ---
 builder.Services.AddSingleton<SessionRegistry>();
 builder.Services.AddSingleton<DeviceConnectionIndex>();
