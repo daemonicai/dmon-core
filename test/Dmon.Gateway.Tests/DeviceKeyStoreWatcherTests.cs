@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using Dmon.Gateway.DeviceKeys;
+using Dmon.Gateway.Sessions;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Dmon.Gateway.Tests;
@@ -37,7 +38,8 @@ public sealed class DeviceKeyStoreWatcherTests : IDisposable
     /// Creates a watcher (not started) whose <c>Reload()</c> can be called directly.
     /// </summary>
     private (DeviceKeyStoreWatcher watcher, DeviceKeySetProvider provider) CreateWatcher(
-        DeviceKeySet? initial = null)
+        DeviceKeySet? initial = null,
+        DeviceConnectionIndex? index = null)
     {
         DeviceKeySetProvider provider = new(initial ?? DeviceKeySet.Empty);
         GatewayDeviceKeyPaths paths = new(
@@ -46,6 +48,7 @@ public sealed class DeviceKeyStoreWatcherTests : IDisposable
 
         DeviceKeyStoreWatcher watcher = new(
             provider,
+            index ?? new DeviceConnectionIndex(),
             paths,
             NullLogger<DeviceKeyStoreWatcher>.Instance);
 
@@ -252,7 +255,7 @@ public sealed class DeviceKeyStoreWatcherTests : IDisposable
             DevicesPath: Path.Combine(subDir, "devices.json"),
             LastSeenPath: Path.Combine(subDir, "lastseen.json"));
         DeviceKeyStoreWatcher watcher = new(
-            provider, paths, NullLogger<DeviceKeyStoreWatcher>.Instance);
+            provider, new DeviceConnectionIndex(), paths, NullLogger<DeviceKeyStoreWatcher>.Instance);
 
         await watcher.StartAsync(CancellationToken.None);
         watcher.Dispose();

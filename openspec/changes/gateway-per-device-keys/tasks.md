@@ -32,8 +32,8 @@
 
 ## 6. Revocation fencing
 
-- [ ] 6.1 On reload, diff the active set to find newly-revoked `keyId`s and, for each, enumerate the by-`keyId` index and `Abort()` every live connection (reusing the existing evict-and-close primitive), across all sessions.
-- [ ] 6.2 Tests: revoking a key rejects subsequent upgrades (401) and fences all live connections tagged with that `keyId`; an unrelated key's connections are unaffected.
+- [x] 6.1 On reload, diff the active set to find newly-revoked `keyId`s and, for each, enumerate the by-`keyId` index and `Abort()` every live connection (reusing the existing evict-and-close primitive), across all sessions.
+- [x] 6.2 Tests: revoking a key rejects subsequent upgrades (401) and fences all live connections tagged with that `keyId`; an unrelated key's connections are unaffected.
 
 ## 7. Last-seen telemetry
 

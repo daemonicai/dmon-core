@@ -1,3 +1,4 @@
+using Dmon.Gateway.Sessions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
@@ -22,6 +23,7 @@ namespace Dmon.Gateway.DeviceKeys;
 internal sealed class DeviceKeyStoreWatcher : IHostedService, IDisposable
 {
     private readonly DeviceKeySetProvider _provider;
+    private readonly DeviceConnectionIndex _index;
     private readonly GatewayDeviceKeyPaths _paths;
     private readonly ILogger<DeviceKeyStoreWatcher> _logger;
 
@@ -37,10 +39,12 @@ internal sealed class DeviceKeyStoreWatcher : IHostedService, IDisposable
 
     internal DeviceKeyStoreWatcher(
         DeviceKeySetProvider provider,
+        DeviceConnectionIndex index,
         GatewayDeviceKeyPaths paths,
         ILogger<DeviceKeyStoreWatcher> logger)
     {
         _provider = provider;
+        _index = index;
         _paths = paths;
         _logger = logger;
     }
@@ -118,6 +122,10 @@ internal sealed class DeviceKeyStoreWatcher : IHostedService, IDisposable
     /// Reads the file, parses it, and swaps <see cref="DeviceKeySetProvider.Current"/>
     /// if successful. On any failure the last-good set is retained and a warning is logged.
     ///
+    /// After a successful swap, any keyId that left the active set (revoked, deleted, or
+    /// blank-secret-filtered) has its live connections fenced via <see cref="IGatewayConnection.Abort"/>.
+    /// The swap happens first so reconnect attempts during fencing already see the new set.
+    ///
     /// Internally visible so tests can drive it directly without FSW event timing.
     ///</summary>
     internal void Reload()
@@ -165,6 +173,12 @@ internal sealed class DeviceKeyStoreWatcher : IHostedService, IDisposable
             return;
         }
 
+        // Capture the previous active set before the swap so we can diff it.
+        // The diff is "left the active set" — covers revoked (revokedAt set), row-deleted,
+        // and blank-secret-filtered entries — all mean the credential can no longer authenticate.
+        DeviceKeySet previous = _provider.Current;
+
+        // Swap first: any reconnect attempt during subsequent fencing already sees the new set.
         _provider.Update(newSet);
 
         if (newSet.IsEmpty)
@@ -179,6 +193,29 @@ internal sealed class DeviceKeyStoreWatcher : IHostedService, IDisposable
             _logger.LogInformation(
                 "Device-key store reloaded from '{Path}': {Count} active credential(s).",
                 path, newSet.Entries.Count);
+        }
+
+        // Fence live connections whose keyId left the active set.
+        HashSet<string> newKeyIds = [.. newSet.Entries.Select(e => e.KeyId)];
+        foreach (DeviceCredential entry in previous.Entries)
+        {
+            if (newKeyIds.Contains(entry.KeyId))
+            {
+                continue;
+            }
+
+            IReadOnlyCollection<IGatewayConnection> connections = _index.GetConnections(entry.KeyId);
+            if (connections.Count == 0)
+            {
+                continue;
+            }
+
+            _logger.LogWarning(
+                "Device key '{KeyId}' left the active set; fencing {Count} live connection(s).",
+                entry.KeyId, connections.Count);
+
+            foreach (IGatewayConnection conn in connections)
+                conn.Abort();
         }
     }
 }
