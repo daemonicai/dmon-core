@@ -1,20 +1,20 @@
 services:
-  aimail:
+  dmail:
     build:
       context: .
       dockerfile: Dockerfile
     ports:
-      - "${AIM_PORT:-8080}:8080"
+      - "${DMAIL_PORT:-8080}:8080"
     volumes:
-      - aimail_data:/data
+      - dmail_data:/data
     environment:
-      - AIM_GOOGLE_CLIENT_ID=${AIM_GOOGLE_CLIENT_ID:-}
-      - AIM_GOOGLE_CLIENT_SECRET=${AIM_GOOGLE_CLIENT_SECRET:-}
-      - AIM_API_KEY=${AIM_API_KEY:-}
-      - AIM_DATA_DIR=/data
-      - AIM_PORT=8080
-      - AIM_BACKFILL_MONTHS=${AIM_BACKFILL_MONTHS:-1}
+      - DMAIL_GOOGLE_CLIENT_ID=${DMAIL_GOOGLE_CLIENT_ID:-}
+      - DMAIL_GOOGLE_CLIENT_SECRET=${DMAIL_GOOGLE_CLIENT_SECRET:-}
+      - DMAIL_API_KEY=${DMAIL_API_KEY:-}
+      - DMAIL_DATA_DIR=/data
+      - DMAIL_PORT=8080
+      - DMAIL_BACKFILL_MONTHS=${DMAIL_BACKFILL_MONTHS:-1}
     restart: unless-stopped
 
 volumes:
-  aimail_data:
+  dmail_data:
