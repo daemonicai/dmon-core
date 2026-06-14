@@ -120,9 +120,22 @@ Baseline before work: `make build` clean (0 warnings / 0 errors); `ProtocolVersi
 
 **Gates: `make build` 0/0; full suite — 528 Core, 159 Terminal, 143 Gateway, 100 Protocol, 102 BuiltinTools, 51 Memory, 41 Omlx, 32 Providers, 26 Extensions, 15 Runtime (1 pre-existing skip across suite); 0 failures.**
 
+## 5. Acquisition via SDK restore
+
+- **5.1 — confirmed done (landed G3):** `NuGetCoreAcquisitionSource.cs` and `ICoreAcquisitionSource.cs` were deleted in Group 3 (commit `78475b2`). `CoreResolver` has no NuGet-cache or on-demand tier; the search confirmed zero remaining runtime-downloader types. Nothing to implement.
+- **5.2 — pin guard + handshake-against-compiled-core already covered:**
+  - Pin-drift guard: `CompositionRootTests.DefaultCoreDmonCs_ContainsCurrentProtocolPin` and `SampleComposedCoreDmonCs_ContainsCurrentProtocolPin` assert both `default-core/Dmon.cs` and `samples/Dmon.ComposedCore/Dmon.cs` contain `dmoncore@{ProtocolVersion.Current}.*` (derived string, repo-root located from assembly path).
+  - Handshake gate against compiled core: `FileBasedProgramLaunchTests.FileBasedProgram_FirstBuild_FirstStdoutLineIsAgentReady` and `FileBasedProgram_Rebuild_AfterEdit_FirstStdoutLineIsAgentReady` spawn a real built `Dmon.cs` core and assert the first stdout line is `agentReady` with `protocolVersion`.
+  - Nothing to implement.
+- **5.3a — new: version-range restore test** (`VersionRangeRestoreTests.ProjectPinnedTo01Star_Restores019_NotVersion020`). Spec scenario: `Dmon.cs` pinning `dmoncore@0.1.*` with feed offering `0.1.3`, `0.1.9`, `0.2.0` must resolve `0.1.9`, never `0.2.0`.
+  - **Stub approach chosen.** Packing the real `dmoncore` at `0.1.x` would require `MinVerVersionOverride=0.1.x`, conflicting with `pack-core.sh`'s documented requirement that `Major.Minor = ProtocolVersion.Current ("0.2")` so the skew guard passes. That path is outside `pack-core.sh`'s supported contract and irrelevant to what is being asserted. Instead: a minimal stub project with `<PackageId>dmoncore</PackageId>` is packed at `0.1.3`, `0.1.9`, and `0.2.0` into a unique Guid-named temp feed (torn down in `IAsyncLifetime.DisposeAsync`). The stub is correct because `#:package` is SDK syntactic sugar for `<PackageReference>`; both delegate to the same NuGet float-range resolution. A standard `.csproj` with `<PackageReference Include="dmoncore" Version="0.1.*" />` and an isolated `nuget.config` (pointing only at the temp feed) is used — `dotnet restore` on a regular `.csproj` writes `obj/project.assets.json` in the project directory, which is deterministically locatable. (File-based programs write their assets to `~/Library/Application Support/dotnet/runfile/<hash>/obj/`, where the hash depends on the file's absolute path — not statically knowable in a test.)
+  - Test is fully self-contained: stubs are packed, restore runs, `project.assets.json` is read, resolved version extracted from `libraries["dmoncore/<ver>"]` key, asserted `"0.1.9"` and `Assert.NotEqual("0.2.0", ...)`.
+- **5.3b — confirmed done:** `CompatibilityGateTests.ReadAgentReadyAsync_MismatchedProtocol_ThrowsProtocolMismatchException` (in `test/Dmon.Runtime.Tests/CompatibilityGateTests.cs`) covers protocol-mismatch rejection, and `ProtocolMismatchException_Message_IsActionable` covers the actionable-message requirement.
+- **Gates:** `make build` 0/0; `make test` 529 Core (1 pre-existing skip) + full suite green; `openspec validate --strict` valid.
+
 ## NEXT
 
-- **Up next:** Group 5 — remaining task(s) after the dynamic-load tier deletion.
+- **Up next:** Group 6 — config is settings-only.
 - **Nits / deferred:**
   - **(7.1, for the 1.3/G2 work):** `lib/net10.0/dmoncore.runtimeconfig.json` is emitted because the Worker SDK defaults `OutputType=Exe`. Inert for a library ref. Clean it up when 1.3 makes dmoncore truly entry-point-less (`OutputType=Library` / `GenerateRuntimeConfigurationFiles=false`).
   - `scripts/pack-core.sh` and `scripts/smoke-sdk.sh` share `.pack-out` (each `rm -rf`s it); harmless, both rebuild the trio.

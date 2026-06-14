@@ -30,9 +30,9 @@
 
 ## 5. Acquisition via SDK restore
 
-- [ ] 5.1 Remove dmon's runtime NuGet downloader; acquisition of `dmoncore` + extensions is `dotnet restore` over the `Dmon.cs` `#:package` set (SDK-driven, build-time).
-- [ ] 5.2 Express the protocol pin as `#:package dmoncore@<Major.Minor>.*` (= `ProtocolVersion.Current`); keep the `agentReady` `protocolVersion` handshake gate firing against the compiled core.
-- [ ] 5.3 Tests: a `Dmon.cs` pinning `dmoncore@0.1.*` restores the newest `0.1.x` and never `0.2.0`; a protocol-mismatched core is rejected at handshake.
+- [x] 5.1 Remove dmon's runtime NuGet downloader; acquisition of `dmoncore` + extensions is `dotnet restore` over the `Dmon.cs` `#:package` set (SDK-driven, build-time).
+- [x] 5.2 Express the protocol pin as `#:package dmoncore@<Major.Minor>.*` (= `ProtocolVersion.Current`); keep the `agentReady` `protocolVersion` handshake gate firing against the compiled core.
+- [x] 5.3 Tests: a `Dmon.cs` pinning `dmoncore@0.1.*` restores the newest `0.1.x` and never `0.2.0`; a protocol-mismatched core is rejected at handshake.
 
 ## 6. Config is settings-only
 
