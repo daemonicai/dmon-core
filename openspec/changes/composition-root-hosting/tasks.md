@@ -43,8 +43,8 @@
 ## 7. Packaging
 
 - [x] 7.1 Publish `dmoncore` as a **library** package (`#:package`-able; deps as package references, not a runnable closure); update `IsPackable`/metadata accordingly.
-- [ ] 7.2 Produce the **prebuilt default-core** artifact (a publish closure of the canonical `Dmon.cs`) runnable via `dotnet exec` with no SDK/restore, and **bundle it into the `dmon` tool package** as a file payload (no NuGet dependency on `dmoncore`) so first run works offline with no SDK (design D3 / package-publishing).
-- [ ] 7.3 Tests/packaging checks: the `dmoncore` package is a referenceable library; the prebuilt default unpacks to a runnable closure (`dmoncore.dll` + deps + `runtimeconfig.json`).
+- [x] 7.2 Produce the **prebuilt default-core** artifact (a publish closure of the canonical `Dmon.cs`) runnable via `dotnet exec` with no SDK/restore, and **bundle it into the `dmon` tool package** as a file payload (no NuGet dependency on `dmoncore`) so first run works offline with no SDK (design D3 / package-publishing).
+- [x] 7.3 Tests/packaging checks: the `dmoncore` package is a referenceable library; the prebuilt default unpacks to a runnable closure (`dmoncore.dll` + deps + `runtimeconfig.json`).
 
 ## 8. End-to-end and spec validation
 

@@ -204,37 +204,45 @@ public sealed class CoreResolverTests : IDisposable
     // ------------------------------------------------------------------
 
     // ------------------------------------------------------------------
-    // Tier 3: empty dir with no override → CoreAcquisitionException (no network)
+    // Tier 3: no Dmon.cs, no override → resolves prebuilt default (DotnetExec) or
+    // throws CoreAcquisitionException when no default is built. Either way: offline,
+    // no NuGet/network call.
     // ------------------------------------------------------------------
 
     [Fact]
-    public async Task ResolveAsync_NoDmonCsNoOverrideNoDefault_ThrowsWithoutNetwork()
+    public async Task ResolveAsync_NoDmonCsNoOverride_IsOfflineFilesystemOnly()
     {
-        // Working dir has no Dmon.cs; no override; no env var; the default prebuilt
-        // paths won't exist in this test environment (we're in a temp dir, and the
-        // resolver walks relative to the entry assembly which points nowhere useful here).
-        // The important assertion: no NuGet/network call ever happens — the exception is
-        // thrown from filesystem-only logic.
+        // Working dir has no Dmon.cs; no override; no env var.
+        // In CI (after `make build`) the dev-bin path build/dmoncore/dmoncore.dll exists
+        // and Tier-3 resolves it as DotnetExec. In a clean checkout with no build output
+        // it throws CoreAcquisitionException. Either outcome is correct; what must NOT
+        // happen is any NuGet/network call — the resolver is filesystem-only.
         string emptyDir = Path.Combine(_tempDir, "empty");
         Directory.CreateDirectory(emptyDir);
 
-        // Clear env var so tier 2 env path is also absent.
         string? original = Environment.GetEnvironmentVariable("DMON_CORE_PATH");
         try
         {
             Environment.SetEnvironmentVariable("DMON_CORE_PATH", null);
 
             CoreResolver resolver = new();
-
-            // This will throw because no prebuilt default exists in a temp dir context.
-            // The key property: it throws CoreAcquisitionException, not any NuGet-related exception.
-            CoreAcquisitionException ex = await Assert.ThrowsAsync<CoreAcquisitionException>(
-                () => resolver.ResolveAsync(emptyDir, corePathOverride: null, CancellationToken.None));
-
-            // Message must mention the two override escape hatches.
-            Assert.Contains("DMON_CORE_PATH", ex.Message);
-            Assert.Contains("--core-path", ex.Message);
-            Assert.Contains("Dmon.cs", ex.Message);
+            try
+            {
+                ResolvedCore result = await resolver.ResolveAsync(emptyDir, corePathOverride: null, CancellationToken.None);
+                // If it resolved, it must be the prebuilt default via DotnetExec and the
+                // path must point at an existing dmoncore.dll.
+                Assert.Equal(LaunchMode.DotnetExec, result.LaunchMode);
+                Assert.True(File.Exists(result.Path), $"Resolved path must exist: {result.Path}");
+                Assert.True(result.Path.EndsWith("dmoncore.dll", StringComparison.OrdinalIgnoreCase),
+                    $"Resolved path must be dmoncore.dll, got: {result.Path}");
+            }
+            catch (CoreAcquisitionException ex)
+            {
+                // No build output — exception is fine; must be filesystem-only (no NuGet msg).
+                Assert.Contains("DMON_CORE_PATH", ex.Message);
+                Assert.Contains("--core-path", ex.Message);
+                Assert.Contains("Dmon.cs", ex.Message);
+            }
         }
         finally
         {

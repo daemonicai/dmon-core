@@ -21,6 +21,7 @@ namespace Dmon.Core.Tests.Composition;
 /// <c>ProtocolVersion.Current = "0.2"</c>, which is outside pack-core.sh's
 /// supported path and irrelevant to what is being asserted.
 /// </summary>
+[Collection("ComposedCoreBuild")]
 public sealed class VersionRangeRestoreTests : IAsyncLifetime
 {
     private string? _tempFeed;

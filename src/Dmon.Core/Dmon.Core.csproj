@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
-    <AssemblyName>dmoncore</AssemblyName>
+    <AssemblyName>Dmon.Core</AssemblyName>
     <PackageId>dmoncore</PackageId>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <NoWarn>$(NoWarn);NU1901</NoWarn>

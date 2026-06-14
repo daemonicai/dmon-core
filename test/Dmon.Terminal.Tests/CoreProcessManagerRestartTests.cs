@@ -122,23 +122,17 @@ public sealed class CoreProcessManagerRestartTests
     {
         string assemblyPath = Assembly.GetExecutingAssembly().Location;
         string assemblyDir = Path.GetDirectoryName(assemblyPath) ?? ".";
-        // test/Dmon.Terminal.Tests/bin/Release/net10.0 → repo root is 5 levels up
+        // test/Dmon.Terminal.Tests/bin/<cfg>/net10.0/ → repo root is 5 levels up
         string repoRoot = Path.GetFullPath(Path.Combine(assemblyDir, "../../../../.."));
 
-        string[] candidates =
-        [
-            Path.Combine(repoRoot, "src/Dmon.Core/bin/Release/net10.0/dmoncore.dll"),
-            Path.Combine(repoRoot, "src/Dmon.Core/bin/Debug/net10.0/dmoncore.dll"),
-        ];
-
-        foreach (string candidate in candidates)
-        {
-            if (File.Exists(candidate))
-                return new ResolvedCore(Path.GetFullPath(candidate), LaunchMode.DotnetExec);
-        }
+        // Prebuilt default-core closure produced by `make build-core`
+        // (publish of default-core/Dmon.cs into build/dmoncore/).
+        string dll = Path.Combine(repoRoot, "build/dmoncore/dmoncore.dll");
+        if (File.Exists(dll))
+            return new ResolvedCore(Path.GetFullPath(dll), LaunchMode.DotnetExec);
 
         throw new FileNotFoundException(
-            "Could not find dmoncore.dll. Run 'make build' or 'dotnet build' first.",
+            "Could not find build/dmoncore/dmoncore.dll. Run 'make build-core' first.",
             "dmoncore.dll");
     }
 

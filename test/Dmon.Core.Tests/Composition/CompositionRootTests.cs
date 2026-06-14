@@ -16,7 +16,8 @@ namespace Dmon.Core.Tests.Composition;
 /// The composed Dmon.cs is copied into a fresh temp directory with its own nuget.config
 /// so the source-controlled samples/Dmon.ComposedCore/nuget.config is not touched.
 /// </summary>
-public sealed class ComposedCoreWireTests(ComposedCoreFeedFixture feed) : IClassFixture<ComposedCoreFeedFixture>
+[Collection("ComposedCoreBuild")]
+public sealed class ComposedCoreWireTests(ComposedCoreFeedFixture feed)
 {
     [Fact]
     public async Task ComposedCore_ExtensionToolsAvailableAtStartup_NoRuntimeLoadEvent()

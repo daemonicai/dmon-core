@@ -4,7 +4,7 @@ namespace Dmon.Runtime;
 /// Resolves the dmoncore binary through the fixed discovery precedence:
 /// (1) <c>Dmon.cs</c> in the working directory (build + run),
 /// (2) <c>--core-path</c> / <c>DMON_CORE_PATH</c> explicit prebuilt override,
-/// (3) built-in prebuilt default (published sibling or dev-bin layout).
+/// (3) built-in prebuilt default (published sibling or <c>build/dmoncore/</c> dev layout).
 /// No NuGet-cache or on-demand acquisition tier.
 /// </summary>
 internal sealed class CoreResolver
@@ -57,18 +57,13 @@ internal sealed class CoreResolver
         if (File.Exists(publishedDll))
             return Task.FromResult(new ResolvedCore(Path.GetFullPath(publishedDll), LaunchMode.DotnetExec));
 
-        // Dev layout: src/Dmon.Core/bin/<Config>/net10.0/dmoncore.dll.
-        string repoRoot = Path.GetFullPath(Path.Combine(entryDir, "../../../.."));
-        string[] devDllCandidates =
-        [
-            Path.Combine(repoRoot, "src/Dmon.Core/bin/Debug/net10.0/dmoncore.dll"),
-            Path.Combine(repoRoot, "src/Dmon.Core/bin/Release/net10.0/dmoncore.dll"),
-        ];
-        foreach (string candidate in devDllCandidates)
-        {
-            if (File.Exists(candidate))
-                return Task.FromResult(new ResolvedCore(Path.GetFullPath(candidate), LaunchMode.DotnetExec));
-        }
+        // Dev layout: build/dmoncore/dmoncore.dll (produced by `make build-core`).
+        // The entry assembly sits 5 levels deep (e.g. src/Dmon.Terminal/bin/<cfg>/net10.0/),
+        // so repo root is ../../../../../ from there.
+        string repoRoot = Path.GetFullPath(Path.Combine(entryDir, "../../../../../"));
+        string devDll = Path.Combine(repoRoot, "build/dmoncore/dmoncore.dll");
+        if (File.Exists(devDll))
+            return Task.FromResult(new ResolvedCore(Path.GetFullPath(devDll), LaunchMode.DotnetExec));
 
         throw new CoreAcquisitionException(
             "Could not find dmoncore. " +

@@ -12,8 +12,8 @@ namespace Dmon.Core.Tests.Composition;
 /// Uses <see cref="ComposedCoreFeedFixture"/> to provision a local NuGet feed so the
 /// test builds against a real packed dmoncore.
 /// </summary>
+[Collection("ComposedCoreBuild")]
 public sealed class FileBasedProgramLaunchTests(ComposedCoreFeedFixture feed)
-    : IClassFixture<ComposedCoreFeedFixture>
 {
     // ------------------------------------------------------------------
     // OQ-B: first stdout line is agentReady, not build output — first build
