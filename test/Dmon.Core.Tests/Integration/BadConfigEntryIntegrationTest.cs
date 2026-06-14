@@ -13,7 +13,7 @@ public sealed class BadConfigEntryIntegrationTest
     [Fact]
     public async Task Daemon_StartsAndEmitsAgentReady_WhenConfigEntryFails()
     {
-        (string coreDll, string coreDir) = CoreProcessFixture.FindCoreDll();
+        (string coreDll, _) = CoreProcessFixture.FindCoreDll();
 
         string tempWorkDir = Path.Combine(Path.GetTempPath(), $"dmon-bad-ext-test-{Guid.NewGuid():N}");
         Directory.CreateDirectory(tempWorkDir);
@@ -23,8 +23,11 @@ public sealed class BadConfigEntryIntegrationTest
         try
         {
             // Write an appsettings.json with a provider so SetupCheckService doesn't
-            // emit setupRequired instead of agentReady.
-            string appSettingsPath = Path.Combine(coreDir, "appsettings.json");
+            // emit setupRequired instead of agentReady. It must live in the core's
+            // content root (its working directory), not the shared build/dmoncore
+            // closure — writing there both has no effect here and races sibling
+            // fixtures whose cores read that shared file at startup.
+            string appSettingsPath = Path.Combine(tempWorkDir, "appsettings.json");
             await File.WriteAllTextAsync(appSettingsPath, """
             {
               "providers": {
