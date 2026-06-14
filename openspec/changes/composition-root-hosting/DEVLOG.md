@@ -24,6 +24,7 @@ Baseline before work: `make build` clean (0 warnings / 0 errors); `ProtocolVersi
 - **N1 fix:** wire test proves the no-runtime-load half (real composed core, `agentReady` with no `extensionLoaded`); a separate in-process test positively asserts `AddExtension<T>()` lands `greet` in `IToolRegistry` (no wire tool-enumeration command exists today — documented). Test (c) asserts single contract-type identity (`IDmonExtension` Type match) — fails under a separate/collectible ALC.
 - **N2 fix:** guard tests assert `default-core/Dmon.cs` and `samples/Dmon.ComposedCore/Dmon.cs` contain `dmoncore@{ProtocolVersion.Current}.*` (derived, repo-root located from assembly path; missing file fails).
 - **Nit deferred (N3):** `Dmon.SampleExtension.csproj` hardcodes `Dmon.Extensions Version="0.2.*"` — consistent with the floating-pin scheme; not guarded.
+- **Tooling (post-G2, commit `5663305`, user-requested):** added `make pack` (wraps `scripts/pack-core.sh`, accepts `PACK_OUT`) and `make smoke` (wraps `scripts/smoke-sdk.sh`) for discoverability/CI. **`make test` stays independent of `pack`** — the integration tests self-provision per-fixture temp feeds, so a shared `.pack-out` is a manual/CI convenience, not a test prerequisite. The script remains the reusable unit (fixtures call `pack-core.sh "<temp-feed>"`); `make` and the fixtures are both callers.
 
 ## 7. Packaging
 
