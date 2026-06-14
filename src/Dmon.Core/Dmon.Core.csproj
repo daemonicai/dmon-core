@@ -3,6 +3,7 @@
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <AssemblyName>dmoncore</AssemblyName>
+    <PackageId>dmoncore</PackageId>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <NoWarn>$(NoWarn);NU1901</NoWarn>
     <Nullable>enable</Nullable>
@@ -12,34 +13,8 @@
     <IsPackable>true</IsPackable>
     <!-- Independent version line for the dmoncore agent core -->
     <MinVerTagPrefix>core-</MinVerTagPrefix>
-    <Description>The dmoncore agent core — a .NET coding agent published as a runnable framework-dependent closure. Acquired and managed at runtime by the dmon host tool; not intended as a library reference.</Description>
+    <Description>The dmoncore agent core — a .NET library package referenced by a Dmon.cs composition-root file via #:package dmoncore. Exposes Dmon.Hosting.DmonHost for building and running the agent.</Description>
     <PackageReadmeFile>README.md</PackageReadmeFile>
-
-    <!--
-      Root-closure layout: the package carries the full framework-dependent publish output
-      at the archive root so Dmon.Runtime can resolve dmoncore.dll via
-      Path.Combine(expandedPath, "dmoncore.dll") and launch it via dotnet exec.
-      This is intentional per ADR-011 D2/D4 — NOT a library package.
-
-      IncludeBuildOutput=false suppresses the default lib/net10.0 entry so that
-      only the explicit publish closure (added by _AddPublishClosureToPackage below)
-      appears in the package.
-
-      NU5100: assembly outside lib/tfm — expected; closure sits at root.
-      NU5128: no matching lib/tfm folder — expected; this is a runnable closure, not a lib.
-
-      IncludeSymbols=false: a symbols package (.snupkg) is not meaningful for a runnable
-      closure — it would contain no content and fail with NU5017. The publish closure
-      does carry PDBs inline, which is sufficient for crash diagnostics.
-    -->
-    <IncludeBuildOutput>false</IncludeBuildOutput>
-    <IncludeSymbols>false</IncludeSymbols>
-    <!-- Suppress pack warnings that are expected for the deliberate root-closure layout. -->
-    <NoWarn>$(NoWarn);NU5100;NU5128</NoWarn>
-
-    <!-- Suppress dependency generation: the publish closure carries every assembly;
-         consumers never restore this package as a library dependency. -->
-    <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
   </PropertyGroup>
 
   <!-- System.Formats.Asn1 6.0.0 (GHSA-447r-wph3-92pm) is a transitive dep of Dotnet.Script.Core.
@@ -60,67 +35,51 @@
     <PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.15.3" />
     <PackageReference Include="OpenTelemetry.Instrumentation.Http" Version="1.15.1" />
     <PackageReference Include="OpenTelemetry.Instrumentation.Runtime" Version="1.15.1" />
+    <!-- External deps of the bundled impl projects (Dmon.Providers, Dmon.Providers.Ollama, Dmon.BuiltinTools).
+         Their DLLs are bundled into lib/net10.0/ and do not declare their own package dependencies,
+         so we declare them here so the consumer's restore closure is complete. -->
+    <PackageReference Include="Anthropic" Version="12.24.1" />
+    <PackageReference Include="GeminiDotnet.Extensions.AI" Version="0.25.0" />
+    <PackageReference Include="Microsoft.Extensions.AI.OpenAI" Version="10.5.1" />
+    <PackageReference Include="OllamaSharp" Version="5.4.25" />
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Contract packages: remain as normal refs so they appear as package dependencies in the nuspec. -->
     <ProjectReference Include="..\Dmon.Abstractions\Dmon.Abstractions.csproj" />
     <ProjectReference Include="..\Dmon.Protocol\Dmon.Protocol.csproj" />
-    <ProjectReference Include="..\Dmon.BuiltinTools\Dmon.BuiltinTools.csproj" />
     <ProjectReference Include="..\Dmon.Extensions\Dmon.Extensions.csproj" />
-    <ProjectReference Include="..\Dmon.Providers\Dmon.Providers.csproj" />
-    <ProjectReference Include="..\Dmon.Providers.Ollama\Dmon.Providers.Ollama.csproj" />
+    <!-- Impl projects: bundled into lib/net10.0/ — PrivateAssets="all" suppresses them as nuspec deps. -->
+    <ProjectReference Include="..\Dmon.BuiltinTools\Dmon.BuiltinTools.csproj" PrivateAssets="all" />
+    <ProjectReference Include="..\Dmon.Providers\Dmon.Providers.csproj" PrivateAssets="all" />
+    <ProjectReference Include="..\Dmon.Providers.Ollama\Dmon.Providers.Ollama.csproj" PrivateAssets="all" />
   </ItemGroup>
 
   <ItemGroup>
     <None Include="README.md" Pack="true" PackagePath="\" />
-    <!-- Suppress content/ + contentFiles/ injection. The Worker SDK auto-includes appsettings*.json
-         as Content items (Pack=true), which adds them under content/ and contentFiles/any/net10.0/.
-         Those paths are inert for a runnable closure; the root copies come from the publish closure
-         target (_AddPublishClosureToPackage). Pack=false here drops the duplicate content-pipe entries. -->
+    <!-- Suppress content/ + contentFiles/ injection from the Worker SDK auto-include of appsettings*.json. -->
     <Content Update="appsettings*.json" Pack="false" />
   </ItemGroup>
 
   <!--
-    Publish the project framework-dependently into a staging directory, then add
-    every file from that directory to the package at the root (PackagePath="").
-    This gives Dmon.Runtime's NuGetCoreAcquisitionSource the layout it expects:
-    <cache>/dmoncore/<version>/dmoncore.dll (and the full publish closure alongside it),
-    so it can be launched via `dotnet exec`.
-
-    TargetsForTfmSpecificContentInPackage registers _AddPublishClosureToPackage as
-    a target the SDK pack pipeline calls when gathering per-tfm package content.
-    Items added to TfmSpecificPackageFile inside that target are picked up by the pack.
+    Bundle impl project DLLs (Dmon.BuiltinTools, Dmon.Providers, Dmon.Providers.Ollama) into lib/net10.0/.
+    TargetsForTfmSpecificBuildOutput registers the target so the SDK pack pipeline picks up the extra items.
+    We filter ReferenceCopyLocalPaths to only the three impl assemblies by filename to avoid accidentally
+    bundling the contract packages (Protocol/Abstractions/Extensions) which are proper package dependencies.
   -->
   <PropertyGroup>
-    <TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);_AddPublishClosureToPackage</TargetsForTfmSpecificContentInPackage>
-    <_PublishClosureStageDir>$(BaseIntermediateOutputPath)publish-closure/</_PublishClosureStageDir>
+    <TargetsForTfmSpecificBuildOutput>$(TargetsForTfmSpecificBuildOutput);CopyImplDepsToPackage</TargetsForTfmSpecificBuildOutput>
   </PropertyGroup>
 
-  <Target Name="_AddPublishClosureToPackage">
-    <!-- Framework-dependent publish into the staging dir (no apphost, no RID). -->
-    <MSBuild Projects="$(MSBuildProjectFullPath)"
-             Targets="Publish"
-             Properties="Configuration=$(Configuration);PublishDir=$(_PublishClosureStageDir);PublishProtocol=FileSystem;SelfContained=false;RuntimeIdentifier=;UseAppHost=false" />
-
-    <!-- Enumerate every file in the staging dir (flat — no subdirectories for the root closure). -->
+  <Target Name="CopyImplDepsToPackage" DependsOnTargets="ResolveReferences">
     <ItemGroup>
-      <_ClosureFiles Include="$(_PublishClosureStageDir)*" />
-    </ItemGroup>
-
-    <!-- Add flat files to the package root (PackagePath=""). -->
-    <ItemGroup>
-      <TfmSpecificPackageFile Include="@(_ClosureFiles)"
-                              PackagePath="" />
-    </ItemGroup>
-
-    <!-- Recurse into locale subdirs (e.g. cs/, de/ resource satellites) preserving relative path. -->
-    <ItemGroup>
-      <_ClosureSubdirs Include="$(_PublishClosureStageDir)**\*"
-                       Exclude="$(_PublishClosureStageDir)*" />
-    </ItemGroup>
-    <ItemGroup>
-      <TfmSpecificPackageFile Include="@(_ClosureSubdirs)"
-                              PackagePath="%(RecursiveDir)" />
+      <BuildOutputInPackage Include="@(ReferenceCopyLocalPaths)"
+                            Condition="'%(ReferenceCopyLocalPaths.ReferenceSourceTarget)' == 'ProjectReference'
+                                       And (
+                                         $([System.String]::Copy('%(Filename)').Equals('Dmon.BuiltinTools'))
+                                         Or $([System.String]::Copy('%(Filename)').Equals('Dmon.Providers'))
+                                         Or $([System.String]::Copy('%(Filename)').Equals('Dmon.Providers.Ollama'))
+                                       )" />
     </ItemGroup>
   </Target>
 
