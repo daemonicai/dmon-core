@@ -6,13 +6,19 @@ WORKDIR /src
 COPY src/AIMail/AIMail.csproj src/AIMail/
 RUN dotnet restore src/AIMail/AIMail.csproj
 
-# Copy source and publish
-COPY src/ .
+# Copy source and publish (preserve the src/ prefix so source sits beside the
+# restored csproj at /src/src/AIMail/, matching the publish path below)
+COPY src/ src/
 RUN dotnet publish src/AIMail/AIMail.csproj -c Release -o /app/publish --no-restore
 
 # ---- Runtime Stage ----
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
+
+# curl is required by the HEALTHCHECK below and is not present in the aspnet runtime image
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
 
 # Copy published output
 COPY --from=build /app/publish .
