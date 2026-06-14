@@ -19,12 +19,12 @@ public sealed class CoreProcessManagerRestartTests
     [Fact]
     public async Task RestartAsync_SpawnsFreshProcess_AndSessionLoadSucceeds()
     {
-        string coreExe = FindCoreExe(out _);
+        ResolvedCore resolvedCore = FindCoreDll();
 
         string tempWorkDir = Path.Combine(Path.GetTempPath(), $"dmon-restart-test-{Guid.NewGuid():N}");
         Directory.CreateDirectory(tempWorkDir);
 
-        using CoreProcessManager manager = new(corePathOverride: coreExe, workingDirectory: tempWorkDir);
+        using CoreProcessManager manager = new(resolvedCore, workingDirectory: tempWorkDir);
 
         try
         {
@@ -118,7 +118,7 @@ public sealed class CoreProcessManagerRestartTests
     //  Helpers
     // ------------------------------------------------------------------
 
-    private static string FindCoreExe(out string coreDir)
+    private static ResolvedCore FindCoreDll()
     {
         string assemblyPath = Assembly.GetExecutingAssembly().Location;
         string assemblyDir = Path.GetDirectoryName(assemblyPath) ?? ".";
@@ -127,22 +127,19 @@ public sealed class CoreProcessManagerRestartTests
 
         string[] candidates =
         [
-            Path.Combine(repoRoot, "src/Dmon.Core/bin/Release/net10.0/dmoncore"),
-            Path.Combine(repoRoot, "src/Dmon.Core/bin/Debug/net10.0/dmoncore"),
+            Path.Combine(repoRoot, "src/Dmon.Core/bin/Release/net10.0/dmoncore.dll"),
+            Path.Combine(repoRoot, "src/Dmon.Core/bin/Debug/net10.0/dmoncore.dll"),
         ];
 
         foreach (string candidate in candidates)
         {
             if (File.Exists(candidate))
-            {
-                coreDir = Path.GetDirectoryName(candidate)!;
-                return candidate;
-            }
+                return new ResolvedCore(Path.GetFullPath(candidate), LaunchMode.DotnetExec);
         }
 
         throw new FileNotFoundException(
-            "Could not find dmoncore executable. Run 'make build' or 'dotnet build' first.",
-            "dmoncore");
+            "Could not find dmoncore.dll. Run 'make build' or 'dotnet build' first.",
+            "dmoncore.dll");
     }
 
     private static Task SendCommandAsync(CoreProcessManager manager, Command cmd)

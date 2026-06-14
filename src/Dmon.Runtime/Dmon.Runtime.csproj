@@ -6,13 +6,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
-    <!-- NuGet.Protocol advisory warning: informational only, does not affect correctness. -->
-    <NoWarn>$(NoWarn);NU1901</NoWarn>
   </PropertyGroup>
-
-  <ItemGroup>
-    <PackageReference Include="NuGet.Protocol" Version="6.14.3" />
-  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Dmon.Protocol\Dmon.Protocol.csproj" />

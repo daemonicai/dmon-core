@@ -14,10 +14,10 @@
 
 ## 3. `Dmon.Runtime` launch: precedence + build-then-`--no-build`-run
 
-- [ ] 3.1 Update core discovery precedence to `./Dmon.cs` > `--core-path`/`DMON_CORE_PATH` override > built-in prebuilt default; remove the NuGet-cache and on-demand-acquisition tiers.
-- [ ] 3.2 Implement the two-step launch via `ICoreLauncher`/`ICoreProcess`: `dotnet build Dmon.cs` as a separate process (stdout/stderr captured; incremental build is the staleness gate), then `dotnet run Dmon.cs --no-build` as the stdio child. `dotnet exec` the prebuilt assembly directly for the default/override path.
-- [ ] 3.3 Ensure `/reload` rebuilds incrementally and re-runs `Dmon.cs` (restart-between-turns); a no-change reload is a near-no-op.
-- [ ] 3.4 Tests: the `Dmon.cs` child's stdout carries only JSONL frames (no build/restore output) on first build and on a rebuild-triggering `/reload`; precedence resolves `Dmon.cs` over override over default; empty dir uses the prebuilt default with no SDK/network. (Confirm `--no-build` stdout silence for the file-based-program path; fall back to exec-the-built-dll if needed — design OQ-B.)
+- [x] 3.1 Update core discovery precedence to `./Dmon.cs` > `--core-path`/`DMON_CORE_PATH` override > built-in prebuilt default; remove the NuGet-cache and on-demand-acquisition tiers.
+- [x] 3.2 Implement the two-step launch via `ICoreLauncher`/`ICoreProcess`: `dotnet build Dmon.cs` as a separate process (stdout/stderr captured; incremental build is the staleness gate), then `dotnet run Dmon.cs --no-build` as the stdio child. `dotnet exec` the prebuilt assembly directly for the default/override path.
+- [x] 3.3 Ensure `/reload` rebuilds incrementally and re-runs `Dmon.cs` (restart-between-turns); a no-change reload is a near-no-op.
+- [x] 3.4 Tests: the `Dmon.cs` child's stdout carries only JSONL frames (no build/restore output) on first build and on a rebuild-triggering `/reload`; precedence resolves `Dmon.cs` over override over default; empty dir uses the prebuilt default with no SDK/network. (Confirm `--no-build` stdout silence for the file-based-program path; fall back to exec-the-built-dll if needed — design OQ-B.)
 
 ## 4. Delete the dynamic-load tier
 

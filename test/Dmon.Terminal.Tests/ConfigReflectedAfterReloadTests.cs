@@ -23,7 +23,7 @@ public sealed class ConfigReflectedAfterReloadTests
     [Fact]
     public async Task AfterReload_FreshCoreReflectsEditedConfig()
     {
-        string coreExe = FindCoreExe();
+        ResolvedCore resolvedCore = FindCoreDll();
 
         string tempWorkDir = Path.Combine(Path.GetTempPath(), $"dmon-config-reload-{Guid.NewGuid():N}");
         Directory.CreateDirectory(tempWorkDir);
@@ -33,7 +33,7 @@ public sealed class ConfigReflectedAfterReloadTests
         ConcurrentQueue<string> allStderr = new();
 
         using CoreProcessManager manager = new(
-            corePathOverride: coreExe,
+            resolvedCore,
             workingDirectory: tempWorkDir,
             onStderrLine: line => allStderr.Enqueue(line));
 
@@ -110,7 +110,7 @@ public sealed class ConfigReflectedAfterReloadTests
     //  Helpers
     // ------------------------------------------------------------------
 
-    private static string FindCoreExe()
+    private static ResolvedCore FindCoreDll()
     {
         string assemblyPath = Assembly.GetExecutingAssembly().Location;
         string assemblyDir = Path.GetDirectoryName(assemblyPath) ?? ".";
@@ -118,19 +118,19 @@ public sealed class ConfigReflectedAfterReloadTests
 
         string[] candidates =
         [
-            Path.Combine(repoRoot, "src/Dmon.Core/bin/Release/net10.0/dmoncore"),
-            Path.Combine(repoRoot, "src/Dmon.Core/bin/Debug/net10.0/dmoncore"),
+            Path.Combine(repoRoot, "src/Dmon.Core/bin/Release/net10.0/dmoncore.dll"),
+            Path.Combine(repoRoot, "src/Dmon.Core/bin/Debug/net10.0/dmoncore.dll"),
         ];
 
         foreach (string candidate in candidates)
         {
             if (File.Exists(candidate))
-                return candidate;
+                return new ResolvedCore(Path.GetFullPath(candidate), LaunchMode.DotnetExec);
         }
 
         throw new FileNotFoundException(
-            "Could not find dmoncore executable. Run 'make build' or 'dotnet build' first.",
-            "dmoncore");
+            "Could not find dmoncore.dll. Run 'make build' or 'dotnet build' first.",
+            "dmoncore.dll");
     }
 
     private static async Task WaitForAgentReadyAsync(StreamReader stdout)
