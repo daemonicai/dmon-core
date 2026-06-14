@@ -14,9 +14,9 @@ namespace Dmon.Core.Extensions;
 /// returns a fresh client each turn — it rebuilds when the model or provider switches (the
 /// switch is queued and committed at the next turn boundary). Folding once at startup over a
 /// captured client would break model-switching: the wrapped client would be stale.
-/// Middleware <em>instances</em> live for the lifetime of the process (D6 — no hot-reload);
-/// only the <c>Wrap</c> call is repeated each turn. State held in the middleware instance
-/// (e.g., an in-memory semantic cache) therefore persists across turns as intended.
+/// Middleware <em>instances</em> live for the lifetime of the process; only the <c>Wrap</c>
+/// call is repeated each turn. State held in the middleware instance (e.g., an in-memory
+/// semantic cache) therefore persists across turns as intended.
 /// </para>
 /// </remarks>
 public sealed class MiddlewarePipelineBuilder
@@ -42,36 +42,42 @@ public sealed class MiddlewarePipelineBuilder
     /// </remarks>
     public IChatClient Apply(IChatClient baseClient)
     {
-        IReadOnlyList<IDmonMiddleware> all = _registry.GetAll();
+        IReadOnlyList<(IDmonMiddleware Middleware, int? PriorityOverride)> all = _registry.GetAll();
         if (all.Count == 0)
         {
             return baseClient;
         }
 
         // Index preserves registration order for the stable tiebreaker.
-        IEnumerable<(IDmonMiddleware Middleware, int RegistrationIndex)> indexed =
-            all.Select((m, i) => (m, i));
+        IEnumerable<(IDmonMiddleware Middleware, int? PriorityOverride, int RegistrationIndex)> indexed =
+            all.Select((entry, i) => (entry.Middleware, entry.PriorityOverride, i));
 
-        IOrderedEnumerable<(IDmonMiddleware Middleware, int RegistrationIndex)> ordered =
+        IOrderedEnumerable<(IDmonMiddleware Middleware, int? PriorityOverride, int RegistrationIndex)> ordered =
             indexed
-                .OrderBy(x => EffectivePriority(x.Middleware))
+                .OrderBy(x => EffectivePriority(x.Middleware, x.PriorityOverride))
                 .ThenBy(x => x.RegistrationIndex);
 
         return ordered.Aggregate(baseClient, (inner, x) => x.Middleware.Wrap(inner));
     }
 
     /// <summary>
-    /// Returns the effective priority for <paramref name="middleware"/>: the config override
-    /// at <c>middleware:&lt;ClassName&gt;:priority</c> (case-insensitive) if present, otherwise
-    /// the <see cref="DmonMiddlewareAttribute.Priority"/> value on the instance's type.
+    /// Returns the effective priority for <paramref name="middleware"/>. Precedence (highest first):
+    /// per-registration override supplied to <see cref="IMiddlewareRegistry.Register"/>, then
+    /// the config key <c>middleware:&lt;ClassName&gt;:priority</c>, then the
+    /// <see cref="DmonMiddlewareAttribute.Priority"/> value, then 0.
     /// </summary>
-    private int EffectivePriority(IDmonMiddleware middleware)
+    private int EffectivePriority(IDmonMiddleware middleware, int? registrationOverride)
     {
+        if (registrationOverride.HasValue)
+        {
+            return registrationOverride.Value;
+        }
+
         string className = middleware.GetType().Name;
         string? configValue = _configuration[$"middleware:{className}:priority"];
-        if (configValue is not null && int.TryParse(configValue, out int overridden))
+        if (configValue is not null && int.TryParse(configValue, out int configPriority))
         {
-            return overridden;
+            return configPriority;
         }
 
         DmonMiddlewareAttribute? attr = (DmonMiddlewareAttribute?)

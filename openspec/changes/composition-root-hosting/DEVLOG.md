@@ -58,9 +58,71 @@ Baseline before work: `make build` clean (0 warnings / 0 errors); `ProtocolVersi
 - **Test updates:** `CoreResolverTests` expanded from 8 to 15 tests. Old `OverridePath_WinsOverDefault` (single test, asserted `DirectExecutable`) split into four: `.dll` override → `DotnetExec`; non-`.dll` override → `DirectExecutable`; `DMON_CORE_PATH` `.dll` → `DotnetExec`; `DMON_CORE_PATH` non-`.dll` → `DirectExecutable`. A comment-only section notes that tier-3 `DotnetExec` assertion for published sibling is covered by the override-dll tests (same `OverrideLaunchMode` code path) and the integration build.
 - Gates: `make build` 0 warnings / 0 errors; `make test` all pass (15 Runtime, 160 Terminal — including the `DotnetExec`-launched integration tests; 0 failures).
 
+## 4. Delete the dynamic-load tier
+
+**Deleted production files (~1,100 LOC removed):**
+
+- `src/Dmon.Core/Extensions/CsxScriptLoader.cs` (~236 LOC) — Roslyn `.csx` hot-loader
+- `src/Dmon.Core/Extensions/NuGetExtensionLoader.cs` (~407 LOC) — `AssemblyLoadContext.Default` static ctor, `AssemblyDependencyResolver` probing, middleware reflection-discovery pass
+- `src/Dmon.Core/Extensions/ExtensionService.cs` — orchestrated load/unload/promote and middleware registry hand-off
+- `src/Dmon.Core/Extensions/IExtensionLoader.cs` — loader interface and `ExtensionLoadConfirmRequest`
+- `src/Dmon.Core/Extensions/ExtensionLoadResult.cs` — `ParsedExtensionSource`
+- `src/Dmon.Core/Extensions/StartupExtensionLoader.cs` — config-declared startup loader
+- `src/Dmon.Core/Extensions/PromoteService.cs` — `.csx`→NuGet scaffolder
+- `src/Dmon.Core/BuiltinTools/ExtensionLoadTool.cs` — the `extension.analyze` agent tool
+- `src/Dmon.Core/Rpc/ConfigExtensionHandler.cs` / `IExtensionHandler.cs` — RPC extension-load handler
+- `src/Dmon.Core/Config/ExtensionEntry.cs`, `ExtensionsConfigReader.cs`, `EffectiveExtensionSetResolver.cs`, `ExtensionSourceNormalizer.cs`
+- `src/Dmon.Protocol/Commands/ExtensionCommands.cs` — `extension.load` / `extension.unload` / `extension.promote` commands
+
+**Deleted test files (~800 LOC):**
+
+- `test/Dmon.Core.Tests/Extensions/` — `CsxScriptLoaderTests`, `ExtensionServiceTests`, `MiddlewareConfigServiceProviderTests`, `NuGetExtensionLoader*Tests` (×4), `PromoteServiceTests`, `StartupExtensionLoaderTests`, `ParsedExtensionSourceTests`, `TestAssemblyEmitter`
+- `test/Dmon.Core.Tests/Config/EffectiveExtensionSetResolverTests.cs`
+- `test/Dmon.Core.Tests/Rpc/ConfigExtensionHandlerTests.cs`
+- `test/Dmon.Terminal.Tests/ConfigReflectedAfterReloadTests.cs`
+
+**Modified — protocol surface (`src/Dmon.Protocol`):**
+
+- `Command.cs` — removed three `[JsonDerivedType]` attrs: `ExtensionLoadCommand`, `ExtensionUnloadCommand`, `ExtensionPromoteCommand`
+- `Event.cs` — removed `[JsonDerivedType]` for `ExtensionLoadedEvent`, `ExtensionUnloadedEvent`
+- `Events/OtherEvents.cs` — deleted both event record definitions
+- `docs/protocol/schema.json` regenerated via `make schema` (schema golden-file test now passes)
+
+**Modified — middleware registry → builder surface:**
+
+- `IMiddlewareRegistry` / `MiddlewareRegistry` — `Register(IReadOnlyList<IDmonMiddleware>, int? priorityOverride)` + `GetAll()` returning `(Middleware, PriorityOverride)` tuples
+- `MiddlewarePipelineBuilder.Apply` — sources middleware from `GetAll()` tuples; `EffectivePriority` uses registration override > config > attribute > 0
+- `DmonHostBuilder` — new `AddMiddleware(IDmonMiddleware, int?)` (instance) and `AddMiddleware<T>(int?)` (type-based, `ActivatorUtilities.CreateInstance`) overloads; registered middleware folded into `IMiddlewareRegistry` in `Build()` after the DI container is built
+- `DaemonServiceExtensions.AddDmonExtensions()` — stripped config/runtime loader registrations; kept `IToolRegistry`, `IMiddlewareRegistry`, `MiddlewarePipelineBuilder`, `ProfilesConfigReader`, `EffectiveProfileSetResolver`, security helpers
+- `CommandDispatcher` — removed `IExtensionHandler` field and three command routes
+- `RpcHostedService` — removed `StartupExtensionLoader` field, ctor param, and call
+- `SlashCommandParser` — removed `load`/`unload`/`promote` slash-command branches
+- `ConsoleEventHandler` — removed `ExtensionLoadedEvent` / `ExtensionUnloadedEvent` silent-event cases
+- `BuiltinToolsRegistration` — removed `ExtensionLoadTool`; kept `ExtensionSearchTool`, `ExtensionReadmeTool`
+
+**Task 4.5 — confirmed retained** (no deletions needed):
+
+- `IDmonExtension` / `AIFunction`, `IDmonMiddleware` / `DmonMiddlewareAttribute`, permission pipeline all intact.
+
+**OQ-C resolution:** The `docs/protocol/schema.json` golden file referenced the extension commands/events (as the `CommittedSchema_MatchesLiveExport` test proved), but the `openspec/specs/protocol-schema` standing spec does NOT — it describes the schema file as a generated artifact. Regenerated via `make schema`; no manual spec delta needed.
+
+**Care-point 3 (providers) verified:** `IProviderFactory` registrations (`OpenAiProviderFactory`, `AnthropicProviderFactory`, `GeminiProviderFactory`, `OllamaProviderFactory`) are wired in `AddDmonProviders()`, completely separate from `NuGetExtensionLoader`. Provider loading is unaffected.
+
+**New tests (task 4.6) — `test/Dmon.Core.Tests/Hosting/DmonHostBuilderMiddlewareTests.cs` (7 tests):**
+
+- `AddMiddleware_None_ApplyReturnsBaseClientUnchanged` — no middleware → bare client pass-through
+- `AddMiddlewareT_NoOverride_MiddlewareLandsAtAttributePriority` — type registration at attribute priority
+- `AddMiddlewareT_TwoTypes_LowerPriorityIsInnermost` — fold order from attribute priorities
+- `AddMiddlewareT_RegistrationOverride_BeatsAttributePriority` — per-registration override reorders
+- `AddMiddleware_EqualPriority_StableRegistrationOrderTiebreaker` — equal priority → registration order tiebreak
+- `AddMiddlewareInstance_WithOverride_OverrideTakesPrecedenceOverAttribute` — instance overload with override
+- `AddMiddlewareT_WithDiDependency_ConstructorInjectionWorks` — `ActivatorUtilities` resolves `IConfiguration` ctor param
+
+**Gates: `make build` 0/0; full suite — 528 Core, 159 Terminal, 143 Gateway, 100 Protocol, 102 BuiltinTools, 51 Memory, 41 Omlx, 32 Providers, 26 Extensions, 15 Runtime (1 pre-existing skip across suite); 0 failures.**
+
 ## NEXT
 
-- **Up next:** Group 4 — Delete the dynamic-load tier (`.csx` loader, `Dotnet.Script.Core` dep, config extension loader, `AssemblyLoadContext` reflection discovery).
+- **Up next:** Group 5 — remaining task(s) after the dynamic-load tier deletion.
 - **Nits / deferred:**
   - **(7.1, for the 1.3/G2 work):** `lib/net10.0/dmoncore.runtimeconfig.json` is emitted because the Worker SDK defaults `OutputType=Exe`. Inert for a library ref. Clean it up when 1.3 makes dmoncore truly entry-point-less (`OutputType=Library` / `GenerateRuntimeConfigurationFiles=false`).
   - `scripts/pack-core.sh` and `scripts/smoke-sdk.sh` share `.pack-out` (each `rm -rf`s it); harmless, both rebuild the trio.
@@ -68,3 +130,4 @@ Baseline before work: `make build` clean (0 warnings / 0 errors); `ProtocolVersi
 - **Carry-forward:**
   - **Task 1.3** still open (entry-point-less library / no Main) — completes around G7 once packaging/`OutputType` flip.
   - Process model retained; only the launch *command* changed. `CoreSession`, stdio boundary, protocol gate, `RestartAsync` are all unchanged.
+  - **Agent-facing extension discovery/vetting surface retained but load-path-orphaned:** `ExtensionSearchTool` (`extension.search`), `ExtensionReadmeTool` (`extension.readme`), and the `Extensions/Security/` subsystem (`ExtensionSourceFetcher`, `ExtensionSecurityAnalyser`, `SecurityReportFormatter`) remain registered in `BuiltinToolsRegistration.cs`. Their old `/load … /reload` workflow is deleted; they are now orphaned from any load path. Their tool descriptions likely still reference the deleted `/load` flow. **Deferred to a follow-up change** — outside this change's enumerated deletion surface; intersects the future ADR-021 `compose` permission tier and ADR-020 agent-definitions work. That follow-up should rework or retire these tools and their descriptions.

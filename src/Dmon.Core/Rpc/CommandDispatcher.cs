@@ -12,7 +12,6 @@ public sealed class CommandDispatcher
     private readonly ITurnHandler _turn;
     private readonly IModelHandler _model;
     private readonly ISessionHandler _session;
-    private readonly IExtensionHandler _extension;
     private readonly IAuthHandler _auth;
     private readonly IThinkingHandler _thinking;
     private readonly IProviderSetupHandler _providerSetup;
@@ -27,7 +26,6 @@ public sealed class CommandDispatcher
         ITurnHandler turn,
         IModelHandler model,
         ISessionHandler session,
-        IExtensionHandler extension,
         IAuthHandler auth,
         IThinkingHandler thinking,
         IProviderSetupHandler providerSetup,
@@ -37,7 +35,6 @@ public sealed class CommandDispatcher
         _turn = turn;
         _model = model;
         _session = session;
-        _extension = extension;
         _auth = auth;
         _thinking = thinking;
         _providerSetup = providerSetup;
@@ -133,9 +130,6 @@ public sealed class CommandDispatcher
             SessionGetStatsCommand c => _session.GetStatsAsync(c, cancellationToken),
             SessionGetMessagesCommand c => _session.GetMessagesAsync(c, cancellationToken),
             SessionCompactCommand => throw new NotImplementedException("session.compact is not yet implemented."),
-            ExtensionLoadCommand c => _extension.LoadAsync(c, cancellationToken),
-            ExtensionUnloadCommand c => _extension.UnloadAsync(c, cancellationToken),
-            ExtensionPromoteCommand c => _extension.PromoteAsync(c, cancellationToken),
             AuthLoginCommand c => _auth.LoginAsync(c, cancellationToken),
             AuthLogoutCommand c => _auth.LogoutAsync(c, cancellationToken),
             AuthStatusCommand c => _auth.StatusAsync(c, cancellationToken),

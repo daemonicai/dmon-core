@@ -21,11 +21,12 @@
 
 ## 4. Delete the dynamic-load tier
 
-- [ ] 4.1 Remove the `.csx` loader and the `Dotnet.Script.Core` dependency.
-- [ ] 4.2 Remove the `config.yaml` extension loader: the user/project union, load-at-startup, per-entry fail-soft, and the `promote` path.
-- [ ] 4.3 Remove `AssemblyLoadContext` reflection discovery and `AssemblyDependencyResolver` probing (extensions are compiled in).
-- [ ] 4.4 Retire the `extension.load` / `extension.unload` / `extension.list` RPC commands and `ExtensionUnloadedEvent`. (Flag any `protocol-schema` spec impact for a follow-up delta — design OQ-C.)
-- [ ] 4.5 Confirm retained: `IDmonExtension`/`AIFunction`, `IDmonMiddleware`/`DmonMiddlewareAttribute`, and the permission pipeline. Middleware is now registered via the builder, not reflection-discovered.
+- [x] 4.1 Remove the `.csx` loader and the `Dotnet.Script.Core` dependency.
+- [x] 4.2 Remove the `config.yaml` extension loader: the user/project union, load-at-startup, per-entry fail-soft, and the `promote` path.
+- [x] 4.3 Remove `AssemblyLoadContext` reflection discovery and `AssemblyDependencyResolver` probing (extensions are compiled in).
+- [x] 4.4 Retire the `extension.load` / `extension.unload` / `extension.list` RPC commands and `ExtensionUnloadedEvent`. (Flag any `protocol-schema` spec impact for a follow-up delta — design OQ-C.)
+- [x] 4.5 Confirm retained: `IDmonExtension`/`AIFunction`, `IDmonMiddleware`/`DmonMiddlewareAttribute`, and the permission pipeline. Middleware is now registered via the builder, not reflection-discovered.
+- [x] 4.6 Add a `DmonHost` builder middleware-registration surface (`AddMiddleware<T>()` + instance overload, optional priority override) and fold registered middleware by priority; drop the config-driven `middleware:` activation/priority section (middleware may still read its own settings via `IConfiguration`). Land the `specs/extension-middleware` delta (reflection-discovery + YAML-section requirements removed/modified; builder-registration requirement added).
 
 ## 5. Acquisition via SDK restore
 

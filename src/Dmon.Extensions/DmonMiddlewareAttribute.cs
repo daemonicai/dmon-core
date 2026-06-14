@@ -1,24 +1,17 @@
 namespace Dmon.Extensions;
 
 /// <summary>
-/// Marks a class as a dmon middleware extension and controls its position in the
-/// <c>IChatClient</c> pipeline.
+/// Marks a class as a dmon middleware extension and supplies its default pipeline position.
 /// </summary>
 /// <remarks>
-/// <para>
-/// The extension loader discovers types that BOTH implement <see cref="IDmonMiddleware"/>
-/// AND carry this attribute. A class that implements <see cref="IDmonMiddleware"/> without
-/// this attribute is silently ignored by the loader.
-/// </para>
 /// <para>
 /// <b>Pipeline ordering:</b> lower <see cref="Priority"/> values are innermost (closer to
 /// the base provider); higher values are outermost (closer to the caller). The default
 /// value of <c>0</c> places middleware at the innermost position unless a higher value is
 /// assigned. Space values to allow insertion (e.g., 100, 200, 300). When two middlewares
 /// share the same effective priority the stable registration order acts as a tiebreaker.
-/// The effective priority may be overridden per-middleware via the config YAML
-/// <c>middleware:&lt;ClassName&gt;:priority</c> field — config takes precedence over the
-/// attribute value.
+/// The effective priority may be overridden per-registration on the builder, or via the
+/// config key <c>middleware:&lt;ClassName&gt;:priority</c> — both beat the attribute.
 /// </para>
 /// </remarks>
 [AttributeUsage(AttributeTargets.Class, AllowMultiple = false, Inherited = false)]

@@ -27,28 +27,6 @@ public sealed record SessionUpdatedEvent : Event
     public required string Title { get; init; }
 }
 
-public sealed record ExtensionLoadedEvent : Event
-{
-    [JsonPropertyName("name")]
-    public required string Name { get; init; }
-
-    [JsonPropertyName("tools")]
-    public required IReadOnlyList<string> Tools { get; init; }
-
-    /// <summary>
-    /// Non-null when the extension registered a provider.
-    /// Null when the extension was inapplicable or had no provider.
-    /// </summary>
-    [JsonPropertyName("providerName")]
-    public string? ProviderName { get; init; }
-}
-
-public sealed record ExtensionUnloadedEvent : Event
-{
-    [JsonPropertyName("name")]
-    public required string Name { get; init; }
-}
-
 public sealed record CompactionStartEvent : Event
 {
     [JsonPropertyName("reason")]

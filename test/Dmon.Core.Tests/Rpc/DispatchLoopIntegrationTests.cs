@@ -262,7 +262,6 @@ public sealed class DispatchLoopIntegrationTests : IDisposable
             turn: turn ?? new NoOpTurnHandler(),
             model: model ?? new NoOpModelHandler(),
             session: new NoOpSessionHandler(),
-            extension: new NoOpExtensionHandler(),
             auth: new NoOpAuthHandler(),
             thinking: new NoOpThinkingHandler(),
             providerSetup: providerSetup ?? new NoOpProviderSetupHandler(),
@@ -447,13 +446,6 @@ public sealed class DispatchLoopIntegrationTests : IDisposable
         public Task SetNameAsync(SessionSetNameCommand cmd, CancellationToken cancellationToken) => Task.CompletedTask;
         public Task GetStatsAsync(SessionGetStatsCommand cmd, CancellationToken cancellationToken) => Task.CompletedTask;
         public Task GetMessagesAsync(SessionGetMessagesCommand cmd, CancellationToken cancellationToken) => Task.CompletedTask;
-    }
-
-    private sealed class NoOpExtensionHandler : IExtensionHandler
-    {
-        public Task LoadAsync(ExtensionLoadCommand cmd, CancellationToken cancellationToken) => Task.CompletedTask;
-        public Task UnloadAsync(ExtensionUnloadCommand cmd, CancellationToken cancellationToken) => Task.CompletedTask;
-        public Task PromoteAsync(ExtensionPromoteCommand cmd, CancellationToken cancellationToken) => Task.CompletedTask;
     }
 
     private sealed class NoOpAuthHandler : IAuthHandler

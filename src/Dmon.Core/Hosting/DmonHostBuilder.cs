@@ -21,6 +21,7 @@ public sealed class DmonHostBuilder
 {
     private readonly string[] _args;
     private readonly List<IDmonExtension> _extensions = [];
+    private readonly List<(Func<IServiceProvider, IDmonMiddleware> Factory, int? PriorityOverride)> _middlewares = [];
 
     private string? _providerOverride;
     private string? _modelOverride;
@@ -48,8 +49,8 @@ public sealed class DmonHostBuilder
 
     /// <summary>
     /// Registers an extension instance whose tools will be available in the
-    /// tool registry from startup. Layered on top of config-declared extensions;
-    /// both coexist in this group (config loading is not removed until Groups 4–6).
+    /// tool registry from startup. Extensions are registered solely via the builder
+    /// at compile time — there is no config-declared extension set.
     /// </summary>
     public DmonHostBuilder AddExtension(IDmonExtension extension)
     {
@@ -63,6 +64,32 @@ public sealed class DmonHostBuilder
     public DmonHostBuilder AddExtension<TExtension>() where TExtension : IDmonExtension, new()
     {
         _extensions.Add(new TExtension());
+        return this;
+    }
+
+    /// <summary>
+    /// Registers a middleware instance in the pipeline. The middleware is folded at its
+    /// <see cref="DmonMiddlewareAttribute.Priority"/> value (or 0 if the attribute is absent)
+    /// unless overridden by <paramref name="priorityOverride"/> or a config entry.
+    /// </summary>
+    public DmonHostBuilder AddMiddleware(IDmonMiddleware middleware, int? priorityOverride = null)
+    {
+        _middlewares.Add((_ => middleware, priorityOverride));
+        return this;
+    }
+
+    /// <summary>
+    /// Registers a middleware by type in the pipeline. The type is instantiated at
+    /// <see cref="Build"/> time using the host's <see cref="IServiceProvider"/>, which
+    /// satisfies any constructor parameters resolvable from DI; if no matching constructor
+    /// is found, instantiation fails at build time with a clear error.
+    /// The middleware is folded at its <see cref="DmonMiddlewareAttribute.Priority"/> value
+    /// (or 0 if absent) unless overridden by <paramref name="priorityOverride"/> or config.
+    /// </summary>
+    public DmonHostBuilder AddMiddleware<TMiddleware>(int? priorityOverride = null)
+        where TMiddleware : IDmonMiddleware
+    {
+        _middlewares.Add((sp => (IDmonMiddleware)ActivatorUtilities.CreateInstance<TMiddleware>(sp), priorityOverride));
         return this;
     }
 
@@ -207,6 +234,19 @@ public sealed class DmonHostBuilder
             foreach (IDmonExtension ext in _extensions)
             {
                 registry.Register(ext.Name, ext, ext.Tools);
+            }
+        }
+
+        // Register builder-supplied middleware into the middleware registry after the
+        // container is built so that type-based factories can resolve IServiceProvider.
+        if (_middlewares.Count > 0)
+        {
+            IMiddlewareRegistry mwRegistry = host.Services.GetRequiredService<IMiddlewareRegistry>();
+            IServiceProvider sp = host.Services;
+            foreach ((Func<IServiceProvider, IDmonMiddleware> factory, int? priorityOverride) in _middlewares)
+            {
+                IDmonMiddleware instance = factory(sp);
+                mwRegistry.Register([instance], priorityOverride);
             }
         }
 

@@ -10,10 +10,9 @@ namespace Dmon.Extensions;
 /// </summary>
 /// <remarks>
 /// <para>
-/// To be discovered by the extension loader, a class must BOTH implement
-/// <see cref="IDmonMiddleware"/> AND carry <see cref="DmonMiddlewareAttribute"/>.
-/// Implementing the interface without the attribute is not an error, but the class
-/// will not be included in the pipeline.
+/// Register middleware through the <c>DmonHostBuilder</c> in <c>Dmon.cs</c> via
+/// <c>AddMiddleware&lt;T&gt;()</c> or the instance overload. Middleware is a
+/// compile-time dependency of <c>Dmon.cs</c>, not discovered at runtime.
 /// </para>
 /// <para>
 /// To implement middleware, return a new <see cref="IChatClient"/> from
@@ -21,8 +20,9 @@ namespace Dmon.Extensions;
 /// subclassing <c>Microsoft.Extensions.AI.DelegatingChatClient</c>.
 /// </para>
 /// <para>
-/// Middleware is loaded once at agent startup. Changes to middleware assemblies
-/// require a process restart; hot-reload is not supported for this tier.
+/// <see cref="DmonMiddlewareAttribute"/> controls pipeline position; without it
+/// the default priority of <c>0</c> applies. Priority may be overridden per-registration
+/// on the builder or via <c>IConfiguration</c> at runtime.
 /// </para>
 /// </remarks>
 public interface IDmonMiddleware

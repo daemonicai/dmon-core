@@ -20,6 +20,7 @@ Three subsystems answer one question — *what code makes up this agent, and how
 
 ### Modified Capabilities
 - `extension-model`: extensions are **compile-time** `#:package` + builder registrations; the `.csx` tier, the config-declared active-extension set (user/project union, load-at-startup, fail-soft), and reflection-based middleware discovery are removed/replaced by builder wiring. The `IDaemonExtension`/`AIFunction` contract and the one-shared-context principle are retained.
+- `extension-middleware`: middleware is **registered through the `DmonHost` builder** (`AddMiddleware<T>()`/instance, optional priority override) instead of reflection-discovered; the config-driven `middleware:` activation/priority section is removed (a middleware may still read its own settings via `IConfiguration`). The `IDmonMiddleware`/`DmonMiddlewareAttribute` contract and the priority-ordered fold are retained.
 - `core-runtime-acquisition`: discovery precedence updated to `Dmon.cs` > `$DMON_CORE` > prebuilt default; the on-demand runtime NuGet downloader is removed (acquisition is SDK `dotnet restore` over `#:package`); the core is launched via build-then-`--no-build`-run; the protocol-compatibility handshake gate is retained.
 - `package-publishing`: `dmoncore` is published as a **library** package; the runnable publish closure survives only as the **prebuilt default core** (a canonical `Dmon.cs` built ahead of time), not as the unit of distribution. Granular contract packages and the protocol-keyed three-part version scheme are retained.
 

@@ -1,7 +1,6 @@
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using Dmon.Core.Bootstrap;
-using Dmon.Core.Extensions;
 using Dmon.Protocol.Events;
 
 namespace Dmon.Core.Rpc;
@@ -12,7 +11,6 @@ public sealed class RpcHostedService : BackgroundService
     private readonly IEventEmitter _emitter;
     private readonly BootstrapService _bootstrap;
     private readonly SetupCheckService _setupCheck;
-    private readonly StartupExtensionLoader _startupExtensions;
     private readonly TextReader _stdin;
     private readonly ILogger<RpcHostedService> _logger;
 
@@ -21,7 +19,6 @@ public sealed class RpcHostedService : BackgroundService
         IEventEmitter emitter,
         BootstrapService bootstrap,
         SetupCheckService setupCheck,
-        StartupExtensionLoader startupExtensions,
         TextReader stdin,
         ILogger<RpcHostedService> logger)
     {
@@ -29,7 +26,6 @@ public sealed class RpcHostedService : BackgroundService
         _emitter = emitter;
         _bootstrap = bootstrap;
         _setupCheck = setupCheck;
-        _startupExtensions = startupExtensions;
         _stdin = stdin;
         _logger = logger;
     }
@@ -38,11 +34,6 @@ public sealed class RpcHostedService : BackgroundService
     {
         await _bootstrap.RunAsync(stoppingToken).ConfigureAwait(false);
         await _setupCheck.RunAsync(stoppingToken).ConfigureAwait(false);
-
-        // Load config-declared extensions before announcing ready.
-        // BuiltinToolsInitializer runs as IHostedService before ExecuteAsync,
-        // so builtin tools are already registered at this point.
-        await _startupExtensions.RunAsync(stoppingToken).ConfigureAwait(false);
 
         string coreVersion = Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "0.0.0";
 

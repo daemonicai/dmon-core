@@ -398,63 +398,6 @@
         {
           "properties": {
             "type": {
-              "const": "extension.load"
-            },
-            "source": {
-              "type": "string"
-            },
-            "scope": {
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "id": {
-              "type": "string"
-            }
-          },
-          "required": [
-            "source",
-            "id"
-          ]
-        },
-        {
-          "properties": {
-            "type": {
-              "const": "extension.unload"
-            },
-            "name": {
-              "type": "string"
-            },
-            "id": {
-              "type": "string"
-            }
-          },
-          "required": [
-            "name",
-            "id"
-          ]
-        },
-        {
-          "properties": {
-            "type": {
-              "const": "extension.promote"
-            },
-            "name": {
-              "type": "string"
-            },
-            "id": {
-              "type": "string"
-            }
-          },
-          "required": [
-            "name",
-            "id"
-          ]
-        },
-        {
-          "properties": {
-            "type": {
               "const": "thinking.set"
             },
             "level": {
@@ -963,48 +906,6 @@
         {
           "properties": {
             "type": {
-              "const": "extensionLoaded"
-            },
-            "name": {
-              "type": "string"
-            },
-            "tools": {
-              "type": "array",
-              "items": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              }
-            },
-            "providerName": {
-              "type": [
-                "string",
-                "null"
-              ]
-            }
-          },
-          "required": [
-            "name",
-            "tools"
-          ]
-        },
-        {
-          "properties": {
-            "type": {
-              "const": "extensionUnloaded"
-            },
-            "name": {
-              "type": "string"
-            }
-          },
-          "required": [
-            "name"
-          ]
-        },
-        {
-          "properties": {
-            "type": {
               "const": "compactionStart"
             },
             "reason": {
@@ -1358,7 +1259,7 @@
                     "options": {
                       "type": "array",
                       "items": {
-                        "$ref": "#/anyOf/32/properties/step/anyOf/0/properties/options/items"
+                        "$ref": "#/anyOf/30/properties/step/anyOf/0/properties/options/items"
                       }
                     },
                     "minSelections": {
@@ -1638,10 +1539,10 @@
                   ]
                 },
                 "tokens": {
-                  "$ref": "#/anyOf/34/properties/session/properties/tokens"
+                  "$ref": "#/anyOf/32/properties/session/properties/tokens"
                 },
                 "cost": {
-                  "$ref": "#/anyOf/34/properties/session/properties/cost"
+                  "$ref": "#/anyOf/32/properties/session/properties/cost"
                 }
               },
               "required": [
@@ -1701,10 +1602,10 @@
                   ]
                 },
                 "tokens": {
-                  "$ref": "#/anyOf/34/properties/session/properties/tokens"
+                  "$ref": "#/anyOf/32/properties/session/properties/tokens"
                 },
                 "cost": {
-                  "$ref": "#/anyOf/34/properties/session/properties/cost"
+                  "$ref": "#/anyOf/32/properties/session/properties/cost"
                 }
               },
               "required": [
@@ -1764,10 +1665,10 @@
                   ]
                 },
                 "tokens": {
-                  "$ref": "#/anyOf/34/properties/session/properties/tokens"
+                  "$ref": "#/anyOf/32/properties/session/properties/tokens"
                 },
                 "cost": {
-                  "$ref": "#/anyOf/34/properties/session/properties/cost"
+                  "$ref": "#/anyOf/32/properties/session/properties/cost"
                 }
               },
               "required": [
@@ -1832,10 +1733,10 @@
                     ]
                   },
                   "tokens": {
-                    "$ref": "#/anyOf/34/properties/session/properties/tokens"
+                    "$ref": "#/anyOf/32/properties/session/properties/tokens"
                   },
                   "cost": {
-                    "$ref": "#/anyOf/34/properties/session/properties/cost"
+                    "$ref": "#/anyOf/32/properties/session/properties/cost"
                   }
                 },
                 "required": [
