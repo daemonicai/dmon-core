@@ -7,10 +7,10 @@
 
 ## 2. `Dmon.cs` composition root, canonical default, and `dmon init`
 
-- [ ] 2.1 Author the **canonical `Dmon.cs`** (references `#:package dmoncore@<protocol>.*`, no extra extensions) that the prebuilt default core is published from.
-- [ ] 2.2 Implement `dmon init` to scaffold an editable `Dmon.cs` in the working directory.
-- [ ] 2.3 Provide a sample `Dmon.cs` that declares an extension `#:package` + builder `.AddExtension<…>()` to prove compile-time composition.
-- [ ] 2.4 Tests: `dmon init` produces a `Dmon.cs` that builds into a runnable core; a composed extension's tools are registered at startup with no runtime load step; contract types share one identity (single ALC graph).
+- [x] 2.1 Author the **canonical `Dmon.cs`** (references `#:package dmoncore@<protocol>.*`, no extra extensions) that the prebuilt default core is published from.
+- [x] 2.2 Implement `dmon init` to scaffold an editable `Dmon.cs` in the working directory.
+- [x] 2.3 Provide a sample `Dmon.cs` that declares an extension `#:package` + builder `.AddExtension<…>()` to prove compile-time composition.
+- [x] 2.4 Tests: `dmon init` produces a `Dmon.cs` that builds into a runnable core; a composed extension's tools are registered at startup with no runtime load step; contract types share one identity (single ALC graph).
 
 ## 3. `Dmon.Runtime` launch: precedence + build-then-`--no-build`-run
 

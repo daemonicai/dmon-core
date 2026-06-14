@@ -1,13 +1,17 @@
 #!/usr/bin/env bash
-# pack-core.sh — pack dmoncore and its contract-package deps to the local .pack-out feed
+# pack-core.sh — pack dmoncore and its contract-package deps to a local NuGet feed
 # at a stable 0.2.0 version so that #:package dmoncore@0.2.* resolves locally.
 #
-# Run from the repo root: bash scripts/pack-core.sh
+# Usage:
+#   bash scripts/pack-core.sh             # packs to <repo>/.pack-out
+#   bash scripts/pack-core.sh /tmp/myfeed # packs to an explicit target directory
+#
 # Requires: dotnet 10 SDK, git (for MinVer tags)
 set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-FEED="$REPO/.pack-out"
+# Accept an optional target feed directory as the first argument.
+FEED="${1:-$REPO/.pack-out}"
 
 echo "==> Cleaning and recreating $FEED"
 rm -rf "$FEED"
@@ -36,7 +40,13 @@ dotnet pack "$REPO/src/Dmon.Core/Dmon.Core.csproj" \
     -c Release -o "$FEED" --nologo \
     -p:MinVerVersionOverride="$VERSION_OVERRIDE"
 
+echo "==> Packing sample extension (version override: $VERSION_OVERRIDE)"
+dotnet pack "$REPO/samples/Dmon.SampleExtension/Dmon.SampleExtension.csproj" \
+    -c Release -o "$FEED" --nologo \
+    -p:MinVerVersionOverride="$VERSION_OVERRIDE"
+
 echo ""
 echo "PASS: dmoncore $VERSION_OVERRIDE and contract packages packed to $FEED"
 echo "      Consumer can reference: #:package dmoncore@0.2.*"
+echo "      Composed core: #:package dmoncore@0.2.* + #:package Dmon.SampleExtension@0.2.*"
 echo "      Feed: $FEED"

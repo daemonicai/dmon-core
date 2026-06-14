@@ -15,6 +15,16 @@ Baseline before work: `make build` clean (0 warnings / 0 errors); `ProtocolVersi
 - Tests: `DmonHostGoldenPathTests` — `agentReady`/`protocolVersion=0.2` over a `Pipe`-backed in-proc stdio; a builder-registered `AIFunction` lands in `IToolRegistry`; `WithModel`/`WithProfile` overrides reach `ActiveModelStore`/the resolver (regression guards for B1/B2).
 - Gates: `make build` 0/0; full `make test` green (628 Core tests, only pre-existing skips); `openspec validate --strict` valid.
 
+## 2. `Dmon.cs` composition root, canonical default, and `dmon init`
+
+- **2.1** `default-core/Dmon.cs` — canonical composition root: `#:package dmoncore@0.2.*` + `await DmonHost.CreateBuilder(args).Build().RunAsync();`, no extra extensions. Checked-in `default-core/nuget.config` → `../.pack-out` + nuget.org (built in-repo against the local feed; G7.2 publishes the prebuilt default from it).
+- **2.2** `dmon init` — `src/Dmon.Terminal/InitCommand.cs` + an early `args.Length>0 && args[0]=="init"` dispatch in `Program.cs` (no-arg still launches the TUI). Scaffolds `Dmon.cs` into CWD with the pin derived from `ProtocolVersion.Current` (no hardcoded duplicate), no local-feed nuget.config (real users resolve from nuget.org), refuses to overwrite an existing file (exit 1).
+- **2.3** Sample composed root: `samples/Dmon.SampleExtension/` (packable `IDmonExtension` with a `greet` tool) packed into the feed by `pack-core.sh`; `samples/Dmon.ComposedCore/Dmon.cs` declares `#:package dmoncore@0.2.*` + `#:package Dmon.SampleExtension@0.2.*` + `.AddExtension<GreetingExtension>()` — proves compile-time composition via `#:package` (not `#:project`).
+- **2.4 / Decision (test infra):** the build/compose integration tests **self-provision** — `InitFeedFixture`/`ComposedCoreFeedFixture` (`IAsyncLifetime`) pack into a **unique per-fixture temp feed** (Guid-named, torn down), so tests always really run with no shared-`.pack-out` race and **no silent vacuous-pass** (reviewer's B1). Verified green with `.pack-out` deleted (Terminal 12s / Core 13s — real builds+spawns). `pack-core.sh` gained an optional `$1` target-feed arg (default `.pack-out`).
+- **N1 fix:** wire test proves the no-runtime-load half (real composed core, `agentReady` with no `extensionLoaded`); a separate in-process test positively asserts `AddExtension<T>()` lands `greet` in `IToolRegistry` (no wire tool-enumeration command exists today — documented). Test (c) asserts single contract-type identity (`IDmonExtension` Type match) — fails under a separate/collectible ALC.
+- **N2 fix:** guard tests assert `default-core/Dmon.cs` and `samples/Dmon.ComposedCore/Dmon.cs` contain `dmoncore@{ProtocolVersion.Current}.*` (derived, repo-root located from assembly path; missing file fails).
+- **Nit deferred (N3):** `Dmon.SampleExtension.csproj` hardcodes `Dmon.Extensions Version="0.2.*"` — consistent with the floating-pin scheme; not guarded.
+
 ## 7. Packaging
 
 *(Task 7.1 pulled ahead of Group 2 — G2's "compose a Dmon.cs against `#:package dmoncore`" hard-depends on dmoncore being a library package. 7.2/7.3 remain in the G7 slot.)*
@@ -26,8 +36,9 @@ Baseline before work: `make build` clean (0 warnings / 0 errors); `ProtocolVersi
 
 ## NEXT
 
-- **Up next:** Group 2 — canonical `Dmon.cs` (2.1), `dmon init` (2.2), sample composed `Dmon.cs` (2.3), build/compose/identity tests (2.4). Build on 7.1's library package + `.pack-out` feed. Pin = spec-literal `#:package dmoncore@0.2.*` (stable-pack approach). Canonical default-core dir should carry a checked-in `nuget.config` → `.pack-out`+nuget.org (it's always built in-repo); `dmon init`'s scaffold should NOT include a local-feed nuget.config (resolves from nuget.org in real use); 2.4 test harness adds a local-feed nuget.config to build offline.
-- **Open questions:** —
+- **Up next:** Group 3 — `Dmon.Runtime` launch precedence + build-then-`--no-build`-run. Update core discovery to `./Dmon.cs` > `--core-path`/`DMON_CORE_PATH` > prebuilt default (remove NuGet-cache/on-demand tiers); two-step launch via `ICoreLauncher`/`ICoreProcess` (`dotnet build Dmon.cs` captured, then `dotnet run Dmon.cs --no-build`), `dotnet exec` the prebuilt dll for default/override; `/reload` rebuilds incrementally + restarts. **OQ-B to confirm empirically:** is `dotnet run --no-build` stdout truly silent (only JSONL frames) for a file-based program? Fall back to exec-the-built-dll if not. This is where the **stale root-layout** `CoreResolver`/`NuGetCoreAcquisitionSource` paths (now pointing at root, not `lib/`) get reworked — coordinate with G5's removal.
+- **Open questions:**
+  - **OQ-B (G3):** `dotnet run Dmon.cs --no-build` stdout purity for file-based programs — confirm at implementation; `--verbosity quiet` or exec-the-built-dll as fallback.
 - **Nits / deferred:**
   - **(7.1, for the 1.3/G2 work):** `lib/net10.0/dmoncore.runtimeconfig.json` is emitted because the Worker SDK defaults `OutputType=Exe`. Inert for a library ref. Clean it up when 1.3 makes dmoncore truly entry-point-less (`OutputType=Library` / `GenerateRuntimeConfigurationFiles=false`).
   - `scripts/pack-core.sh` and `scripts/smoke-sdk.sh` share `.pack-out` (each `rm -rf`s it); harmless, both rebuild the trio.
