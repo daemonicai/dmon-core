@@ -21,6 +21,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Dmail\Dmail.csproj" />
+    <ProjectReference Include="..\..\src\Dmon.Extensions.Dmail\Dmon.Extensions.Dmail.csproj" />
   </ItemGroup>
 
 </Project>
