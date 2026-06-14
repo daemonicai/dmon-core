@@ -1,9 +1,9 @@
 ## 1. Hosting surface (`DmonHost`)
 
-- [ ] 1.1 Add `Dmon.Hosting.DmonHost.CreateBuilder(args)` to the `dmoncore` library returning a builder (provider/model, extension registration, permission mode, profile) with `.Build()` → a host whose `RunAsync(cancellationToken)` runs today's JSONL/stdio core loop.
-- [ ] 1.2 Relocate the existing core `Program.Main`/bootstrap into `RunAsync()` so the wire contract (ADR-003), session storage (ADR-004), and permission pipeline (ADR-002/006) are byte-for-byte unchanged behind the new surface.
+- [x] 1.1 Add `Dmon.Hosting.DmonHost.CreateBuilder(args)` to the `dmoncore` library returning a builder (provider/model, extension registration, permission mode, profile) with `.Build()` → a host whose `RunAsync(cancellationToken)` runs today's JSONL/stdio core loop.
+- [x] 1.2 Relocate the existing core `Program.Main`/bootstrap into `RunAsync()` so the wire contract (ADR-003), session storage (ADR-004), and permission pipeline (ADR-002/006) are byte-for-byte unchanged behind the new surface.
 - [ ] 1.3 Make `dmoncore` an entry-point-less **library** (remove its top-level program); confirm no `Main` remains in the package.
-- [ ] 1.4 Tests: a host built via `DmonHost.CreateBuilder(args).Build().RunAsync(ct)` emits `agentReady` and serves the same protocol as the prior stock core (golden-path RPC test).
+- [x] 1.4 Tests: a host built via `DmonHost.CreateBuilder(args).Build().RunAsync(ct)` emits `agentReady` and serves the same protocol as the prior stock core (golden-path RPC test).
 
 ## 2. `Dmon.cs` composition root, canonical default, and `dmon init`
 

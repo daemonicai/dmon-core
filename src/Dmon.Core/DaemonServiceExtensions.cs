@@ -137,7 +137,10 @@ public static class DmonServiceExtensions
             return new PermissionPolicy(project, null);
         });
 
-        services.AddSingleton<IEventEmitter>(_ => new EventEmitter(Console.Out));
+        // TryAdd so DmonHostBuilder's pre-registered TextWriter (injected via WithStdio) wins.
+        services.TryAddSingleton<TextWriter>(_ => Console.Out);
+        services.TryAddSingleton<TextReader>(_ => Console.In);
+        services.TryAddSingleton<IEventEmitter>(sp => new EventEmitter(sp.GetRequiredService<TextWriter>()));
 
         services.AddSingleton<AgentConfigResolver>();
         services.AddSingleton<ISystemPromptBuilder, SystemPromptBuilder>();

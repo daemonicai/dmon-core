@@ -13,6 +13,7 @@ public sealed class RpcHostedService : BackgroundService
     private readonly BootstrapService _bootstrap;
     private readonly SetupCheckService _setupCheck;
     private readonly StartupExtensionLoader _startupExtensions;
+    private readonly TextReader _stdin;
     private readonly ILogger<RpcHostedService> _logger;
 
     public RpcHostedService(
@@ -21,6 +22,7 @@ public sealed class RpcHostedService : BackgroundService
         BootstrapService bootstrap,
         SetupCheckService setupCheck,
         StartupExtensionLoader startupExtensions,
+        TextReader stdin,
         ILogger<RpcHostedService> logger)
     {
         _dispatcher = dispatcher;
@@ -28,6 +30,7 @@ public sealed class RpcHostedService : BackgroundService
         _bootstrap = bootstrap;
         _setupCheck = setupCheck;
         _startupExtensions = startupExtensions;
+        _stdin = stdin;
         _logger = logger;
     }
 
@@ -52,7 +55,7 @@ public sealed class RpcHostedService : BackgroundService
         _logger.LogDebug("RPC loop started. Protocol {Protocol}, core {Version}.",
             Dmon.Protocol.ProtocolVersion.Current, coreVersion);
 
-        await foreach (string line in ReadLinesAsync(Console.In, stoppingToken).ConfigureAwait(false))
+        await foreach (string line in ReadLinesAsync(_stdin, stoppingToken).ConfigureAwait(false))
         {
             await _dispatcher.DispatchAsync(line, stoppingToken).ConfigureAwait(false);
         }
