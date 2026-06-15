@@ -30,12 +30,12 @@
 
 ## 6. Live tool-call e2e test (closes composition-root-facets 8.4)
 
-- [ ] 6.1 Add an automated e2e test that launches a real core via `ICoreLauncher`, wraps it in `IRpcClient`, awaits `agentReady`, submits a turn that triggers a builtin tool, and asserts the tool-call round-trip. Bound by the `RequestAsync` timeout; forwarded stderr (Group 4) surfaces failures.
-- [ ] 6.2 On missing provider config (ADR-005), the test SHALL skip with a logged reason — never a silent pass. Retain existing partial coverage (`BuiltinToolsRegistrationTests`, `CoreProcessFixture`).
-- [ ] 6.3 Tick `composition-root-facets` task 8.4 in `openspec/changes/composition-root-facets/tasks.md` (flip `[ ]→[x]` only) noting it is now covered by this change's e2e test.
+- [x] 6.1 Add an automated e2e test that launches a real core via `ICoreLauncher`, wraps it in `IRpcClient`, awaits `agentReady`, submits a turn that triggers a builtin tool, and asserts the tool-call round-trip. Bound by the `RequestAsync` timeout; forwarded stderr (Group 4) surfaces failures.
+- [x] 6.2 On missing provider config (ADR-005), the test SHALL skip with a logged reason — never a silent pass. Retain existing partial coverage (`BuiltinToolsRegistrationTests`, `CoreProcessFixture`).
+- [x] 6.3 Tick `composition-root-facets` task 8.4 in `openspec/changes/composition-root-facets/tasks.md` (flip `[ ]→[x]` only) noting it is now covered by this change's e2e test.
 
 ## 7. Gates
 
-- [ ] 7.1 `make build` clean (no warnings; `TreatWarningsAsErrors`).
-- [ ] 7.2 `make test` green — new `Dmon.Runtime.Tests`, updated Terminal/Gateway tests, and the live e2e (or its honest skip).
-- [ ] 7.3 `openspec validate host-rpc-abstraction --strict`.
+- [x] 7.1 `make build` clean (no warnings; `TreatWarningsAsErrors`).
+- [x] 7.2 `make test` green — new `Dmon.Runtime.Tests`, updated Terminal/Gateway tests, and the live e2e (or its honest skip).
+- [x] 7.3 `openspec validate host-rpc-abstraction --strict`.
