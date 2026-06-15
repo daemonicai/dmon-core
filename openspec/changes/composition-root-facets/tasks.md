@@ -1,9 +1,9 @@
 ## 1. Discovery & audit
 
-- [ ] 1.1 Enumerate every reference to `IDmonExtension`, `Dmon.Extensions` (package + namespace), `DmonMiddlewareAttribute`, and `DmonAIFunctionFactory` across the solution (src, samples, tests, `Dmon.cs` roots, docs) — produce the rename worklist.
-- [ ] 1.2 Enumerate every reference to the profile subsystem — `IAgentProfileResolver`, `AgentProfile`, `ProfilesConfigReader`, `EffectiveProfileSetResolver`, `AgentProfileContext`, `WithProfile`, `ProfileOverrideResolver`, and `profile` in the gateway/RPC surface — to scope Group 7.
-- [ ] 1.3 Enumerate `Dmon.Core`'s direct vendor-SDK usages (`Anthropic`, `GeminiDotnet`, `Microsoft.Extensions.AI.OpenAI`, `OllamaSharp`) and the `PrivateAssets="all"` provider/builtin project refs, to scope Groups 4–5.
-- [ ] 1.4 Confirm the setup wizard, model listing, and `IProviderRegistry` consume providers only through abstractions (no concrete-provider coupling that the package split would break).
+- [x] 1.1 Enumerate every reference to `IDmonExtension`, `Dmon.Extensions` (package + namespace), `DmonMiddlewareAttribute`, and `DmonAIFunctionFactory` across the solution (src, samples, tests, `Dmon.cs` roots, docs) — produce the rename worklist.
+- [x] 1.2 Enumerate every reference to the profile subsystem — `IAgentProfileResolver`, `AgentProfile`, `ProfilesConfigReader`, `EffectiveProfileSetResolver`, `AgentProfileContext`, `WithProfile`, `ProfileOverrideResolver`, and `profile` in the gateway/RPC surface — to scope Group 7.
+- [x] 1.3 Enumerate `Dmon.Core`'s direct vendor-SDK usages (`Anthropic`, `GeminiDotnet`, `Microsoft.Extensions.AI.OpenAI`, `OllamaSharp`) and the `PrivateAssets="all"` provider/builtin project refs, to scope Groups 4–5.
+- [x] 1.4 Confirm the setup wizard, model listing, and `IProviderRegistry` consume providers only through abstractions (no concrete-provider coupling that the package split would break).
 
 ## 2. Contracts collapse & rename (atomic, build-green)
 
