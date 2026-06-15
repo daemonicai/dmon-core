@@ -10,7 +10,7 @@ using Dmon.Core.Session;
 using Dmon.Core.SystemPrompt;
 using Dmon.Protocol.Sessions;
 using Dmon.Core.Tests.Fakes;
-using Dmon.Extensions;
+using Dmon.Abstractions.Extensions;
 using Dmon.Protocol.Commands;
 using Dmon.Protocol.Events;
 using Microsoft.Extensions.AI;
@@ -204,8 +204,8 @@ public sealed class SystemPromptBuilderTests : IDisposable
     private sealed class EmptyToolRegistry : IToolRegistry
     {
         public IReadOnlyList<AIFunction> GetAll() => [];
-        public void Register(string extensionName, IDmonExtension extension, IEnumerable<AIFunction> tools) { }
-        public IDmonExtension? FindExtension(string toolName) => null;
+        public void Register(string extensionName, IToolExtension extension, IEnumerable<AIFunction> tools) { }
+        public IToolExtension? FindExtension(string toolName) => null;
         public void Unregister(string extensionName) { }
         public IReadOnlyList<RegisteredExtensionSnapshot> GetSnapshot() => [];
         public void Clear() { }

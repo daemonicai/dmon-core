@@ -14,11 +14,20 @@
   - **`ISessionAssetProvisioner.Provision(AgentProfile, sessionId)` takes an `AgentProfile`** (being deleted) — its signature must change to take a path/flag from the `UseAssets` verb (Group 7).
   - **Likely spec gap:** the `profile`→`agent` rename touches `Dmon.Protocol` DTOs, which are governed by the `protocol-schema` standing spec — not currently in the change's capability set. A `protocol-schema` delta probably needs adding before Group 7 (the `remote-session-gateway` delta covers the control frame but not `SessionMeta`/`SessionCommands`).
 
+## 2. Contracts collapse & rename
+
+- Renamed `IDmonExtension`→`IToolExtension` (shape byte-for-byte identical, both default methods preserved) and moved it, `IDmonMiddleware`, `DmonMiddlewareAttribute`, `DmonAIFunctionFactory` into `Dmon.Abstractions` (namespaces `Dmon.Abstractions.Extensions` and `Dmon.Abstractions.Hosting`). `Dmon.Extensions` project deleted, removed from `Dmon.slnx`, all refs repointed.
+- Declared the three facets + `IDmonHostBuilder` (`{ Services, Configuration }`, aggregating them) + `IChatClientFactory` as **contracts only** — facets are empty markers this group; verbs/wiring are Group 3.
+- **Decision:** `Dmon.Abstractions` references the **full** `Microsoft.Extensions.Configuration` (not just `.Abstractions`) because `IConfigurationManager` (the type `IDmonHostBuilder.Configuration` exposes, per ADR-022 D2) lives there — the `.Abstractions` package only has `IConfiguration`/`IConfigurationBuilder`. Added a **direct** `Microsoft.Extensions.DependencyInjection.Abstractions` 10.0.8 ref (was resolving only transitively via M.E.AI) so the contract package declares its own public-surface deps. Both pinned 10.0.8 to match repo convention.
+- **Scope held:** `DmonHostBuilder` verbs (`AddExtension`/`AddMiddleware`/`WithModel`/`WithProfile`) and post-build registry loops left UNCHANGED (only the param *type* swapped) — verb renames + DI-discovery deferred to Group 3.
+- **Env gotcha (not a defect):** the `ComposedCoreFeedFixture` composition tests failed locally because a pre-change `dmon.* 0.2.0` sat in `~/.nuget/packages` and shadowed the freshly-packed feed (same version, stale content). Cleared `~/.nuget/packages/dmon.*`; passes. On clean CI this can't happen (no prior 0.2.0). Worth a durable fix later (isolate the global-packages folder during pack/compose) — see NEXT.
+- **Reviewer:** CHANGES REQUESTED → fixed. Blocker was `scripts/smoke-sdk.sh` still packing the deleted `Dmon.Extensions` (gates don't run it, so it stayed green) — removed; smoke script re-run PASS. Plus stale-comment nits.
+
 ## NEXT
 
-- **Up next:** Group 2 — contracts collapse & rename (atomic, build-green). Brief the `worker` with Worklist A (incl. builtin-tool implementors) and the clean-break decision.
+- **Up next:** Group 3 — faceted builder, verb grammar (`Use`/`Add`/`With`/`Append`, `Dmon.Hosting` namespace, self-type generics), `AddExtension`→`AddToolExtension` / `WithModel`→`UseModel`, DI-constructed tools, and the DI-discovery switch (delete post-build loops). Keep providers baked (`AddDmonProviders`) until Group 4.
 - **Open questions:**
-  - Add a `protocol-schema` capability delta for `profile`→`agent` (SessionMeta/SessionCommands/ControlFrames)? Recommend yes — confirm with user.
-  - `ISessionAssetProvisioner` new signature shape (path vs bool flag) — decide in Group 7.
-- **Nits / deferred:** `test/Dmon.Extensions.Tests` retargets to `Dmon.Abstractions` (Group 2). `Dmon.ExtensionSmoke` + `Dmon.SampleExtension` samples update in Group 2/3.
-- **Carry-forward:** Group 7 is the high-risk group (protocol + runtime + asset provisioner). Group 1 produced no code; its commit carries the DEVLOG + ticked boxes only.
+  - `protocol-schema` delta for `profile`→`agent` — CONFIRMED to add; author it before Group 7 (pre-Group-7 pause).
+  - `ISessionAssetProvisioner` new signature shape (path vs flag) — decide in Group 7.
+  - Durable fix for the NuGet stale-cache fixture gotcha (isolate `NUGET_PACKAGES`/`RestorePackagesPath` per pack run) — deferred; consider in Group 8 (packaging).
+- **Carry-forward:** Pacing = run Groups 3–6, pause before Group 7 (high-risk: protocol + runtime + asset provisioner) and before Group 8. Clear `~/.nuget/packages/dmon.*` before composition tests on this machine.

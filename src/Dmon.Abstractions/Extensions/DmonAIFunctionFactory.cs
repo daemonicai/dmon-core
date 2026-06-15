@@ -2,7 +2,7 @@ using System.Reflection;
 using System.Text.Json;
 using Microsoft.Extensions.AI;
 
-namespace Dmon.Extensions;
+namespace Dmon.Abstractions.Extensions;
 
 /// <summary>
 /// Provides convenience methods for creating <see cref="AIFunction"/> instances

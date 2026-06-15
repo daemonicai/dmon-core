@@ -1,5 +1,5 @@
 using System.Collections.Concurrent;
-using Dmon.Extensions;
+using Dmon.Abstractions.Extensions;
 using Microsoft.Extensions.AI;
 
 namespace Dmon.Core.Extensions;
@@ -7,9 +7,9 @@ namespace Dmon.Core.Extensions;
 public sealed class ToolRegistry : IToolRegistry
 {
     private readonly ConcurrentDictionary<string, List<AIFunction>> _extensions = new(StringComparer.OrdinalIgnoreCase);
-    private readonly ConcurrentDictionary<string, IDmonExtension> _extensionsByTool = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, IToolExtension> _extensionsByTool = new(StringComparer.OrdinalIgnoreCase);
 
-    public void Register(string extensionName, IDmonExtension extension, IEnumerable<AIFunction> tools)
+    public void Register(string extensionName, IToolExtension extension, IEnumerable<AIFunction> tools)
     {
         List<AIFunction> list = tools.ToList();
 
@@ -33,9 +33,9 @@ public sealed class ToolRegistry : IToolRegistry
         }
     }
 
-    public IDmonExtension? FindExtension(string toolName)
+    public IToolExtension? FindExtension(string toolName)
     {
-        _extensionsByTool.TryGetValue(toolName, out IDmonExtension? extension);
+        _extensionsByTool.TryGetValue(toolName, out IToolExtension? extension);
         return extension;
     }
 

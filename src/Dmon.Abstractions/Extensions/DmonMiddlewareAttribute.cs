@@ -1,4 +1,4 @@
-namespace Dmon.Extensions;
+namespace Dmon.Abstractions.Extensions;
 
 /// <summary>
 /// Marks a class as a dmon middleware extension and supplies its default pipeline position.

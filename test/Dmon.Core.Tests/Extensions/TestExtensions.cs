@@ -1,4 +1,4 @@
-using Dmon.Extensions;
+using Dmon.Abstractions.Extensions;
 using Microsoft.Extensions.AI;
 
 namespace Dmon.Core.Tests.Extensions;
@@ -6,7 +6,7 @@ namespace Dmon.Core.Tests.Extensions;
 /// <summary>
 /// Simple test extension for unit-testing the NuGet extension loader.
 /// </summary>
-public sealed class TestExtension : IDmonExtension
+public sealed class TestExtension : IToolExtension
 {
     public string Name => "TestExtension";
 
@@ -21,7 +21,7 @@ public sealed class TestExtension : IDmonExtension
 /// <summary>
 /// Second test extension for verifying multi-extension assembly discovery.
 /// </summary>
-public sealed class SecondTestExtension : IDmonExtension
+public sealed class SecondTestExtension : IToolExtension
 {
     public string Name => "SecondTestExtension";
 

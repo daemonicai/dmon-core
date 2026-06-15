@@ -4,7 +4,7 @@ using Dmon.Abstractions.Memory;
 using Dmon.Abstractions.Profiles;
 using Dmon.Abstractions.Providers;
 using Dmon.Core.Extensions;
-using Dmon.Extensions;
+using Dmon.Abstractions.Extensions;
 using Dmon.Core.Permissions;
 using Dmon.Core.Profiles;
 using Dmon.Core.Session;
@@ -164,8 +164,8 @@ internal sealed class StubProviderRegistry : IProviderRegistry
 internal sealed class EmptyToolRegistry : IToolRegistry
 {
     public IReadOnlyList<AIFunction> GetAll() => [];
-    public void Register(string extensionName, IDmonExtension extension, IEnumerable<AIFunction> tools) { }
-    public IDmonExtension? FindExtension(string toolName) => null;
+    public void Register(string extensionName, IToolExtension extension, IEnumerable<AIFunction> tools) { }
+    public IToolExtension? FindExtension(string toolName) => null;
     public void Unregister(string extensionName) { }
     public IReadOnlyList<RegisteredExtensionSnapshot> GetSnapshot() => [];
     public void Clear() { }
@@ -763,9 +763,9 @@ internal sealed class ToolSupportingProviderRegistry : IProviderRegistry
 }
 
 /// <summary>
-/// IDmonExtension stub that allows all tool calls unconditionally.
+/// IToolExtension stub that allows all tool calls unconditionally.
 /// </summary>
-internal sealed class AllowAllExtension : IDmonExtension
+internal sealed class AllowAllExtension : IToolExtension
 {
     public string Name => "allow-all";
     public string Description => "Test stub that allows all calls.";
@@ -795,8 +795,8 @@ internal sealed class StubToolRegistry : IToolRegistry
     }
 
     public IReadOnlyList<AIFunction> GetAll() => _tools;
-    public void Register(string extensionName, IDmonExtension extension, IEnumerable<AIFunction> tools) { }
-    public IDmonExtension? FindExtension(string toolName) => _extension;
+    public void Register(string extensionName, IToolExtension extension, IEnumerable<AIFunction> tools) { }
+    public IToolExtension? FindExtension(string toolName) => _extension;
     public void Unregister(string extensionName) { }
     public IReadOnlyList<RegisteredExtensionSnapshot> GetSnapshot() => [];
     public void Clear() { }

@@ -4,7 +4,7 @@ using Dmon.Core.Permissions;
 using Dmon.Core.Profiles;
 using Dmon.Core.Rpc;
 using Dmon.Core.Session;
-using Dmon.Extensions;
+using Dmon.Abstractions.Extensions;
 using Dmon.Protocol.Commands;
 using Dmon.Protocol.Sessions;
 using Dmon.Protocol.Enums;
@@ -72,8 +72,8 @@ public sealed class PermissionGateChatClientTests
 
     private sealed class StubToolRegistry : IToolRegistry
     {
-        public void Register(string extensionName, IDmonExtension extension, IEnumerable<AIFunction> tools) { }
-        public IDmonExtension? FindExtension(string toolName) => null;
+        public void Register(string extensionName, IToolExtension extension, IEnumerable<AIFunction> tools) { }
+        public IToolExtension? FindExtension(string toolName) => null;
         public void Unregister(string extensionName) { }
         public IReadOnlyList<AIFunction> GetAll() => [];
         public IReadOnlyList<RegisteredExtensionSnapshot> GetSnapshot() => [];
@@ -234,7 +234,7 @@ public sealed class PermissionGateChatClientTests
 
     // --- Test doubles for FindExtension delegation ---
 
-    private sealed class StubEvaluatingExtension(PermissionResult result) : IDmonExtension
+    private sealed class StubEvaluatingExtension(PermissionResult result) : IToolExtension
     {
         public bool EvaluateCalled { get; private set; }
         public string Name => "stub";
@@ -251,10 +251,10 @@ public sealed class PermissionGateChatClientTests
         }
     }
 
-    private sealed class StubRegistryWithExtension(string toolName, IDmonExtension extension) : IToolRegistry
+    private sealed class StubRegistryWithExtension(string toolName, IToolExtension extension) : IToolRegistry
     {
-        public void Register(string extensionName, IDmonExtension ext, IEnumerable<AIFunction> tools) { }
-        public IDmonExtension? FindExtension(string name) => name == toolName ? extension : null;
+        public void Register(string extensionName, IToolExtension ext, IEnumerable<AIFunction> tools) { }
+        public IToolExtension? FindExtension(string name) => name == toolName ? extension : null;
         public void Unregister(string extensionName) { }
         public IReadOnlyList<AIFunction> GetAll() => [];
         public IReadOnlyList<RegisteredExtensionSnapshot> GetSnapshot() => [];

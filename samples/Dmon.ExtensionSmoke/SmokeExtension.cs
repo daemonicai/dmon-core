@@ -1,16 +1,16 @@
-using Dmon.Extensions;
+using Dmon.Abstractions.Extensions;
 using Microsoft.Extensions.AI;
 
 namespace Dmon.ExtensionSmoke;
 
 /// <summary>
-/// Minimal out-of-tree extension that compiles against the packed Dmon.Extensions package.
-/// Verifies the IDmonExtension contract is usable from a package reference with no ProjectReference.
+/// Minimal out-of-tree extension that compiles against the packed Dmon.Abstractions package.
+/// Verifies the IToolExtension contract is usable from a package reference with no ProjectReference.
 /// </summary>
-public sealed class SmokeExtension : IDmonExtension
+public sealed class SmokeExtension : IToolExtension
 {
     public string Name => "smoke";
-    public string Description => "Smoke-test extension — verifies IDmonExtension compiles from package reference.";
+    public string Description => "Smoke-test extension — verifies IToolExtension compiles from package reference.";
 
     public IEnumerable<AIFunction> Tools =>
     [

@@ -7,12 +7,12 @@
 
 ## 2. Contracts collapse & rename (atomic, build-green)
 
-- [ ] 2.1 Move `IToolExtension` (renamed from `IDmonExtension`), `IDmonMiddleware`, `DmonMiddlewareAttribute`, and `DmonAIFunctionFactory` from `Dmon.Extensions` into `Dmon.Abstractions`; delete the `Dmon.Extensions` project and remove it from `Dmon.slnx`.
-- [ ] 2.2 Declare the registration facets `IProviderRegistration`, `IToolRegistration`, `IMiddlewareRegistration` and the aggregate `IDmonHostBuilder { IServiceCollection Services; IConfigurationManager Configuration; }` (implementing the three facets) in `Dmon.Abstractions`.
-- [ ] 2.3 Declare `IChatClientFactory` (`ValueTask<IChatClient> CreateAsync(CancellationToken)`) in `Dmon.Abstractions`.
-- [ ] 2.4 Update every consumer from Group 1.1 to the new names/namespace so the whole solution compiles; remove `Dmon.Extensions` package/project references everywhere (point them at `Dmon.Abstractions`).
-- [ ] 2.5 Update the sample extension and both `Dmon.cs` roots to the new contract names (keep them compiling; full verb migration lands in later groups).
-- [ ] 2.6 Gate: `make build` clean, `make test` green, `openspec validate composition-root-facets --strict`.
+- [x] 2.1 Move `IToolExtension` (renamed from `IDmonExtension`), `IDmonMiddleware`, `DmonMiddlewareAttribute`, and `DmonAIFunctionFactory` from `Dmon.Extensions` into `Dmon.Abstractions`; delete the `Dmon.Extensions` project and remove it from `Dmon.slnx`.
+- [x] 2.2 Declare the registration facets `IProviderRegistration`, `IToolRegistration`, `IMiddlewareRegistration` and the aggregate `IDmonHostBuilder { IServiceCollection Services; IConfigurationManager Configuration; }` (implementing the three facets) in `Dmon.Abstractions`.
+- [x] 2.3 Declare `IChatClientFactory` (`ValueTask<IChatClient> CreateAsync(CancellationToken)`) in `Dmon.Abstractions`.
+- [x] 2.4 Update every consumer from Group 1.1 to the new names/namespace so the whole solution compiles; remove `Dmon.Extensions` package/project references everywhere (point them at `Dmon.Abstractions`).
+- [x] 2.5 Update the sample extension and both `Dmon.cs` roots to the new contract names (keep them compiling; full verb migration lands in later groups).
+- [x] 2.6 Gate: `make build` clean, `make test` green, `openspec validate composition-root-facets --strict`.
 
 ## 3. Faceted builder, verb grammar & DI-discovery
 

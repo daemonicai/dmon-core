@@ -31,7 +31,6 @@
     <Project Path="src\Dmon.Terminal\Dmon.Terminal.csproj" />
     <Project Path="src\Dmon.Core\Dmon.Core.csproj" />
     <Project Path="src\Dmon.BuiltinTools\Dmon.BuiltinTools.csproj" />
-    <Project Path="src\Dmon.Extensions\Dmon.Extensions.csproj" />
     <Project Path="src\Dmon.Protocol\Dmon.Protocol.csproj" />
     <Project Path="src\Dmon.Protocol.SchemaGen\Dmon.Protocol.SchemaGen.csproj" />
     <Project Path="src\Dmon.Providers\Dmon.Providers.csproj" />

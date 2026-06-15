@@ -1,11 +1,11 @@
-using Dmon.Extensions;
+using Dmon.Abstractions.Extensions;
 using Dmon.Protocol.Enums;
 using Dmon.Protocol.Permissions;
 using Microsoft.Extensions.AI;
 
 namespace Dmon.BuiltinTools.Tools;
 
-public sealed class GlobTool : IDmonExtension
+public sealed class GlobTool : IToolExtension
 {
     private readonly AIFunction _function;
 

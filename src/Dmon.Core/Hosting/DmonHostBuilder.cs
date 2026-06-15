@@ -1,9 +1,9 @@
+using Dmon.Abstractions.Extensions;
 using Dmon.Abstractions.Profiles;
 using Dmon.Core;
 using Dmon.Core.Extensions;
 using Dmon.Core.Rpc;
 using Dmon.Core.Telemetry;
-using Dmon.Extensions;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Console;
 using NetEscapades.Configuration.Yaml;
@@ -21,7 +21,7 @@ namespace Dmon.Hosting;
 public sealed class DmonHostBuilder
 {
     private readonly string[] _args;
-    private readonly List<IDmonExtension> _extensions = [];
+    private readonly List<IToolExtension> _extensions = [];
     private readonly List<(Func<IServiceProvider, IDmonMiddleware> Factory, int? PriorityOverride)> _middlewares = [];
     private readonly List<Action<IConfigurationManager>> _configureCallbacks = [];
 
@@ -54,7 +54,7 @@ public sealed class DmonHostBuilder
     /// tool registry from startup. Extensions are registered solely via the builder
     /// at compile time — there is no config-declared extension set.
     /// </summary>
-    public DmonHostBuilder AddExtension(IDmonExtension extension)
+    public DmonHostBuilder AddExtension(IToolExtension extension)
     {
         _extensions.Add(extension);
         return this;
@@ -63,7 +63,7 @@ public sealed class DmonHostBuilder
     /// <summary>
     /// Registers an extension by type. The type must have a public parameterless constructor.
     /// </summary>
-    public DmonHostBuilder AddExtension<TExtension>() where TExtension : IDmonExtension, new()
+    public DmonHostBuilder AddExtension<TExtension>() where TExtension : IToolExtension, new()
     {
         _extensions.Add(new TExtension());
         return this;
@@ -257,7 +257,7 @@ public sealed class DmonHostBuilder
         if (_extensions.Count > 0)
         {
             IToolRegistry registry = host.Services.GetRequiredService<IToolRegistry>();
-            foreach (IDmonExtension ext in _extensions)
+            foreach (IToolExtension ext in _extensions)
             {
                 registry.Register(ext.Name, ext, ext.Tools);
             }

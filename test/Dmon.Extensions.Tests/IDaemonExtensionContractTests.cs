@@ -1,14 +1,15 @@
+using Dmon.Abstractions.Extensions;
 using Microsoft.Extensions.AI;
 
 namespace Dmon.Extensions.Tests;
 
-public class IDmonExtensionContractTests
+public class IToolExtensionContractTests
 {
     [Fact]
     public void CanImplementInterface()
     {
         var extension = new SampleExtension();
-        Assert.IsAssignableFrom<IDmonExtension>(extension);
+        Assert.IsAssignableFrom<IToolExtension>(extension);
     }
 
     [Fact]
@@ -57,7 +58,7 @@ public class IDmonExtensionContractTests
     /// <summary>
     /// Minimal extension returning two simple AIFunctions.
     /// </summary>
-    private sealed class SampleExtension : IDmonExtension
+    private sealed class SampleExtension : IToolExtension
     {
         public string Name => "SampleExtension";
         public string Description => "A sample extension for testing";

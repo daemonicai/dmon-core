@@ -3,10 +3,10 @@ using Dmon.Protocol.Models;
 using Dmon.Protocol.Permissions;
 using Microsoft.Extensions.AI;
 
-namespace Dmon.Extensions;
+namespace Dmon.Abstractions.Extensions;
 
 /// <summary>
-/// Defines the contract for a dmon extension.
+/// Defines the contract for a dmon tool extension.
 /// Extensions expose AI-callable tools by implementing this interface and returning
 /// <see cref="AIFunction"/> instances from <see cref="Tools"/>.
 /// </summary>
@@ -18,8 +18,8 @@ namespace Dmon.Extensions;
 /// <para>
 /// To create an extension:
 /// <list type="number">
-///   <item>Create a class library targeting .NET 10 that references <c>Dmon.Extensions</c>.</item>
-///   <item>Implement <see cref="IDmonExtension"/> on one or more public types.</item>
+///   <item>Create a class library targeting .NET 10 that references <c>Dmon.Abstractions</c>.</item>
+///   <item>Implement <see cref="IToolExtension"/> on one or more public types.</item>
 ///   <item>Use <see cref="AIFunctionFactory"/> (from <c>Microsoft.Extensions.AI</c>) or
 ///       <see cref="DmonAIFunctionFactory"/> (from this package) to create
 ///       <see cref="AIFunction"/> instances.</item>
@@ -32,7 +32,7 @@ namespace Dmon.Extensions;
 /// before the JSONL/stdio loop starts.
 /// </para>
 /// </remarks>
-public interface IDmonExtension
+public interface IToolExtension
 {
     /// <summary>
     /// Gets the human-readable name of this extension.

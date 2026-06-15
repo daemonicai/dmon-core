@@ -1,14 +1,14 @@
 using System.Diagnostics;
 using Dmon.Core.Extensions.NuGet;
 using Dmon.Core.GitHub;
-using Dmon.Extensions;
+using Dmon.Abstractions.Extensions;
 using Dmon.Protocol.Enums;
 using Dmon.Protocol.Permissions;
 using Microsoft.Extensions.AI;
 
 namespace Dmon.Core.BuiltinTools;
 
-internal sealed class ExtensionReadmeTool : IDmonExtension
+internal sealed class ExtensionReadmeTool : IToolExtension
 {
     private const int ExcerptLength = 500;
 

@@ -1,6 +1,6 @@
 using Microsoft.Extensions.AI;
 
-namespace Dmon.Extensions;
+namespace Dmon.Abstractions.Extensions;
 
 /// <summary>
 /// Defines the contract for a dmon middleware extension.

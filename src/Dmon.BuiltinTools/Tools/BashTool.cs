@@ -1,6 +1,6 @@
 using System.Diagnostics;
 using Dmon.BuiltinTools.Bash;
-using Dmon.Extensions;
+using Dmon.Abstractions.Extensions;
 using Dmon.Protocol.Enums;
 using Dmon.Protocol.Models;
 using Dmon.Protocol.Permissions;
@@ -8,7 +8,7 @@ using Microsoft.Extensions.AI;
 
 namespace Dmon.BuiltinTools.Tools;
 
-public sealed class BashTool : IDmonExtension
+public sealed class BashTool : IToolExtension
 {
     private readonly int _timeoutSeconds;
     private readonly IDenylistChecker _denylist;

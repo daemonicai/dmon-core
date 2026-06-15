@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Reflection;
 using System.Text.Json;
+using Dmon.Abstractions.Extensions;
 using Microsoft.Extensions.AI;
 
 namespace Dmon.Extensions.Tests;

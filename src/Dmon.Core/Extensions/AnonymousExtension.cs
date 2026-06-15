@@ -1,14 +1,14 @@
-using Dmon.Extensions;
+using Dmon.Abstractions.Extensions;
 using Microsoft.Extensions.AI;
 
 namespace Dmon.Core.Extensions;
 
 /// <summary>
-/// Null-object extension for .csx scripts that do not implement <see cref="IDmonExtension"/>.
-/// Uses the default <see cref="IDmonExtension.Evaluate"/> (→ Prompt) and
-/// <see cref="IDmonExtension.CreateConfirmRequest"/> (→ Low risk) implementations.
+/// Null-object extension for .csx scripts that do not implement <see cref="IToolExtension"/>.
+/// Uses the default <see cref="IToolExtension.Evaluate"/> (→ Prompt) and
+/// <see cref="IToolExtension.CreateConfirmRequest"/> (→ Low risk) implementations.
 /// </summary>
-internal sealed class AnonymousExtension : IDmonExtension
+internal sealed class AnonymousExtension : IToolExtension
 {
     private readonly string _name;
     private readonly string _description;

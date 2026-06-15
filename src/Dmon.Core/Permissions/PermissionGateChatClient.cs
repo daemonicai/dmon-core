@@ -4,7 +4,7 @@ using Dmon.Core.Extensions;
 using Dmon.Core.Profiles;
 using Dmon.Core.Rpc;
 using Dmon.Core.Telemetry;
-using Dmon.Extensions;
+using Dmon.Abstractions.Extensions;
 using Dmon.Protocol.Enums;
 using Dmon.Protocol.Events;
 using Dmon.Protocol.Models;
@@ -124,7 +124,7 @@ public sealed class PermissionGateChatClient : IChatClient
                     permActivity.SetTag("dmon.tool.name", call.Name);
                 }
 
-                IDmonExtension? extension = _registry.FindExtension(call.Name);
+                IToolExtension? extension = _registry.FindExtension(call.Name);
                 PermissionResult permission = extension?.Evaluate(call, _policy.ProjectSettings, _policy.GlobalSettings)
                     ?? PermissionResult.Prompt;
 

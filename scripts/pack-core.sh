@@ -34,22 +34,16 @@ dotnet pack "$REPO/src/Dmon.Abstractions/Dmon.Abstractions.csproj" \
     -c Release -o "$FEED" --nologo \
     -p:MinVerVersionOverride="$VERSION_OVERRIDE"
 
-dotnet pack "$REPO/src/Dmon.Extensions/Dmon.Extensions.csproj" \
-    -c Release -o "$FEED" --nologo \
-    -p:MinVerVersionOverride="$VERSION_OVERRIDE"
-
 echo "==> Packing dmoncore library package (version override: $VERSION_OVERRIDE)"
 dotnet pack "$REPO/src/Dmon.Core/Dmon.Core.csproj" \
     -c Release -o "$FEED" --nologo \
     -p:MinVerVersionOverride="$VERSION_OVERRIDE"
 
 echo "==> Packing sample extension (version override: $VERSION_OVERRIDE)"
-# The sample consumes Dmon.Extensions as a PackageReference (it mirrors a real
-# third-party extension), so its restore needs the local feed. Its checked-in
-# nuget.config hardcodes ../../.pack-out, which is wrong when the script packs to
-# a different $FEED (e.g. CI's build/core-feed). Override the restore sources to
-# $FEED — where Dmon.Extensions 0.2.0 and the contract packages were just packed —
-# so packing is independent of the checked-in feed path.
+# The sample consumes Dmon.Abstractions as a PackageReference (it mirrors a real
+# third-party extension), so its restore needs the local feed. Override the restore
+# sources to $FEED — where Dmon.Abstractions 0.2.0 and the contract packages were
+# just packed — so packing is independent of any checked-in feed path.
 dotnet pack "$REPO/samples/Dmon.SampleExtension/Dmon.SampleExtension.csproj" \
     -c Release -o "$FEED" --nologo \
     -p:MinVerVersionOverride="$VERSION_OVERRIDE" \

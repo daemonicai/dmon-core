@@ -1,6 +1,6 @@
 using System.Text;
 using Dmon.Core.Extensions.NuGet;
-using Dmon.Extensions;
+using Dmon.Abstractions.Extensions;
 using Dmon.Protocol.Enums;
 using Dmon.Protocol.Permissions;
 using Microsoft.Extensions.AI;
@@ -12,7 +12,7 @@ namespace Dmon.Core.BuiltinTools;
 /// Returns a ranked shortlist of up to 5 source-available results with GitHub enrichment
 /// when the gh CLI is available.
 /// </summary>
-internal sealed class ExtensionSearchTool : IDmonExtension
+internal sealed class ExtensionSearchTool : IToolExtension
 {
     private readonly INuGetSearchService _searchService;
     private readonly AIFunction _function;

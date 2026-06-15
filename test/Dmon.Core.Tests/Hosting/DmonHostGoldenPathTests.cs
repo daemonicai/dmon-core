@@ -4,7 +4,7 @@ using Dmon.Abstractions.Profiles;
 using Dmon.Abstractions.Providers;
 using Dmon.Core.Extensions;
 using Dmon.Core.Providers;
-using Dmon.Extensions;
+using Dmon.Abstractions.Extensions;
 using Dmon.Hosting;
 using Dmon.Protocol;
 using Microsoft.Extensions.AI;
@@ -191,10 +191,10 @@ public sealed class DmonHostGoldenPathTests
 }
 
 /// <summary>
-/// An <see cref="IDmonExtension"/> with one real <see cref="AIFunction"/>, used to verify
+/// An <see cref="IToolExtension"/> with one real <see cref="AIFunction"/>, used to verify
 /// that builder-registered extensions land in <see cref="IToolRegistry"/>.
 /// </summary>
-file sealed class TooledExtension : IDmonExtension
+file sealed class TooledExtension : IToolExtension
 {
     internal const string ToolName = "stub_ping";
 

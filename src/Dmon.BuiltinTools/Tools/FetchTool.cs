@@ -1,4 +1,4 @@
-using Dmon.Extensions;
+using Dmon.Abstractions.Extensions;
 using Dmon.Protocol.Enums;
 using Dmon.Protocol.Models;
 using Dmon.Protocol.Permissions;
@@ -6,7 +6,7 @@ using Microsoft.Extensions.AI;
 
 namespace Dmon.BuiltinTools.Tools;
 
-public sealed class FetchTool : IDmonExtension
+public sealed class FetchTool : IToolExtension
 {
     private readonly HttpClient _httpClient;
     private readonly AIFunction _function;

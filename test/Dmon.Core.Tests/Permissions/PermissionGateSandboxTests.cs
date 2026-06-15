@@ -4,7 +4,7 @@ using Dmon.Core.Permissions;
 using Dmon.Core.Profiles;
 using Dmon.Core.Rpc;
 using Dmon.Core.Session;
-using Dmon.Extensions;
+using Dmon.Abstractions.Extensions;
 using Dmon.Protocol.Commands;
 using Dmon.Protocol.Sessions;
 using Dmon.Protocol.Enums;
@@ -85,8 +85,8 @@ public sealed class PermissionGateSandboxTests : IDisposable
 
     private sealed class StubToolRegistry : IToolRegistry
     {
-        public void Register(string extensionName, IDmonExtension extension, IEnumerable<AIFunction> tools) { }
-        public IDmonExtension? FindExtension(string toolName) => null;
+        public void Register(string extensionName, IToolExtension extension, IEnumerable<AIFunction> tools) { }
+        public IToolExtension? FindExtension(string toolName) => null;
         public void Unregister(string extensionName) { }
         public IReadOnlyList<AIFunction> GetAll() => [];
         public IReadOnlyList<RegisteredExtensionSnapshot> GetSnapshot() => [];

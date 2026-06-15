@@ -16,7 +16,6 @@ mkdir -p "$FEED"
 
 dotnet pack "$REPO/src/Dmon.Protocol/Dmon.Protocol.csproj"   -c Release -o "$FEED" --nologo
 dotnet pack "$REPO/src/Dmon.Abstractions/Dmon.Abstractions.csproj" -c Release -o "$FEED" --nologo
-dotnet pack "$REPO/src/Dmon.Extensions/Dmon.Extensions.csproj"  -c Release -o "$FEED" --nologo
 
 # Detect the packed version from the nupkg filename
 VERSION=$(ls "$FEED"/Dmon.Protocol.*.nupkg | head -1 | sed 's/.*Dmon\.Protocol\.\(.*\)\.nupkg/\1/')
@@ -30,4 +29,4 @@ dotnet build "$SAMPLE/Dmon.ExtensionSmoke.csproj" \
     -v minimal
 
 echo ""
-echo "PASS: out-of-tree consumer compiled against Dmon.Extensions $VERSION (package reference only)."
+echo "PASS: out-of-tree consumer compiled against Dmon.Abstractions $VERSION (package reference only)."

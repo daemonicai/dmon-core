@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using System.Reflection;
 using Dmon.Core.Extensions;
-using Dmon.Extensions;
+using Dmon.Abstractions.Extensions;
 using Dmon.Hosting;
 using Dmon.Protocol;
 using Microsoft.Extensions.AI;
@@ -217,7 +217,7 @@ public sealed class CompositionRootTests
         AIFunction? greetTool = tools.FirstOrDefault(t => t.Name == "greet");
         Assert.NotNull(greetTool);
 
-        IDmonExtension? owner = registry.FindExtension("greet");
+        IToolExtension? owner = registry.FindExtension("greet");
         Assert.NotNull(owner);
         Assert.IsType<LocalGreetingExtension>(owner);
     }
@@ -229,8 +229,8 @@ public sealed class CompositionRootTests
     [Fact]
     public void ComposedHost_ExtensionTypeIdentity_IsSingleALC()
     {
-        // Define a test extension inline — its IDmonExtension type comes from
-        // the same Dmon.Extensions assembly loaded into the Default ALC.
+        // Define a test extension inline — its IToolExtension type comes from
+        // the same Dmon.Abstractions assembly loaded into the Default ALC.
         // If the host were loading extensions into a separate ALC, the
         // registry would fail to recognise the type. The fact that the tool
         // lands in the registry proves single-identity.
@@ -252,16 +252,16 @@ public sealed class CompositionRootTests
         AIFunction? helloTool = tools.FirstOrDefault(t => t.Name == "hello");
         Assert.NotNull(helloTool);
 
-        // Verify the extension is discoverable by tool name — proves its IDmonExtension
+        // Verify the extension is discoverable by tool name — proves its IToolExtension
         // is the same type reference the registry operates on (Default ALC, no duplication).
-        IDmonExtension? ownerExtension = registry.FindExtension("hello");
+        IToolExtension? ownerExtension = registry.FindExtension("hello");
         Assert.NotNull(ownerExtension);
         Assert.IsType<InlineTestExtension>(ownerExtension);
 
-        // Confirm the IDmonExtension type seen by the test assembly is identical to
+        // Confirm the IToolExtension type seen by the test assembly is identical to
         // the type the host resolved — same assembly identity, same type object.
-        Type hostExtensionType = ownerExtension.GetType().GetInterface(typeof(IDmonExtension).FullName!)!;
-        Assert.Equal(typeof(IDmonExtension), hostExtensionType);
+        Type hostExtensionType = ownerExtension.GetType().GetInterface(typeof(IToolExtension).FullName!)!;
+        Assert.Equal(typeof(IToolExtension), hostExtensionType);
     }
 
     // -------------------------------------------------------------------------
@@ -310,7 +310,7 @@ public sealed class CompositionRootTests
 /// test assembly has no ProjectReference to the sample package project (which
 /// uses packed NuGet references that require a feed to resolve).
 /// </summary>
-file sealed class LocalGreetingExtension : IDmonExtension
+file sealed class LocalGreetingExtension : IToolExtension
 {
     public string Name => "greeting";
     public string Description => "Local test mirror of GreetingExtension.";
@@ -326,9 +326,9 @@ file sealed class LocalGreetingExtension : IDmonExtension
 
 /// <summary>
 /// Minimal test-local extension for the ALC identity test (c).
-/// Defined in this assembly, referencing the same Dmon.Extensions loaded by the host.
+/// Defined in this assembly, referencing the same Dmon.Abstractions loaded by the host.
 /// </summary>
-file sealed class InlineTestExtension : IDmonExtension
+file sealed class InlineTestExtension : IToolExtension
 {
     public string Name => "inline-test";
     public string Description => "Test extension for ALC identity verification.";
