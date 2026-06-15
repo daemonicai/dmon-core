@@ -1,10 +1,14 @@
 using Dmon.Abstractions.Extensions;
+using Dmon.Abstractions.Hosting;
 using Dmon.Abstractions.Profiles;
+using Dmon.Abstractions.Providers;
 using Dmon.Core;
 using Dmon.Core.Extensions;
+using Dmon.Core.Providers;
 using Dmon.Core.Rpc;
 using Dmon.Core.Telemetry;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Console;
 using NetEscapades.Configuration.Yaml;
 using OpenTelemetry.Logs;
@@ -16,102 +20,120 @@ namespace Dmon.Hosting;
 
 /// <summary>
 /// Fluent builder for a <see cref="DmonBuiltHost"/>. Obtained via
-/// <see cref="DmonHost.CreateBuilder(string[])"/>.
+/// <see cref="DmonHost.CreateBuilder(string[])"/> or <see cref="DmonHost.CreateBuilder()"/>.
+/// Implements <see cref="IDmonHostBuilder"/> so self-type generic verb extension methods
+/// in <c>Dmon.Abstractions</c> (namespace <c>Dmon.Hosting</c>) chain correctly when
+/// called on the builder.
 /// </summary>
-public sealed class DmonHostBuilder
+public sealed class DmonHostBuilder : IDmonHostBuilder
 {
-    private readonly string[] _args;
-    private readonly List<IToolExtension> _extensions = [];
-    private readonly List<(Func<IServiceProvider, IDmonMiddleware> Factory, int? PriorityOverride)> _middlewares = [];
-    private readonly List<Action<IConfigurationManager>> _configureCallbacks = [];
+    private readonly HostApplicationBuilder _appBuilder;
+    private bool _telemetryEnabled = true;
 
-    private string? _providerOverride;
-    private string? _modelOverride;
-    private PermissionMode? _permissionModeOverride;
-    private string? _profileOverride;
+    // The stdio streams may be injected before Build() via WithStdio.
     private TextWriter? _stdout;
     private TextReader? _stdin;
-    private bool _telemetryEnabled = true;
+
+    // Profile override — left intact; Group 7 removes the profile subsystem.
+    private string? _profileOverride;
+
+    // Permission-mode override — preserved as per Group-3 scope.
+    private PermissionMode? _permissionModeOverride;
 
     internal DmonHostBuilder(string[] args)
     {
-        _args = args;
+        _appBuilder = Host.CreateApplicationBuilder(args);
+
+        string cwd = Directory.GetCurrentDirectory();
+        string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+
+        // Layer precedence (last wins): global < project < local.
+        _appBuilder.Configuration.AddYamlFile(
+            Path.Combine(home, ".dmon", "config.yaml"), optional: true);
+        _appBuilder.Configuration.AddYamlFile(
+            Path.Combine(cwd, ".dmon", "config.yaml"), optional: true);
+        _appBuilder.Configuration.AddYamlFile(
+            Path.Combine(cwd, ".dmon", "config.local.yaml"), optional: true);
     }
 
+    // ── IDmonHostBuilder (facet surface) ─────────────────────────────────────
+
     /// <summary>
-    /// Overrides the active provider/model at startup. Takes precedence over
-    /// <c>activeModel</c> in config.
+    /// Gets the service collection. Verb extension methods in <c>Dmon.Hosting</c>
+    /// call <c>Services.AddSingleton</c> here; <see cref="Build"/> enumerates the
+    /// registered instances for DI-discovery.
     /// </summary>
-    public DmonHostBuilder WithModel(string provider, string modelId)
+    public IServiceCollection Services => _appBuilder.Services;
+
+    /// <summary>
+    /// Gets the configuration manager. <see cref="DmonRegistrationExtensions.UseModel{T}"/>
+    /// writes to this; <see cref="ConfigureConfiguration"/> callbacks also receive it.
+    /// </summary>
+    public IConfigurationManager Configuration => _appBuilder.Configuration;
+
+    // ── Convenience methods (concrete DmonHostBuilder return type) ────────────
+    // These parallel the Dmon.Abstractions extension methods but are declared here
+    // so callers with DmonHostBuilder in scope use single-type-arg syntax and get
+    // DmonHostBuilder back (not the facet interface) for unbroken chaining.
+
+    /// <summary>
+    /// Registers <typeparamref name="TExtension"/> as an <see cref="IToolExtension"/>
+    /// singleton via DI-discovery. The instance is DI-constructed at build time.
+    /// </summary>
+    public DmonHostBuilder AddToolExtension<TExtension>()
+        where TExtension : class, IToolExtension
     {
-        _providerOverride = provider;
-        _modelOverride = modelId;
+        Services.AddSingleton<IToolExtension, TExtension>();
         return this;
     }
 
     /// <summary>
-    /// Registers an extension instance whose tools will be available in the
-    /// tool registry from startup. Extensions are registered solely via the builder
-    /// at compile time — there is no config-declared extension set.
+    /// Registers a pre-constructed <see cref="IToolExtension"/> instance via DI-discovery.
     /// </summary>
-    public DmonHostBuilder AddExtension(IToolExtension extension)
+    public DmonHostBuilder AddToolExtension(IToolExtension extension)
     {
-        _extensions.Add(extension);
+        Services.AddSingleton<IToolExtension>(extension);
         return this;
     }
 
     /// <summary>
-    /// Registers an extension by type. The type must have a public parameterless constructor.
+    /// Registers <typeparamref name="TMiddleware"/> via DI-discovery. An optional
+    /// <paramref name="priorityOverride"/> beats the <see cref="DmonMiddlewareAttribute"/> priority.
     /// </summary>
-    public DmonHostBuilder AddExtension<TExtension>() where TExtension : IToolExtension, new()
+    public DmonHostBuilder AddMiddleware<TMiddleware>(int? priorityOverride = null)
+        where TMiddleware : class, IDmonMiddleware
     {
-        _extensions.Add(new TExtension());
+        Services.AddSingleton<MiddlewareRegistration>(sp =>
+            new MiddlewareRegistration(
+                ActivatorUtilities.CreateInstance<TMiddleware>(sp),
+                priorityOverride));
         return this;
     }
 
     /// <summary>
-    /// Registers a middleware instance in the pipeline. The middleware is folded at its
-    /// <see cref="DmonMiddlewareAttribute.Priority"/> value (or 0 if the attribute is absent)
-    /// unless overridden by <paramref name="priorityOverride"/> or a config entry.
+    /// Registers a pre-constructed <see cref="IDmonMiddleware"/> instance via DI-discovery.
+    /// An optional <paramref name="priorityOverride"/> beats the <see cref="DmonMiddlewareAttribute"/> priority.
     /// </summary>
     public DmonHostBuilder AddMiddleware(IDmonMiddleware middleware, int? priorityOverride = null)
     {
-        _middlewares.Add((_ => middleware, priorityOverride));
+        Services.AddSingleton<MiddlewareRegistration>(
+            new MiddlewareRegistration(middleware, priorityOverride));
         return this;
     }
 
-    /// <summary>
-    /// Registers a middleware by type in the pipeline. The type is instantiated at
-    /// <see cref="Build"/> time using the host's <see cref="IServiceProvider"/>, which
-    /// satisfies any constructor parameters resolvable from DI; if no matching constructor
-    /// is found, instantiation fails at build time with a clear error.
-    /// The middleware is folded at its <see cref="DmonMiddlewareAttribute.Priority"/> value
-    /// (or 0 if absent) unless overridden by <paramref name="priorityOverride"/> or config.
-    /// </summary>
-    public DmonHostBuilder AddMiddleware<TMiddleware>(int? priorityOverride = null)
-        where TMiddleware : IDmonMiddleware
-    {
-        _middlewares.Add((sp => (IDmonMiddleware)ActivatorUtilities.CreateInstance<TMiddleware>(sp), priorityOverride));
-        return this;
-    }
+    // ── Host-level verbs (return DmonHostBuilder) ─────────────────────────────
 
     /// <summary>
-    /// Overrides the permission mode for the session. Takes precedence over the
-    /// profile's declared <see cref="PermissionMode"/>.
+    /// Sets the active provider and model. Equivalent to
+    /// <see cref="DmonRegistrationExtensions.UseModel{T}"/> but returns
+    /// <see cref="DmonHostBuilder"/> for unbroken concrete-type chaining.
     /// </summary>
-    public DmonHostBuilder WithPermissionMode(PermissionMode mode)
+    public DmonHostBuilder UseModel(string provider, string modelId)
     {
-        _permissionModeOverride = mode;
-        return this;
-    }
-
-    /// <summary>
-    /// Overrides the agent profile name. Equivalent to specifying a profile at
-    /// session creation time, applied at startup before any session is created.
-    /// </summary>
-    public DmonHostBuilder WithProfile(string profileName)
-    {
-        _profileOverride = profileName;
+        _appBuilder.Configuration.AddInMemoryCollection(
+        [
+            new KeyValuePair<string, string?>("activeModel", $"{provider}/{modelId}"),
+        ]);
         return this;
     }
 
@@ -139,22 +161,39 @@ public sealed class DmonHostBuilder
     }
 
     /// <summary>
-    /// Registers a callback that can read or further configure the merged configuration
-    /// after all YAML sources and the <see cref="WithModel"/> in-memory override have been
-    /// applied. Multiple calls are invoked in registration order.
+    /// Registers a callback that can read or further configure the merged configuration.
+    /// Runs immediately against the live <see cref="IConfigurationManager"/>.
     /// </summary>
     /// <remarks>
     /// Precedence (last wins): YAML layers (global &lt; project &lt; local) &lt;
-    /// <see cref="WithModel"/> in-memory override &lt; <c>ConfigureConfiguration</c> callbacks.
-    /// The callback receives a <see cref="IConfigurationManager"/> which implements both
-    /// <see cref="IConfigurationBuilder"/> (add sources) and <see cref="IConfiguration"/>
-    /// (read merged values).
+    /// <c>UseModel</c> in-memory override &lt; <c>ConfigureConfiguration</c> callbacks.
     /// </remarks>
     public DmonHostBuilder ConfigureConfiguration(Action<IConfigurationManager> configure)
     {
-        _configureCallbacks.Add(configure);
+        configure(_appBuilder.Configuration);
         return this;
     }
+
+    /// <summary>
+    /// Overrides the permission mode for the session. Takes precedence over the
+    /// profile's declared <see cref="PermissionMode"/>.
+    /// </summary>
+    public DmonHostBuilder WithPermissionMode(PermissionMode mode)
+    {
+        _permissionModeOverride = mode;
+        return this;
+    }
+
+    /// <summary>
+    /// Overrides the agent profile name. Left intact; Group 7 removes the profile subsystem.
+    /// </summary>
+    public DmonHostBuilder WithProfile(string profileName)
+    {
+        _profileOverride = profileName;
+        return this;
+    }
+
+    // ── Build ─────────────────────────────────────────────────────────────────
 
     /// <summary>
     /// Builds the host, wiring configuration, providers, extensions, and the
@@ -163,63 +202,34 @@ public sealed class DmonHostBuilder
     /// </summary>
     public DmonBuiltHost Build()
     {
-        HostApplicationBuilder builder = Host.CreateApplicationBuilder(_args);
-
-        string cwd = Directory.GetCurrentDirectory();
-        string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-
-        // Layer precedence (last wins): global < project < local.
-        builder.Configuration.AddYamlFile(
-            Path.Combine(home, ".dmon", "config.yaml"), optional: true);
-        builder.Configuration.AddYamlFile(
-            Path.Combine(cwd, ".dmon", "config.yaml"), optional: true);
-        builder.Configuration.AddYamlFile(
-            Path.Combine(cwd, ".dmon", "config.local.yaml"), optional: true);
-
-        ConfigureLogging(builder);
+        ConfigureLogging(_appBuilder);
         if (_telemetryEnabled)
         {
-            ConfigureOpenTelemetry(builder);
-        }
-
-        // Apply model override via in-memory config after YAML sources so it wins.
-        // ActiveModelStore reads the scalar key "activeModel" and parses it as "{provider}/{model}".
-        if (_providerOverride is not null && _modelOverride is not null)
-        {
-            builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["activeModel"] = $"{_providerOverride}/{_modelOverride}",
-            });
-        }
-
-        // Run composition-code callbacks last so they win over both YAML and WithModel.
-        foreach (Action<IConfigurationManager> callback in _configureCallbacks)
-        {
-            callback(builder.Configuration);
+            ConfigureOpenTelemetry(_appBuilder);
         }
 
         // Register stdio streams before AddDmonCore so TryAdd in AddDmonCore yields to ours.
         TextWriter stdout = _stdout ?? Console.Out;
         TextReader stdin = _stdin ?? Console.In;
-        builder.Services.AddSingleton<TextWriter>(_ => stdout);
-        builder.Services.AddSingleton<TextReader>(_ => stdin);
+        _appBuilder.Services.AddSingleton<TextWriter>(_ => stdout);
+        _appBuilder.Services.AddSingleton<TextReader>(_ => stdin);
 
-        builder.Services
+        _appBuilder.Services
             .AddDmonProviders()
             .AddDmonAuth()
             .AddDmonExtensions()
             .AddDmonCore();
 
         // Profile override: replace the IAgentProfileResolver with a decorator that substitutes
-        // the builder-supplied profile name as the default (used when the caller passes null).
+        // the builder-supplied profile name. Left intact; Group 7 removes the profile subsystem.
         if (_profileOverride is not null)
         {
-            ServiceDescriptor? profileInner = builder.Services
+            ServiceDescriptor? profileInner = _appBuilder.Services
                 .LastOrDefault(d => d.ServiceType == typeof(IAgentProfileResolver));
             if (profileInner is not null)
             {
                 string profileOverride = _profileOverride;
-                builder.Services.AddSingleton<IAgentProfileResolver>(sp =>
+                _appBuilder.Services.AddSingleton<IAgentProfileResolver>(sp =>
                 {
                     IAgentProfileResolver innerResolver = profileInner.ImplementationFactory is not null
                         ? (IAgentProfileResolver)profileInner.ImplementationFactory(sp)
@@ -233,12 +243,11 @@ public sealed class DmonHostBuilder
         // that wraps the one registered by AddDmonCore and overrides PermissionMode.
         if (_permissionModeOverride is PermissionMode overrideMode)
         {
-            // Capture the descriptor registered by AddDmonCore before adding ours.
-            ServiceDescriptor? inner = builder.Services
+            ServiceDescriptor? inner = _appBuilder.Services
                 .LastOrDefault(d => d.ServiceType == typeof(IAgentProfileResolver));
             if (inner is not null)
             {
-                builder.Services.AddSingleton<IAgentProfileResolver>(sp =>
+                _appBuilder.Services.AddSingleton<IAgentProfileResolver>(sp =>
                 {
                     IAgentProfileResolver innerResolver = inner.ImplementationFactory is not null
                         ? (IAgentProfileResolver)inner.ImplementationFactory(sp)
@@ -248,31 +257,39 @@ public sealed class DmonHostBuilder
             }
         }
 
-        builder.Services.AddHostedService<RpcHostedService>();
+        _appBuilder.Services.AddHostedService<RpcHostedService>();
 
-        IHost host = builder.Build();
+        IHost host = _appBuilder.Build();
 
-        // Register inline extensions into the tool registry after the container is built.
-        // IToolRegistry is a singleton; this is safe before RunAsync starts the loop.
-        if (_extensions.Count > 0)
+        // DI-discovery: enumerate MiddlewareRegistration descriptors and route into IMiddlewareRegistry.
+        // Replaces the old post-build manual loop.
+        IMiddlewareRegistry mwRegistry = host.Services.GetRequiredService<IMiddlewareRegistry>();
+        foreach (MiddlewareRegistration descriptor in host.Services.GetServices<MiddlewareRegistration>())
         {
-            IToolRegistry registry = host.Services.GetRequiredService<IToolRegistry>();
-            foreach (IToolExtension ext in _extensions)
-            {
-                registry.Register(ext.Name, ext, ext.Tools);
-            }
+            mwRegistry.Register([descriptor.Middleware], descriptor.PriorityOverride);
         }
 
-        // Register builder-supplied middleware into the middleware registry after the
-        // container is built so that type-based factories can resolve IServiceProvider.
-        if (_middlewares.Count > 0)
+        // DI-discovery: enumerate IToolExtension singletons registered via AddToolExtension
+        // and route into IToolRegistry. Builtin tools are NOT registered here — they are
+        // handled by BuiltinToolsInitializer (IHostedService) which runs during host.StartAsync.
+        IToolRegistry toolRegistry = host.Services.GetRequiredService<IToolRegistry>();
+        foreach (IToolExtension ext in host.Services.GetServices<IToolExtension>())
         {
-            IMiddlewareRegistry mwRegistry = host.Services.GetRequiredService<IMiddlewareRegistry>();
-            IServiceProvider sp = host.Services;
-            foreach ((Func<IServiceProvider, IDmonMiddleware> factory, int? priorityOverride) in _middlewares)
+            toolRegistry.Register(ext.Name, ext, ext.Tools);
+        }
+
+        // DI-discovery: enumerate IProviderExtension singletons registered via AddProvider
+        // and route into IProviderRegistry (gated by IsApplicable).
+        // No IProviderExtension is registered by the stock core (Group 4 adds provider packages),
+        // so this is a no-op for now; existing provider behaviour is unchanged.
+        IProviderRegistry providerRegistry = host.Services.GetRequiredService<IProviderRegistry>();
+        foreach (IProviderExtension providerExt in host.Services.GetServices<IProviderExtension>())
+        {
+            if (providerExt.IsApplicable())
             {
-                IDmonMiddleware instance = factory(sp);
-                mwRegistry.Register([instance], priorityOverride);
+                // RegisterExtensionAsync is async; Build() is synchronous. Since this runs
+                // before the host loop starts and no concurrent access exists, blocking is safe.
+                providerRegistry.RegisterExtensionAsync(providerExt).GetAwaiter().GetResult();
             }
         }
 

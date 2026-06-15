@@ -27,7 +27,7 @@ namespace Dmon.Abstractions.Extensions;
 /// </list>
 /// </para>
 /// <para>
-/// Extensions are registered at composition time via <c>builder.AddExtension&lt;T&gt;()</c>
+/// Extensions are registered at composition time via <c>builder.AddToolExtension&lt;T&gt;()</c>
 /// in <c>Dmon.cs</c>. The dmon core registers their functions into the tool registry
 /// before the JSONL/stdio loop starts.
 /// </para>

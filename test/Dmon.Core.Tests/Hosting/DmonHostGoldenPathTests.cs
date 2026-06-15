@@ -61,7 +61,7 @@ public sealed class DmonHostGoldenPathTests
     }
 
     /// <summary>
-    /// An extension registered via <see cref="DmonHostBuilder.AddExtension"/> has its tool
+    /// An extension registered via <see cref="DmonHostBuilder.AddToolExtension{TExtension}"/> has its tool
     /// present in <see cref="IToolRegistry"/> after <c>Build()</c>.
     /// </summary>
     [Fact]
@@ -73,7 +73,7 @@ public sealed class DmonHostGoldenPathTests
         DmonBuiltHost host = DmonHost.CreateBuilder([])
             .WithStdio(stdin, stdout)
             .WithoutTelemetry()
-            .AddExtension<TooledExtension>()
+            .AddToolExtension<TooledExtension>()
             .Build();
 
         IToolRegistry registry = host.Services.GetRequiredService<IToolRegistry>();
@@ -83,7 +83,7 @@ public sealed class DmonHostGoldenPathTests
     }
 
     /// <summary>
-    /// A host built with an extension via <see cref="DmonHostBuilder.AddExtension"/> emits
+    /// A host built with an extension via <see cref="DmonHostBuilder.AddToolExtension{TExtension}"/> emits
     /// <c>agentReady</c>, confirming the builder extension-registration path does not break
     /// the core protocol.
     /// </summary>
@@ -98,7 +98,7 @@ public sealed class DmonHostGoldenPathTests
         DmonBuiltHost host = DmonHost.CreateBuilder([])
             .WithStdio(stdin, stdout)
             .WithoutTelemetry()
-            .AddExtension<TooledExtension>()
+            .AddToolExtension<TooledExtension>()
             .Build();
 
         Task runTask = host.RunAsync(cts.Token);
@@ -115,11 +115,11 @@ public sealed class DmonHostGoldenPathTests
     }
 
     /// <summary>
-    /// <see cref="DmonHostBuilder.WithModel"/> writes the canonical scalar key so that
+    /// <see cref="DmonHostBuilder.UseModel"/> writes the canonical scalar key so that
     /// <see cref="IActiveModelStore.Load"/> returns the overridden value.
     /// </summary>
     [Fact]
-    public void Build_WithModel_ActiveModelStoreReturnsOverride()
+    public void Build_UseModel_ActiveModelStoreReturnsOverride()
     {
         using TextReader stdin = new StringReader(string.Empty);
         using StreamWriter stdout = new(Stream.Null);
@@ -127,7 +127,7 @@ public sealed class DmonHostGoldenPathTests
         DmonBuiltHost host = DmonHost.CreateBuilder([])
             .WithStdio(stdin, stdout)
             .WithoutTelemetry()
-            .WithModel("anthropic", "claude-3-5-sonnet")
+            .UseModel("anthropic", "claude-3-5-sonnet")
             .Build();
 
         IActiveModelStore store = host.Services.GetRequiredService<IActiveModelStore>();

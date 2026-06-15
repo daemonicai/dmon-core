@@ -42,13 +42,13 @@ public static class InitCommand
         string pin = ProtocolVersion.Current;
         return $"""
 // dmon composition root — edit this file to customise your agent.
-// Add extensions by declaring packages and wiring them via .AddExtension<T>().
+// Add extensions by declaring packages and wiring them via .AddToolExtension<T>().
 //
 // Example (add an extension):
 //   #:package Acme.DmonExt@1.0.*
 //   ...
 //   DmonHost.CreateBuilder(args)
-//       .AddExtension<Acme.DmonExt.AcmeExtension>()
+//       .AddToolExtension<Acme.DmonExt.AcmeExtension>()
 //       .Build()
 //       .RunAsync();
 //

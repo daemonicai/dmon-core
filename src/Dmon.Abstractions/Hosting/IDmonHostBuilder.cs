@@ -20,11 +20,14 @@ public interface IDmonHostBuilder : IProviderRegistration, IToolRegistration, IM
 {
     /// <summary>
     /// Gets the service collection used to register dependencies for the host.
+    /// Satisfies <see cref="IToolRegistration.Services"/>, <see cref="IMiddlewareRegistration.Services"/>,
+    /// and <see cref="IProviderRegistration.Services"/> via interface unification.
     /// </summary>
-    IServiceCollection Services { get; }
+    new IServiceCollection Services { get; }
 
     /// <summary>
     /// Gets the configuration manager that aggregates all configuration sources.
+    /// Satisfies <see cref="IProviderRegistration.Configuration"/> via interface unification.
     /// </summary>
-    IConfigurationManager Configuration { get; }
+    new IConfigurationManager Configuration { get; }
 }

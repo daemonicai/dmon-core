@@ -1,3 +1,5 @@
+using Microsoft.Extensions.DependencyInjection;
+
 namespace Dmon.Abstractions.Hosting;
 
 /// <summary>
@@ -5,4 +7,8 @@ namespace Dmon.Abstractions.Hosting;
 /// </summary>
 public interface IToolRegistration
 {
+    /// <summary>
+    /// Gets the service collection used to register tool extension dependencies.
+    /// </summary>
+    IServiceCollection Services { get; }
 }

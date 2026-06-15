@@ -14,4 +14,10 @@ public static class DmonHost
     /// </summary>
     /// <param name="args">Command-line arguments passed to the host application builder.</param>
     public static DmonHostBuilder CreateBuilder(string[] args) => new(args);
+
+    /// <summary>
+    /// Creates a new <see cref="DmonHostBuilder"/> with no command-line arguments.
+    /// Equivalent to <see cref="CreateBuilder(string[])"/> with an empty array.
+    /// </summary>
+    public static DmonHostBuilder CreateBuilder() => new([]);
 }

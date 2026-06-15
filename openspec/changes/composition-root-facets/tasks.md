@@ -16,12 +16,12 @@
 
 ## 3. Faceted builder, verb grammar & DI-discovery
 
-- [ ] 3.1 Make `DmonHostBuilder` implement `IDmonHostBuilder` (expose `Services`/`Configuration`); add the parameterless `CreateBuilder()` overload.
-- [ ] 3.2 Implement the blessed verbs as self-type generic extension methods in the `Dmon.Hosting` namespace: `AddToolExtension<T>`/instance, `AddMiddleware<T>(priority?)`/instance, `AddProvider<T>`/instance, `UseModel`; migrate `WithModel`→`UseModel`, `AddExtension`→`AddToolExtension`.
-- [ ] 3.3 `AddToolExtension<T>` drops the `new()` constraint and instantiates via `ActivatorUtilities` (DI-constructed tools).
-- [ ] 3.4 Switch `AddDmonCore`/registries to **build-time DI-discovery**: enumerate `IEnumerable<IToolExtension>`/`IDmonMiddleware`/`IProviderExtension` and route into `IToolRegistry`/`IMiddlewareRegistry`/`IProviderRegistry.RegisterExtensionAsync` (provider gated by `IsApplicable`); delete the post-build manual loops in `DmonHostBuilder`. Preserve the `TryAdd`-yields-to-builder ordering (stdio `TextWriter`) and the permission-mode override decorator.
-- [ ] 3.5 Update the composed sample to use `AddToolExtension`; add/adjust tests covering flat + faceted chaining and DI-constructed tool instantiation.
-- [ ] 3.6 Gate: `make build` clean, `make test` green, `openspec validate composition-root-facets --strict`.
+- [x] 3.1 Make `DmonHostBuilder` implement `IDmonHostBuilder` (expose `Services`/`Configuration`); add the parameterless `CreateBuilder()` overload.
+- [x] 3.2 Implement the blessed verbs as self-type generic extension methods in the `Dmon.Hosting` namespace: `AddToolExtension<T>`/instance, `AddMiddleware<T>(priority?)`/instance, `AddProvider<T>`/instance, `UseModel`; migrate `WithModel`→`UseModel`, `AddExtension`→`AddToolExtension`.
+- [x] 3.3 `AddToolExtension<T>` drops the `new()` constraint and instantiates via `ActivatorUtilities` (DI-constructed tools).
+- [x] 3.4 Switch `AddDmonCore`/registries to **build-time DI-discovery**: enumerate `IEnumerable<IToolExtension>`/`IDmonMiddleware`/`IProviderExtension` and route into `IToolRegistry`/`IMiddlewareRegistry`/`IProviderRegistry.RegisterExtensionAsync` (provider gated by `IsApplicable`); delete the post-build manual loops in `DmonHostBuilder`. Preserve the `TryAdd`-yields-to-builder ordering (stdio `TextWriter`) and the permission-mode override decorator.
+- [x] 3.5 Update the composed sample to use `AddToolExtension`; add/adjust tests covering flat + faceted chaining and DI-constructed tool instantiation.
+- [x] 3.6 Gate: `make build` clean, `make test` green, `openspec validate composition-root-facets --strict`.
 
 ## 4. Provider split & Option-B symmetry
 

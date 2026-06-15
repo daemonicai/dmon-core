@@ -189,13 +189,13 @@ public sealed class ComposedCoreWireTests(ComposedCoreFeedFixture feed)
 public sealed class CompositionRootTests
 {
     // -------------------------------------------------------------------------
-    // (b-inproc) AddExtension<T> positively registers the composed tool
+    // (b-inproc) AddToolExtension<T> positively registers the composed tool
     // -------------------------------------------------------------------------
 
     [Fact]
     public void ComposedHost_GreetingExtension_RegistersGreetTool()
     {
-        // Proves that AddExtension<T>() at composition-root time lands the tool in
+        // Proves that AddToolExtension<T>() at composition-root time lands the tool in
         // the registry. Uses a local mirror of GreetingExtension so this test has
         // no ProjectReference to Dmon.SampleExtension (which uses packed packages).
         // The wire half (ComposedCoreWireTests) proves the external composed process
@@ -208,7 +208,7 @@ public sealed class CompositionRootTests
             .CreateBuilder([])
             .WithoutTelemetry()
             .WithStdio(stdin, stdout)
-            .AddExtension<LocalGreetingExtension>()
+            .AddToolExtension<LocalGreetingExtension>()
             .Build();
 
         IToolRegistry registry = host.Services.GetRequiredService<IToolRegistry>();
@@ -242,7 +242,7 @@ public sealed class CompositionRootTests
             .CreateBuilder([])
             .WithoutTelemetry()
             .WithStdio(stdin, stdout)
-            .AddExtension<InlineTestExtension>()
+            .AddToolExtension<InlineTestExtension>()
             .Build();
 
         IToolRegistry registry = host.Services.GetRequiredService<IToolRegistry>();
