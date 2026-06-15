@@ -4,6 +4,7 @@ using Dmon.Core.Extensions;
 using Dmon.Core.Rpc;
 using Dmon.Core.Telemetry;
 using Dmon.Extensions;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Console;
 using NetEscapades.Configuration.Yaml;
 using OpenTelemetry.Logs;
@@ -22,6 +23,7 @@ public sealed class DmonHostBuilder
     private readonly string[] _args;
     private readonly List<IDmonExtension> _extensions = [];
     private readonly List<(Func<IServiceProvider, IDmonMiddleware> Factory, int? PriorityOverride)> _middlewares = [];
+    private readonly List<Action<IConfigurationManager>> _configureCallbacks = [];
 
     private string? _providerOverride;
     private string? _modelOverride;
@@ -137,6 +139,24 @@ public sealed class DmonHostBuilder
     }
 
     /// <summary>
+    /// Registers a callback that can read or further configure the merged configuration
+    /// after all YAML sources and the <see cref="WithModel"/> in-memory override have been
+    /// applied. Multiple calls are invoked in registration order.
+    /// </summary>
+    /// <remarks>
+    /// Precedence (last wins): YAML layers (global &lt; project &lt; local) &lt;
+    /// <see cref="WithModel"/> in-memory override &lt; <c>ConfigureConfiguration</c> callbacks.
+    /// The callback receives a <see cref="IConfigurationManager"/> which implements both
+    /// <see cref="IConfigurationBuilder"/> (add sources) and <see cref="IConfiguration"/>
+    /// (read merged values).
+    /// </remarks>
+    public DmonHostBuilder ConfigureConfiguration(Action<IConfigurationManager> configure)
+    {
+        _configureCallbacks.Add(configure);
+        return this;
+    }
+
+    /// <summary>
     /// Builds the host, wiring configuration, providers, extensions, and the
     /// JSONL/stdio RPC loop. Does not start the loop — call
     /// <see cref="DmonBuiltHost.RunAsync(CancellationToken)"/> for that.
@@ -170,6 +190,12 @@ public sealed class DmonHostBuilder
             {
                 ["activeModel"] = $"{_providerOverride}/{_modelOverride}",
             });
+        }
+
+        // Run composition-code callbacks last so they win over both YAML and WithModel.
+        foreach (Action<IConfigurationManager> callback in _configureCallbacks)
+        {
+            callback(builder.Configuration);
         }
 
         // Register stdio streams before AddDmonCore so TryAdd in AddDmonCore yields to ours.

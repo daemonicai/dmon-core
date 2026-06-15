@@ -36,9 +36,9 @@
 
 ## 6. Config is settings-only
 
-- [ ] 6.1 Strip the `extensions` list from `config.yaml` handling; retain settings and expose them through the builder configuration.
-- [ ] 6.2 Composition code can read or override config (e.g. pin a provider/model in `Dmon.cs` that wins over `config.yaml`).
-- [ ] 6.3 Tests: code-set provider wins over a conflicting `config.yaml`; a legacy `extensions:` list is ignored for composition.
+- [x] 6.1 Strip the `extensions` list from `config.yaml` handling; retain settings and expose them through the builder configuration.
+- [x] 6.2 Composition code can read or override config (e.g. pin a provider/model in `Dmon.cs` that wins over `config.yaml`).
+- [x] 6.3 Tests: code-set provider wins over a conflicting `config.yaml`; a legacy `extensions:` list is ignored for composition.
 
 ## 7. Packaging
 

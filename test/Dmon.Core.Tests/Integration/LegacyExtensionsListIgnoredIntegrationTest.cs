@@ -3,19 +3,19 @@ using System.Diagnostics;
 namespace Dmon.Core.Tests.Integration;
 
 /// <summary>
-/// End-to-end integration test proving the no-abort startup guarantee (task 3.4):
-/// the daemon reaches <c>agentReady</c> even when a config-declared extension entry
-/// fails to load. A nonexistent assembly path is used so the failure is immediate
-/// and requires no network access.
+/// End-to-end integration test proving that a legacy <c>extensions:</c> list in
+/// <c>config.yaml</c> is silently ignored. Under the composition-root-hosting model
+/// (ADR-019) extensions are composed at compile time in <c>Dmon.cs</c>; the config
+/// key is a no-op and must not prevent <c>agentReady</c> from being emitted.
 /// </summary>
-public sealed class BadConfigEntryIntegrationTest
+public sealed class LegacyExtensionsListIgnoredIntegrationTest
 {
     [Fact]
-    public async Task Daemon_StartsAndEmitsAgentReady_WhenConfigEntryFails()
+    public async Task Daemon_StartsAndEmitsAgentReady_WhenConfigContainsLegacyExtensionsList()
     {
         (string coreDll, _) = CoreProcessFixture.FindCoreDll();
 
-        string tempWorkDir = Path.Combine(Path.GetTempPath(), $"dmon-bad-ext-test-{Guid.NewGuid():N}");
+        string tempWorkDir = Path.Combine(Path.GetTempPath(), $"dmon-legacy-ext-test-{Guid.NewGuid():N}");
         Directory.CreateDirectory(tempWorkDir);
 
         Process? process = null;
@@ -24,9 +24,7 @@ public sealed class BadConfigEntryIntegrationTest
         {
             // Write an appsettings.json with a provider so SetupCheckService doesn't
             // emit setupRequired instead of agentReady. It must live in the core's
-            // content root (its working directory), not the shared build/dmoncore
-            // closure — writing there both has no effect here and races sibling
-            // fixtures whose cores read that shared file at startup.
+            // content root (its working directory) to avoid racing sibling fixtures.
             string appSettingsPath = Path.Combine(tempWorkDir, "appsettings.json");
             await File.WriteAllTextAsync(appSettingsPath, """
             {
@@ -40,8 +38,7 @@ public sealed class BadConfigEntryIntegrationTest
             }
             """);
 
-            // Write a project config with one bad extension entry.
-            // The path does not exist, so the loader fails fast with no network I/O.
+            // Write a project config with a legacy extensions list that the core must ignore.
             string dmonDir = Path.Combine(tempWorkDir, ".dmon");
             Directory.CreateDirectory(dmonDir);
             await File.WriteAllTextAsync(Path.Combine(dmonDir, "config.yaml"), """
@@ -106,7 +103,7 @@ public sealed class BadConfigEntryIntegrationTest
 
             Assert.True(
                 agentReadyReceived,
-                $"agentReady was never received — bad config entry caused startup abort. " +
+                $"agentReady was never received — legacy extensions list caused unexpected failure. " +
                 $"{processState}. Core stderr:\n{stderrText}");
         }
         finally
