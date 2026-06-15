@@ -12,15 +12,15 @@
 
 ## 3. Bucket moves, reference repair, solutions, and nested props
 
-- [ ] 3.1 Create buckets and `git mv` core projects into `core/` (Abstractions, Protocol, Core, Runtime, Protocol.SchemaGen)
-- [ ] 3.2 `git mv` providers into `providers/` (Anthropic, OpenAI, Gemini, Ollama)
-- [ ] 3.3 `git mv` Tools.Builtin → `tools/`, Memory → `middleware/`, Terminal + Gateway → `frontends/`
-- [ ] 3.4 Rewrite every `<ProjectReference>` relative path (and test-project references in `test/`) to the new bucket locations
-- [ ] 3.5 Delete `Dmon.slnx`; create per-area solutions `core.slnx`, `providers.slnx`, `tools.slnx`, `middleware.slnx`, `frontends.slnx`
-- [ ] 3.6 Create root `Everything.slnx` including every first-party project and every project under `test/`
-- [ ] 3.7 Split `Directory.Build.props`: keep shared block at root; add per-area `Directory.Build.props` that chain-import the root for area deltas
-- [ ] 3.8 Update the skew-guard `_ProtocolVersionFile` to `core/Dmon.Protocol/ProtocolVersion.cs`
-- [ ] 3.9 `dotnet build Everything.slnx -c Release` clean; each area `.slnx` builds in isolation; `make test` green
+- [x] 3.1 Create buckets and `git mv` core projects into `core/` (Abstractions, Protocol, Core, Runtime, Protocol.SchemaGen)
+- [x] 3.2 `git mv` providers into `providers/` (Anthropic, OpenAI, Gemini, Ollama)
+- [x] 3.3 `git mv` Tools.Builtin → `tools/`, Memory → `middleware/`, Terminal + Gateway → `frontends/`
+- [x] 3.4 Rewrite every `<ProjectReference>` relative path (and test-project references in `test/`, plus extensions/Omlx and the path-coded `ToolPackTests.cs`) to the new bucket locations
+- [x] 3.5 Delete `Dmon.slnx`; create per-area solutions `core.slnx`, `providers.slnx`, `tools.slnx`, `middleware.slnx`, `frontends.slnx`
+- [x] 3.6 Create root `Everything.slnx` including every first-party project and every project under `test/`
+- [x] 3.7 Keep the root `Directory.Build.props` as the shared base (applies repo-wide). Do NOT add empty per-area `Directory.Build.props` in Phase 0 — they are introduced only when an area needs a delta, and when added must chain-import the root via `GetPathOfFileAbove` rather than redefine it
+- [x] 3.8 Update the skew-guard `_ProtocolVersionFile` to `core/Dmon.Protocol/ProtocolVersion.cs`
+- [x] 3.9 `dotnet build Everything.slnx -c Release` clean; each area `.slnx` builds in isolation; full `dotnet test` green (gate via direct dotnet — `make` is restored in Group 5)
 
 ## 4. Omlx provider relocate and rename
 

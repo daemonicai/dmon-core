@@ -23,13 +23,13 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\Dmon.Core\Dmon.Core.csproj" />
-    <ProjectReference Include="..\..\src\Dmon.Runtime\Dmon.Runtime.csproj" />
-    <ProjectReference Include="..\..\src\Dmon.Providers.Anthropic\Dmon.Providers.Anthropic.csproj" />
-    <ProjectReference Include="..\..\src\Dmon.Providers.OpenAI\Dmon.Providers.OpenAI.csproj" />
-    <ProjectReference Include="..\..\src\Dmon.Providers.Gemini\Dmon.Providers.Gemini.csproj" />
-    <ProjectReference Include="..\..\src\Dmon.Providers.Ollama\Dmon.Providers.Ollama.csproj" />
-    <ProjectReference Include="..\..\src\Dmon.Tools.Builtin\Dmon.Tools.Builtin.csproj" />
+    <ProjectReference Include="..\..\core\Dmon.Core\Dmon.Core.csproj" />
+    <ProjectReference Include="..\..\core\Dmon.Runtime\Dmon.Runtime.csproj" />
+    <ProjectReference Include="..\..\providers\Dmon.Providers.Anthropic\Dmon.Providers.Anthropic.csproj" />
+    <ProjectReference Include="..\..\providers\Dmon.Providers.OpenAI\Dmon.Providers.OpenAI.csproj" />
+    <ProjectReference Include="..\..\providers\Dmon.Providers.Gemini\Dmon.Providers.Gemini.csproj" />
+    <ProjectReference Include="..\..\providers\Dmon.Providers.Ollama\Dmon.Providers.Ollama.csproj" />
+    <ProjectReference Include="..\..\tools\Dmon.Tools.Builtin\Dmon.Tools.Builtin.csproj" />
   </ItemGroup>
 
 </Project>

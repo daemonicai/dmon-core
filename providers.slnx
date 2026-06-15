@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/providers/">
+    <Project Path="providers\Dmon.Providers.Anthropic\Dmon.Providers.Anthropic.csproj" />
+    <Project Path="providers\Dmon.Providers.Gemini\Dmon.Providers.Gemini.csproj" />
+    <Project Path="providers\Dmon.Providers.Ollama\Dmon.Providers.Ollama.csproj" />
+    <Project Path="providers\Dmon.Providers.OpenAI\Dmon.Providers.OpenAI.csproj" />
+  </Folder>
+  <Folder Name="/test/">
+    <Project Path="test\Dmon.Providers.Tests\Dmon.Providers.Tests.csproj" />
+  </Folder>
+</Solution>

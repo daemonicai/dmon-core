@@ -20,7 +20,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\Dmon.Tools.Builtin\Dmon.Tools.Builtin.csproj" />
+    <ProjectReference Include="..\..\tools\Dmon.Tools.Builtin\Dmon.Tools.Builtin.csproj" />
   </ItemGroup>
 
 </Project>

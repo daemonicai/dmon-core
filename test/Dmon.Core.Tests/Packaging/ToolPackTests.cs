@@ -172,7 +172,7 @@ public sealed class ToolPackTests : IAsyncLifetime
         string assemblyPath = Assembly.GetExecutingAssembly().Location;
         string assemblyDir = Path.GetDirectoryName(assemblyPath) ?? ".";
         string repoRoot = Path.GetFullPath(Path.Combine(assemblyDir, "../../../../.."));
-        return Path.Combine(repoRoot, "src", "Dmon.Terminal", "Dmon.Terminal.csproj");
+        return Path.Combine(repoRoot, "frontends", "Dmon.Terminal", "Dmon.Terminal.csproj");
     }
 
     private static async Task RunPackAsync(string csprojPath, string outputDir)

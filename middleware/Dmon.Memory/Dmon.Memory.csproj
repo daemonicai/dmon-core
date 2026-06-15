@@ -17,8 +17,8 @@
     <PackageReference Include="HiraokaHyperTools.sqlite-vec" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\Dmon.Abstractions\Dmon.Abstractions.csproj" />
-    <ProjectReference Include="..\Dmon.Core\Dmon.Core.csproj" />
+    <ProjectReference Include="..\..\core\Dmon.Abstractions\Dmon.Abstractions.csproj" />
+    <ProjectReference Include="..\..\core\Dmon.Core\Dmon.Core.csproj" />
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="Dmon.Memory.Tests" />

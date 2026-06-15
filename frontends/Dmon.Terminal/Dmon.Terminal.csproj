@@ -24,8 +24,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Dmon.Protocol\Dmon.Protocol.csproj" />
-    <ProjectReference Include="..\Dmon.Runtime\Dmon.Runtime.csproj" />
+    <ProjectReference Include="..\..\core\Dmon.Protocol\Dmon.Protocol.csproj" />
+    <ProjectReference Include="..\..\core\Dmon.Runtime\Dmon.Runtime.csproj" />
   </ItemGroup>
 
   <ItemGroup>

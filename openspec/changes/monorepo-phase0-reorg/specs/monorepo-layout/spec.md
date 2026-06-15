@@ -42,13 +42,13 @@ Projects within the repository SHALL reference each other via `ProjectReference`
 
 ### Requirement: Nested build configuration
 
-The repository SHALL use a root `Directory.Build.props` and `Directory.Packages.props` for shared settings, with per-area `Directory.Build.props` files that `Import` the root for area-specific deltas. Third-party package versions SHALL be centrally managed via `Directory.Packages.props` rather than pinned inline in individual `.csproj` files.
+The repository SHALL centrally manage third-party package versions via a root `Directory.Packages.props` (rather than inline `.csproj` pins) and SHALL apply shared build settings from a root `Directory.Build.props` across all projects. Per-area `Directory.Build.props` files are introduced only as an area acquires settings that diverge from the root; when present they SHALL chain-import the root rather than redefine it, so the shared block (MinVer, the SourceLink/MinVer global package references, the protocol skew-guard) continues to apply. No area is required to carry a per-area build-props file in Phase 0.
 
 #### Scenario: Root settings apply across areas
 
 - **WHEN** any project in any bucket is built
-- **THEN** the shared root settings (MinVer, SourceLink, symbol packages, `IsPackable` default) are in effect
-- **AND** an area's own `Directory.Build.props` imports the root rather than redefining it
+- **THEN** the shared root settings (MinVer, SourceLink, symbol packages, `IsPackable` default, skew-guard) are in effect
+- **AND** any area-level `Directory.Build.props` that exists imports the root rather than redefining it
 
 #### Scenario: Skew-guard resolves the protocol-version file
 

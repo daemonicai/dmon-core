@@ -53,7 +53,7 @@
 
   <PropertyGroup>
     <!-- Path to the C# file that holds the single authored protocol version -->
-    <_ProtocolVersionFile>$(MSBuildThisFileDirectory)src/Dmon.Protocol/ProtocolVersion.cs</_ProtocolVersionFile>
+    <_ProtocolVersionFile>$(MSBuildThisFileDirectory)core/Dmon.Protocol/ProtocolVersion.cs</_ProtocolVersionFile>
   </PropertyGroup>
 
   <Target Name="CheckProtocolVersionSkew"

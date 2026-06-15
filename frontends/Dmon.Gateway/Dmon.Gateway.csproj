@@ -14,8 +14,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Dmon.Runtime\Dmon.Runtime.csproj" />
-    <ProjectReference Include="..\Dmon.Core\Dmon.Core.csproj" />
+    <ProjectReference Include="..\..\core\Dmon.Runtime\Dmon.Runtime.csproj" />
+    <ProjectReference Include="..\..\core\Dmon.Core\Dmon.Core.csproj" />
   </ItemGroup>
 
   <ItemGroup>

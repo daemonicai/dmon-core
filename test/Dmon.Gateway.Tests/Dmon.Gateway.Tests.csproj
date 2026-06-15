@@ -21,7 +21,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\Dmon.Gateway\Dmon.Gateway.csproj" />
+    <ProjectReference Include="..\..\frontends\Dmon.Gateway\Dmon.Gateway.csproj" />
   </ItemGroup>
 
 </Project>

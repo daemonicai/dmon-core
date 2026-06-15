@@ -26,43 +26,43 @@ FEED="$(cd "$FEED" && pwd)"
 VERSION_OVERRIDE="0.2.0"
 
 echo "==> Packing contract packages (protocol version override: $VERSION_OVERRIDE)"
-dotnet pack "$REPO/src/Dmon.Protocol/Dmon.Protocol.csproj" \
+dotnet pack "$REPO/core/Dmon.Protocol/Dmon.Protocol.csproj" \
     -c Release -o "$FEED" --nologo \
     -p:MinVerVersionOverride="$VERSION_OVERRIDE"
 
-dotnet pack "$REPO/src/Dmon.Abstractions/Dmon.Abstractions.csproj" \
+dotnet pack "$REPO/core/Dmon.Abstractions/Dmon.Abstractions.csproj" \
     -c Release -o "$FEED" --nologo \
     -p:MinVerVersionOverride="$VERSION_OVERRIDE"
 
 echo "==> Packing Dmon.Tools.Builtin (version override: $VERSION_OVERRIDE)"
-dotnet pack "$REPO/src/Dmon.Tools.Builtin/Dmon.Tools.Builtin.csproj" \
+dotnet pack "$REPO/tools/Dmon.Tools.Builtin/Dmon.Tools.Builtin.csproj" \
     -c Release -o "$FEED" --nologo \
     -p:MinVerVersionOverride="$VERSION_OVERRIDE" \
     -p:RestoreSources="$FEED;https://api.nuget.org/v3/index.json"
 
 echo "==> Packing provider packages (version override: $VERSION_OVERRIDE)"
-dotnet pack "$REPO/src/Dmon.Providers.Anthropic/Dmon.Providers.Anthropic.csproj" \
+dotnet pack "$REPO/providers/Dmon.Providers.Anthropic/Dmon.Providers.Anthropic.csproj" \
     -c Release -o "$FEED" --nologo \
     -p:MinVerVersionOverride="$VERSION_OVERRIDE" \
     -p:RestoreSources="$FEED;https://api.nuget.org/v3/index.json"
 
-dotnet pack "$REPO/src/Dmon.Providers.OpenAI/Dmon.Providers.OpenAI.csproj" \
+dotnet pack "$REPO/providers/Dmon.Providers.OpenAI/Dmon.Providers.OpenAI.csproj" \
     -c Release -o "$FEED" --nologo \
     -p:MinVerVersionOverride="$VERSION_OVERRIDE" \
     -p:RestoreSources="$FEED;https://api.nuget.org/v3/index.json"
 
-dotnet pack "$REPO/src/Dmon.Providers.Gemini/Dmon.Providers.Gemini.csproj" \
+dotnet pack "$REPO/providers/Dmon.Providers.Gemini/Dmon.Providers.Gemini.csproj" \
     -c Release -o "$FEED" --nologo \
     -p:MinVerVersionOverride="$VERSION_OVERRIDE" \
     -p:RestoreSources="$FEED;https://api.nuget.org/v3/index.json"
 
-dotnet pack "$REPO/src/Dmon.Providers.Ollama/Dmon.Providers.Ollama.csproj" \
+dotnet pack "$REPO/providers/Dmon.Providers.Ollama/Dmon.Providers.Ollama.csproj" \
     -c Release -o "$FEED" --nologo \
     -p:MinVerVersionOverride="$VERSION_OVERRIDE" \
     -p:RestoreSources="$FEED;https://api.nuget.org/v3/index.json"
 
 echo "==> Packing dmoncore library package (version override: $VERSION_OVERRIDE)"
-dotnet pack "$REPO/src/Dmon.Core/Dmon.Core.csproj" \
+dotnet pack "$REPO/core/Dmon.Core/Dmon.Core.csproj" \
     -c Release -o "$FEED" --nologo \
     -p:MinVerVersionOverride="$VERSION_OVERRIDE"
 

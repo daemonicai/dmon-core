@@ -14,8 +14,8 @@ echo "==> Packing SDK trio to $FEED"
 rm -rf "$FEED"
 mkdir -p "$FEED"
 
-dotnet pack "$REPO/src/Dmon.Protocol/Dmon.Protocol.csproj"   -c Release -o "$FEED" --nologo
-dotnet pack "$REPO/src/Dmon.Abstractions/Dmon.Abstractions.csproj" -c Release -o "$FEED" --nologo
+dotnet pack "$REPO/core/Dmon.Protocol/Dmon.Protocol.csproj"   -c Release -o "$FEED" --nologo
+dotnet pack "$REPO/core/Dmon.Abstractions/Dmon.Abstractions.csproj" -c Release -o "$FEED" --nologo
 
 # Detect the packed version from the nupkg filename
 VERSION=$(ls "$FEED"/Dmon.Protocol.*.nupkg | head -1 | sed 's/.*Dmon\.Protocol\.\(.*\)\.nupkg/\1/')

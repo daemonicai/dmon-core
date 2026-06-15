@@ -1,0 +1,43 @@
+<Solution>
+  <Folder Name="/core/">
+    <Project Path="core\Dmon.Abstractions\Dmon.Abstractions.csproj" />
+    <Project Path="core\Dmon.Core\Dmon.Core.csproj" />
+    <Project Path="core\Dmon.Protocol\Dmon.Protocol.csproj" />
+    <Project Path="core\Dmon.Protocol.SchemaGen\Dmon.Protocol.SchemaGen.csproj" />
+    <Project Path="core\Dmon.Runtime\Dmon.Runtime.csproj" />
+  </Folder>
+  <Folder Name="/providers/">
+    <Project Path="providers\Dmon.Providers.Anthropic\Dmon.Providers.Anthropic.csproj" />
+    <Project Path="providers\Dmon.Providers.Gemini\Dmon.Providers.Gemini.csproj" />
+    <Project Path="providers\Dmon.Providers.Ollama\Dmon.Providers.Ollama.csproj" />
+    <Project Path="providers\Dmon.Providers.OpenAI\Dmon.Providers.OpenAI.csproj" />
+  </Folder>
+  <Folder Name="/tools/">
+    <Project Path="tools\Dmon.Tools.Builtin\Dmon.Tools.Builtin.csproj" />
+  </Folder>
+  <Folder Name="/middleware/">
+    <Project Path="middleware\Dmon.Memory\Dmon.Memory.csproj" />
+  </Folder>
+  <Folder Name="/frontends/">
+    <Project Path="frontends\Dmon.Gateway\Dmon.Gateway.csproj" />
+    <Project Path="frontends\Dmon.Terminal\Dmon.Terminal.csproj" />
+  </Folder>
+  <Folder Name="/extensions/">
+    <Project Path="extensions\Dmon.Extensions.Omlx\Dmon.Extensions.Omlx.csproj" />
+  </Folder>
+  <Folder Name="/spike/">
+    <Project Path="spike\ScriptingSpike\ScriptingSpike.csproj" />
+  </Folder>
+  <Folder Name="/test/">
+    <Project Path="test\Dmon.Core.Tests\Dmon.Core.Tests.csproj" />
+    <Project Path="test\Dmon.Extensions.Omlx.Tests\Dmon.Extensions.Omlx.Tests.csproj" />
+    <Project Path="test\Dmon.Extensions.Tests\Dmon.Extensions.Tests.csproj" />
+    <Project Path="test\Dmon.Gateway.Tests\Dmon.Gateway.Tests.csproj" />
+    <Project Path="test\Dmon.Memory.Tests\Dmon.Memory.Tests.csproj" />
+    <Project Path="test\Dmon.Protocol.Tests\Dmon.Protocol.Tests.csproj" />
+    <Project Path="test\Dmon.Providers.Tests\Dmon.Providers.Tests.csproj" />
+    <Project Path="test\Dmon.Runtime.Tests\Dmon.Runtime.Tests.csproj" />
+    <Project Path="test\Dmon.Terminal.Tests\Dmon.Terminal.Tests.csproj" />
+    <Project Path="test\Dmon.Tools.Builtin.Tests\Dmon.Tools.Builtin.Tests.csproj" />
+  </Folder>
+</Solution>
