@@ -161,9 +161,10 @@ public sealed class CoreProcessManager : ICoreProcess
             UseShellExecute = false,
             CreateNoWindow = true,
         };
+        // --tl:off is positionally consumed by dotnet before dispatch, causing MSB4025 (Dmon.cs parsed as a project file); silence the terminal logger via env var instead.
+        psi.Environment["MSBUILDTERMINALLOGGER"] = "off";
         psi.ArgumentList.Add("build");
         psi.ArgumentList.Add(dmonCsPath);
-        psi.ArgumentList.Add("--tl:off");
 
         using Process proc = new() { StartInfo = psi };
         proc.Start();

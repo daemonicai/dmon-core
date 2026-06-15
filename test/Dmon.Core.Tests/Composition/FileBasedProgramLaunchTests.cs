@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Reflection;
 using System.Text.Json;
+using Dmon.Runtime;
 
 namespace Dmon.Core.Tests.Composition;
 
@@ -34,8 +35,9 @@ public sealed class FileBasedProgramLaunchTests(ComposedCoreFeedFixture feed)
             File.Copy(sourceCs, dmonCsPath);
             WriteNugetConfig(tempDir, feed.FeedPath);
 
-            // Step 1: build (separate captured process — never touches the stdio channel).
-            await RunDotnetBuildAsync(dmonCsPath, tempDir, timeoutSeconds: 120);
+            // Step 1: build via the production path (separate captured process — never touches the stdio channel).
+            using CancellationTokenSource buildCts = new(TimeSpan.FromSeconds(120));
+            await CoreProcessManager.BuildFileBasedProgramAsync(dmonCsPath, buildCts.Token);
 
             // Step 2: run --no-build and capture the very first stdout line.
             string firstLine = await CaptureFirstStdoutLineAsync(dmonCsPath, tempDir, timeoutSeconds: 15);
@@ -68,15 +70,17 @@ public sealed class FileBasedProgramLaunchTests(ComposedCoreFeedFixture feed)
             File.Copy(sourceCs, dmonCsPath);
             WriteNugetConfig(tempDir, feed.FeedPath);
 
-            // Initial build.
-            await RunDotnetBuildAsync(dmonCsPath, tempDir, timeoutSeconds: 120);
+            // Initial build via the production path.
+            using CancellationTokenSource buildCts1 = new(TimeSpan.FromSeconds(120));
+            await CoreProcessManager.BuildFileBasedProgramAsync(dmonCsPath, buildCts1.Token);
 
             // Simulate a source edit by appending a harmless trailing comment.
             // This forces the SDK to detect a change and recompile on the next build.
             await File.AppendAllTextAsync(dmonCsPath, "\n// reload-trigger\n");
 
-            // Incremental rebuild (the staleness gate fires because of the edit).
-            await RunDotnetBuildAsync(dmonCsPath, tempDir, timeoutSeconds: 120);
+            // Incremental rebuild via the production path (the staleness gate fires because of the edit).
+            using CancellationTokenSource buildCts2 = new(TimeSpan.FromSeconds(120));
+            await CoreProcessManager.BuildFileBasedProgramAsync(dmonCsPath, buildCts2.Token);
 
             // Run --no-build after the rebuild and capture the first stdout line.
             string firstLine = await CaptureFirstStdoutLineAsync(dmonCsPath, tempDir, timeoutSeconds: 15);
@@ -113,50 +117,6 @@ public sealed class FileBasedProgramLaunchTests(ComposedCoreFeedFixture feed)
 </configuration>
 """;
         File.WriteAllText(Path.Combine(directory, "nuget.config"), content);
-    }
-
-    private static async Task RunDotnetBuildAsync(
-        string dmonCsPath,
-        string workingDirectory,
-        int timeoutSeconds)
-    {
-        ProcessStartInfo psi = new()
-        {
-            FileName = "dotnet",
-            WorkingDirectory = workingDirectory,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false,
-            CreateNoWindow = true,
-        };
-        psi.ArgumentList.Add("build");
-        psi.ArgumentList.Add(dmonCsPath);
-
-        using Process proc = new() { StartInfo = psi };
-        proc.Start();
-
-        Task<string> stdoutTask = proc.StandardOutput.ReadToEndAsync();
-        Task<string> stderrTask = proc.StandardError.ReadToEndAsync();
-
-        using CancellationTokenSource cts = new(TimeSpan.FromSeconds(timeoutSeconds));
-        try
-        {
-            await proc.WaitForExitAsync(cts.Token);
-        }
-        catch (OperationCanceledException)
-        {
-            try { proc.Kill(entireProcessTree: true); } catch { /* best effort */ }
-            throw new TimeoutException($"dotnet build timed out after {timeoutSeconds}s.");
-        }
-
-        string output = await stdoutTask;
-        string errors = await stderrTask;
-
-        if (proc.ExitCode != 0)
-        {
-            throw new InvalidOperationException(
-                $"dotnet build failed (exit {proc.ExitCode}).\nstdout: {output}\nstderr: {errors}");
-        }
     }
 
     private static async Task<string> CaptureFirstStdoutLineAsync(

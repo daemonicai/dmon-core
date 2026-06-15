@@ -48,5 +48,5 @@
 
 ## 8. End-to-end and spec validation
 
-- [ ] 8.1 End-to-end: from an empty dir the prebuilt default serves a turn; after `dmon init` + adding an extension `#:package`, a build-then-`--no-build`-run launch serves a turn with that extension's tools and a clean JSONL stdout; `/reload` after an edit rebuilds and restarts.
-- [ ] 8.2 `make build` clean (`TreatWarningsAsErrors`), `make test` green (new + existing), `openspec validate composition-root-hosting --strict` passes.
+- [x] 8.1 End-to-end: from an empty dir the prebuilt default serves a turn; after `dmon init` + adding an extension `#:package`, a build-then-`--no-build`-run launch serves a turn with that extension's tools and a clean JSONL stdout; `/reload` after an edit rebuilds and restarts.
+- [x] 8.2 `make build` clean (`TreatWarningsAsErrors`), `make test` green (new + existing), `openspec validate composition-root-hosting --strict` passes.

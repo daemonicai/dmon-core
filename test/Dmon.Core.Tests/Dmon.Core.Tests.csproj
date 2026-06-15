@@ -24,6 +24,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Dmon.Core\Dmon.Core.csproj" />
+    <ProjectReference Include="..\..\src\Dmon.Runtime\Dmon.Runtime.csproj" />
   </ItemGroup>
 
 </Project>
