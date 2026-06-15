@@ -54,6 +54,37 @@ public static class DmonRegistrationExtensions
         return registration;
     }
 
+    // ── IDmonHostBuilder: system prompt ──────────────────────────────────────
+
+    /// <summary>
+    /// Sets the system prompt base string, replacing the built-in default and any value
+    /// in <c>IConfiguration["systemPrompt"]</c>. Highest-precedence base source.
+    /// </summary>
+    /// <remarks>
+    /// Precedence (last wins): built-in default &lt; <c>config systemPrompt</c> &lt; <c>UseSystemPrompt</c>.
+    /// Appends from <see cref="AppendToSystemPrompt{T}"/> compose on top of whichever base wins.
+    /// </remarks>
+    public static T UseSystemPrompt<T>(this T builder, string text)
+        where T : IDmonHostBuilder
+    {
+        builder.Configuration.AddInMemoryCollection(
+        [
+            new KeyValuePair<string, string?>(ConfigurationKeys.SystemPrompt, text),
+        ]);
+        return builder;
+    }
+
+    /// <summary>
+    /// Appends <paramref name="text"/> to the resolved system prompt base.
+    /// Multiple calls compose in registration order: <c>final = base + first + second + …</c>.
+    /// </summary>
+    public static T AppendToSystemPrompt<T>(this T builder, string text)
+        where T : IDmonHostBuilder
+    {
+        builder.Services.AddSingleton(new SystemPromptAppend(text));
+        return builder;
+    }
+
     // ── IProviderRegistration ─────────────────────────────────────────────────
 
     /// <summary>

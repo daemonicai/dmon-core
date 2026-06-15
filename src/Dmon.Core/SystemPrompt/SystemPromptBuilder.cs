@@ -7,8 +7,10 @@ using Dmon.Core.Extensions;
 using Dmon.Core.Profiles;
 using Dmon.Core.Providers;
 using Dmon.Core.Rpc;
+using Dmon.Hosting;
 using Dmon.Protocol.Events;
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.Configuration;
 
 namespace Dmon.Core.SystemPrompt;
 
@@ -18,8 +20,11 @@ public sealed class SystemPromptBuilder : ISystemPromptBuilder
     private readonly IToolRegistry _toolRegistry;
     private readonly AgentConfigResolver _configResolver;
     private readonly IEventEmitter _eventEmitter;
+    // Retained for the assets check; Group 7 replaces this with UseAssets.
     private readonly AgentProfileContext _profileContext;
     private readonly ISessionHandler _sessionHandler;
+    private readonly IConfiguration _configuration;
+    private readonly IEnumerable<SystemPromptAppend> _appends;
 
     public SystemPromptBuilder(
         IProviderRegistry providerRegistry,
@@ -27,7 +32,9 @@ public sealed class SystemPromptBuilder : ISystemPromptBuilder
         AgentConfigResolver configResolver,
         IEventEmitter eventEmitter,
         AgentProfileContext profileContext,
-        ISessionHandler sessionHandler)
+        ISessionHandler sessionHandler,
+        IConfiguration configuration,
+        IEnumerable<SystemPromptAppend> appends)
     {
         _providerRegistry = providerRegistry;
         _toolRegistry = toolRegistry;
@@ -35,13 +42,21 @@ public sealed class SystemPromptBuilder : ISystemPromptBuilder
         _eventEmitter = eventEmitter;
         _profileContext = profileContext;
         _sessionHandler = sessionHandler;
+        _configuration = configuration;
+        _appends = appends;
     }
 
     public async Task<ChatMessage> BuildAsync(CancellationToken cancellationToken)
     {
         StringBuilder sb = new();
 
-        sb.AppendLine(_profileContext.Profile.Persona);
+        string promptBase = ResolveBase();
+        sb.Append(promptBase);
+
+        foreach (SystemPromptAppend append in _appends)
+        {
+            sb.Append(append.Text);
+        }
 
         AppendDynamicContext(sb);
 
@@ -66,6 +81,16 @@ public sealed class SystemPromptBuilder : ISystemPromptBuilder
         return new ChatMessage(ChatRole.System, sb.ToString());
     }
 
+    /// <summary>
+    /// Resolves the base string: <c>UseSystemPrompt</c> (config key written by the verb)
+    /// beats <c>IConfiguration["systemPrompt"]</c> from YAML/env; both beat the built-in default.
+    /// Because <c>UseSystemPrompt</c> writes via <c>AddInMemoryCollection</c> (last-wins in
+    /// the configuration pipeline), reading the config key returns the highest-priority value
+    /// among YAML layers and verb overrides in a single read.
+    /// </summary>
+    private string ResolveBase()
+        => _configuration[ConfigurationKeys.SystemPrompt] ?? BuiltInProfiles.CodingPersona;
+
     private void AppendDynamicContext(StringBuilder sb)
     {
         sb.AppendLine();
@@ -83,7 +108,7 @@ public sealed class SystemPromptBuilder : ISystemPromptBuilder
         string modelId = providerConfig.DefaultModelId ?? "(unknown)";
         sb.AppendLine($"- **Provider:** {providerConfig.Name} / {modelId}");
 
-        if (_profileContext.Profile.Assets)
+        if (_profileContext.IsResolved && _profileContext.Profile.Assets)
         {
             string? sessionId = _sessionHandler.CurrentSession?.Id;
             if (sessionId is not null)

@@ -50,13 +50,21 @@
 - Extracted `ConfigurationKeys.ActiveModel` const (one source of truth, referenced by `UseModel`, `SubAgentProviderRegistration`, `ActiveModelStore`).
 - 9 isolation/validation/memoization/different-provider tests. Reviewer: APPROVE WITH NITS → both nits (disposal, const) applied.
 
-## NEXT
+## 6. System prompt as a plain string (no persona)
 
-- **Up next:** Group 6 — system prompt as a plain string (no persona). Resolve from `IConfiguration["systemPrompt"]` base, overridable by `UseSystemPrompt` (replace) / `AppendToSystemPrompt` (ordered append); `final = base + appends`; no hidden scaffolding (tools via `ChatOptions`); keep the `ISystemPromptBuilder` raw-DI escape hatch. (Group 6 is system-prompt mechanics only; the persona/profile DELETION is Group 7.)
-- **Open questions / carry-forward:**
-  - **Per-group gate = `make clean && make build` (compiles `default-core/Dmon.cs`) + `make test` + `validate --strict`** — non-negotiable (Group 4 lesson). Brief every worker to run it.
-  - `protocol-schema` delta for `profile`→`agent` — AUTHOR IT during the pre-Group-7 pause (orchestrator).
-  - `ISessionAssetProvisioner` currently takes `AgentProfile` (deleted in G7) → new signature (path/flag from `UseAssets`) — Group 7.
-  - Durable NuGet stale-cache fix (`build/core-pkgs` + `~/.nuget` dmon.*) — consider Group 8.
-  - Non-blocking later: `RegisterExtensionAsync` hardcodes `Auth.Type="none"`; lighter sub-agent-registration alt (descriptor enumeration).
-- **Pacing:** run Group 6, then PAUSE before Group 7 (high-risk: protocol + runtime + asset provisioner) — and author the `protocol-schema` delta at that pause. Clear `~/.nuget/packages/dmon.*` + `make clean` before authoritative gates on this machine.
+- `SystemPromptBuilder.ResolveBase()` = `IConfiguration[ConfigurationKeys.SystemPrompt]` (one read honouring YAML/env + the `UseSystemPrompt` in-memory write) → fallback `BuiltInProfiles.CodingPersona`. Appends are `IEnumerable<SystemPromptAppend>` (DI marker records) iterated in registration order after the base, before dynamic context. `final = base + appends + dynamic context`.
+- **Removed** the static `_profileContext.Profile.Persona` read (D11 — no hidden persona). **Preserved** the dynamic-context assembly (cwd/OS/provider/extensions, CLAUDE.md/AGENTS.md notices); the profile asset-dir branch stays (now guarded by `IsResolved` — a real fix, avoids a throw on unresolved context) for Group 7's `UseAssets`.
+- Verbs `UseSystemPrompt<T>`/`AppendToSystemPrompt<T>` on `IDmonHostBuilder` (`Dmon.Abstractions`/`Dmon.Hosting`): `UseSystemPrompt` writes `Configuration` via `AddInMemoryCollection` (beats YAML); `AppendToSystemPrompt` registers a `SystemPromptAppend`. Added `ConfigurationKeys.SystemPrompt`.
+- Escape hatch: `AddDmonCore` now `TryAddSingleton<ISystemPromptBuilder>` so a builder `AddSingleton<ISystemPromptBuilder>(…)` wins (same proven pattern as stdio `TextWriter`).
+- Reviewer: APPROVE. Two recorded items below.
+
+## NEXT — PAUSED before Group 7 (per pacing)
+
+**Pre-Group-7 orchestrator task: author the `protocol-schema` delta** for `profile`→`agent` (SessionMeta/SessionCommands/ControlFrames) + amend the proposal's Modified Capabilities. Then brief Group 7.
+
+- **Group-7 REQUIRED carry-forwards (don't drop these):**
+  1. **Relocate the built-in default prompt:** `SystemPromptBuilder.ResolveBase()` falls back to `BuiltInProfiles.CodingPersona`, but Group 7 DELETES `BuiltInProfiles`. Move that coding-prompt text to a system-prompt-owned `const`/`static readonly` (in the `SystemPrompt` namespace) BEFORE deleting the profile types, else `ResolveBase()` won't compile. Re-verify the relocated default still satisfies the `system-prompt` spec's built-in-default content (D-mon identity, tool norms, terse tone).
+  2. **`ISessionAssetProvisioner.Provision(AgentProfile, …)`** takes an `AgentProfile` (deleted) → new signature fed by the `UseAssets` verb; rewire the asset-dir branch in `SystemPromptBuilder` (currently `_profileContext.IsResolved && .Profile.Assets`) to the `UseAssets` flag.
+  3. **`createSession` `profile`→`agent`** across `Dmon.Protocol` DTOs + gateway handler + `TurnHandler` runtime resolution; delete `IAgentProfileResolver`/`AgentProfile`/`ProfilesConfigReader`/`EffectiveProfileSetResolver`/`AgentProfileContext`/`WithProfile`/`ProfileOverrideResolver`; keep `PermissionMode`+`WithPermissionMode`.
+- **Deferred nits:** escape-hatch DI-resolution test (Group 6 test only asserts shape); `RegisterExtensionAsync` `Auth.Type="none"`; lighter sub-agent registration; durable NuGet stale-cache fix (Group 8).
+- **Per-group gate = `make clean && make build` (compiles `default-core/Dmon.cs`) + `make test` + `validate --strict`** — non-negotiable. Clear `~/.nuget/packages/dmon.*` if type-identity errors.

@@ -8,4 +8,7 @@ public static class ConfigurationKeys
 {
     /// <summary>The configuration key that stores the active provider/model selection (e.g. <c>gemini/flash</c>).</summary>
     public const string ActiveModel = "activeModel";
+
+    /// <summary>The configuration key that stores the system prompt base string (<c>IConfiguration["systemPrompt"]</c>).</summary>
+    public const string SystemPrompt = "systemPrompt";
 }

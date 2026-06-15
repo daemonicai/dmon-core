@@ -42,10 +42,10 @@
 
 ## 6. System prompt as a plain string (no persona)
 
-- [ ] 6.1 Resolve the system prompt from `IConfiguration["systemPrompt"]` as the base, overridable by `UseSystemPrompt(string)` (replace) and `AppendToSystemPrompt(string)` (ordered append); `final = base + ordered appends`, no hidden scaffolding (tools ride `ChatOptions`).
-- [ ] 6.2 Keep the raw-DI escape hatch (`Services.AddSingleton<ISystemPromptBuilder>(…)`); update `ISystemPromptBuilder` wiring to read the new sources.
-- [ ] 6.3 Tests: precedence (config < `UseSystemPrompt`), append ordering, default-when-unset, escape-hatch override.
-- [ ] 6.4 Gate: `make build` clean, `make test` green, `openspec validate composition-root-facets --strict`.
+- [x] 6.1 Resolve the system prompt from `IConfiguration["systemPrompt"]` as the base, overridable by `UseSystemPrompt(string)` (replace) and `AppendToSystemPrompt(string)` (ordered append); `final = base + ordered appends`, no hidden scaffolding (tools ride `ChatOptions`).
+- [x] 6.2 Keep the raw-DI escape hatch (`Services.AddSingleton<ISystemPromptBuilder>(…)`, via `TryAdd`); update `ISystemPromptBuilder` wiring to read the new sources.
+- [x] 6.3 Tests: precedence (config < `UseSystemPrompt`), append ordering, default-when-unset, escape-hatch override. (Escape-hatch test is contract-shape only; a DI-resolution proof is a deferred nit.)
+- [x] 6.4 Gate: `make clean && make build`, `make test` green, `openspec validate composition-root-facets --strict`.
 
 ## 7. Profile-subsystem demolition & `agent` selection
 

@@ -120,7 +120,9 @@ public static class DmonServiceExtensions
         services.TryAddSingleton<IEventEmitter>(sp => new EventEmitter(sp.GetRequiredService<TextWriter>()));
 
         services.AddSingleton<AgentConfigResolver>();
-        services.AddSingleton<ISystemPromptBuilder, SystemPromptBuilder>();
+        // TryAdd so a composition root may supply its own ISystemPromptBuilder via
+        // Services.AddSingleton<ISystemPromptBuilder>(…) and have it win.
+        services.TryAddSingleton<ISystemPromptBuilder, SystemPromptBuilder>();
 
         // Agent profile resolution — resolved once per session, shared by Groups 4-6 consumers.
         // Config paths mirror BootstrapService conventions.
