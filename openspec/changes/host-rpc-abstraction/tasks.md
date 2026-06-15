@@ -7,10 +7,10 @@
 
 ## 2. Correlated client (`IRpcClient`)
 
-- [ ] 2.1 Add `IRpcClient` over `IRpcTransport`: `Task SendAsync(Command, CancellationToken)` (fire-and-forget) and `Task<TResult> RequestAsync<TResult>(Command, CancellationToken) where TResult : ResultEvent`.
-- [ ] 2.2 Implement single-reader fan-out: one read loop drains the transport's event stream, feeds correlation (pending `commandId → TaskCompletionSource<ResultEvent>`) AND a broadcast subscription, so non-matching events remain observable to other consumers.
-- [ ] 2.3 Implement request/response correlation by `CommandId` (ADR-015) with a finite timeout that faults with a dedicated timeout-distinguishable exception (e.g. `RpcTimeoutException`), distinct from `OperationCanceledException`.
-- [ ] 2.4 Unit tests in `test/Dmon.Runtime.Tests`: request completes on the correlated typed result; unrelated `ResultEvent` does not complete the request and is still delivered to the broadcast consumer; timeout faults distinctly from cancellation.
+- [x] 2.1 Add `IRpcClient` over `IRpcTransport`: `Task SendAsync(Command, CancellationToken)` (fire-and-forget) and `Task<TResult> RequestAsync<TResult>(Command, CancellationToken) where TResult : ResultEvent`.
+- [x] 2.2 Implement single-reader fan-out: one read loop drains the transport's event stream, feeds correlation (pending `commandId → TaskCompletionSource<ResultEvent>`) AND a broadcast subscription, so non-matching events remain observable to other consumers.
+- [x] 2.3 Implement request/response correlation by `CommandId` (ADR-015) with a finite timeout that faults with a dedicated timeout-distinguishable exception (e.g. `RpcTimeoutException`), distinct from `OperationCanceledException`.
+- [x] 2.4 Unit tests in `test/Dmon.Runtime.Tests`: request completes on the correlated typed result; unrelated `ResultEvent` does not complete the request and is still delivered to the broadcast consumer; timeout faults distinctly from cancellation.
 
 ## 3. Terminal host migration
 
