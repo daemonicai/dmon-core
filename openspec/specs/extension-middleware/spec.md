@@ -15,60 +15,45 @@ TBD - created by archiving change extension-middleware-tier. Update Purpose afte
 - **THEN** an `ArgumentNullException` is thrown
 
 ### Requirement: DmonMiddlewareAttribute marks and configures middleware
-`DmonMiddlewareAttribute` SHALL be a public sealed attribute in `Dmon.Extensions`, applicable to classes. It SHALL expose an `int Priority` property (default `0`). Only classes annotated with `[DmonMiddleware]` AND implementing `IDmonMiddleware` are loaded by the extension loader.
+`DmonMiddlewareAttribute` SHALL be a public sealed attribute in `Dmon.Extensions`, applicable to classes. It SHALL expose an `int Priority` property (default `0`). The attribute is a render/priority marker carried by the middleware type; it is no longer the gate the extension loader uses to *discover* middleware — middleware enters the pipeline only by an explicit `DmonHost` builder registration (see "Middleware is registered through the DmonHost builder").
 
-#### Scenario: Annotated class is discovered
-- **WHEN** an extension assembly containing a class annotated with `[DmonMiddleware]` and implementing `IDmonMiddleware` is loaded
-- **THEN** the loader instantiates that class and includes it in the middleware pipeline
+#### Scenario: Attribute supplies the default priority
+- **WHEN** a middleware annotated `[DmonMiddleware(Priority = 100)]` is registered with the builder and no priority override is supplied at registration
+- **THEN** its effective priority is `100`
 
-#### Scenario: Unannotated IDmonMiddleware is ignored
-- **WHEN** an extension assembly contains a class implementing `IDmonMiddleware` but NOT annotated with `[DmonMiddleware]`
-- **THEN** the loader does not instantiate it and does not include it in the pipeline
-
-### Requirement: Extension loader discovers and instantiates middleware
-The extension loader SHALL scan loaded assemblies for types that both implement `IDmonMiddleware` and carry `[DmonMiddleware]`. For each discovered type it SHALL attempt to instantiate it, passing the host `IServiceProvider` as a constructor argument if the type has a matching constructor overload; otherwise using a no-arg constructor.
-
-#### Scenario: Middleware with IServiceProvider constructor receives host services
-- **WHEN** a middleware type has a constructor accepting `IServiceProvider`
-- **THEN** the loader passes the host `IServiceProvider` to that constructor
-
-#### Scenario: Middleware without IServiceProvider constructor uses no-arg constructor
-- **WHEN** a middleware type has only a parameterless constructor
-- **THEN** the loader calls the parameterless constructor
-
-#### Scenario: Middleware constructor throws — startup continues
-- **WHEN** a middleware constructor throws an exception during instantiation
-- **THEN** the loader logs the error, skips that middleware, and continues loading remaining extensions
+#### Scenario: Unregistered IDmonMiddleware is not in the pipeline
+- **WHEN** a class implements `IDmonMiddleware` (annotated or not) but is never registered with the builder
+- **THEN** it is not instantiated and not included in the pipeline
 
 ### Requirement: Pipeline is built by folding middlewares in priority order
-At agent startup, after all extensions are loaded, the host SHALL sort discovered `IDmonMiddleware` instances by effective priority (ascending), then fold them over the base provider `IChatClient`: `middlewares.OrderBy(m => m.EffectivePriority).Aggregate(baseClient, (inner, m) => m.Wrap(inner))`. The resulting client is used for all turns in the session.
+At agent startup, after the composition is built, the host SHALL sort the **builder-registered** `IDmonMiddleware` instances by effective priority (ascending), then fold them over the base provider `IChatClient`: `middlewares.OrderBy(m => m.EffectivePriority).Aggregate(baseClient, (inner, m) => m.Wrap(inner))`. The resulting client is used for all turns in the session. There is no reflection-discovery pass; the set of middlewares is exactly what the builder registered.
 
 #### Scenario: Lower priority middleware is innermost
-- **WHEN** middleware A has priority 100 and middleware B has priority 200
+- **WHEN** middleware A is registered with priority 100 and middleware B with priority 200
 - **THEN** the pipeline is `B.Wrap(A.Wrap(baseClient))` — A is closer to the provider, B is closer to the caller
 
 #### Scenario: Equal priority middlewares use stable registration order as tiebreaker
 - **WHEN** two middlewares have the same effective priority
-- **THEN** their relative order in the pipeline matches their order of registration
+- **THEN** their relative order in the pipeline matches their order of registration on the builder
 
-#### Scenario: No middleware leaves pipeline unchanged
-- **WHEN** no middleware extensions are loaded
+#### Scenario: No registered middleware leaves pipeline unchanged
+- **WHEN** no middleware is registered on the builder
 - **THEN** the pipeline is the bare base provider `IChatClient`
 
-### Requirement: Middleware configuration via named YAML sections
-The config file SHALL support a top-level `middleware` section containing per-middleware named subsections. Each subsection key is the middleware's class name (case-insensitive). Subsections may contain arbitrary fields consumed by the middleware, plus an optional `priority` field (int) that overrides the `[DmonMiddleware]` attribute value.
+### Requirement: Middleware is registered through the DmonHost builder
+Middleware SHALL be contributed to the pipeline by an explicit `DmonHost` builder call in the composition root (`Dmon.cs`), not by reflection discovery. The builder SHALL expose a registration surface that accepts an `IDmonMiddleware` (by type, e.g. `AddMiddleware<TMiddleware>()`, and/or by instance) with an optional priority that overrides the type's `[DmonMiddleware]` attribute value. Registration is compile-time composition: the middleware type is a compile-time dependency of `Dmon.cs` (a `#:package`/`#:project`/`#:ref`), consistent with the extension model. A registered middleware MAY read its own settings from the host `IConfiguration` (settings, not composition); there is no dedicated config-driven middleware activation or priority section.
 
-#### Scenario: Priority override in config takes precedence over attribute
-- **WHEN** a middleware has `[DmonMiddleware(Priority = 100)]` and its config section contains `priority: 50`
-- **THEN** the middleware's effective priority is `50`
+#### Scenario: Builder registration adds middleware to the pipeline
+- **WHEN** `Dmon.cs` calls `builder.AddMiddleware<LoggingMiddleware>()` and builds the host
+- **THEN** a `LoggingMiddleware` instance is folded into the pipeline at its effective priority, with no runtime load or reflection scan
 
-#### Scenario: Arbitrary config fields are accessible via IConfigurationRoot
-- **WHEN** a middleware's config section contains `maxTokens: 4096`
-- **THEN** `configurationRoot.GetSection("middleware:<ClassName>")["maxTokens"]` returns `"4096"`
+#### Scenario: Registration priority overrides the attribute
+- **WHEN** a middleware annotated `[DmonMiddleware(Priority = 100)]` is registered with an explicit priority of `50`
+- **THEN** its effective priority is `50`
 
-#### Scenario: Absent config section uses attribute priority
-- **WHEN** a middleware has no corresponding config section
-- **THEN** the middleware's effective priority equals the `Priority` property on its `[DmonMiddleware]` attribute
+#### Scenario: Middleware reads its own settings from configuration
+- **WHEN** a registered middleware reads `configuration.GetSection("middleware:LoggingMiddleware")["maxTokens"]`
+- **THEN** it observes whatever `config.yaml` provides for that section as plain settings, and the value does not affect whether or at what priority the middleware is in the pipeline
 
 ### Requirement: Middleware does not support hot-reload
 `IDmonMiddleware` implementations SHALL NOT be reloaded while the agent process is running. File-system change events for middleware assemblies SHALL be ignored. A process restart is required to apply middleware changes.
