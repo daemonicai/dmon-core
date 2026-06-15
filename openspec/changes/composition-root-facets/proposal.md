@@ -33,6 +33,7 @@ The `Dmon.cs` composition root (ADR-019) is the place a user assembles an agent,
 - `package-publishing`: granular implementation packages; `Dmon.Hosting` verb namespace; lockstep protocol-keyed versioning.
 - `builtin-tools`: composable `Dmon.Tools.Builtin` package via `AddBuiltinTools`, scaffolded-but-removable.
 - `remote-session-gateway`: `createSession` `profile`→`agent` selector.
+- `protocol-schema`: the `agent` selector replaces the `profile` field on the session-create command, the `create`/`created` control frames, and persisted `SessionMeta`, reflected in the exported wire schema.
 
 ## Impact
 
