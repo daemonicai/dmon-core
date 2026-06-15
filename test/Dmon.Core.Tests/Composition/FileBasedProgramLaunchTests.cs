@@ -17,11 +17,11 @@ namespace Dmon.Core.Tests.Composition;
 public sealed class FileBasedProgramLaunchTests(ComposedCoreFeedFixture feed)
 {
     // ------------------------------------------------------------------
-    // OQ-B: first stdout line is agentReady, not build output — first build
+    // OQ-B: stdout carries only clean JSONL frames up to agentReady — first build
     // ------------------------------------------------------------------
 
     [Fact]
-    public async Task FileBasedProgram_FirstBuild_FirstStdoutLineIsAgentReady()
+    public async Task FileBasedProgram_FirstBuild_ReachesAgentReadyOverCleanJsonl()
     {
         string repoRoot = LocateRepoRoot();
         string sourceCs = Path.Combine(repoRoot, "default-core", "Dmon.cs");
@@ -39,11 +39,11 @@ public sealed class FileBasedProgramLaunchTests(ComposedCoreFeedFixture feed)
             using CancellationTokenSource buildCts = new(TimeSpan.FromSeconds(120));
             await CoreProcessManager.BuildFileBasedProgramAsync(dmonCsPath, buildCts.Token);
 
-            // Step 2: run --no-build and capture the very first stdout line.
-            string firstLine = await CaptureFirstStdoutLineAsync(dmonCsPath, tempDir, timeoutSeconds: 15);
-
-            // The first line must be a valid JSON object with type == "agentReady".
-            AssertIsAgentReadyJsonl(firstLine, "first build");
+            // Step 2: run --no-build and assert the core reaches an agentReady frame
+            // over a stdout stream of clean JSONL frames only (never MSBuild/restore
+            // output). A setupRequired frame legitimately precedes agentReady when no
+            // provider is configured (e.g. CI); it is a valid JSONL frame.
+            await AssertReachesAgentReadyOverCleanJsonlAsync(dmonCsPath, tempDir, timeoutSeconds: 15, context: "first build");
         }
         finally
         {
@@ -52,11 +52,11 @@ public sealed class FileBasedProgramLaunchTests(ComposedCoreFeedFixture feed)
     }
 
     // ------------------------------------------------------------------
-    // OQ-B: first stdout line is agentReady after a rebuild-triggering reload
+    // OQ-B: stdout carries only clean JSONL frames up to agentReady after a rebuild
     // ------------------------------------------------------------------
 
     [Fact]
-    public async Task FileBasedProgram_Rebuild_AfterEdit_FirstStdoutLineIsAgentReady()
+    public async Task FileBasedProgram_Rebuild_AfterEdit_ReachesAgentReadyOverCleanJsonl()
     {
         string repoRoot = LocateRepoRoot();
         string sourceCs = Path.Combine(repoRoot, "default-core", "Dmon.cs");
@@ -82,10 +82,8 @@ public sealed class FileBasedProgramLaunchTests(ComposedCoreFeedFixture feed)
             using CancellationTokenSource buildCts2 = new(TimeSpan.FromSeconds(120));
             await CoreProcessManager.BuildFileBasedProgramAsync(dmonCsPath, buildCts2.Token);
 
-            // Run --no-build after the rebuild and capture the first stdout line.
-            string firstLine = await CaptureFirstStdoutLineAsync(dmonCsPath, tempDir, timeoutSeconds: 15);
-
-            AssertIsAgentReadyJsonl(firstLine, "rebuild after edit");
+            // Run --no-build after the rebuild and assert clean JSONL up to agentReady.
+            await AssertReachesAgentReadyOverCleanJsonlAsync(dmonCsPath, tempDir, timeoutSeconds: 15, context: "rebuild after edit");
         }
         finally
         {
@@ -119,10 +117,20 @@ public sealed class FileBasedProgramLaunchTests(ComposedCoreFeedFixture feed)
         File.WriteAllText(Path.Combine(directory, "nuget.config"), content);
     }
 
-    private static async Task<string> CaptureFirstStdoutLineAsync(
+    /// <summary>
+    /// Runs <c>dotnet run &lt;Dmon.cs&gt; --no-build</c> and asserts the core reaches an
+    /// <c>agentReady</c> frame over a stdout stream that carries <em>only</em> clean JSONL
+    /// frames — proving the build phase never leaked MSBuild/restore output onto the
+    /// stdio channel (ADR-019 OQ-B). <c>agentReady</c> is always emitted at startup, but a
+    /// <c>setupRequired</c> frame precedes it when no provider is configured (e.g. CI), so
+    /// reading only the first line is environment-dependent; every line up to and including
+    /// <c>agentReady</c> must parse as a JSONL frame instead.
+    /// </summary>
+    private static async Task AssertReachesAgentReadyOverCleanJsonlAsync(
         string dmonCsPath,
         string workingDirectory,
-        int timeoutSeconds)
+        int timeoutSeconds,
+        string context)
     {
         ProcessStartInfo psi = new()
         {
@@ -145,11 +153,29 @@ public sealed class FileBasedProgramLaunchTests(ComposedCoreFeedFixture feed)
         proc.ErrorDataReceived += (_, _) => { };
         proc.BeginErrorReadLine();
 
-        string? firstLine = null;
+        List<string> framesRead = [];
+        bool reachedAgentReady = false;
         try
         {
             using CancellationTokenSource cts = new(TimeSpan.FromSeconds(timeoutSeconds));
-            firstLine = await proc.StandardOutput.ReadLineAsync(cts.Token);
+            // Bounded read: every line must be a clean JSONL frame (build/restore output
+            // would not parse), and agentReady must appear among the startup frames.
+            for (int i = 0; i < 20; i++)
+            {
+                string? line;
+                try { line = await proc.StandardOutput.ReadLineAsync(cts.Token); }
+                catch (OperationCanceledException) { break; }
+
+                if (line is null) break;
+                if (string.IsNullOrWhiteSpace(line)) continue;
+
+                framesRead.Add(line);
+                if (AssertIsJsonlFrame(line, context) == "agentReady")
+                {
+                    reachedAgentReady = true;
+                    break;
+                }
+            }
         }
         finally
         {
@@ -168,17 +194,19 @@ public sealed class FileBasedProgramLaunchTests(ComposedCoreFeedFixture feed)
             }
         }
 
-        return firstLine
-            ?? throw new InvalidOperationException(
-                "Core process closed stdout without emitting any line.");
+        Assert.True(
+            reachedAgentReady,
+            $"[{context}] Core did not emit an agentReady JSONL frame within {timeoutSeconds}s. " +
+            $"Frames read: {(framesRead.Count == 0 ? "(none)" : string.Join(" | ", framesRead))}");
     }
 
-    private static void AssertIsAgentReadyJsonl(string line, string context)
+    /// <summary>
+    /// Asserts <paramref name="line"/> is a clean JSONL protocol frame — parses as a JSON
+    /// object with a non-empty <c>type</c> — proving no MSBuild/restore output leaked onto
+    /// the stdout channel, and returns the <c>type</c> discriminator.
+    /// </summary>
+    private static string AssertIsJsonlFrame(string line, string context)
     {
-        Assert.False(
-            string.IsNullOrWhiteSpace(line),
-            $"[{context}] First stdout line must not be blank.");
-
         JsonDocument doc;
         try
         {
@@ -187,12 +215,14 @@ public sealed class FileBasedProgramLaunchTests(ComposedCoreFeedFixture feed)
         catch (JsonException ex)
         {
             throw new Exception(
-                $"[{context}] First stdout line is not valid JSON — build output leaked into the JSONL channel.\n" +
-                $"First line: {line}\n{ex.Message}", ex);
+                $"[{context}] stdout line is not valid JSON — build output leaked into the JSONL channel.\n" +
+                $"Line: {line}\n{ex.Message}", ex);
         }
 
         bool hasType = doc.RootElement.TryGetProperty("type", out JsonElement typeEl);
-        Assert.True(hasType, $"[{context}] First JSONL frame has no 'type' property. Line: {line}");
-        Assert.Equal("agentReady", typeEl.GetString());
+        Assert.True(hasType, $"[{context}] JSONL frame has no 'type' property. Line: {line}");
+        string? type = typeEl.GetString();
+        Assert.False(string.IsNullOrEmpty(type), $"[{context}] JSONL frame has an empty 'type'. Line: {line}");
+        return type!;
     }
 }
