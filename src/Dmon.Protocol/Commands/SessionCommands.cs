@@ -4,8 +4,8 @@ namespace Dmon.Protocol.Commands;
 
 public sealed record SessionCreateCommand : Command
 {
-    [JsonPropertyName("profile")]
-    public string? Profile { get; init; }
+    [JsonPropertyName("agent")]
+    public string? Agent { get; init; }
 }
 
 public sealed record SessionForkCommand : Command

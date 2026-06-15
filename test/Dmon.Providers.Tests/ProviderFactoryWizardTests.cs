@@ -1,6 +1,8 @@
 using Dmon.Abstractions.Wizard;
 using Dmon.Protocol.Wizard;
-using Dmon.Providers;
+using Dmon.Providers.Anthropic;
+using Dmon.Providers.Gemini;
+using Dmon.Providers.OpenAI;
 
 namespace Dmon.Providers.Tests;
 

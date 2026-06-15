@@ -8,7 +8,19 @@
 #:property PublishSingleFile=false
 #:property UseAppHost=false
 #:package dmoncore@0.2.*
+#:package Dmon.Providers.Anthropic@0.2.*
+#:package Dmon.Providers.OpenAI@0.2.*
+#:package Dmon.Providers.Gemini@0.2.*
+#:package Dmon.Providers.Ollama@0.2.*
+#:package Dmon.Tools.Builtin@0.2.*
 
 using Dmon.Hosting;
 
-await DmonHost.CreateBuilder(args).Build().RunAsync();
+await DmonHost.CreateBuilder(args)
+    .UseAnthropic()
+    .UseOpenAI()
+    .UseGemini()
+    .UseOllama()
+    .AddBuiltinTools()
+    .Build()
+    .RunAsync();

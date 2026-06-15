@@ -1,10 +1,11 @@
 using System.Diagnostics;
-using Dmon.Abstractions.Profiles;
+using Dmon.Abstractions.Hosting;
+using Dmon.Abstractions.Permissions;
 using Dmon.Core.Extensions;
-using Dmon.Core.Profiles;
+using Dmon.Core.Session;
 using Dmon.Core.Rpc;
 using Dmon.Core.Telemetry;
-using Dmon.Extensions;
+using Dmon.Abstractions.Extensions;
 using Dmon.Protocol.Enums;
 using Dmon.Protocol.Events;
 using Dmon.Protocol.Models;
@@ -16,7 +17,7 @@ namespace Dmon.Core.Permissions;
 /// IChatClient middleware that intercepts tool calls and evaluates each against
 /// IPermissionPolicy before FunctionInvokingChatClient dispatches them.
 ///
-/// IChatClient pipeline (assembled in Group 9 startup):
+/// IChatClient pipeline:
 ///   1. PermissionGateChatClient   ← evaluate policy, prompt/deny
 ///   2. FunctionInvokingChatClient ← M.E.AI dispatch loop
 ///   3. actual provider client
@@ -27,7 +28,8 @@ public sealed class PermissionGateChatClient : IChatClient
     private readonly IPermissionPolicy _policy;
     private readonly IToolRegistry _registry;
     private readonly Func<ToolConfirmRequestEvent, CancellationToken, Task<bool>> _confirmCallback;
-    private readonly AgentProfileContext _profileContext;
+    private readonly AssetsOptions? _assetsOptions;
+    private readonly PermissionModeOptions? _permissionModeOptions;
     private readonly ISessionHandler _sessionHandler;
 
     public PermissionGateChatClient(
@@ -35,14 +37,16 @@ public sealed class PermissionGateChatClient : IChatClient
         IPermissionPolicy policy,
         IToolRegistry registry,
         Func<ToolConfirmRequestEvent, CancellationToken, Task<bool>> confirmCallback,
-        AgentProfileContext profileContext,
-        ISessionHandler sessionHandler)
+        ISessionHandler sessionHandler,
+        AssetsOptions? assetsOptions = null,
+        PermissionModeOptions? permissionModeOptions = null)
     {
         _inner = inner;
         _policy = policy;
         _registry = registry;
         _confirmCallback = confirmCallback;
-        _profileContext = profileContext;
+        _assetsOptions = assetsOptions;
+        _permissionModeOptions = permissionModeOptions;
         _sessionHandler = sessionHandler;
     }
 
@@ -124,7 +128,7 @@ public sealed class PermissionGateChatClient : IChatClient
                     permActivity.SetTag("dmon.tool.name", call.Name);
                 }
 
-                IDmonExtension? extension = _registry.FindExtension(call.Name);
+                IToolExtension? extension = _registry.FindExtension(call.Name);
                 PermissionResult permission = extension?.Evaluate(call, _policy.ProjectSettings, _policy.GlobalSettings)
                     ?? PermissionResult.Prompt;
 
@@ -205,15 +209,9 @@ public sealed class PermissionGateChatClient : IChatClient
     /// </summary>
     private PermissionResult ApplySandboxAllowance(FunctionCallContent call, PermissionResult current)
     {
-        // Guard 1: profile must be resolved, mode must be Sandbox, and Assets must be enabled.
-        if (!_profileContext.IsResolved)
-        {
-            return current;
-        }
-
-        AgentProfile profile = _profileContext.Profile;
-
-        if (profile.PermissionMode != PermissionMode.Sandbox || !profile.Assets)
+        // Guard 1: permission mode must be Sandbox and assets must be enabled.
+        PermissionMode mode = _permissionModeOptions?.Mode ?? PermissionMode.Coding;
+        if (mode != PermissionMode.Sandbox || _assetsOptions is null)
         {
             return current;
         }
@@ -238,11 +236,10 @@ public sealed class PermissionGateChatClient : IChatClient
             return current;
         }
 
-        string assetDir = ProfileAssetPath.Compute(Directory.GetCurrentDirectory(), sessionId);
+        string root = _assetsOptions.Path ?? Directory.GetCurrentDirectory();
+        string assetDir = SessionAssetPath.Compute(root, sessionId);
 
         // Guard 4: honour any configured Write deny — it wins over the sandbox allowance.
-        // (Today's coding-mode path never checks Write.Deny for writes; this check is
-        // confined to the sandbox branch so coding-mode behaviour is byte-for-byte unchanged.)
         string normalisedTarget = Path.GetFullPath(targetPath);
         if (IsWriteDenied(normalisedTarget))
         {

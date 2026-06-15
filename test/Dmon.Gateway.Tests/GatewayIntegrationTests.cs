@@ -391,7 +391,7 @@ public sealed class GatewayIntegrationTests
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
             GatewayConnectionEndpoint.DriveSessionHandshakeAsync(
-                silentStdout, stdin, profile: null, cts.Token));
+                silentStdout, stdin, agent: null, cts.Token));
     }
 
     /// <summary>

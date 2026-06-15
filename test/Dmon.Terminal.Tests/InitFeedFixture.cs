@@ -4,8 +4,8 @@ using System.Reflection;
 namespace Dmon.Terminal.Tests;
 
 /// <summary>
-/// xUnit class fixture that packs dmoncore and its contract trio (Dmon.Protocol,
-/// Dmon.Abstractions, Dmon.Extensions) into a unique temporary NuGet feed directory.
+/// xUnit class fixture that packs dmoncore and its contract pair (Dmon.Protocol,
+/// Dmon.Abstractions) into a unique temporary NuGet feed directory.
 /// One pack per fixture instance; the feed is deleted in teardown.
 /// Unique directories prevent races when <c>dotnet test</c> runs multiple
 /// test assemblies in parallel.

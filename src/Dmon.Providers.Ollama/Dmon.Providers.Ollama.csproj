@@ -5,6 +5,12 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+
+    <AssemblyName>Dmon.Providers.Ollama</AssemblyName>
+    <IsPackable>true</IsPackable>
+    <PackageId>Dmon.Providers.Ollama</PackageId>
+    <MinVerTagPrefix>sdk-</MinVerTagPrefix>
+    <Description>Ollama provider extension for the dmon coding agent. Exposes UseOllama() in the Dmon.Hosting namespace.</Description>
   </PropertyGroup>
 
   <ItemGroup>

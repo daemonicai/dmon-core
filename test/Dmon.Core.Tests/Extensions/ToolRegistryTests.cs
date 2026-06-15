@@ -1,5 +1,5 @@
 using Dmon.Core.Extensions;
-using Dmon.Extensions;
+using Dmon.Abstractions.Extensions;
 using Microsoft.Extensions.AI;
 
 namespace Dmon.Core.Tests.Extensions;
@@ -12,9 +12,9 @@ public sealed class ToolRegistryTests
             name,
             $"Test function {name}");
 
-    private static IDmonExtension MakeExtension(string name) => new StubExtension(name);
+    private static IToolExtension MakeExtension(string name) => new StubExtension(name);
 
-    private sealed class StubExtension(string name) : IDmonExtension
+    private sealed class StubExtension(string name) : IToolExtension
     {
         public string Name => name;
         public string Description => $"Stub extension {name}";
@@ -151,10 +151,10 @@ public sealed class ToolRegistryTests
     public void FindExtension_ReturnsExtension_WhenToolRegistered()
     {
         IToolRegistry registry = new ToolRegistry();
-        IDmonExtension ext = MakeExtension("myext");
+        IToolExtension ext = MakeExtension("myext");
         registry.Register("myext", ext, [MakeFunction("tool1")]);
 
-        IDmonExtension? found = registry.FindExtension("tool1");
+        IToolExtension? found = registry.FindExtension("tool1");
 
         Assert.Same(ext, found);
     }
@@ -164,7 +164,7 @@ public sealed class ToolRegistryTests
     {
         IToolRegistry registry = new ToolRegistry();
 
-        IDmonExtension? found = registry.FindExtension("nonexistent");
+        IToolExtension? found = registry.FindExtension("nonexistent");
 
         Assert.Null(found);
     }
@@ -176,7 +176,7 @@ public sealed class ToolRegistryTests
         registry.Register("ext", MakeExtension("ext"), [MakeFunction("fn")]);
         registry.Unregister("ext");
 
-        IDmonExtension? found = registry.FindExtension("fn");
+        IToolExtension? found = registry.FindExtension("fn");
 
         Assert.Null(found);
     }
@@ -195,8 +195,8 @@ public sealed class ToolRegistryTests
     public void FindExtension_ReturnsNewExtension_AfterReplace_OldToolReturnsNull()
     {
         IToolRegistry registry = new ToolRegistry();
-        IDmonExtension original = MakeExtension("v1");
-        IDmonExtension replacement = MakeExtension("v2");
+        IToolExtension original = MakeExtension("v1");
+        IToolExtension replacement = MakeExtension("v2");
 
         registry.Register("ext", original, [MakeFunction("old_tool")]);
         registry.Register("ext", replacement, [MakeFunction("new_tool")]);

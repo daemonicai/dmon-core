@@ -1,7 +1,7 @@
 using System.Net;
 using System.Text;
 using Dmon.Abstractions.Providers;
-using Dmon.Providers;
+using Dmon.Providers.OpenAI;
 
 namespace Dmon.Providers.Tests;
 

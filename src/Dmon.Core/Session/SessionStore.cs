@@ -13,7 +13,7 @@ namespace Dmon.Core.Session;
 
 public interface ISessionStore
 {
-    Task<SessionMeta> CreateAsync(string? name = null, string? profile = null, CancellationToken cancellationToken = default);
+    Task<SessionMeta> CreateAsync(string? name = null, string? agent = null, CancellationToken cancellationToken = default);
     Task<SessionMeta> LoadAsync(string sessionId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<SessionMeta>> ListAsync(CancellationToken cancellationToken = default);
     Task UpdateMetaAsync(SessionMeta meta, CancellationToken cancellationToken = default);
@@ -87,7 +87,7 @@ public sealed class SessionStore : ISessionStore
     /// </summary>
     public int CompactionThreshold => _compactionThreshold;
 
-    public async Task<SessionMeta> CreateAsync(string? name = null, string? profile = null, CancellationToken cancellationToken = default)
+    public async Task<SessionMeta> CreateAsync(string? name = null, string? agent = null, CancellationToken cancellationToken = default)
     {
         using Activity? activity = DmonTelemetry.Source.StartActivity("session.create");
 
@@ -106,7 +106,7 @@ public sealed class SessionStore : ISessionStore
         {
             Id = id,
             Name = name,
-            Profile = profile,
+            Agent = agent,
             Created = now,
             Modified = now
         };
@@ -215,7 +215,7 @@ public sealed class SessionStore : ISessionStore
         {
             Id = newId,
             Name = name,
-            Profile = sourceMeta.Profile,
+            Agent = sourceMeta.Agent,
             Created = now,
             Modified = now,
             ParentSession = sourceSessionId,
@@ -259,7 +259,7 @@ public sealed class SessionStore : ISessionStore
         {
             Id = newId,
             Name = name,
-            Profile = sourceMeta.Profile,
+            Agent = sourceMeta.Agent,
             Created = now,
             Modified = now,
             ParentSession = sourceSessionId,

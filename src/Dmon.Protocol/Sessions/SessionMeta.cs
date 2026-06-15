@@ -16,8 +16,8 @@ public sealed record SessionMeta
     [JsonPropertyName("modified")]
     public DateTimeOffset Modified { get; init; }
 
-    [JsonPropertyName("profile")]
-    public string? Profile { get; init; }
+    [JsonPropertyName("agent")]
+    public string? Agent { get; init; }
 
     [JsonPropertyName("parentSession")]
     public string? ParentSession { get; init; }

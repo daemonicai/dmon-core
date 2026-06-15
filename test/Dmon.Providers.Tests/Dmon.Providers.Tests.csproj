@@ -20,7 +20,10 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\Dmon.Providers\Dmon.Providers.csproj" />
+    <ProjectReference Include="..\..\src\Dmon.Providers.Anthropic\Dmon.Providers.Anthropic.csproj" />
+    <ProjectReference Include="..\..\src\Dmon.Providers.OpenAI\Dmon.Providers.OpenAI.csproj" />
+    <ProjectReference Include="..\..\src\Dmon.Providers.Gemini\Dmon.Providers.Gemini.csproj" />
+    <ProjectReference Include="..\..\src\Dmon.Providers.Ollama\Dmon.Providers.Ollama.csproj" />
   </ItemGroup>
 
 </Project>

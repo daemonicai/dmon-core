@@ -2,9 +2,6 @@ using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Channels;
-using Dmon.Abstractions.Profiles;
-using Dmon.Core.Config;
-using Dmon.Core.Profiles;
 using Dmon.Gateway.Protocol;
 using Dmon.Gateway.Sessions;
 using Dmon.Protocol.Events;
@@ -57,14 +54,14 @@ public sealed class GatewayCreateE2ETests
         FakeCoreLauncher launcher = new(process);
 
         // Script the two correlated handshake results.
-        stdout.Feed(MakeCreateResult("gw-session-create", sessionId, profile: null));
+        stdout.Feed(MakeCreateResult("gw-session-create", sessionId, agent: null));
         stdout.Feed(MakeLoadResult("gw-session-load", sessionId));
 
         SessionRegistry registry = new();
         CapturingWebSocket socket = new();
         GatewayConnectionEndpoint endpoint = MakeEndpoint(registry, launcher);
 
-        string createFrame = ControlFrameSerializer.Serialize(new CreateFrame { Profile = null });
+        string createFrame = ControlFrameSerializer.Serialize(new CreateFrame { Agent = null });
 
         // Act.
         await endpoint.HandleCreateAsync(socket, createFrame, CancellationToken.None);
@@ -116,7 +113,7 @@ public sealed class GatewayCreateE2ETests
         FakeCoreLauncher launcher = new(process);
 
         // Script the two handshake results, then feed a distinct post-handshake event.
-        stdout.Feed(MakeCreateResult("gw-session-create", sessionId, profile: null));
+        stdout.Feed(MakeCreateResult("gw-session-create", sessionId, agent: null));
         stdout.Feed(MakeLoadResult("gw-session-load", sessionId));
 
         // The post-handshake event is fed BEFORE the handler starts to avoid a race
@@ -127,7 +124,7 @@ public sealed class GatewayCreateE2ETests
         CapturingWebSocket socket = new();
         GatewayConnectionEndpoint endpoint = MakeEndpoint(registry, launcher);
 
-        string createFrame = ControlFrameSerializer.Serialize(new CreateFrame { Profile = null });
+        string createFrame = ControlFrameSerializer.Serialize(new CreateFrame { Agent = null });
 
         // Act: drive the create handshake.
         await endpoint.HandleCreateAsync(socket, createFrame, CancellationToken.None);
@@ -189,7 +186,7 @@ public sealed class GatewayCreateE2ETests
         GatewayOptions opts = new() { CreateHandshakeTimeoutSeconds = 1, MaxConcurrentHandlers = 10 };
         GatewayConnectionEndpoint endpoint = MakeEndpoint(registry, launcher, opts);
 
-        string createFrame = ControlFrameSerializer.Serialize(new CreateFrame { Profile = null });
+        string createFrame = ControlFrameSerializer.Serialize(new CreateFrame { Agent = null });
 
         // Act. CancellationToken.None ensures the outer token is not IsCancellationRequested,
         // so the timeout branch (not the client-abort branch) is taken.
@@ -227,7 +224,7 @@ public sealed class GatewayCreateE2ETests
         CapturingWebSocket socket = new();
         GatewayConnectionEndpoint endpoint = MakeEndpoint(registry, launcher);
 
-        string createFrame = ControlFrameSerializer.Serialize(new CreateFrame { Profile = null });
+        string createFrame = ControlFrameSerializer.Serialize(new CreateFrame { Agent = null });
 
         await endpoint.HandleCreateAsync(socket, createFrame, CancellationToken.None);
 
@@ -262,7 +259,7 @@ public sealed class GatewayCreateE2ETests
         CapturingWebSocket socket = new();
         GatewayConnectionEndpoint endpoint = MakeEndpoint(registry, launcher);
 
-        string createFrame = ControlFrameSerializer.Serialize(new CreateFrame { Profile = null });
+        string createFrame = ControlFrameSerializer.Serialize(new CreateFrame { Agent = null });
 
         await endpoint.HandleCreateAsync(socket, createFrame, CancellationToken.None);
 
@@ -308,14 +305,14 @@ public sealed class GatewayCreateE2ETests
         FakeCoreProcess newProcess = new(newStdout, newStdin);
         FakeCoreLauncher launcher = new(newProcess);
 
-        newStdout.Feed(MakeCreateResult("gw-session-create", newSessionId, profile: null));
+        newStdout.Feed(MakeCreateResult("gw-session-create", newSessionId, agent: null));
         newStdout.Feed(MakeLoadResult("gw-session-load", newSessionId));
 
         CapturingWebSocket socket = new();
         GatewayOptions opts = new() { MaxConcurrentHandlers = 1, CreateHandshakeTimeoutSeconds = 30 };
         GatewayConnectionEndpoint endpoint = MakeEndpoint(registry, launcher, opts);
 
-        string createFrame = ControlFrameSerializer.Serialize(new CreateFrame { Profile = null });
+        string createFrame = ControlFrameSerializer.Serialize(new CreateFrame { Agent = null });
 
         // Act.
         await endpoint.HandleCreateAsync(socket, createFrame, CancellationToken.None);
@@ -341,7 +338,8 @@ public sealed class GatewayCreateE2ETests
 
     /// <summary>
     /// Builds a <see cref="GatewayConnectionEndpoint"/> wired with the supplied
-    /// <paramref name="launcher"/> and a pass-through profile resolver (accepts any profile).
+    /// <paramref name="launcher"/>. Agent validation is bypassed by not setting a workspace root
+    /// (null agent in the create frame skips file-existence checks).
     /// </summary>
     private static GatewayConnectionEndpoint MakeEndpoint(
         SessionRegistry registry,
@@ -350,19 +348,11 @@ public sealed class GatewayCreateE2ETests
     {
         GatewayOptions opts = options ?? new GatewayOptions();
 
-        // Non-existent paths → EffectiveProfileSetResolver returns empty (files optional).
-        GatewayProfilePaths paths = new(
-            UserConfigPath: "/dev/null/nonexistent-user.yaml",
-            ProjectConfigPath: "/dev/null/nonexistent-project.yaml");
-
         return new GatewayConnectionEndpoint(
             registry,
             new GatewayConnectionEndpoint.TestOptions
             {
                 CoreLauncher = launcher,
-                ProfileResolver = new PassthroughProfileResolver(),
-                EffectiveProfileSetResolver = new EffectiveProfileSetResolver(),
-                ProfilePaths = paths,
                 Options = new GatewayConnectionEndpoint.StaticOptionsMonitor(opts),
             },
             NullLogger<GatewayConnectionEndpoint>.Instance);
@@ -372,7 +362,7 @@ public sealed class GatewayCreateE2ETests
     /// Builds the JSON line for a <c>session.createResult</c> event correlated to
     /// <paramref name="commandId"/> with the given <paramref name="sessionId"/>.
     /// </summary>
-    private static string MakeCreateResult(string commandId, string sessionId, string? profile) =>
+    private static string MakeCreateResult(string commandId, string sessionId, string? agent) =>
         JsonSerializer.Serialize(new
         {
             type = "session.createResult",
@@ -382,7 +372,7 @@ public sealed class GatewayCreateE2ETests
                 id = sessionId,
                 created = DateTimeOffset.UtcNow,
                 modified = DateTimeOffset.UtcNow,
-                profile,
+                agent,
             },
         });
 
@@ -507,21 +497,6 @@ public sealed class GatewayCreateE2ETests
             Action<string>? onStderrLine = null,
             CancellationToken cancellationToken = default) =>
             Task.FromException<CoreSession>(_exception);
-    }
-
-    /// <summary>
-    /// Profile resolver that accepts any profile name, returning a minimal valid
-    /// <see cref="AgentProfile"/>. Used to bypass profile validation for tests that
-    /// exercise the post-validation path inside <see cref="GatewayConnectionEndpoint.HandleCreateAsync"/>.
-    /// </summary>
-    private sealed class PassthroughProfileResolver : IAgentProfileResolver
-    {
-        public Task<AgentProfile> ResolveAsync(string? requestedProfile, CancellationToken cancellationToken) =>
-            Task.FromResult(new AgentProfile(
-                requestedProfile ?? "coding",
-                "",
-                false,
-                PermissionMode.Coding));
     }
 
     /// <summary>

@@ -1,22 +1,21 @@
 using Dmon.Abstractions;
+using Dmon.Abstractions.Extensions;
 using Dmon.Abstractions.Memory;
-using Dmon.Abstractions.Profiles;
 using Dmon.Abstractions.Providers;
 using Dmon.Core.Auth;
+using Dmon.Core.Bootstrap;
+using Dmon.Core.BuiltinTools;
 using Dmon.Core.Config;
 using Dmon.Core.Extensions;
+using Dmon.Core.Extensions.NuGet;
 using Dmon.Core.Extensions.Security;
 using Dmon.Core.GitHub;
-using Dmon.Core.SystemPrompt;
-using Dmon.Core.Bootstrap;
 using Dmon.Core.Permissions;
-using Dmon.Core.Profiles;
-using Dmon.Protocol.Permissions;
 using Dmon.Core.Providers;
 using Dmon.Core.Rpc;
 using Dmon.Core.Session;
-using Dmon.Providers;
-using Dmon.Providers.Ollama;
+using Dmon.Core.SystemPrompt;
+using Dmon.Protocol.Permissions;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
@@ -26,37 +25,13 @@ namespace Dmon.Core;
 public static class DmonServiceExtensions
 {
     /// <summary>
-    /// Registers provider-related services: configuration loading, credential
-    /// resolution, and the provider registry.
-    /// </summary>
-    public static IServiceCollection AddDmonProviders(this IServiceCollection services)
-    {
-        services.AddSingleton<ProviderConfigLoader>();
-        services.AddSingleton<IEnumerable<ProviderConfig>>(sp =>
-        {
-            ProviderConfigLoader loader = sp.GetRequiredService<ProviderConfigLoader>();
-            return loader.Load();
-        });
-
-        services.AddSingleton<ICredentialFileStore, CredentialFileStore>();
-        services.AddSingleton<ICredentialResolver, CredentialResolver>();
-        services.AddSingleton<IProviderFactory, OpenAiProviderFactory>();
-        services.AddSingleton<IProviderFactory, AnthropicProviderFactory>();
-        services.AddSingleton<IProviderFactory, GeminiProviderFactory>();
-        services.AddSingleton<IProviderFactory, OllamaProviderFactory>();
-        services.AddSingleton<IProviderRegistry, ProviderRegistry>();
-
-        return services;
-    }
-
-    /// <summary>
     /// Registers authentication services: credential file store and the
     /// auth command handler.
     /// </summary>
     public static IServiceCollection AddDmonAuth(this IServiceCollection services)
     {
-        // ICredentialFileStore is registered in AddDmonProviders — only
-        // add it here if providers haven't been registered yet.
+        // ICredentialFileStore is registered by AddDmonCore — only
+        // add it here if core services haven't been registered yet.
         services.TryAddSingleton<ICredentialFileStore, CredentialFileStore>();
         services.AddSingleton<IAuthService, AuthService>();
 
@@ -83,19 +58,33 @@ public static class DmonServiceExtensions
         services.AddSingleton<IMiddlewareRegistry, MiddlewareRegistry>();
         services.AddSingleton<MiddlewarePipelineBuilder>();
 
-        services.AddSingleton<ProfilesConfigReader>();
-        services.AddSingleton<EffectiveProfileSetResolver>();
-
         return services;
     }
 
     /// <summary>
     /// Registers the RPC infrastructure: event emitter, command dispatcher,
     /// turn handler, stub handlers, and bootstrap service.
-    /// Call after AddDmonProviders, AddDmonAuth, and AddDmonExtensions.
+    /// Also registers provider infrastructure (config loading, credential resolution,
+    /// and the provider registry) — provider factories themselves are composed via
+    /// Use&lt;Provider&gt;() verbs in the Dmon.cs composition root.
+    /// Call after AddDmonAuth and AddDmonExtensions.
     /// </summary>
     public static IServiceCollection AddDmonCore(this IServiceCollection services)
     {
+        // Provider infrastructure: config loading, credential resolution, registry.
+        // Provider factories are NOT registered here — they come from Use<Provider>()
+        // verbs in the composition root (DI-discovered as IProviderFactory singletons).
+        services.AddSingleton<ProviderConfigLoader>();
+        services.AddSingleton<IEnumerable<ProviderConfig>>(sp =>
+        {
+            ProviderConfigLoader loader = sp.GetRequiredService<ProviderConfigLoader>();
+            return loader.Load();
+        });
+
+        services.AddSingleton<ICredentialFileStore, CredentialFileStore>();
+        services.AddSingleton<ICredentialResolver, CredentialResolver>();
+        services.AddSingleton<IProviderRegistry, ProviderRegistry>();
+
         services.AddSingleton<ISessionDirectoryResolver, SessionDirectoryResolver>();
         services.AddSingleton<IAttachmentStore, AttachmentStore>();
 
@@ -129,24 +118,13 @@ public static class DmonServiceExtensions
         services.TryAddSingleton<IEventEmitter>(sp => new EventEmitter(sp.GetRequiredService<TextWriter>()));
 
         services.AddSingleton<AgentConfigResolver>();
-        services.AddSingleton<ISystemPromptBuilder, SystemPromptBuilder>();
+        // TryAdd so a composition root may supply its own ISystemPromptBuilder via
+        // Services.AddSingleton<ISystemPromptBuilder>(…) and have it win.
+        services.TryAddSingleton<ISystemPromptBuilder, SystemPromptBuilder>();
 
-        // Agent profile resolution — resolved once per session, shared by Groups 4-6 consumers.
-        // Config paths mirror BootstrapService conventions.
-        services.AddSingleton<IAgentProfileResolver>(sp =>
-        {
-            EffectiveProfileSetResolver setResolver = sp.GetRequiredService<EffectiveProfileSetResolver>();
-            string userConfigPath = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-                ".dmon", "config.yaml");
-            string projectConfigPath = Path.Combine(
-                Directory.GetCurrentDirectory(),
-                ".dmon", "config.yaml");
-            return new AgentProfileResolver(setResolver, userConfigPath, projectConfigPath);
-        });
-        services.AddSingleton<AgentProfileContext>();
-        services.AddSingleton<ISessionAssetProvisioner>(
-            _ => new SessionAssetProvisioner(Directory.GetCurrentDirectory()));
+        // Session asset provisioner: creates assets/<sessionId>/ when UseAssets is active.
+        // AssetsOptions and PermissionModeOptions are optional DI markers; their absence is valid.
+        services.AddSingleton<ISessionAssetProvisioner, SessionAssetProvisioner>();
 
         services.AddSingleton<TurnHandler>();
         services.AddSingleton<ITurnHandler>(sp => sp.GetRequiredService<TurnHandler>());
@@ -167,7 +145,20 @@ public static class DmonServiceExtensions
         services.AddSingleton<SetupCheckService>();
 
         services.AddHttpClient();
-        services.AddHostedService<BuiltinToolsInitializer>();
+
+        // Engine-internal tools: extension discovery. These are always-on and
+        // depend on engine-internal services (NuGetSearchService, IGhCliService,
+        // IProviderRegistry), so they register here rather than via AddBuiltinTools().
+        services.AddSingleton<INuGetSearchService>(sp =>
+            new NuGetSearchService(
+                sp.GetRequiredService<IHttpClientFactory>().CreateClient("builtin"),
+                sp.GetRequiredService<IGhCliService>()));
+        services.AddSingleton<IToolExtension>(sp =>
+            new ExtensionSearchTool(sp.GetRequiredService<INuGetSearchService>()));
+        services.AddSingleton<IToolExtension>(sp =>
+            new ExtensionReadmeTool(
+                sp.GetRequiredService<IGhCliService>(),
+                sp.GetRequiredService<INuGetSearchService>()));
 
         // Expose IConfigurationRoot so middleware can call
         // GetRequiredService<IConfigurationRoot>().GetSection("middleware:<ClassName>").

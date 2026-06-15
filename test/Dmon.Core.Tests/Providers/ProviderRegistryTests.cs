@@ -251,8 +251,11 @@ public sealed class ProviderRegistryTests
     }
 
     [Fact]
-    public void Constructor_UnknownAdapter_Throws()
+    public void Constructor_UnknownAdapter_ExcludesConfigAndDoesNotThrow()
     {
+        // ADR-023 D7 / Group-4: the registry now warns-and-filters configs whose
+        // adapter has no registered factory, instead of throwing. This lets the
+        // runtime start when the composition root omits a provider that is in config.
         ProviderConfig config = new()
         {
             Name = "unknown",
@@ -261,9 +264,9 @@ public sealed class ProviderRegistryTests
             Auth = new ProviderAuthConfig { Type = "none" }
         };
 
-        void Act() => CreateRegistry([config]);
+        IProviderRegistry registry = CreateRegistry([config]);
 
-        Assert.Throws<InvalidOperationException>(Act);
+        Assert.Empty(registry.GetAll());
     }
 
     [Fact]
@@ -363,6 +366,21 @@ public sealed class ProviderRegistryTests
         public IProviderFactory CreateFactory() => new FakeProviderFactory();
     }
 
+    /// <summary>
+    /// A provider extension that fails the test if <see cref="ListModelsAsync"/> is called.
+    /// Used to assert that registration performs no network I/O (ADR-007).
+    /// </summary>
+    private sealed class NoNetworkProviderExtension(string providerName) : IProviderExtension
+    {
+        public string ProviderName => providerName;
+        public bool IsApplicable() => true;
+        public Task<bool> IsRunningAsync(CancellationToken cancellationToken = default) => Task.FromResult(false);
+        public Task EnsureRunningAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task<IReadOnlyList<ModelInfo>> ListModelsAsync(CancellationToken cancellationToken = default)
+            => throw new InvalidOperationException("ListModelsAsync must not be called during registration (ADR-007).");
+        public IProviderFactory CreateFactory() => new FakeProviderFactory();
+    }
+
     [Fact]
     public async Task RegisterExtensionAsync_AddsProviderToGetAll()
     {
@@ -376,7 +394,8 @@ public sealed class ProviderRegistryTests
         Assert.Equal(2, all.Count);
         Assert.Contains(all, c => c.Name == "ext-provider");
         ProviderConfig extConfig = Assert.Single(all, c => c.Name == "ext-provider");
-        Assert.Equal("ext-model-1", extConfig.DefaultModelId);
+        // DefaultModelId comes from factory.DefaultModelId (no network I/O at registration time).
+        Assert.Equal("gpt-4o", extConfig.DefaultModelId);
         Assert.Equal("none", extConfig.Auth.Type);
     }
 
@@ -411,7 +430,23 @@ public sealed class ProviderRegistryTests
         // Only one entry for ext-provider
         Assert.Equal(2, all.Count);
         ProviderConfig extConfig = Assert.Single(all, c => c.Name == "ext-provider");
-        Assert.Equal("model-v2", extConfig.DefaultModelId);
+        // DefaultModelId comes from factory.DefaultModelId, not the model list (no network I/O).
+        Assert.Equal("gpt-4o", extConfig.DefaultModelId);
+    }
+
+    // ADR-007: registration must not perform network I/O
+    [Fact]
+    public async Task RegisterExtensionAsync_DoesNotCallListModelsAsync()
+    {
+        // NoNetworkProviderExtension throws if ListModelsAsync is called.
+        // If registration were to call it, this test would fail.
+        IProviderRegistry registry = CreateRegistry([MakeConfig("alpha")]);
+        NoNetworkProviderExtension extension = new("ollama");
+
+        await registry.RegisterExtensionAsync(extension);
+
+        // Provider must be registered and discoverable despite no model enumeration.
+        Assert.Contains(registry.GetAll(), c => c.Name == "ollama");
     }
 
     // --- restore-from-store tests ---

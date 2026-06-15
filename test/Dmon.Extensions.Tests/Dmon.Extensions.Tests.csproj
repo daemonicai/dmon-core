@@ -20,7 +20,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\Dmon.Extensions\Dmon.Extensions.csproj" />
+    <ProjectReference Include="..\..\src\Dmon.Abstractions\Dmon.Abstractions.csproj" />
   </ItemGroup>
 
 </Project>

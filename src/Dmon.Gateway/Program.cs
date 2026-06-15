@@ -1,10 +1,9 @@
-using Dmon.Core.Config;
-using Dmon.Core.Profiles;
-using Dmon.Abstractions.Profiles;
 using Dmon.Gateway;
 using Dmon.Gateway.DeviceKeys;
 using Dmon.Gateway.Sessions;
 using Dmon.Runtime;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
@@ -76,23 +75,7 @@ builder.Services.AddSingleton(new DeviceKeySetProvider(startupKeySet));
 // --- Core infrastructure (D6 — reuse Dmon.Runtime bootstrap) ---
 builder.Services.AddSingleton<ICoreLauncher, CoreLauncher>();
 
-// --- Profile resolution (Dmon.Core; matches DaemonServiceExtensions wiring) ---
-builder.Services.AddSingleton<EffectiveProfileSetResolver>();
-builder.Services.AddSingleton(new GatewayProfilePaths(
-    UserConfigPath: Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-        ".dmon", "config.yaml"),
-    ProjectConfigPath: Path.Combine(
-        Directory.GetCurrentDirectory(),
-        ".dmon", "config.yaml")));
-builder.Services.AddSingleton<IAgentProfileResolver>(sp =>
-{
-    EffectiveProfileSetResolver setResolver = sp.GetRequiredService<EffectiveProfileSetResolver>();
-    GatewayProfilePaths paths = sp.GetRequiredService<GatewayProfilePaths>();
-    return new AgentProfileResolver(setResolver, paths.UserConfigPath, paths.ProjectConfigPath);
-});
-
-// --- Time provider (injectable for testability — Group 7) ---
+// --- Time provider (injectable for testability) ---
 builder.Services.AddSingleton(TimeProvider.System);
 
 // --- Device-key store hot-reload watcher ---
@@ -105,7 +88,23 @@ builder.Services.AddSingleton<LastSeenWriter>();
 builder.Services.AddSingleton<SessionRegistry>();
 builder.Services.AddSingleton<DeviceConnectionIndex>();
 builder.Services.AddHostedService<SessionReaper>();
-builder.Services.AddSingleton<GatewayConnectionEndpoint>();
+builder.Services.AddSingleton<GatewayConnectionEndpoint>(sp =>
+{
+    GatewayOptions opts = sp.GetRequiredService<IOptionsMonitor<GatewayOptions>>().CurrentValue;
+    string? workspaceRoot = string.IsNullOrEmpty(opts.WorkspaceRoot)
+        ? null
+        : opts.WorkspaceRoot;
+    return new GatewayConnectionEndpoint(
+        sp.GetRequiredService<SessionRegistry>(),
+        sp.GetRequiredService<DeviceConnectionIndex>(),
+        sp.GetRequiredService<ICoreLauncher>(),
+        workspaceRoot,
+        sp.GetRequiredService<DeviceKeySetProvider>(),
+        sp.GetRequiredService<IOptionsMonitor<GatewayOptions>>(),
+        sp.GetRequiredService<TimeProvider>(),
+        sp.GetRequiredService<LastSeenWriter>(),
+        sp.GetRequiredService<ILogger<GatewayConnectionEndpoint>>());
+});
 
 WebApplication app = builder.Build();
 

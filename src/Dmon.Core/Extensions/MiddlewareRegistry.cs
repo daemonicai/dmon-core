@@ -1,4 +1,4 @@
-using Dmon.Extensions;
+using Dmon.Abstractions.Extensions;
 
 namespace Dmon.Core.Extensions;
 

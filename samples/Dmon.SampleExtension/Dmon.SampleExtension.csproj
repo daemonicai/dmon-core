@@ -10,12 +10,12 @@
     <IsPackable>true</IsPackable>
     <!-- Version injected by scripts/pack-core.sh via -p:MinVerVersionOverride -->
     <MinVerTagPrefix>sample-</MinVerTagPrefix>
-    <Description>Sample dmon extension — declares a greeting tool. Proves compile-time composition via #:package + AddExtension&lt;T&gt;().</Description>
+    <Description>Sample dmon extension — declares a greeting tool. Proves compile-time composition via #:package + AddToolExtension&lt;T&gt;().</Description>
   </PropertyGroup>
 
   <ItemGroup>
     <!-- Reference the packed SDK packages only — no ProjectReference into this repo. -->
-    <PackageReference Include="Dmon.Extensions" Version="0.2.*" />
+    <PackageReference Include="Dmon.Abstractions" Version="0.2.*" />
   </ItemGroup>
 
 </Project>

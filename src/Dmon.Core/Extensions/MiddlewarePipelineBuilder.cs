@@ -1,4 +1,4 @@
-using Dmon.Extensions;
+using Dmon.Abstractions.Extensions;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Configuration;
 

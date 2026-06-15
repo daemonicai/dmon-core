@@ -19,7 +19,7 @@ namespace Dmon.Protocol.Gateway;
 //   ack     (gateway → client): {"gw":"ack","id":"..."}
 //   ping    (either direction):  {"gw":"ping"}
 //   pong    (either direction):  {"gw":"pong"}
-//   create  (client → gateway): {"gw":"create","profile":"..."}   (profile optional)
+//   create  (client → gateway): {"gw":"create","agent":"..."}   (agent optional)
 //   created (gateway → client): {"gw":"created","sessionId":"..."}
 //   createRejected (gateway → client): {"gw":"createRejected","code":"...","message":"..."}
 // ---------------------------------------------------------------------------
@@ -79,7 +79,8 @@ public sealed record AckFrame
 }
 
 /// <summary>
-/// Client → gateway: create a new session, optionally selecting a named agent profile.
+/// Client → gateway: create a new session, optionally selecting a named agent.
+/// An agent is a <c>.cs</c> composition root under the gateway workspace root.
 /// On success the gateway replies <see cref="CreatedFrame"/>; the client then sends
 /// <see cref="AttachFrame"/> with the returned session id.
 /// </summary>
@@ -89,12 +90,12 @@ public sealed record CreateFrame
     public string Gw => "create";
 
     /// <summary>
-    /// Agent profile name to activate for the new session.
-    /// Null resolves to the gateway's configured <c>defaultProfile</c> (then the built-in
-    /// <c>coding</c> profile) — identical to the core's own precedence rules.
+    /// Agent name to activate for the new session.
+    /// Null selects the default agent (root <c>Dmon.cs</c>).
+    /// An unknown agent name causes the gateway to reply <c>createRejected {code="unknown_agent"}</c>.
     /// </summary>
-    [JsonPropertyName("profile")]
-    public string? Profile { get; init; }
+    [JsonPropertyName("agent")]
+    public string? Agent { get; init; }
 }
 
 /// <summary>
@@ -112,8 +113,8 @@ public sealed record CreatedFrame
 }
 
 /// <summary>
-/// Gateway → client: session creation rejected. Used for both unknown-profile and
-/// concurrent-session-cap-reached errors so the client can distinguish gateway
+/// Gateway → client: session creation rejected. Used for unknown-agent, invalid-agent,
+/// and concurrent-session-cap-reached errors so the client can distinguish gateway
 /// rejections from ADR-003 error events.
 /// </summary>
 public sealed record CreateRejectedFrame
@@ -123,9 +124,8 @@ public sealed record CreateRejectedFrame
 
     /// <summary>
     /// Machine-readable error identifier. Known values:
-    /// <c>unknown_profile</c> — the requested profile name is not in the effective set;
-    /// <c>invalid_profile</c> — the profile name exists but its config is invalid
-    ///   (e.g. incoherent sandbox+assets combination, ambiguous persona source, unreadable personaFile);
+    /// <c>unknown_agent</c> — the requested agent name does not resolve to a <c>.cs</c>
+    ///   composition root under the configured workspace root;
     /// <c>cap_reached</c> — the gateway's concurrent-session limit is exhausted;
     /// <c>core_timeout</c> — the core passed <c>agentReady</c> but did not complete
     /// the create+load handshake within <c>GatewayOptions.CreateHandshakeTimeoutSeconds</c>.

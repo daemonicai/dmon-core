@@ -40,7 +40,7 @@ internal static class SandboxContainmentChecker
     /// </param>
     /// <param name="assetDirectory">
     /// The asset directory root (typically the value from
-    /// <c>ProfileAssetPath.Compute(workspaceRoot, sessionId)</c>).
+    /// <c>SessionAssetPath.Compute(workspaceRoot, sessionId)</c>).
     /// </param>
     internal static bool IsContained(string targetPath, string assetDirectory)
     {

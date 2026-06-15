@@ -1,3 +1,5 @@
+using Dmon.Abstractions.Extensions;
+
 namespace Dmon.Extensions.Tests;
 
 /// <summary>

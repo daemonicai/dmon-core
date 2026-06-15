@@ -1,10 +1,8 @@
-using Dmon.Abstractions.Profiles;
 using Dmon.Core.Extensions;
 using Dmon.Core.Permissions;
-using Dmon.Core.Profiles;
 using Dmon.Core.Rpc;
 using Dmon.Core.Session;
-using Dmon.Extensions;
+using Dmon.Abstractions.Extensions;
 using Dmon.Protocol.Commands;
 using Dmon.Protocol.Sessions;
 using Dmon.Protocol.Enums;
@@ -72,8 +70,8 @@ public sealed class PermissionGateChatClientTests
 
     private sealed class StubToolRegistry : IToolRegistry
     {
-        public void Register(string extensionName, IDmonExtension extension, IEnumerable<AIFunction> tools) { }
-        public IDmonExtension? FindExtension(string toolName) => null;
+        public void Register(string extensionName, IToolExtension extension, IEnumerable<AIFunction> tools) { }
+        public IToolExtension? FindExtension(string toolName) => null;
         public void Unregister(string extensionName) { }
         public IReadOnlyList<AIFunction> GetAll() => [];
         public IReadOnlyList<RegisteredExtensionSnapshot> GetSnapshot() => [];
@@ -96,20 +94,17 @@ public sealed class PermissionGateChatClientTests
     private static FunctionCallContent MakeCall(string callId, string name)
         => new(callId, name, null);
 
-    // Coding-mode profile context: profile not resolved → no sandbox allowance.
-    private static AgentProfileContext UnresolvedProfileContext() => new();
-
     private static PermissionGateChatClient BuildGate(
         List<ChatMessage> innerResponse,
         Func<ToolConfirmRequestEvent, CancellationToken, Task<bool>> callback)
     {
+        // No AssetsOptions / PermissionModeOptions → coding mode, no sandbox allowance.
         // Policy returns Prompt for all tool calls (no extension registered) so the callback is always invoked.
         return new PermissionGateChatClient(
             new StubInnerClient(innerResponse),
             new StubPolicy(),
             new StubToolRegistry(),
             callback,
-            UnresolvedProfileContext(),
             new StubSessionHandler());
     }
 
@@ -234,7 +229,7 @@ public sealed class PermissionGateChatClientTests
 
     // --- Test doubles for FindExtension delegation ---
 
-    private sealed class StubEvaluatingExtension(PermissionResult result) : IDmonExtension
+    private sealed class StubEvaluatingExtension(PermissionResult result) : IToolExtension
     {
         public bool EvaluateCalled { get; private set; }
         public string Name => "stub";
@@ -251,10 +246,10 @@ public sealed class PermissionGateChatClientTests
         }
     }
 
-    private sealed class StubRegistryWithExtension(string toolName, IDmonExtension extension) : IToolRegistry
+    private sealed class StubRegistryWithExtension(string toolName, IToolExtension extension) : IToolRegistry
     {
-        public void Register(string extensionName, IDmonExtension ext, IEnumerable<AIFunction> tools) { }
-        public IDmonExtension? FindExtension(string name) => name == toolName ? extension : null;
+        public void Register(string extensionName, IToolExtension ext, IEnumerable<AIFunction> tools) { }
+        public IToolExtension? FindExtension(string name) => name == toolName ? extension : null;
         public void Unregister(string extensionName) { }
         public IReadOnlyList<AIFunction> GetAll() => [];
         public IReadOnlyList<RegisteredExtensionSnapshot> GetSnapshot() => [];
@@ -275,7 +270,6 @@ public sealed class PermissionGateChatClientTests
             new StubPolicy(),
             new StubRegistryWithExtension("my_tool", extension),
             (_, _) => Task.FromResult(true),
-            UnresolvedProfileContext(),
             new StubSessionHandler());
 
         await gate.GetResponseAsync([], null, CancellationToken.None);
@@ -296,7 +290,6 @@ public sealed class PermissionGateChatClientTests
             new StubPolicy(),
             new StubRegistryWithExtension("safe_tool", extension),
             (_, _) => { callbackInvoked = true; return Task.FromResult(true); },
-            UnresolvedProfileContext(),
             new StubSessionHandler());
 
         ChatResponse response = await gate.GetResponseAsync([], null, CancellationToken.None);
@@ -320,7 +313,6 @@ public sealed class PermissionGateChatClientTests
             new StubPolicy(),
             new StubRegistryWithExtension("dangerous_tool", extension),
             (_, _) => { callbackInvoked = true; return Task.FromResult(true); },
-            UnresolvedProfileContext(),
             new StubSessionHandler());
 
         ChatResponse response = await gate.GetResponseAsync([], null, CancellationToken.None);

@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+
+    <AssemblyName>Dmon.Providers.Gemini</AssemblyName>
+    <IsPackable>true</IsPackable>
+    <PackageId>Dmon.Providers.Gemini</PackageId>
+    <MinVerTagPrefix>sdk-</MinVerTagPrefix>
+    <Description>Google Gemini provider factory for the dmon coding agent. Exposes UseGemini() in the Dmon.Hosting namespace.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="GeminiDotnet.Extensions.AI" Version="0.25.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Dmon.Abstractions\Dmon.Abstractions.csproj" />
+  </ItemGroup>
+
+</Project>

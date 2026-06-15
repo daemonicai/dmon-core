@@ -1,4 +1,5 @@
 using Dmon.Abstractions.Providers;
+using Dmon.Hosting;
 using Microsoft.Extensions.Configuration;
 
 namespace Dmon.Core.Providers;
@@ -24,7 +25,7 @@ public sealed class ActiveModelStore : IActiveModelStore
     {
         try
         {
-            return ModelRef.Parse(_configuration["activeModel"]);
+            return ModelRef.Parse(_configuration[ConfigurationKeys.ActiveModel]);
         }
         catch
         {
@@ -39,7 +40,7 @@ public sealed class ActiveModelStore : IActiveModelStore
         Directory.CreateDirectory(dmonDir);
 
         string filePath = Path.Combine(dmonDir, "config.local.yaml");
-        string newLine = $"activeModel: {selection}";
+        string newLine = $"{ConfigurationKeys.ActiveModel}: {selection}";
 
         // Read existing lines so other top-level keys are preserved.
         string[] existing = File.Exists(filePath)
@@ -73,11 +74,11 @@ public sealed class ActiveModelStore : IActiveModelStore
         File.Move(temp, filePath, overwrite: true);
     }
 
-    // Matches a top-level YAML line whose key is "activeModel", e.g. "activeModel: ..."
+    // Matches a top-level YAML line whose key is ConfigurationKeys.ActiveModel, e.g. "activeModel: ..."
     // The raw (unmodified) line is passed; any leading whitespace means the key is nested and is NOT matched.
     private static bool IsActiveModelLine(string rawLine)
     {
-        const string key = "activeModel";
+        string key = ConfigurationKeys.ActiveModel;
         if (!rawLine.StartsWith(key, StringComparison.Ordinal))
         {
             return false;

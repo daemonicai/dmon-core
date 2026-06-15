@@ -14,7 +14,7 @@
 
   <ItemGroup>
     <!-- Reference the packed SDK packages only — no ProjectReference into this repo. -->
-    <PackageReference Include="Dmon.Extensions" Version="$(DmonSdkVersion)" />
+    <PackageReference Include="Dmon.Abstractions" Version="$(DmonSdkVersion)" />
   </ItemGroup>
 
 </Project>

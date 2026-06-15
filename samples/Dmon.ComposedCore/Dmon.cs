@@ -9,6 +9,6 @@ using Dmon.Hosting;
 using Dmon.SampleExtension;
 
 await DmonHost.CreateBuilder(args)
-    .AddExtension<GreetingExtension>()
+    .AddToolExtension<GreetingExtension>()
     .Build()
     .RunAsync();

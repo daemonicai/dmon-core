@@ -1,5 +1,5 @@
 using Dmon.Abstractions.Providers;
-using Dmon.Providers;
+using Dmon.Providers.Anthropic;
 
 namespace Dmon.Providers.Tests;
 

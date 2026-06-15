@@ -84,8 +84,11 @@ public sealed class InitCommandTests(InitFeedFixture feed) : IClassFixture<InitF
         string scaffold = InitCommand.BuildScaffold();
 
         Assert.Contains($"#:package dmoncore@{ProtocolVersion.Current}.*", scaffold);
+        Assert.Contains($"#:package Dmon.Tools.Builtin@{ProtocolVersion.Current}.*", scaffold);
         Assert.Contains("DmonHost.CreateBuilder", scaffold);
-        Assert.Contains(".Build().RunAsync()", scaffold);
+        Assert.Contains(".AddBuiltinTools()", scaffold);
+        Assert.Contains(".Build()", scaffold);
+        Assert.Contains(".RunAsync()", scaffold);
     }
 
     // -------------------------------------------------------------------------

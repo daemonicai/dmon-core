@@ -1,12 +1,10 @@
 using System.Runtime.CompilerServices;
 using Dmon.Abstractions;
 using Dmon.Abstractions.Memory;
-using Dmon.Abstractions.Profiles;
 using Dmon.Abstractions.Providers;
 using Dmon.Core.Extensions;
-using Dmon.Extensions;
+using Dmon.Abstractions.Extensions;
 using Dmon.Core.Permissions;
-using Dmon.Core.Profiles;
 using Dmon.Core.Session;
 using Dmon.Protocol.Commands;
 using Dmon.Protocol.Conversation;
@@ -164,8 +162,8 @@ internal sealed class StubProviderRegistry : IProviderRegistry
 internal sealed class EmptyToolRegistry : IToolRegistry
 {
     public IReadOnlyList<AIFunction> GetAll() => [];
-    public void Register(string extensionName, IDmonExtension extension, IEnumerable<AIFunction> tools) { }
-    public IDmonExtension? FindExtension(string toolName) => null;
+    public void Register(string extensionName, IToolExtension extension, IEnumerable<AIFunction> tools) { }
+    public IToolExtension? FindExtension(string toolName) => null;
     public void Unregister(string extensionName) { }
     public IReadOnlyList<RegisteredExtensionSnapshot> GetSnapshot() => [];
     public void Clear() { }
@@ -228,12 +226,6 @@ internal sealed class StubSystemPromptBuilder : ISystemPromptBuilder
         => Task.FromResult(new ChatMessage(ChatRole.System, "You are a test assistant."));
 }
 
-internal sealed class StubAgentProfileResolver : IAgentProfileResolver
-{
-    public Task<AgentProfile> ResolveAsync(string? requestedProfile, CancellationToken cancellationToken)
-        => Task.FromResult(BuiltInProfiles.Coding);
-}
-
 internal static class TurnHandlerFactory
 {
     public static (TurnHandler handler, TestEventEmitter emitter) Create(
@@ -275,11 +267,9 @@ internal static class TurnHandlerFactory
             systemPromptBuilder,
             pipelineBuilder,
             configuration,
-            new StubAgentProfileResolver(),
-            new AgentProfileContext(),
             new NoopSessionAssetProvisioner(),
             NullLogger<TurnHandler>.Instance,
-            sessionStore);
+            sessionStore: sessionStore);
 
         return (handler, emitter);
     }
@@ -763,9 +753,9 @@ internal sealed class ToolSupportingProviderRegistry : IProviderRegistry
 }
 
 /// <summary>
-/// IDmonExtension stub that allows all tool calls unconditionally.
+/// IToolExtension stub that allows all tool calls unconditionally.
 /// </summary>
-internal sealed class AllowAllExtension : IDmonExtension
+internal sealed class AllowAllExtension : IToolExtension
 {
     public string Name => "allow-all";
     public string Description => "Test stub that allows all calls.";
@@ -795,8 +785,8 @@ internal sealed class StubToolRegistry : IToolRegistry
     }
 
     public IReadOnlyList<AIFunction> GetAll() => _tools;
-    public void Register(string extensionName, IDmonExtension extension, IEnumerable<AIFunction> tools) { }
-    public IDmonExtension? FindExtension(string toolName) => _extension;
+    public void Register(string extensionName, IToolExtension extension, IEnumerable<AIFunction> tools) { }
+    public IToolExtension? FindExtension(string toolName) => _extension;
     public void Unregister(string extensionName) { }
     public IReadOnlyList<RegisteredExtensionSnapshot> GetSnapshot() => [];
     public void Clear() { }
@@ -835,11 +825,9 @@ internal static class ToolTurnHandlerFactory
             systemPromptBuilder,
             pipelineBuilder,
             configuration,
-            new StubAgentProfileResolver(),
-            new AgentProfileContext(),
             new NoopSessionAssetProvisioner(),
             NullLogger<TurnHandler>.Instance,
-            sessionStore);
+            sessionStore: sessionStore);
 
         return (handler, emitter);
     }
@@ -1427,7 +1415,7 @@ internal sealed class RoundTripSpySessionStore : ISessionStore
 /// </summary>
 internal sealed class NoopSessionAssetProvisioner : ISessionAssetProvisioner
 {
-    public string? Provision(AgentProfile profile, string? sessionId) => null;
+    public string? Provision(bool assetsEnabled, string? workspaceRoot, string? sessionId) => null;
 }
 
 /// <summary>

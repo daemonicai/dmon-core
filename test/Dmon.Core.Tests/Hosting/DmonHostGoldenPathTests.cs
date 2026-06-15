@@ -1,10 +1,11 @@
 using System.IO.Pipelines;
 using System.Text.Json;
-using Dmon.Abstractions.Profiles;
+using Dmon.Abstractions.Hosting;
+using Dmon.Abstractions.Permissions;
 using Dmon.Abstractions.Providers;
 using Dmon.Core.Extensions;
 using Dmon.Core.Providers;
-using Dmon.Extensions;
+using Dmon.Abstractions.Extensions;
 using Dmon.Hosting;
 using Dmon.Protocol;
 using Microsoft.Extensions.AI;
@@ -61,7 +62,7 @@ public sealed class DmonHostGoldenPathTests
     }
 
     /// <summary>
-    /// An extension registered via <see cref="DmonHostBuilder.AddExtension"/> has its tool
+    /// An extension registered via <see cref="DmonHostBuilder.AddToolExtension{TExtension}"/> has its tool
     /// present in <see cref="IToolRegistry"/> after <c>Build()</c>.
     /// </summary>
     [Fact]
@@ -73,7 +74,7 @@ public sealed class DmonHostGoldenPathTests
         DmonBuiltHost host = DmonHost.CreateBuilder([])
             .WithStdio(stdin, stdout)
             .WithoutTelemetry()
-            .AddExtension<TooledExtension>()
+            .AddToolExtension<TooledExtension>()
             .Build();
 
         IToolRegistry registry = host.Services.GetRequiredService<IToolRegistry>();
@@ -83,7 +84,7 @@ public sealed class DmonHostGoldenPathTests
     }
 
     /// <summary>
-    /// A host built with an extension via <see cref="DmonHostBuilder.AddExtension"/> emits
+    /// A host built with an extension via <see cref="DmonHostBuilder.AddToolExtension{TExtension}"/> emits
     /// <c>agentReady</c>, confirming the builder extension-registration path does not break
     /// the core protocol.
     /// </summary>
@@ -98,7 +99,7 @@ public sealed class DmonHostGoldenPathTests
         DmonBuiltHost host = DmonHost.CreateBuilder([])
             .WithStdio(stdin, stdout)
             .WithoutTelemetry()
-            .AddExtension<TooledExtension>()
+            .AddToolExtension<TooledExtension>()
             .Build();
 
         Task runTask = host.RunAsync(cts.Token);
@@ -115,11 +116,11 @@ public sealed class DmonHostGoldenPathTests
     }
 
     /// <summary>
-    /// <see cref="DmonHostBuilder.WithModel"/> writes the canonical scalar key so that
+    /// <see cref="DmonHostBuilder.UseModel"/> writes the canonical scalar key so that
     /// <see cref="IActiveModelStore.Load"/> returns the overridden value.
     /// </summary>
     [Fact]
-    public void Build_WithModel_ActiveModelStoreReturnsOverride()
+    public void Build_UseModel_ActiveModelStoreReturnsOverride()
     {
         using TextReader stdin = new StringReader(string.Empty);
         using StreamWriter stdout = new(Stream.Null);
@@ -127,7 +128,7 @@ public sealed class DmonHostGoldenPathTests
         DmonBuiltHost host = DmonHost.CreateBuilder([])
             .WithStdio(stdin, stdout)
             .WithoutTelemetry()
-            .WithModel("anthropic", "claude-3-5-sonnet")
+            .UseModel("anthropic", "claude-3-5-sonnet")
             .Build();
 
         IActiveModelStore store = host.Services.GetRequiredService<IActiveModelStore>();
@@ -139,12 +140,13 @@ public sealed class DmonHostGoldenPathTests
     }
 
     /// <summary>
-    /// <see cref="DmonHostBuilder.WithProfile"/> causes the resolver to return the
-    /// named profile when no per-session profile is requested.
-    /// The built-in "coding" profile is used here because it requires no config files.
+    /// <see cref="DmonHostBuilder.WithPermissionMode"/> registers a
+    /// <see cref="PermissionModeOptions"/> singleton that downstream components
+    /// (<see cref="Dmon.Core.Permissions.PermissionGateChatClient"/>,
+    /// <see cref="Dmon.Core.Rpc.TurnHandler"/>) resolve from DI.
     /// </summary>
     [Fact]
-    public async Task Build_WithProfile_ResolverReturnsOverriddenProfile()
+    public void Build_WithPermissionMode_PermissionModeOptionsAvailableInDi()
     {
         using TextReader stdin = new StringReader(string.Empty);
         using StreamWriter stdout = new(Stream.Null);
@@ -152,15 +154,36 @@ public sealed class DmonHostGoldenPathTests
         DmonBuiltHost host = DmonHost.CreateBuilder([])
             .WithStdio(stdin, stdout)
             .WithoutTelemetry()
-            .WithProfile("coding")
+            .WithPermissionMode(PermissionMode.Sandbox)
             .Build();
 
-        IAgentProfileResolver resolver = host.Services.GetRequiredService<IAgentProfileResolver>();
+        PermissionModeOptions? opts = host.Services.GetService<PermissionModeOptions>();
 
-        // Pass null as the per-session requestedProfile — the builder override should supply it.
-        AgentProfile profile = await resolver.ResolveAsync(null, CancellationToken.None);
+        Assert.NotNull(opts);
+        Assert.Equal(PermissionMode.Sandbox, opts.Mode);
+    }
 
-        Assert.Equal("coding", profile.Name, StringComparer.OrdinalIgnoreCase);
+    /// <summary>
+    /// <see cref="DmonHostBuilder.UseAssets"/> (extension verb from
+    /// <c>Dmon.Abstractions</c>) registers an <see cref="AssetsOptions"/> singleton
+    /// that downstream components resolve from DI.
+    /// </summary>
+    [Fact]
+    public void Build_UseAssets_AssetsOptionsAvailableInDi()
+    {
+        using TextReader stdin = new StringReader(string.Empty);
+        using StreamWriter stdout = new(Stream.Null);
+
+        DmonBuiltHost host = DmonHost.CreateBuilder([])
+            .WithStdio(stdin, stdout)
+            .WithoutTelemetry()
+            .UseAssets("/custom/workspace")
+            .Build();
+
+        AssetsOptions? opts = host.Services.GetService<AssetsOptions>();
+
+        Assert.NotNull(opts);
+        Assert.Equal("/custom/workspace", opts.Path);
     }
 
     // Reads lines from the pipe until agentReady is found or the CTS fires.
@@ -191,10 +214,10 @@ public sealed class DmonHostGoldenPathTests
 }
 
 /// <summary>
-/// An <see cref="IDmonExtension"/> with one real <see cref="AIFunction"/>, used to verify
+/// An <see cref="IToolExtension"/> with one real <see cref="AIFunction"/>, used to verify
 /// that builder-registered extensions land in <see cref="IToolRegistry"/>.
 /// </summary>
-file sealed class TooledExtension : IDmonExtension
+file sealed class TooledExtension : IToolExtension
 {
     internal const string ToolName = "stub_ping";
 

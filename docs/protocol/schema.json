@@ -52,7 +52,7 @@
             "type": {
               "const": "session.create"
             },
-            "profile": {
+            "agent": {
               "type": [
                 "string",
                 "null"
@@ -1438,7 +1438,7 @@
                   "type": "string",
                   "format": "date-time"
                 },
-                "profile": {
+                "agent": {
                   "type": [
                     "string",
                     "null"
@@ -1520,7 +1520,7 @@
                   "type": "string",
                   "format": "date-time"
                 },
-                "profile": {
+                "agent": {
                   "type": [
                     "string",
                     "null"
@@ -1583,7 +1583,7 @@
                   "type": "string",
                   "format": "date-time"
                 },
-                "profile": {
+                "agent": {
                   "type": [
                     "string",
                     "null"
@@ -1646,7 +1646,7 @@
                   "type": "string",
                   "format": "date-time"
                 },
-                "profile": {
+                "agent": {
                   "type": [
                     "string",
                     "null"
@@ -1714,7 +1714,7 @@
                     "type": "string",
                     "format": "date-time"
                   },
-                  "profile": {
+                  "agent": {
                     "type": [
                       "string",
                       "null"
@@ -2081,7 +2081,7 @@
         "gw": {
           "const": "create"
         },
-        "profile": {
+        "agent": {
           "type": [
             "string",
             "null"

@@ -49,20 +49,20 @@ public sealed class ConfigurationPrecedenceTests : IDisposable
             .WithStdio(new StringReader(string.Empty), new StreamWriter(Stream.Null))
             .WithoutTelemetry();
 
-    // ── 6.3.1 — WithModel wins over config.yaml activeModel ─────────────────
+    // ── 6.3.1 — UseModel wins over config.yaml activeModel ──────────────────
 
     /// <summary>
     /// When <c>config.yaml</c> declares <c>activeModel: providerA/modelA</c> and the
-    /// composition root calls <see cref="DmonHostBuilder.WithModel"/>, the builder-supplied
+    /// composition root calls <see cref="DmonHostBuilder.UseModel"/>, the builder-supplied
     /// value wins and <see cref="IActiveModelStore.Load"/> returns the builder value.
     /// </summary>
     [Fact]
-    public void Build_WithModel_WinsOverConfigYamlActiveModel()
+    public void Build_UseModel_WinsOverConfigYamlActiveModel()
     {
         WriteDmonConfig("activeModel: providerA/modelA\n");
 
         DmonBuiltHost host = CreateBuilder()
-            .WithModel("providerB", "modelB")
+            .UseModel("providerB", "modelB")
             .Build();
 
         IActiveModelStore store = host.Services.GetRequiredService<IActiveModelStore>();
@@ -100,18 +100,18 @@ public sealed class ConfigurationPrecedenceTests : IDisposable
         Assert.Equal("global", capturedSessionStore);
     }
 
-    // ── 6.3.3b — ConfigureConfiguration override wins over WithModel ─────────
+    // ── 6.3.3b — ConfigureConfiguration override wins over UseModel ──────────
 
     /// <summary>
     /// A <see cref="DmonHostBuilder.ConfigureConfiguration"/> callback that adds an
-    /// in-memory source overrides <see cref="DmonHostBuilder.WithModel"/> because
-    /// ConfigureConfiguration runs after WithModel in <c>Build()</c>.
+    /// in-memory source overrides <see cref="DmonHostBuilder.UseModel"/> because
+    /// ConfigureConfiguration runs after UseModel.
     /// </summary>
     [Fact]
-    public void ConfigureConfiguration_Override_WinsOverWithModel()
+    public void ConfigureConfiguration_Override_WinsOverUseModel()
     {
         DmonBuiltHost host = CreateBuilder()
-            .WithModel("providerA", "modelA")
+            .UseModel("providerA", "modelA")
             .ConfigureConfiguration(cfg =>
             {
                 cfg.AddInMemoryCollection(new Dictionary<string, string?>
