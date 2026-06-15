@@ -14,9 +14,9 @@
 
 ## 3. Terminal host migration
 
-- [ ] 3.1 Migrate `src/Dmon.Terminal/Program.cs` to issue commands and consume events via `IRpcClient`/`IRpcTransport` instead of inline serialize/flush.
-- [ ] 3.2 Retire `src/Dmon.Terminal/EventDispatcher.cs` (its channel/dispatch role is subsumed by the client's event stream), updating call sites and DI.
-- [ ] 3.3 Update `test/Dmon.Terminal.Tests` to the new seam; confirm event dispatch, reload, and input-handling tests still pass.
+- [x] 3.1 Migrate `src/Dmon.Terminal/Program.cs` to issue commands and consume events via `IRpcClient`/`IRpcTransport` instead of inline serialize/flush.
+- [x] 3.2 Retire `src/Dmon.Terminal/EventDispatcher.cs` (its channel/dispatch role is subsumed by the client's event stream), updating call sites and DI.
+- [x] 3.3 Update `test/Dmon.Terminal.Tests` to the new seam; confirm event dispatch, reload, and input-handling tests still pass.
 
 ## 4. Terminal stderr forwarding
 

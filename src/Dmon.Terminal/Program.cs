@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Dcli;
 using Dmon.Protocol.Commands;
 using Dmon.Protocol.Events;
@@ -25,8 +24,6 @@ for (int i = 0; i < args.Length - 1; i++)
     }
 }
 
-JsonSerializerOptions jsonOptions = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-
 using CancellationTokenSource cts = new();
 
 CoreLauncher launcher = new();
@@ -48,26 +45,30 @@ AgentReadyEvent initialReady = coreSession.AgentReady;
 renderer.AddSystemLine(
     $"[Ready] dmon core v{initialReady.CoreVersion} (protocol {initialReady.ProtocolVersion})");
 
-async Task SendCommandAsync(Command cmd, CancellationToken ct)
-{
-    // Serialize as the base Command type so [JsonPolymorphic] emits the "type" discriminator.
-    // Passing cmd.GetType() (the concrete type) bypasses the polymorphic attributes and omits it.
-    string json = JsonSerializer.Serialize(cmd, jsonOptions);
-    // ADR-003: strict LF framing. Do not rely on StreamWriter.NewLine (CRLF on Windows).
-    await coreSession.Process.StandardInput.WriteAsync(json.AsMemory(), ct).ConfigureAwait(false);
-    await coreSession.Process.StandardInput.WriteAsync('\n').ConfigureAwait(false);
-    await coreSession.Process.StandardInput.FlushAsync(ct).ConfigureAwait(false);
-}
+// Per-session RPC client — reset on each /reload.
+// Declared before handler so the send lambda captures the variable (not a fixed instance).
+IRpcClient client = BuildClient(coreSession);
 
-// Signals the session loop to restart when /reload is submitted via DrainAsync.
-TaskCompletionSource<bool> reloadSignal = new(TaskCreationOptions.RunContinuationsAsynchronously);
+// Per-session cancellation; cancelled when the user requests /reload.
+// Recreated after each RestartAsync (point B) so a second /reload during the
+// restart window hits the already-cancelled source and is a no-op.
+CancellationTokenSource sessionCts = CancellationTokenSource.CreateLinkedTokenSource(cts.Token);
+
+// Guards the read-and-cancel in requestReload against the dispose-and-swap at point B
+// and against the shutdown finally dispose.
+// Without this lock a concurrent reload request can call Cancel() on an already-disposed
+// CancellationTokenSource, escalating a harmless double-reload into an app shutdown.
+object reloadGate = new();
+// Set to true under reloadGate before sessionCts is disposed in the shutdown finally.
+// requestReload checks this flag so a post-shutdown reload is a safe no-op.
+bool reloadClosed = false;
 
 ConsoleEventHandler handler = new(
     renderer,
     inputStateLayer,
-    SendCommandAsync,
+    sendCommand: async (cmd, ct) => await client.SendAsync(cmd, ct).ConfigureAwait(false),
     cts,
-    requestReload: () => reloadSignal.TrySetResult(true),
+    requestReload: () => { lock (reloadGate) { if (!reloadClosed) sessionCts.Cancel(); } },
     terminal: terminal);
 
 Console.CancelKeyPress += (_, e) =>
@@ -78,62 +79,55 @@ Console.CancelKeyPress += (_, e) =>
 
 Task drainTask = handler.DrainAsync(terminal.Events, cts.Token);
 
-Task? dispatchTask = null;
+IRpcClient BuildClient(CoreSession session)
+{
+    CoreProcessRpcTransport transport = new(session.Process);
+    return new RpcClient(transport);
+}
 
 try
 {
     bool restart;
     do
     {
-        // Build a per-session dispatcher on the current process's stdout.
-        // StandardOutput is positioned after the agentReady line already consumed by the gate.
-        EventDispatcher dispatcher = new(coreSession.Process.StandardOutput);
-        dispatchTask = dispatcher.RunAsync(cts.Token);
-
-        Task<bool> nextEvent = dispatcher.Events.WaitToReadAsync(cts.Token).AsTask();
+        // Subscribe before starting the pump so no events are missed.
+        // BroadcastSubscription registers its channel synchronously in the ctor.
+        IAsyncEnumerable<Event> eventStream = client.Events;
+        await client.StartAsync(cts.Token).ConfigureAwait(false);
 
         // Returns true if a /reload was requested, false if the session ended normally.
-        // Input flows exclusively through DrainAsync (dcli events); /reload unblocks the loop
-        // via reloadSignal rather than through the RPC event channel.
+        // Input flows exclusively through DrainAsync (dcli events); /reload cancels sessionCts,
+        // which unblocks the await-foreach without touching the outer cts.
         async Task<bool> RunSessionAsync()
         {
-            while (!cts.IsCancellationRequested)
+            try
             {
-                Task completed = await Task.WhenAny(nextEvent, reloadSignal.Task).ConfigureAwait(false);
-
-                if (completed == reloadSignal.Task)
-                {
-                    return true;
-                }
-
-                bool hasEvents;
-                try { hasEvents = await nextEvent.ConfigureAwait(false); }
-                catch (OperationCanceledException) { return false; }
-
-                // Channel completed: the core process closed its output stream.
-                if (!hasEvents) return false;
-
-                // Drain all available events.
-                while (dispatcher.Events.TryRead(out Event? evt))
+                await foreach (Event evt in eventStream
+                    .WithCancellation(sessionCts.Token)
+                    .ConfigureAwait(false))
                 {
                     await handler.HandleRpcEventAsync(evt, cts.Token).ConfigureAwait(false);
                 }
-
-                nextEvent = dispatcher.Events.WaitToReadAsync(cts.Token).AsTask();
+                // Stream completed normally (core closed stdout) — no restart.
+                return false;
             }
-
-            return false;
+            catch (OperationCanceledException) when (sessionCts.IsCancellationRequested && !cts.IsCancellationRequested)
+            {
+                // /reload cancelled sessionCts but not the outer cts → restart.
+                return true;
+            }
+            catch (OperationCanceledException)
+            {
+                // Outer cts cancelled (Ctrl+C or /quit) → exit cleanly.
+                return false;
+            }
         }
 
         restart = await RunSessionAsync().ConfigureAwait(false);
 
         if (restart && !cts.IsCancellationRequested)
         {
-            // Drain any buffered events before tearing down the old dispatcher.
-            while (dispatcher.Events.TryRead(out Event? leftover))
-            {
-                await handler.HandleRpcEventAsync(leftover, cts.Token).ConfigureAwait(false);
-            }
+            await client.DisposeAsync().ConfigureAwait(false);
 
             // RestartAsync: stops the old process, starts a fresh one, and re-runs the
             // protocol gate on the new process's stdout.
@@ -142,10 +136,15 @@ try
                 .ConfigureAwait(false);
 
             // Recreate here (point B) so a second /reload during the restart window hits the
-            // already-completed TCS and is a no-op, rather than lighting up the freshly-reset one.
-            reloadSignal = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-            try { await dispatchTask.ConfigureAwait(false); }
-            catch (OperationCanceledException) { }
+            // already-cancelled sessionCts and is a no-op, rather than cancelling the fresh one.
+            // Lock reloadGate so requestReload cannot Cancel() the CTS mid-dispose.
+            lock (reloadGate)
+            {
+                sessionCts.Dispose();
+                sessionCts = CancellationTokenSource.CreateLinkedTokenSource(cts.Token);
+            }
+
+            client = BuildClient(coreSession);
 
             AgentReadyEvent reloadReady = coreSession.AgentReady;
             renderer.AddSystemLine(
@@ -159,7 +158,7 @@ try
                     Id = Guid.NewGuid().ToString("N"),
                     Path = handler.ActiveSessionId,
                 };
-                try { await SendCommandAsync(loadCmd, cts.Token).ConfigureAwait(false); }
+                try { await client.SendAsync(loadCmd, cts.Token).ConfigureAwait(false); }
                 catch (OperationCanceledException) { }
             }
         }
@@ -167,13 +166,21 @@ try
     while (restart && !cts.IsCancellationRequested);
 }
 catch (OperationCanceledException) { }
+finally
+{
+    // Set reloadClosed under the gate before disposing so a concurrent requestReload
+    // call on the drainTask (still live until line ~176) sees the flag and skips
+    // Cancel() rather than throwing ObjectDisposedException on the disposed CTS.
+    lock (reloadGate) { reloadClosed = true; sessionCts.Dispose(); }
+    await client.DisposeAsync().ConfigureAwait(false);
+}
 
 renderer.PrintSeparator("goodbye");
 await coreSession.Process.StopAsync().ConfigureAwait(false);
 
 try
 {
-    await Task.WhenAll(dispatchTask ?? Task.CompletedTask, drainTask).ConfigureAwait(false);
+    await drainTask.ConfigureAwait(false);
 }
 catch (OperationCanceledException) { }
 
