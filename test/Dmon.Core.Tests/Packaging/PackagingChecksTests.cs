@@ -1,15 +1,17 @@
 using System.IO.Compression;
 using System.Reflection;
+using System.Reflection.PortableExecutable;
 
 using Dmon.Core.Tests.Composition;
 
 namespace Dmon.Core.Tests.Packaging;
 
 /// <summary>
-/// Task 7.3 packaging checks:
+/// Tasks 7.3 and 1.3 packaging checks:
 /// (a) the <c>dmoncore</c> NuGet package is a referenceable library — it contains
-///     <c>lib/net10.0/Dmon.Core.dll</c> (the library assembly) and does NOT contain
-///     a runnable-closure runtimeconfig.
+///     <c>lib/net10.0/Dmon.Core.dll</c> with no managed entry point, and the package
+///     contains no <c>runtimeconfig.json</c> at all (OutputType=Library,
+///     GenerateRuntimeConfigurationFiles=false).
 /// (b) the prebuilt default-core closure in <c>build/dmoncore/</c> contains
 ///     <c>dmoncore.dll</c> (the entry-point), its dependency assemblies,
 ///     <c>dmoncore.deps.json</c>, and <c>dmoncore.runtimeconfig.json</c>
@@ -43,17 +45,35 @@ public sealed class PackagingChecksTests(ComposedCoreFeedFixture feed)
         string nupkg = LocateDmoncoreNupkg(feed.FeedPath);
         using ZipArchive zip = ZipFile.OpenRead(nupkg);
 
-        // A runnable-closure embedding would appear at the package root or under tools/.
-        // The Sdk.Worker artifact Dmon.Core.runtimeconfig.json in lib/net10.0/ is an
-        // incidental Worker SDK output, not a runnable-closure indicator.
-        bool hasToolsRuntimeconfig = zip.Entries.Any(e =>
-            e.FullName.Contains("runtimeconfig.json", StringComparison.OrdinalIgnoreCase)
-            && !e.FullName.StartsWith("lib/", StringComparison.OrdinalIgnoreCase));
+        // With OutputType=Library and GenerateRuntimeConfigurationFiles=false, no runtimeconfig.json
+        // is emitted at all — not even the incidental Worker SDK artifact in lib/net10.0/.
+        IEnumerable<string> runtimeconfigEntries = zip.Entries
+            .Where(e => e.FullName.Contains("runtimeconfig.json", StringComparison.OrdinalIgnoreCase))
+            .Select(e => e.FullName);
 
-        Assert.False(hasToolsRuntimeconfig,
-            $"dmoncore nupkg '{nupkg}' must NOT contain runtimeconfig.json outside lib/ — " +
-            "it is a library package, not a runnable-closure. " +
-            $"Offending entries: {string.Join(", ", zip.Entries.Where(e => e.FullName.Contains("runtimeconfig", StringComparison.OrdinalIgnoreCase) && !e.FullName.StartsWith("lib/", StringComparison.OrdinalIgnoreCase)).Select(e => e.FullName))}");
+        Assert.Empty(runtimeconfigEntries);
+    }
+
+    [Fact]
+    public void DmoncorePackage_LibDll_HasNoManagedEntryPoint()
+    {
+        string nupkg = LocateDmoncoreNupkg(feed.FeedPath);
+        using ZipArchive zip = ZipFile.OpenRead(nupkg);
+
+        ZipArchiveEntry? entry = zip.Entries.FirstOrDefault(e =>
+            e.FullName.Equals("lib/net10.0/Dmon.Core.dll", StringComparison.OrdinalIgnoreCase));
+
+        Assert.NotNull(entry);
+
+        using Stream entryStream = entry.Open();
+        using MemoryStream ms = new();
+        entryStream.CopyTo(ms);
+        ms.Position = 0;
+
+        using PEReader peReader = new(ms);
+        // A library has no managed entry point; the token/RVA field is zero.
+        int entryPointToken = peReader.PEHeaders.CorHeader!.EntryPointTokenOrRelativeVirtualAddress;
+        Assert.Equal(0, entryPointToken);
     }
 
     // ------------------------------------------------------------------
