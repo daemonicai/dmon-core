@@ -6,6 +6,7 @@ using Dmon.Core.Config;
 using Dmon.Gateway.Protocol;
 using Dmon.Gateway.Sessions;
 using Dmon.Protocol.Gateway;
+using Dmon.Runtime;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Dmon.Gateway.Tests;
@@ -75,7 +76,7 @@ public sealed class GatewayCreateFlowTests
 
         // Act.
         string returned = await GatewayConnectionEndpoint.DriveSessionHandshakeAsync(
-            stdout, stdin, agent, CancellationToken.None);
+            new StubCoreProcess(stdout, stdin), agent, TimeSpan.FromSeconds(5), CancellationToken.None);
 
         // Assert: correct session id returned (spec: "session created with the agent stored").
         Assert.Equal(sessionId, returned);
@@ -115,7 +116,7 @@ public sealed class GatewayCreateFlowTests
         stdout.Feed(MakeLoadResult("gw-session-load", sessionId));
 
         string handshakeSessionId = await GatewayConnectionEndpoint.DriveSessionHandshakeAsync(
-            stdout, stdin, agent: "coding", CancellationToken.None);
+            new StubCoreProcess(stdout, stdin), agent: "coding", TimeSpan.FromSeconds(5), CancellationToken.None);
 
         Assert.Equal(sessionId, handshakeSessionId);
 
@@ -585,5 +586,28 @@ public sealed class GatewayCreateFlowTests
         }
 
         public override Task<string?> ReadLineAsync() => ReadLineAsync(CancellationToken.None).AsTask();
+    }
+
+    /// <summary>
+    /// Minimal <see cref="ICoreProcess"/> adapter that wraps a caller-supplied
+    /// <see cref="TextReader"/> and <see cref="TextWriter"/>. Lifecycle methods are no-ops.
+    /// Used to pass scripted reader/writer pairs to <see cref="GatewayConnectionEndpoint.DriveSessionHandshakeAsync"/>.
+    /// </summary>
+    private sealed class StubCoreProcess : ICoreProcess
+    {
+        public StubCoreProcess(TextReader standardOutput, TextWriter standardInput)
+        {
+            StandardOutput = standardOutput;
+            StandardInput = standardInput;
+        }
+
+        public TextReader StandardOutput { get; }
+        public TextWriter StandardInput { get; }
+        public bool IsRunning => true;
+
+        public Task StartAsync() => Task.CompletedTask;
+        public Task StopAsync() => Task.CompletedTask;
+        public Task RestartAsync() => Task.CompletedTask;
+        public void Dispose() { }
     }
 }

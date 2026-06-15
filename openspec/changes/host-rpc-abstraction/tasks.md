@@ -25,8 +25,8 @@
 
 ## 5. Gateway handshake migration
 
-- [ ] 5.1 Migrate `DriveSessionHandshakeAsync` + `ReadCorrelatedResultAsync<T>` in `src/Dmon.Gateway/GatewayConnectionEndpoint.cs` to drive `session.create` → path-less `session.load` through `IRpcClient.RequestAsync<TResult>`; map `RpcTimeoutException` → `core_timeout`. Leave `SessionHandler`'s ongoing RPC loop untouched.
-- [ ] 5.2 Confirm `GatewayCreateE2ETests` stays green against the migrated path — especially 2.3 (handshake results excluded from the seq stream, ADR-014) and 2.4 (timeout/exception/cap), using the existing `FakeCoreProcess`/`FeedableReader` doubles.
+- [x] 5.1 Add a lossless, non-read-ahead correlated-request helper in `src/Dmon.Runtime` over `IRpcTransport` (send a `Command`, `await foreach` `transport.Events`, return/break on the first `ResultEvent` whose `CommandId` matches — no continuous pump, no read-ahead; finite timeout faults `RpcTimeoutException`, caller cancellation stays `OperationCanceledException`). Migrate `DriveSessionHandshakeAsync` + `ReadCorrelatedResultAsync<T>` in `src/Dmon.Gateway/GatewayConnectionEndpoint.cs` to drive `session.create` → path-less `session.load` through it; map `RpcTimeoutException` → `core_timeout`; pattern-match `SessionCreatedResultEvent`/`SessionLoadedResultEvent`/`CommandErrorEvent`/unexpected exactly as today. Leave `SessionHandler`'s ongoing RPC loop untouched. (Design D7: `IRpcClient.RequestAsync`'s continuous lossy pump is incompatible with the ADR-014 seq-exclusion invariant.)
+- [x] 5.2 Confirm `GatewayCreateE2ETests` stays green against the migrated path — especially 2.3 (handshake results excluded from the seq stream, ADR-014) and 2.4 (timeout/exception/cap), using the existing `FakeCoreProcess`/`FeedableReader` doubles.
 
 ## 6. Live tool-call e2e test (closes composition-root-facets 8.4)
 

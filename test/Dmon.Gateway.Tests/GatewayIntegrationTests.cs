@@ -6,6 +6,7 @@ using System.Threading.Channels;
 using Dmon.Gateway;
 using Dmon.Gateway.DeviceKeys;
 using Dmon.Gateway.Sessions;
+using Dmon.Runtime;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -391,7 +392,7 @@ public sealed class GatewayIntegrationTests
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
             GatewayConnectionEndpoint.DriveSessionHandshakeAsync(
-                silentStdout, stdin, agent: null, cts.Token));
+                new StubCoreProcess(silentStdout, stdin), agent: null, TimeSpan.FromSeconds(30), cts.Token));
     }
 
     /// <summary>
@@ -685,5 +686,28 @@ public sealed class GatewayIntegrationTests
         public string GetWritten() { lock (_lock) { return _sb.ToString(); } }
 
         public void Reset() { lock (_lock) { _sb.Clear(); } }
+    }
+
+    /// <summary>
+    /// Minimal <see cref="ICoreProcess"/> adapter that wraps a caller-supplied
+    /// <see cref="TextReader"/> and <see cref="TextWriter"/>. Lifecycle methods are no-ops.
+    /// Used to pass scripted reader/writer pairs to <see cref="GatewayConnectionEndpoint.DriveSessionHandshakeAsync"/>.
+    /// </summary>
+    private sealed class StubCoreProcess : ICoreProcess
+    {
+        public StubCoreProcess(TextReader standardOutput, TextWriter standardInput)
+        {
+            StandardOutput = standardOutput;
+            StandardInput = standardInput;
+        }
+
+        public TextReader StandardOutput { get; }
+        public TextWriter StandardInput { get; }
+        public bool IsRunning => true;
+
+        public Task StartAsync() => Task.CompletedTask;
+        public Task StopAsync() => Task.CompletedTask;
+        public Task RestartAsync() => Task.CompletedTask;
+        public void Dispose() { }
     }
 }

@@ -1,10 +1,8 @@
 using System.Net.WebSockets;
 using System.Text;
-using System.Text.Json;
 using Dmon.Gateway.DeviceKeys;
 using Dmon.Gateway.Protocol;
 using Dmon.Gateway.Sessions;
-using Dmon.Protocol;
 using Dmon.Protocol.Commands;
 using Dmon.Protocol.Gateway;
 using Dmon.Protocol.Events;
@@ -351,16 +349,13 @@ public sealed class GatewayConnectionEndpoint
         {
             // Bound the create+load handshake: a live-but-silent core (hung extension load,
             // deadlocked resolver) would otherwise park this connection indefinitely — EOF covers
-            // a crashed core but not a stalled one. The timeout links with RequestAborted so
-            // whichever fires first wins.
+            // a crashed core but not a stalled one. The timeout is passed to DriveSessionHandshakeAsync
+            // which faults with RpcTimeoutException when it elapses (design D7).
             TimeSpan handshakeTimeout = TimeSpan.FromSeconds(
                 _options.CurrentValue.CreateHandshakeTimeoutSeconds);
-            using CancellationTokenSource handshakeCts =
-                CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            handshakeCts.CancelAfter(handshakeTimeout);
 
             coreSession = await _coreLauncher!.StartProtocolCompatibleCoreAsync(
-                cancellationToken: handshakeCts.Token).ConfigureAwait(false);
+                cancellationToken: cancellationToken).ConfigureAwait(false);
 
             // Drive the session.create + session.load handshake over the raw streams BEFORE
             // constructing SessionHandler. The SessionHandler's pump starts in its constructor
@@ -369,10 +364,10 @@ public sealed class GatewayConnectionEndpoint
             // to clients as conversational events. This mirrors how CoreLauncher consumes
             // agentReady before handing the positioned stream to its callers.
             string sessionId = await DriveSessionHandshakeAsync(
-                coreSession.Process.StandardOutput,
-                coreSession.Process.StandardInput,
+                coreSession.Process,
                 createFrame.Agent,
-                handshakeCts.Token).ConfigureAwait(false);
+                handshakeTimeout,
+                cancellationToken).ConfigureAwait(false);
 
             // Pump starts here — stdout is positioned after session.loadResult.
             SessionHandler newHandler = new(sessionId, coreSession, _connectionIndex);
@@ -409,16 +404,7 @@ public sealed class GatewayConnectionEndpoint
                 new CreatedFrame { SessionId = sessionId },
                 cancellationToken).ConfigureAwait(false);
         }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-            // Genuine client abort (RequestAborted fired, or the same-timestamp race where both
-            // the handshake timeout and RequestAborted cancel simultaneously — IsCancellationRequested
-            // is true in either race outcome, so this catch is always preferred). Tear down the
-            // spawned core without replying: the client socket is already gone.
-            await TearDownCoreAsync(coreSession).ConfigureAwait(false);
-            throw;
-        }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        catch (RpcTimeoutException)
         {
             // Handshake timeout: the core passed agentReady but did not emit
             // session.createResult / session.loadResult within CreateHandshakeTimeoutSeconds.
@@ -440,6 +426,13 @@ public sealed class GatewayConnectionEndpoint
                         "The spawned process has been stopped. Retry the create.",
                 },
                 cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // Genuine client abort (RequestAborted fired). Tear down the spawned core
+            // without replying: the client socket is already gone.
+            await TearDownCoreAsync(coreSession).ConfigureAwait(false);
+            throw;
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -465,17 +458,23 @@ public sealed class GatewayConnectionEndpoint
 
     /// <summary>
     /// Drives the <c>session.create</c> + <c>session.load</c> RPC handshake over the core's
-    /// raw stdio streams. Returns the <c>sessionId</c> allocated by the core.
+    /// raw stdio streams via a <see cref="CoreProcessRpcTransport"/>. Returns the
+    /// <c>sessionId</c> allocated by the core.
     ///
     /// This method must be called AFTER <see cref="ICoreLauncher.StartProtocolCompatibleCoreAsync"/>
     /// (which consumes <c>agentReady</c>) and BEFORE constructing <see cref="SessionHandler"/>
     /// (whose pump assigns seq to every subsequent stdout line). The handshake result events are
-    /// consumed here and never reach the seq log.
+    /// consumed here and never reach the seq log (ADR-014).
+    ///
+    /// Reader handoff: <see cref="CoreProcessRpcTransport"/> borrows the process streams and
+    /// never closes or disposes them. After this method returns, <see cref="SessionHandler"/>
+    /// continues reading from <c>process.StandardOutput</c> positioned immediately after the
+    /// <c>session.loadResult</c> line — zero bytes are read ahead (design D7).
     /// </summary>
     internal static async Task<string> DriveSessionHandshakeAsync(
-        TextReader stdout,
-        TextWriter stdin,
+        ICoreProcess process,
         string? agent,
+        TimeSpan timeout,
         CancellationToken cancellationToken)
     {
         // Use a stable gateway-generated id for both commands. The core correlates each result
@@ -483,83 +482,48 @@ public sealed class GatewayConnectionEndpoint
         const string createCommandId = "gw-session-create";
         const string loadCommandId = "gw-session-load";
 
-        // Write session.create — the agent name is forwarded as-is; core is authoritative.
-        // Serialize as the base Command type so the [JsonPolymorphic] discriminator "type" is emitted.
+        // Borrow the process streams — transport never closes them.
+        // The two correlated reads below are sequential enumerations of transport.Events:
+        // the first await foreach is fully disposed (via break) before the second begins,
+        // so there is no concurrent-reader race on the cold IAsyncEnumerable.
+        CoreProcessRpcTransport transport = new(process);
+
+        // Send session.create and await the correlated result.
         Command createCmd = new SessionCreateCommand
         {
             Id = createCommandId,
             Agent = agent,
         };
-        string createJson = JsonSerializer.Serialize(createCmd, WireSerializerOptions.Default);
-        await stdin.WriteAsync((createJson + "\n").AsMemory(), cancellationToken).ConfigureAwait(false);
-        await stdin.FlushAsync(cancellationToken).ConfigureAwait(false);
+        ResultEvent createResult = await transport.RequestAsync(createCmd, timeout, cancellationToken)
+            .ConfigureAwait(false);
 
-        // Read until we see session.createResult correlated to our command id.
-        string sessionId = await ReadCorrelatedResultAsync<SessionCreatedResultEvent>(
-            stdout, createCommandId, "session.createResult", cancellationToken,
-            extractValue: evt => evt.Session.Id).ConfigureAwait(false);
+        if (createResult is CommandErrorEvent createErr)
+            throw new InvalidOperationException(
+                $"Core returned error for '{createCommandId}': {createErr.Code} — {createErr.Message}");
 
-        // Write session.load (no path — loads the session we just created in its default location).
-        // Serialize as the base Command type so the [JsonPolymorphic] discriminator "type" is emitted.
+        if (createResult is not SessionCreatedResultEvent created)
+            throw new InvalidOperationException(
+                $"Unexpected result type '{createResult.GetType().Name}' for '{createCommandId}'; " +
+                "expected 'session.createResult'.");
+
+        string sessionId = created.Session.Id;
+
+        // Send session.load (no path — loads the session we just created in its default location).
         Command loadCmd = new SessionLoadCommand { Id = loadCommandId };
-        string loadJson = JsonSerializer.Serialize(loadCmd, WireSerializerOptions.Default);
-        await stdin.WriteAsync((loadJson + "\n").AsMemory(), cancellationToken).ConfigureAwait(false);
-        await stdin.FlushAsync(cancellationToken).ConfigureAwait(false);
+        ResultEvent loadResult = await transport.RequestAsync(loadCmd, timeout, cancellationToken)
+            .ConfigureAwait(false);
 
-        // Read until we see session.loadResult correlated to our command id.
-        await ReadCorrelatedResultAsync<SessionLoadedResultEvent>(
-            stdout, loadCommandId, "session.loadResult", cancellationToken,
-            extractValue: evt => evt.Session.Id).ConfigureAwait(false);
+        if (loadResult is CommandErrorEvent loadErr)
+            throw new InvalidOperationException(
+                $"Core returned error for '{loadCommandId}': {loadErr.Code} — {loadErr.Message}");
 
+        if (loadResult is not SessionLoadedResultEvent)
+            throw new InvalidOperationException(
+                $"Unexpected result type '{loadResult.GetType().Name}' for '{loadCommandId}'; " +
+                "expected 'session.loadResult'.");
+
+        // transport goes out of scope here — the borrowed streams are unaffected.
         return sessionId;
-    }
-
-    /// <summary>
-    /// Reads lines from <paramref name="stdout"/> until a <typeparamref name="TResult"/>
-    /// event whose <c>CommandId</c> matches <paramref name="commandId"/> arrives,
-    /// or a <c>commandError</c> correlated to the same id is received (throws).
-    /// Other event lines are skipped (they precede the correlated result).
-    /// </summary>
-    /// <param name="eventType">
-    /// Diagnostic label used only in exception messages — not used for matching
-    /// (matching is by <typeparamref name="TResult"/> and <paramref name="commandId"/>).
-    /// </param>
-    private static async Task<string> ReadCorrelatedResultAsync<TResult>(
-        TextReader stdout,
-        string commandId,
-        string eventType,
-        CancellationToken cancellationToken,
-        Func<TResult, string> extractValue)
-        where TResult : ResultEvent
-    {
-        while (true)
-        {
-            string? line = await stdout.ReadLineAsync(cancellationToken).ConfigureAwait(false);
-            if (line is null)
-                throw new InvalidOperationException(
-                    $"Core closed stdout before emitting '{eventType}' for command '{commandId}'.");
-
-            if (string.IsNullOrWhiteSpace(line))
-                continue;
-
-            Event? evt;
-            try
-            {
-                evt = JsonSerializer.Deserialize<Event>(line, WireSerializerOptions.Default);
-            }
-            catch (JsonException)
-            {
-                // Non-JSON or unrecognised lines are skipped.
-                continue;
-            }
-
-            if (evt is CommandErrorEvent err && err.CommandId == commandId)
-                throw new InvalidOperationException(
-                    $"Core returned error for '{commandId}': {err.Code} — {err.Message}");
-
-            if (evt is TResult result && result.CommandId == commandId)
-                return extractValue(result);
-        }
     }
 
     /// <summary>
