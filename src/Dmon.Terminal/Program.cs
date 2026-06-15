@@ -4,6 +4,9 @@ using Dmon.Protocol.Events;
 using Dmon.Runtime;
 using Dmon.Terminal;
 
+// Forward core stderr to host stderr so launch failures and diagnostics are visible.
+ConsoleDiagnosticSink diagnosticSink = new();
+
 // Dispatch top-level subcommands before starting the TUI.
 if (args.Length > 0 && args[0] == "init")
 {
@@ -28,7 +31,10 @@ using CancellationTokenSource cts = new();
 
 CoreLauncher launcher = new();
 CoreSession coreSession = await launcher
-    .StartProtocolCompatibleCoreAsync(corePathOverride, cancellationToken: cts.Token)
+    .StartProtocolCompatibleCoreAsync(
+        corePathOverride,
+        onStderrLine: diagnosticSink.WriteLine,
+        cancellationToken: cts.Token)
     .ConfigureAwait(false);
 
 // Single ITerminal instance for the lifetime of the process; dcli owns the fixed region.

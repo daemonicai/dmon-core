@@ -20,8 +20,8 @@
 
 ## 4. Terminal stderr forwarding
 
-- [ ] 4.1 Route the core's stderr to a host diagnostic sink (host stderr and/or a scrollback diagnostics line) via `CoreProcessManager`'s existing `onStderrLine` callback — the Terminal currently passes `null`. Must not interleave into conversational scrollback and must not block the RPC event loop.
-- [ ] 4.2 Test the `console-host` scenarios: a core stderr line is forwarded to the diagnostic sink (not discarded); a startup-failure line written to stderr is surfaced.
+- [x] 4.1 Route the core's stderr to a host diagnostic sink (host stderr and/or a scrollback diagnostics line) via `CoreProcessManager`'s existing `onStderrLine` callback — the Terminal currently passes `null`. Must not interleave into conversational scrollback and must not block the RPC event loop.
+- [x] 4.2 Test the `console-host` scenarios: a core stderr line is forwarded to the diagnostic sink (not discarded); a startup-failure line written to stderr is surfaced.
 
 ## 5. Gateway handshake migration
 
