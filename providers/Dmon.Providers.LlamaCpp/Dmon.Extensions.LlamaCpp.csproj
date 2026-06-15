@@ -14,4 +14,8 @@
     <PackageReference Include="Microsoft.Extensions.AI.OpenAI" Version="10.5.1" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="Dmon.Extensions.LlamaCpp.Tests" />
+  </ItemGroup>
+
 </Project>

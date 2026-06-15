@@ -30,6 +30,9 @@ public sealed class LlamaCppProviderExtension : IProviderExtension, IDisposable,
     private Process? _serverProcess;
     private bool _disposed;
 
+    // Allows tests to inject a real dummy process so the dispose-kills-server assertion is meaningful.
+    internal void SetServerProcess(Process process) => _serverProcess = process;
+
     public string ProviderName => "llama.cpp";
 
     // Public constructor — used in production.
@@ -274,15 +277,47 @@ public sealed class LlamaCppProviderExtension : IProviderExtension, IDisposable,
         return port;
     }
 
+    // Extracted so tests can assert the argument list without spawning a real process.
+    internal IReadOnlyList<string> BuildServerArguments(int port, string host)
+    {
+        string repoArg = _options.ModelId.Contains(':')
+            ? _options.ModelId
+            : $"{_options.ModelId}:{_options.Quant}";
+
+        List<string> args =
+        [
+            "--jinja",
+            "-hf",
+            repoArg,
+            "--port",
+            port.ToString(),
+            "--host",
+            host,
+        ];
+
+        if (_options.ContextSize.HasValue)
+        {
+            args.Add("-c");
+            args.Add(_options.ContextSize.Value.ToString());
+        }
+
+        if (_options.GpuLayers.HasValue)
+        {
+            args.Add("-ngl");
+            args.Add(_options.GpuLayers.Value.ToString());
+        }
+
+        foreach (string arg in _options.ExtraArgs)
+            args.Add(arg);
+
+        return args;
+    }
+
     private void SpawnServer(int port, string host)
     {
         string serverPath = ResolveServerPath()
             ?? throw new InvalidOperationException(
                 "llama-server executable not found. Verify IsApplicable() returned true before calling EnsureRunningAsync.");
-
-        string repoArg = _options.ModelId.Contains(':')
-            ? _options.ModelId
-            : $"{_options.ModelId}:{_options.Quant}";
 
         ProcessStartInfo psi = new(serverPath)
         {
@@ -291,27 +326,7 @@ public sealed class LlamaCppProviderExtension : IProviderExtension, IDisposable,
             RedirectStandardOutput = false,
         };
 
-        psi.ArgumentList.Add("--jinja");
-        psi.ArgumentList.Add("-hf");
-        psi.ArgumentList.Add(repoArg);
-        psi.ArgumentList.Add("--port");
-        psi.ArgumentList.Add(port.ToString());
-        psi.ArgumentList.Add("--host");
-        psi.ArgumentList.Add(host);
-
-        if (_options.ContextSize.HasValue)
-        {
-            psi.ArgumentList.Add("-c");
-            psi.ArgumentList.Add(_options.ContextSize.Value.ToString());
-        }
-
-        if (_options.GpuLayers.HasValue)
-        {
-            psi.ArgumentList.Add("-ngl");
-            psi.ArgumentList.Add(_options.GpuLayers.Value.ToString());
-        }
-
-        foreach (string arg in _options.ExtraArgs)
+        foreach (string arg in BuildServerArguments(port, host))
             psi.ArgumentList.Add(arg);
 
         Process process = new() { StartInfo = psi };
