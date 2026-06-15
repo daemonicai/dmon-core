@@ -89,8 +89,8 @@ public sealed class LlamaCppProviderExtension : IProviderExtension, IDisposable,
         string remediation = RuntimeInformation.IsOSPlatform(OSPlatform.OSX)
             ? "brew install llama.cpp"
             : RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
-                ? "winget install ggml-org.llama.cpp"
-                : "Download from https://github.com/ggerganov/llama.cpp/releases";
+                ? "install via winget (`winget search llama.cpp`) or from https://github.com/ggml-org/llama.cpp/releases"
+                : "download from https://github.com/ggml-org/llama.cpp/releases";
 
         _onWarning?.Invoke(
             $"llama-server not found. Install it with: {remediation}. " +
