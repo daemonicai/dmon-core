@@ -78,40 +78,53 @@ public sealed class CoreProcessManagerRestartTests
     }
 
     // ------------------------------------------------------------------
-    //  5.2 — EventDispatcher re-bind: sequential dispatchers on distinct streams
+    //  5.2 — RpcClient re-bind: sequential clients on distinct streams read
+    //         independent events with no cross-contamination.
     // ------------------------------------------------------------------
 
     [Fact]
-    public async Task EventDispatcher_RebuildOnRestart_ReadsFromNewStream()
+    public async Task RpcClient_RebuildOnRestart_ReadsFromNewStream()
     {
         string event1Json = """{"type":"agentReady","coreVersion":"0.0.0","protocolVersion":"0.1"}""";
         string event2Json = """{"type":"agentReady","coreVersion":"1.0.0","protocolVersion":"0.1"}""";
 
-        // First dispatcher — reads from stream 1 and completes on EOF.
+        // First client — reads from stream 1 and completes on EOF.
         using MemoryStream stream1 = new(System.Text.Encoding.UTF8.GetBytes(event1Json + "\n"));
         using StreamReader reader1 = new(stream1);
-        EventDispatcher dispatcher1 = new(reader1);
-        Task run1 = dispatcher1.RunAsync(CancellationToken.None);
-        bool hasEvent1 = await dispatcher1.Events.WaitToReadAsync(CancellationToken.None);
-        Assert.True(hasEvent1);
-        dispatcher1.Events.TryRead(out Dmon.Protocol.Events.Event? first);
-        Assert.NotNull(first);
-        await run1; // completes on EOF
+        using StringWriter writer1 = new();
+        await using RpcClient client1 = new(new CoreProcessRpcTransport(reader1, writer1));
+        IAsyncEnumerable<Dmon.Protocol.Events.Event> stream1Events = client1.Events;
+        await client1.StartAsync(CancellationToken.None);
 
-        // Second dispatcher — reads from stream 2 after "restart".
+        Dmon.Protocol.Events.Event? first = null;
+        await foreach (Dmon.Protocol.Events.Event evt in stream1Events)
+        {
+            first = evt;
+            break; // take the first event and stop; stream completes on EOF
+        }
+
+        // Second client — reads from stream 2 after "restart".
         using MemoryStream stream2 = new(System.Text.Encoding.UTF8.GetBytes(event2Json + "\n"));
         using StreamReader reader2 = new(stream2);
-        EventDispatcher dispatcher2 = new(reader2);
-        Task run2 = dispatcher2.RunAsync(CancellationToken.None);
-        bool hasEvent2 = await dispatcher2.Events.WaitToReadAsync(CancellationToken.None);
-        Assert.True(hasEvent2);
-        dispatcher2.Events.TryRead(out Dmon.Protocol.Events.Event? second);
-        Assert.NotNull(second);
-        await run2;
+        using StringWriter writer2 = new();
+        await using RpcClient client2 = new(new CoreProcessRpcTransport(reader2, writer2));
+        IAsyncEnumerable<Dmon.Protocol.Events.Event> stream2Events = client2.Events;
+        await client2.StartAsync(CancellationToken.None);
 
-        // Confirm the dispatchers read independent events — no cross-contamination.
-        Assert.IsType<Dmon.Protocol.Events.AgentReadyEvent>(first);
-        Assert.IsType<Dmon.Protocol.Events.AgentReadyEvent>(second);
+        Dmon.Protocol.Events.Event? second = null;
+        await foreach (Dmon.Protocol.Events.Event evt in stream2Events)
+        {
+            second = evt;
+            break;
+        }
+
+        // Confirm the clients read independent events — no cross-contamination.
+        Assert.NotNull(first);
+        Assert.NotNull(second);
+        Dmon.Protocol.Events.AgentReadyEvent ready1 = Assert.IsType<Dmon.Protocol.Events.AgentReadyEvent>(first);
+        Dmon.Protocol.Events.AgentReadyEvent ready2 = Assert.IsType<Dmon.Protocol.Events.AgentReadyEvent>(second);
+        Assert.Equal("0.0.0", ready1.CoreVersion);
+        Assert.Equal("1.0.0", ready2.CoreVersion);
     }
 
     // ------------------------------------------------------------------

@@ -72,8 +72,8 @@ public sealed class CoreProcessManager : ICoreProcess
         _process = new Process { StartInfo = psi };
 
         // Drain stderr to prevent the child process blocking on a full pipe buffer.
-        // Core logs are structured JSON on stderr; the terminal host does not forward them.
-        // When _onStderrLine is set (e.g. in tests), route each line to that callback instead.
+        // Core logs are structured lines on stderr; when _onStderrLine is set, route each
+        // line to that callback (e.g. a host diagnostic sink or a test capture).
         if (_onStderrLine is not null)
             _process.ErrorDataReceived += (_, e) => { if (e.Data is not null) _onStderrLine(e.Data); };
         else
