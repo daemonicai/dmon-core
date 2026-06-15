@@ -32,17 +32,8 @@
     <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
   </PropertyGroup>
 
-  <!-- SourceLink — build-time only, not a runtime or pack dependency -->
-  <ItemGroup>
-    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0"
-                      PrivateAssets="all" />
-  </ItemGroup>
-
-  <!-- MinVer — compute version from git tags; build-time only -->
-  <ItemGroup>
-    <PackageReference Include="MinVer" Version="6.0.0"
-                      PrivateAssets="all" />
-  </ItemGroup>
+  <!-- SourceLink and MinVer are declared as GlobalPackageReference in Directory.Packages.props
+       (CPM-idiomatic; implies PrivateAssets="all" and applies to every project). -->
 
   <!-- Version floor: untagged builds produce 0.2.0-alpha.0 (matching ProtocolVersion.Current = "0.2") -->
   <PropertyGroup>

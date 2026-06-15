@@ -14,7 +14,9 @@
 
   <ItemGroup>
     <!-- Reference the packed SDK packages only — no ProjectReference into this repo. -->
-    <PackageReference Include="Dmon.Abstractions" Version="$(DmonSdkVersion)" />
+    <!-- VersionOverride: bypasses CPM — version is injected at build time by the smoke
+         script via -p:DmonSdkVersion=<packed version>; not centrally managed. -->
+    <PackageReference Include="Dmon.Abstractions" VersionOverride="$(DmonSdkVersion)" />
   </ItemGroup>
 
 </Project>

@@ -9,7 +9,7 @@
 
   <ItemGroup>
     <!-- M.E.AI pinned to the abstractions version Anthropic 12.x targets; re-validate when bumping Anthropic. -->
-    <PackageReference Include="Microsoft.Extensions.AI.OpenAI" Version="10.5.1" />
+    <PackageReference Include="Microsoft.Extensions.AI.OpenAI" />
   </ItemGroup>
 
   <ItemGroup>

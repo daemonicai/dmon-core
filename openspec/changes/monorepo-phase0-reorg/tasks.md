@@ -6,9 +6,9 @@
 
 ## 2. Central Package Management (at current layout)
 
-- [ ] 2.1 Add root `Directory.Packages.props` with `ManagePackageVersionsCentrally=true` and a `<PackageVersion>` per third-party dependency currently pinned inline
-- [ ] 2.2 Remove inline `Version=` from every `PackageReference` across all `.csproj` (leave `PrivateAssets`/build-time refs ADR-conformant)
-- [ ] 2.3 Resolve any `NU1010`/"version not centrally defined" errors; `make build` clean and `make test` green
+- [x] 2.1 Add root `Directory.Packages.props` with `ManagePackageVersionsCentrally=true` and a `<PackageVersion>` per third-party dependency currently pinned inline
+- [x] 2.2 Remove inline `Version=` from every `PackageReference` across all `.csproj` (leave `PrivateAssets`/build-time refs ADR-conformant)
+- [x] 2.3 Resolve any `NU1010`/"version not centrally defined" errors; `make build` clean and `make test` green
 
 ## 3. Bucket moves, reference repair, solutions, and nested props
 

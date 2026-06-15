@@ -13,13 +13,13 @@
   </PropertyGroup>
   <ItemGroup>
     <!-- M.E.AI pinned to the abstractions version Anthropic 12.x targets; re-validate when bumping Anthropic. -->
-    <PackageReference Include="Microsoft.Extensions.AI" Version="10.5.1" />
+    <PackageReference Include="Microsoft.Extensions.AI" />
     <!-- IConfigurationManager lives in M.E.Configuration; pin to the same 10.0.8 line used by Dmon.Core. -->
-    <PackageReference Include="Microsoft.Extensions.Configuration" Version="10.0.8" />
+    <PackageReference Include="Microsoft.Extensions.Configuration" />
     <!-- IServiceCollection is part of this package's public surface; declare it directly rather than relying on transitive resolution. -->
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.8" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
     <!-- ServiceCollection + BuildServiceProvider() used by SubAgentProviderRegistration to build the isolated mini-container. -->
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.8" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Dmon.Protocol\Dmon.Protocol.csproj" />

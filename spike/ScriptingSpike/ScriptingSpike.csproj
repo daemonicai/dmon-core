@@ -10,7 +10,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Dotnet.Script.Core" Version="2.0.0" />
+    <PackageReference Include="Dotnet.Script.Core" />
   </ItemGroup>
 
 </Project>

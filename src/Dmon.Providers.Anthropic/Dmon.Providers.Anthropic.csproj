@@ -15,7 +15,7 @@
 
   <ItemGroup>
     <!-- M.E.AI pinned to the abstractions version Anthropic 12.x targets; re-validate when bumping Anthropic. -->
-    <PackageReference Include="Anthropic" Version="12.24.1" />
+    <PackageReference Include="Anthropic" />
   </ItemGroup>
 
   <ItemGroup>

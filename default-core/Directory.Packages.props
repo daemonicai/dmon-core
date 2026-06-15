@@ -1,0 +1,15 @@
+<Project>
+  <!--
+    Opt this subtree out of Central Package Management.
+
+    default-core/Dmon.cs is a dotnet-run file; the SDK generates its .csproj
+    from #:package directives with floating version pins (e.g. dmoncore@0.2.*).
+    CPM does not support floating versions for first-party packages resolved from
+    a local feed, and these packages are not part of the repo's CPM catalogue.
+    MSBuild walks up and imports the nearest Directory.Packages.props; placing
+    this file here shadows the root one and turns CPM off for this directory.
+  -->
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+</Project>

@@ -14,7 +14,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="GeminiDotnet.Extensions.AI" Version="0.25.0" />
+    <PackageReference Include="GeminiDotnet.Extensions.AI" />
   </ItemGroup>
 
   <ItemGroup>
