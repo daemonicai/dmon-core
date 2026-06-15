@@ -219,8 +219,8 @@ public sealed class DmonHostBuilder : IDmonHostBuilder
         }
 
         // DI-discovery: enumerate IToolExtension singletons registered via AddToolExtension
-        // and route into IToolRegistry. Builtin tools are NOT registered here — they are
-        // handled by BuiltinToolsInitializer (IHostedService) which runs during host.StartAsync.
+        // (or AddBuiltinTools, or engine-internal registrations in AddDmonCore) and route
+        // into IToolRegistry.
         IToolRegistry toolRegistry = host.Services.GetRequiredService<IToolRegistry>();
         foreach (IToolExtension ext in host.Services.GetServices<IToolExtension>())
         {

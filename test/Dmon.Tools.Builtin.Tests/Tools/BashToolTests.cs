@@ -1,10 +1,10 @@
-using Dmon.BuiltinTools.Bash;
-using Dmon.BuiltinTools.Tools;
+using Dmon.Tools.Builtin.Bash;
+using Dmon.Tools.Builtin.Tools;
 using Dmon.Protocol.Enums;
 using Dmon.Protocol.Permissions;
 using Microsoft.Extensions.AI;
 
-namespace Dmon.BuiltinTools.Tests.Tools;
+namespace Dmon.Tools.Builtin.Tests.Tools;
 
 public sealed class BashToolTests
 {

@@ -29,6 +29,7 @@
     <ProjectReference Include="..\..\src\Dmon.Providers.OpenAI\Dmon.Providers.OpenAI.csproj" />
     <ProjectReference Include="..\..\src\Dmon.Providers.Gemini\Dmon.Providers.Gemini.csproj" />
     <ProjectReference Include="..\..\src\Dmon.Providers.Ollama\Dmon.Providers.Ollama.csproj" />
+    <ProjectReference Include="..\..\src\Dmon.Tools.Builtin\Dmon.Tools.Builtin.csproj" />
   </ItemGroup>
 
 </Project>

@@ -1,12 +1,12 @@
 using System.Diagnostics;
-using Dmon.BuiltinTools.Bash;
+using Dmon.Tools.Builtin.Bash;
 using Dmon.Abstractions.Extensions;
 using Dmon.Protocol.Enums;
 using Dmon.Protocol.Models;
 using Dmon.Protocol.Permissions;
 using Microsoft.Extensions.AI;
 
-namespace Dmon.BuiltinTools.Tools;
+namespace Dmon.Tools.Builtin.Tools;
 
 public sealed class BashTool : IToolExtension
 {

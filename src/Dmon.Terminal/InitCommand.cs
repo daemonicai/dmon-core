@@ -48,6 +48,7 @@ public static class InitCommand
 //   #:package Acme.DmonExt@1.0.*
 //   ...
 //   DmonHost.CreateBuilder(args)
+//       .AddBuiltinTools()
 //       .AddToolExtension<Acme.DmonExt.AcmeExtension>()
 //       .Build()
 //       .RunAsync();
@@ -55,10 +56,14 @@ public static class InitCommand
 // Build:  dotnet build {FileName}
 // Run:    dotnet run {FileName}
 #:package dmoncore@{pin}.*
+#:package Dmon.Tools.Builtin@{pin}.*
 
 using Dmon.Hosting;
 
-await DmonHost.CreateBuilder(args).Build().RunAsync();
+await DmonHost.CreateBuilder(args)
+    .AddBuiltinTools()
+    .Build()
+    .RunAsync();
 """;
     }
 }

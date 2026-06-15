@@ -1,18 +1,21 @@
 using Dmon.Abstractions;
+using Dmon.Abstractions.Extensions;
 using Dmon.Abstractions.Memory;
 using Dmon.Abstractions.Providers;
 using Dmon.Core.Auth;
+using Dmon.Core.Bootstrap;
+using Dmon.Core.BuiltinTools;
 using Dmon.Core.Config;
 using Dmon.Core.Extensions;
+using Dmon.Core.Extensions.NuGet;
 using Dmon.Core.Extensions.Security;
 using Dmon.Core.GitHub;
-using Dmon.Core.SystemPrompt;
-using Dmon.Core.Bootstrap;
 using Dmon.Core.Permissions;
-using Dmon.Protocol.Permissions;
 using Dmon.Core.Providers;
 using Dmon.Core.Rpc;
 using Dmon.Core.Session;
+using Dmon.Core.SystemPrompt;
+using Dmon.Protocol.Permissions;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
@@ -142,7 +145,20 @@ public static class DmonServiceExtensions
         services.AddSingleton<SetupCheckService>();
 
         services.AddHttpClient();
-        services.AddHostedService<BuiltinToolsInitializer>();
+
+        // Engine-internal tools: extension discovery. These are always-on and
+        // depend on engine-internal services (NuGetSearchService, IGhCliService,
+        // IProviderRegistry), so they register here rather than via AddBuiltinTools().
+        services.AddSingleton<INuGetSearchService>(sp =>
+            new NuGetSearchService(
+                sp.GetRequiredService<IHttpClientFactory>().CreateClient("builtin"),
+                sp.GetRequiredService<IGhCliService>()));
+        services.AddSingleton<IToolExtension>(sp =>
+            new ExtensionSearchTool(sp.GetRequiredService<INuGetSearchService>()));
+        services.AddSingleton<IToolExtension>(sp =>
+            new ExtensionReadmeTool(
+                sp.GetRequiredService<IGhCliService>(),
+                sp.GetRequiredService<INuGetSearchService>()));
 
         // Expose IConfigurationRoot so middleware can call
         // GetRequiredService<IConfigurationRoot>().GetSection("middleware:<ClassName>").

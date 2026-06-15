@@ -30,7 +30,7 @@
     <Project Path="src\Dmon.Abstractions\Dmon.Abstractions.csproj" />
     <Project Path="src\Dmon.Terminal\Dmon.Terminal.csproj" />
     <Project Path="src\Dmon.Core\Dmon.Core.csproj" />
-    <Project Path="src\Dmon.BuiltinTools\Dmon.BuiltinTools.csproj" />
+    <Project Path="src\Dmon.Tools.Builtin\Dmon.Tools.Builtin.csproj" />
     <Project Path="src\Dmon.Protocol\Dmon.Protocol.csproj" />
     <Project Path="src\Dmon.Protocol.SchemaGen\Dmon.Protocol.SchemaGen.csproj" />
     <Project Path="src\Dmon.Providers.Anthropic\Dmon.Providers.Anthropic.csproj" />
@@ -45,7 +45,7 @@
     <Project Path="test\Dmon.Core.Tests\Dmon.Core.Tests.csproj" />
     <Project Path="test\Dmon.Extensions.Tests\Dmon.Extensions.Tests.csproj" />
     <Project Path="test\Dmon.Protocol.Tests\Dmon.Protocol.Tests.csproj" />
-    <Project Path="test\Dmon.BuiltinTools.Tests\Dmon.BuiltinTools.Tests.csproj" />
+    <Project Path="test\Dmon.Tools.Builtin.Tests\Dmon.Tools.Builtin.Tests.csproj" />
     <Project Path="test\Dmon.Providers.Tests\Dmon.Providers.Tests.csproj" />
     <Project Path="test\Dmon.Extensions.Omlx.Tests\Dmon.Extensions.Omlx.Tests.csproj" />
     <Project Path="test\Dmon.Terminal.Tests\Dmon.Terminal.Tests.csproj" />

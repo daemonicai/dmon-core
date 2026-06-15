@@ -181,38 +181,27 @@ public sealed class DmonHostBuilderVerbTests
         Assert.Equal("claude-opus-4", loaded.Model);
     }
 
-    // ── 3.4 — builtin tools still loaded ─────────────────────────────────────
+    // ── 3.4 — builtin tools registered via AddBuiltinTools() ────────────────
 
     /// <summary>
-    /// After switching to DI-discovery, builtin tools registered by
-    /// <see cref="Dmon.Core.Extensions.BuiltinToolsInitializer"/> must still be
-    /// available when the host starts. This test starts the host and checks the
-    /// well-known "read_file" tool is present.
+    /// Builtin tools are opt-in via <c>.AddBuiltinTools()</c> in the composition root.
+    /// This test verifies that calling <c>.AddBuiltinTools()</c> makes "read_file"
+    /// available in the registry after <c>Build()</c>, using the DI-discovery path.
     /// </summary>
     [Fact]
-    public async Task BuiltinTools_StillRegistered_AfterDiDiscoverySwitch()
+    public void BuiltinTools_RegisteredViaAddBuiltinTools_ReadFilePresent()
     {
         using StringReader stdin = new(string.Empty);
         using StringWriter stdout = new();
-        using CancellationTokenSource cts = new(TimeSpan.FromSeconds(15));
 
         DmonBuiltHost host = DmonHost.CreateBuilder()
             .WithStdio(stdin, stdout)
             .WithoutTelemetry()
+            .AddBuiltinTools()
             .Build();
-
-        // Start the host so BuiltinToolsInitializer.StartAsync runs.
-        Task runTask = host.RunAsync(cts.Token);
-
-        // Give the host a moment to start and register builtins.
-        await Task.Delay(500, CancellationToken.None);
 
         IToolRegistry registry = host.Services.GetRequiredService<IToolRegistry>();
         IReadOnlyList<AIFunction> tools = registry.GetAll();
-
-        // Cancel and await cleanup before asserting (avoid leaving the host running).
-        await cts.CancelAsync();
-        try { await runTask; } catch (OperationCanceledException) { }
 
         Assert.Contains(tools, t => t.Name == "read_file");
     }

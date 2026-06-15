@@ -1,7 +1,7 @@
-using Dmon.BuiltinTools.Tools;
+using Dmon.Tools.Builtin.Tools;
 using Microsoft.Extensions.AI;
 
-namespace Dmon.BuiltinTools.Tests.Tools;
+namespace Dmon.Tools.Builtin.Tests.Tools;
 
 public sealed class EditFileToolTests
 {

@@ -3,7 +3,7 @@ using Dmon.Protocol.Enums;
 using Dmon.Protocol.Permissions;
 using Microsoft.Extensions.AI;
 
-namespace Dmon.BuiltinTools.Tools;
+namespace Dmon.Tools.Builtin.Tools;
 
 public sealed class GlobTool : IToolExtension
 {

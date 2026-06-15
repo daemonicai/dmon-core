@@ -1,6 +1,6 @@
-using Dmon.BuiltinTools.Bash;
+using Dmon.Tools.Builtin.Bash;
 
-namespace Dmon.BuiltinTools.Tests.Bash;
+namespace Dmon.Tools.Builtin.Tests.Bash;
 
 public sealed class BashCompositeDetectorTests
 {

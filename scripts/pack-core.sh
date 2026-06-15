@@ -34,6 +34,12 @@ dotnet pack "$REPO/src/Dmon.Abstractions/Dmon.Abstractions.csproj" \
     -c Release -o "$FEED" --nologo \
     -p:MinVerVersionOverride="$VERSION_OVERRIDE"
 
+echo "==> Packing Dmon.Tools.Builtin (version override: $VERSION_OVERRIDE)"
+dotnet pack "$REPO/src/Dmon.Tools.Builtin/Dmon.Tools.Builtin.csproj" \
+    -c Release -o "$FEED" --nologo \
+    -p:MinVerVersionOverride="$VERSION_OVERRIDE" \
+    -p:RestoreSources="$FEED;https://api.nuget.org/v3/index.json"
+
 echo "==> Packing provider packages (version override: $VERSION_OVERRIDE)"
 dotnet pack "$REPO/src/Dmon.Providers.Anthropic/Dmon.Providers.Anthropic.csproj" \
     -c Release -o "$FEED" --nologo \
@@ -73,6 +79,7 @@ dotnet pack "$REPO/samples/Dmon.SampleExtension/Dmon.SampleExtension.csproj" \
 echo ""
 echo "PASS: dmoncore $VERSION_OVERRIDE and contract packages packed to $FEED"
 echo "      Consumer can reference: #:package dmoncore@0.2.*"
+echo "      Builtin tools: #:package Dmon.Tools.Builtin@0.2.*"
 echo "      Composed core: #:package dmoncore@0.2.* + #:package Dmon.SampleExtension@0.2.*"
 echo "      Providers: Dmon.Providers.Anthropic/OpenAI/Gemini/Ollama@0.2.*"
 echo "      Feed: $FEED"

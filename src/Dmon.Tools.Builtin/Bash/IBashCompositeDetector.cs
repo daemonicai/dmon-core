@@ -1,4 +1,4 @@
-namespace Dmon.BuiltinTools.Bash;
+namespace Dmon.Tools.Builtin.Bash;
 
 public interface IBashCompositeDetector
 {
