@@ -36,7 +36,6 @@ public interface IToolRegistry
 
     /// <summary>
     /// Returns a snapshot of the registered extension names and their tool counts.
-    /// Used by <c>extension.list</c> and <see cref="ExtensionLoadedEvent"/>.
     /// </summary>
     IReadOnlyList<RegisteredExtensionSnapshot> GetSnapshot();
 

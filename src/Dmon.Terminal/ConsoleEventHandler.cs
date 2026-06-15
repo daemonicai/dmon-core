@@ -240,10 +240,6 @@ internal sealed class ConsoleEventHandler
             case AgentEndEvent:
             case ToolExecutionStartEvent:
             case ToolExecutionEndEvent:
-            case ExtensionLoadedEvent:
-            // ExtensionUnloadedEvent: intentionally silent — tools are deregistered (no longer
-            // offered to the LLM) but the assembly remains resident until the core restarts.
-            case ExtensionUnloadedEvent:
             case AuthLoginCompleteEvent:
             case AuthLogoutCompleteEvent:
             case AuthLoginFailedEvent:

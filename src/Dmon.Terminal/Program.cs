@@ -5,6 +5,16 @@ using Dmon.Protocol.Events;
 using Dmon.Runtime;
 using Dmon.Terminal;
 
+// Dispatch top-level subcommands before starting the TUI.
+if (args.Length > 0 && args[0] == "init")
+{
+    int exitCode = InitCommand.Run(
+        Directory.GetCurrentDirectory(),
+        Console.Out,
+        Console.Error);
+    return exitCode;
+}
+
 string? corePathOverride = null;
 for (int i = 0; i < args.Length - 1; i++)
 {
@@ -166,3 +176,5 @@ try
     await Task.WhenAll(dispatchTask ?? Task.CompletedTask, drainTask).ConfigureAwait(false);
 }
 catch (OperationCanceledException) { }
+
+return 0;

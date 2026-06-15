@@ -18,16 +18,26 @@ public sealed class CoreProcessFixture : IAsyncLifetime
     public List<string> Stderr { get; } = [];
     public bool AgentReadyReceived { get; private set; }
     public string? AgentReadyLine { get; private set; }
+
+    /// <summary>
+    /// Per-fixture content root the core runs in. Each fixture instance gets its
+    /// own temp directory so parallel core-launching fixtures never share a mutable
+    /// <c>appsettings.json</c> — a shared file is read by one booting core while a
+    /// sibling fixture truncates it mid-write, crashing the reader.
+    /// </summary>
     public string? CoreDir { get; private set; }
 
     public bool IsRunning => _process is { HasExited: false };
 
     public async Task InitializeAsync()
     {
-        (string coreDll, string coreDir) = FindCoreDll();
-        CoreDir = coreDir;
+        (string coreDll, _) = FindCoreDll();
 
-        string appSettingsPath = Path.Combine(coreDir, "appsettings.json");
+        string contentRoot = Path.Combine(Path.GetTempPath(), $"dmon-core-fixture-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(contentRoot);
+        CoreDir = contentRoot;
+
+        string appSettingsPath = Path.Combine(contentRoot, "appsettings.json");
         await File.WriteAllTextAsync(appSettingsPath, """
         {
           "providers": {
@@ -40,10 +50,6 @@ public sealed class CoreProcessFixture : IAsyncLifetime
         }
         """);
 
-        string dmonDir = Path.Combine(coreDir, ".dmon");
-        if (Directory.Exists(dmonDir))
-            Directory.Delete(dmonDir, recursive: true);
-
         var psi = new ProcessStartInfo
         {
             FileName = "dotnet",
@@ -53,7 +59,7 @@ public sealed class CoreProcessFixture : IAsyncLifetime
             RedirectStandardError = true,
             UseShellExecute = false,
             CreateNoWindow = true,
-            WorkingDirectory = coreDir
+            WorkingDirectory = contentRoot
         };
 
         _process = new Process { StartInfo = psi };
@@ -89,14 +95,10 @@ public sealed class CoreProcessFixture : IAsyncLifetime
 
         _process?.Dispose();
 
-        if (CoreDir is not null)
+        if (CoreDir is not null && Directory.Exists(CoreDir))
         {
-            string dmonDir = Path.Combine(CoreDir, ".dmon");
-            if (Directory.Exists(dmonDir))
-            {
-                try { Directory.Delete(dmonDir, recursive: true); }
-                catch { /* best effort */ }
-            }
+            try { Directory.Delete(CoreDir, recursive: true); }
+            catch { /* best effort */ }
         }
     }
 
@@ -147,20 +149,14 @@ public sealed class CoreProcessFixture : IAsyncLifetime
         string assemblyDir = Path.GetDirectoryName(assemblyPath) ?? ".";
         string repoRoot = Path.GetFullPath(Path.Combine(assemblyDir, "../../../../.."));
 
-        string[] candidates =
-        [
-            Path.Combine(repoRoot, "src/Dmon.Core/bin/Debug/net10.0/dmoncore.dll"),
-            Path.Combine(repoRoot, "src/Dmon.Core/bin/Release/net10.0/dmoncore.dll"),
-        ];
-
-        foreach (string candidate in candidates)
-        {
-            if (File.Exists(candidate))
-                return (candidate, Path.GetDirectoryName(candidate)!);
-        }
+        // Prebuilt default-core closure produced by `make build-core`
+        // (publish of default-core/Dmon.cs into build/dmoncore/).
+        string dll = Path.Combine(repoRoot, "build/dmoncore/dmoncore.dll");
+        if (File.Exists(dll))
+            return (dll, Path.GetDirectoryName(dll)!);
 
         throw new FileNotFoundException(
-            "Could not find dmoncore.dll. Run 'dotnet build' first.",
+            "Could not find build/dmoncore/dmoncore.dll. Run 'make build-core' first.",
             "dmoncore.dll");
     }
 }

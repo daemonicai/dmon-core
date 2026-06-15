@@ -27,9 +27,9 @@ namespace Dmon.Extensions;
 /// </list>
 /// </para>
 /// <para>
-/// Extensions are loaded via the <c>extension.load</c> RPC command. The dmon core
-/// discovers <see cref="IDmonExtension"/> implementations, instantiates them, and
-/// registers their functions into the per-session tool registry.
+/// Extensions are registered at composition time via <c>builder.AddExtension&lt;T&gt;()</c>
+/// in <c>Dmon.cs</c>. The dmon core registers their functions into the tool registry
+/// before the JSONL/stdio loop starts.
 /// </para>
 /// </remarks>
 public interface IDmonExtension

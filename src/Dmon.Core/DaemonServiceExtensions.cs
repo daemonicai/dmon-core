@@ -64,8 +64,9 @@ public static class DmonServiceExtensions
     }
 
     /// <summary>
-    /// Registers extension loading services: tool registry, loaders, extension service,
-    /// and promote service.
+    /// Registers extension services: tool registry, middleware registry, pipeline builder,
+    /// and security helpers. Extensions themselves are registered through the
+    /// <c>DmonHostBuilder</c> at composition time.
     /// </summary>
     public static IServiceCollection AddDmonExtensions(this IServiceCollection services)
     {
@@ -81,21 +82,6 @@ public static class DmonServiceExtensions
         services.AddSingleton<IToolRegistry, ToolRegistry>();
         services.AddSingleton<IMiddlewareRegistry, MiddlewareRegistry>();
         services.AddSingleton<MiddlewarePipelineBuilder>();
-        services.AddSingleton<CsxScriptLoader>();
-        services.AddSingleton<NuGetExtensionLoader>();
-        services.AddSingleton<IExtensionLoader>(sp => sp.GetRequiredService<CsxScriptLoader>());
-        services.AddSingleton<IExtensionLoader>(sp => sp.GetRequiredService<NuGetExtensionLoader>());
-        services.AddSingleton<ExtensionService>(sp => new ExtensionService(
-            sp.GetRequiredService<IToolRegistry>(),
-            sp.GetRequiredService<IEnumerable<IExtensionLoader>>(),
-            sp.GetRequiredService<ILogger<ExtensionService>>(),
-            sp.GetService<IProviderRegistry>(),
-            sp.GetRequiredService<IMiddlewareRegistry>()));
-        services.AddSingleton<PromoteService>();
-
-        services.AddSingleton<ExtensionsConfigReader>();
-        services.AddSingleton<EffectiveExtensionSetResolver>();
-        services.AddSingleton<StartupExtensionLoader>();
 
         services.AddSingleton<ProfilesConfigReader>();
         services.AddSingleton<EffectiveProfileSetResolver>();
@@ -137,13 +123,16 @@ public static class DmonServiceExtensions
             return new PermissionPolicy(project, null);
         });
 
-        services.AddSingleton<IEventEmitter>(_ => new EventEmitter(Console.Out));
+        // TryAdd so DmonHostBuilder's pre-registered TextWriter (injected via WithStdio) wins.
+        services.TryAddSingleton<TextWriter>(_ => Console.Out);
+        services.TryAddSingleton<TextReader>(_ => Console.In);
+        services.TryAddSingleton<IEventEmitter>(sp => new EventEmitter(sp.GetRequiredService<TextWriter>()));
 
         services.AddSingleton<AgentConfigResolver>();
         services.AddSingleton<ISystemPromptBuilder, SystemPromptBuilder>();
 
         // Agent profile resolution — resolved once per session, shared by Groups 4-6 consumers.
-        // Config paths mirror StartupExtensionLoader / BootstrapService conventions.
+        // Config paths mirror BootstrapService conventions.
         services.AddSingleton<IAgentProfileResolver>(sp =>
         {
             EffectiveProfileSetResolver setResolver = sp.GetRequiredService<EffectiveProfileSetResolver>();
@@ -167,8 +156,6 @@ public static class DmonServiceExtensions
         services.AddSingleton<IModelHandler, NullModelHandler>();
         services.AddSingleton<SessionHandler>();
         services.AddSingleton<ISessionHandler>(sp => sp.GetRequiredService<SessionHandler>());
-        services.AddSingleton<ConfigExtensionHandler>();
-        services.AddSingleton<IExtensionHandler>(sp => sp.GetRequiredService<ConfigExtensionHandler>());
         services.AddSingleton<IAuthHandler, NullAuthHandler>();
         services.AddSingleton<ThinkingHandler>();
         services.AddSingleton<IThinkingHandler>(sp => sp.GetRequiredService<ThinkingHandler>());

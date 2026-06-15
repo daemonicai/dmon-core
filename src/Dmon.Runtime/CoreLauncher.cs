@@ -16,10 +16,10 @@ public sealed class CoreLauncher : ICoreLauncher
     private readonly CoreResolver _resolver;
 
     /// <summary>
-    /// Creates a <see cref="CoreLauncher"/> backed by the live NuGet.Protocol source.
+    /// Creates a <see cref="CoreLauncher"/> with the default resolver.
     /// </summary>
     public CoreLauncher()
-        : this(new CoreResolver(new NuGetCoreAcquisitionSource())) { }
+        : this(new CoreResolver()) { }
 
     /// <summary>
     /// Creates a <see cref="CoreLauncher"/> with an injected resolver (for testing).
@@ -44,7 +44,7 @@ public sealed class CoreLauncher : ICoreLauncher
     /// after the consumed <c>agentReady</c> line, ready for the host's RPC event loop.
     /// </returns>
     /// <exception cref="CoreAcquisitionException">
-    /// The core could not be resolved or downloaded.
+    /// The core could not be resolved or built.
     /// </exception>
     /// <exception cref="ProtocolMismatchException">
     /// The core's reported protocol version does not match the host's.
@@ -56,10 +56,18 @@ public sealed class CoreLauncher : ICoreLauncher
         CancellationToken cancellationToken = default)
     {
         ResolvedCore resolved = await _resolver
-            .ResolveAsync(corePathOverride, cancellationToken)
+            .ResolveAsync(workingDirectory, corePathOverride, cancellationToken)
             .ConfigureAwait(false);
 
         CoreProcessManager process = new(resolved, workingDirectory, onStderrLine);
+
+        // For file-based programs, build first (separate captured process) before starting the stdio child.
+        if (resolved.LaunchMode == LaunchMode.FileBasedProgram)
+        {
+            await CoreProcessManager.BuildFileBasedProgramAsync(resolved.Path, cancellationToken)
+                .ConfigureAwait(false);
+        }
+
         await process.StartAsync().ConfigureAwait(false);
 
         AgentReadyEvent ready;
@@ -89,8 +97,8 @@ public sealed class CoreLauncher : ICoreLauncher
     }
 
     /// <summary>
-    /// Stops the old core, starts a fresh one on the same
-    /// <see cref="CoreProcessManager"/> instance, and re-runs the protocol gate.
+    /// Stops the old core, optionally rebuilds (for file-based programs), starts a fresh one
+    /// on the same <see cref="CoreProcessManager"/> instance, and re-runs the protocol gate.
     /// The returned <see cref="CoreSession"/> wraps the same process manager as
     /// <paramref name="current"/>; do NOT dispose <paramref name="current"/> —
     /// doing so would tear down the live process that the new session depends on.
@@ -99,6 +107,16 @@ public sealed class CoreLauncher : ICoreLauncher
         CoreSession current,
         CancellationToken cancellationToken = default)
     {
+        // For file-based programs: rebuild (incremental — SDK up-to-date check is the staleness gate)
+        // before restarting. An unchanged Dmon.cs is a near-no-op (no restore/recompile).
+        if (current.Process is CoreProcessManager mgr &&
+            mgr.ResolvedCore.LaunchMode == LaunchMode.FileBasedProgram)
+        {
+            await CoreProcessManager.BuildFileBasedProgramAsync(
+                    mgr.ResolvedCore.Path, cancellationToken)
+                .ConfigureAwait(false);
+        }
+
         // RestartAsync on the existing manager: stops the old process, starts a new one.
         await current.Process.RestartAsync().ConfigureAwait(false);
 

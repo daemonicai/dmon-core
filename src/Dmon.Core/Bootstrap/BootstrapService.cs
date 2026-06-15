@@ -30,12 +30,7 @@ public sealed class BootstrapService
         "# Dmon:Session:Compaction:Threshold: 100\n" +
         "# Dmon:Provider:Retry:BaseDelayMs: 1000\n" +
         "# Dmon:Provider:Retry:MaxDelayMs: 30000\n" +
-        "# Dmon:Provider:Retry:MaxAttempts: 5\n" +
-        "\n" +
-        "# Extensions to load at startup. Each entry requires a 'source' identifying\n" +
-        "# a NuGet package id (nuget:<id>), an assembly path, or a .csx script path.\n" +
-        "# extensions:\n" +
-        "#   - source: \"nuget:Acme.Tools\"\n";
+        "# Dmon:Provider:Retry:MaxAttempts: 5\n";
 
     private readonly IEventEmitter _emitter;
     private readonly ILogger<BootstrapService> _logger;

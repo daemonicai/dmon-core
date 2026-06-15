@@ -1,12 +1,10 @@
-using Dmon.Protocol;
 using Dmon.Runtime;
-using NuGet.Versioning;
 
 namespace Dmon.Runtime.Tests;
 
 /// <summary>
-/// Covers tasks 3.3 / 3.4 / 3.7: discovery precedence and acquisition behaviour,
-/// all offline (no network calls; no real NuGet cache).
+/// Covers task 3.1: discovery precedence — Dmon.cs in CWD > override > prebuilt default.
+/// All tests are offline (filesystem-only; no network, no NuGet cache, no SDK invocation).
 /// </summary>
 public sealed class CoreResolverTests : IDisposable
 {
@@ -25,53 +23,106 @@ public sealed class CoreResolverTests : IDisposable
     }
 
     // ------------------------------------------------------------------
-    // Tier 1: --core-path override wins over everything else
+    // Tier 1: Dmon.cs in working directory wins over override and default
     // ------------------------------------------------------------------
 
     [Fact]
-    public async Task ResolveAsync_OverridePath_WinsOverCacheAndNetwork()
+    public async Task ResolveAsync_DmonCsInCwd_WinsOverOverride()
     {
+        // Place Dmon.cs in the working dir.
+        string dmonCs = Path.Combine(_tempDir, "Dmon.cs");
+        await File.WriteAllTextAsync(dmonCs, "// fake");
+
+        // Also place a prebuilt override that should NOT be chosen.
         string overrideExe = Path.Combine(_tempDir, "override-dmoncore");
         await File.WriteAllTextAsync(overrideExe, "fake");
 
-        FakeCoreAcquisitionSource source = new(
-            networkVersions: [new NuGetVersion("0.1.0")],
-            cachedEntry: (new NuGetVersion("0.1.0"), _tempDir));
+        CoreResolver resolver = new();
+        ResolvedCore result = await resolver.ResolveAsync(_tempDir, overrideExe, CancellationToken.None);
 
-        CoreResolver resolver = new(source);
-        ResolvedCore result = await resolver.ResolveAsync(overrideExe, CancellationToken.None);
+        Assert.Equal(LaunchMode.FileBasedProgram, result.LaunchMode);
+        Assert.Equal(Path.GetFullPath(dmonCs), result.Path);
+    }
 
-        Assert.Equal(LaunchMode.DirectExecutable, result.LaunchMode);
-        Assert.Equal(Path.GetFullPath(overrideExe), result.Path);
-        Assert.False(source.GetAllVersionsCalled, "Network must not be consulted when override is set.");
+    [Fact]
+    public async Task ResolveAsync_DmonCsInCwd_WinsWhenNoOverride()
+    {
+        string dmonCs = Path.Combine(_tempDir, "Dmon.cs");
+        await File.WriteAllTextAsync(dmonCs, "// fake");
+
+        CoreResolver resolver = new();
+        ResolvedCore result = await resolver.ResolveAsync(_tempDir, corePathOverride: null, CancellationToken.None);
+
+        Assert.Equal(LaunchMode.FileBasedProgram, result.LaunchMode);
+        Assert.Equal(Path.GetFullPath(dmonCs), result.Path);
     }
 
     // ------------------------------------------------------------------
-    // Tier 2: DMON_CORE_PATH env var wins over cache and network
+    // Tier 2: --core-path override (.dll) wins over default — DotnetExec
     // ------------------------------------------------------------------
 
     [Fact]
-    public async Task ResolveAsync_EnvVar_WinsOverCacheAndNetwork()
+    public async Task ResolveAsync_OverrideDll_WinsOverDefault_WhenNoDmonCs()
     {
-        string envExe = Path.Combine(_tempDir, "env-dmoncore");
-        await File.WriteAllTextAsync(envExe, "fake");
+        // No Dmon.cs in _tempDir; override is a .dll → must resolve as DotnetExec.
+        string overrideDll = Path.Combine(_tempDir, "override-dmoncore.dll");
+        await File.WriteAllTextAsync(overrideDll, "fake");
+
+        CoreResolver resolver = new();
+        string emptyDir = Path.Combine(_tempDir, "empty");
+        Directory.CreateDirectory(emptyDir);
+
+        ResolvedCore result = await resolver.ResolveAsync(emptyDir, overrideDll, CancellationToken.None);
+
+        Assert.Equal(LaunchMode.DotnetExec, result.LaunchMode);
+        Assert.Equal(Path.GetFullPath(overrideDll), result.Path);
+    }
+
+    // ------------------------------------------------------------------
+    // Tier 2: --core-path override (non-.dll) wins over default — DirectExecutable escape hatch
+    // ------------------------------------------------------------------
+
+    [Fact]
+    public async Task ResolveAsync_OverrideNonDll_WinsOverDefault_WhenNoDmonCs()
+    {
+        // Non-.dll override (dev / escape-hatch binary) must resolve as DirectExecutable.
+        string overrideExe = Path.Combine(_tempDir, "override-dmoncore");
+        await File.WriteAllTextAsync(overrideExe, "fake");
+
+        CoreResolver resolver = new();
+        string emptyDir = Path.Combine(_tempDir, "empty");
+        Directory.CreateDirectory(emptyDir);
+
+        ResolvedCore result = await resolver.ResolveAsync(emptyDir, overrideExe, CancellationToken.None);
+
+        Assert.Equal(LaunchMode.DirectExecutable, result.LaunchMode);
+        Assert.Equal(Path.GetFullPath(overrideExe), result.Path);
+    }
+
+    // ------------------------------------------------------------------
+    // Tier 2: DMON_CORE_PATH env var (.dll) wins over default — DotnetExec
+    // ------------------------------------------------------------------
+
+    [Fact]
+    public async Task ResolveAsync_EnvVarDll_WinsOverDefault_WhenNoDmonCs()
+    {
+        string envDll = Path.Combine(_tempDir, "env-dmoncore.dll");
+        await File.WriteAllTextAsync(envDll, "fake");
+
+        string emptyDir = Path.Combine(_tempDir, "empty");
+        Directory.CreateDirectory(emptyDir);
 
         string? original = Environment.GetEnvironmentVariable("DMON_CORE_PATH");
         try
         {
-            Environment.SetEnvironmentVariable("DMON_CORE_PATH", envExe);
+            Environment.SetEnvironmentVariable("DMON_CORE_PATH", envDll);
 
-            FakeCoreAcquisitionSource source = new(
-                networkVersions: [new NuGetVersion("0.1.0")],
-                cachedEntry: (new NuGetVersion("0.1.0"), _tempDir));
-
-            CoreResolver resolver = new(source);
+            CoreResolver resolver = new();
             ResolvedCore result = await resolver.ResolveAsync(
-                corePathOverride: null, CancellationToken.None);
+                emptyDir, corePathOverride: null, CancellationToken.None);
 
-            Assert.Equal(LaunchMode.DirectExecutable, result.LaunchMode);
-            Assert.Equal(Path.GetFullPath(envExe), result.Path);
-            Assert.False(source.GetAllVersionsCalled);
+            Assert.Equal(LaunchMode.DotnetExec, result.LaunchMode);
+            Assert.Equal(Path.GetFullPath(envDll), result.Path);
         }
         finally
         {
@@ -80,179 +131,142 @@ public sealed class CoreResolverTests : IDisposable
     }
 
     // ------------------------------------------------------------------
-    // Override wins even when cache has a compatible entry
+    // Tier 2: DMON_CORE_PATH env var (non-.dll) — DirectExecutable escape hatch
     // ------------------------------------------------------------------
 
     [Fact]
-    public async Task ResolveAsync_OverridePath_WinsOverCompatibleCache()
+    public async Task ResolveAsync_EnvVarNonDll_WinsOverDefault_WhenNoDmonCs()
     {
-        string overrideExe = Path.Combine(_tempDir, "override-dmoncore");
-        await File.WriteAllTextAsync(overrideExe, "fake");
+        string envExe = Path.Combine(_tempDir, "env-dmoncore");
+        await File.WriteAllTextAsync(envExe, "fake");
 
-        string cacheExpandedDir = Path.Combine(_tempDir, "cached");
-        Directory.CreateDirectory(cacheExpandedDir);
-        await File.WriteAllTextAsync(Path.Combine(cacheExpandedDir, "dmoncore.dll"), "fake");
+        string emptyDir = Path.Combine(_tempDir, "empty");
+        Directory.CreateDirectory(emptyDir);
 
-        FakeCoreAcquisitionSource source = new(
-            cachedEntry: (new NuGetVersion("0.1.0"), cacheExpandedDir));
+        string? original = Environment.GetEnvironmentVariable("DMON_CORE_PATH");
+        try
+        {
+            Environment.SetEnvironmentVariable("DMON_CORE_PATH", envExe);
 
-        CoreResolver resolver = new(source);
-        ResolvedCore result = await resolver.ResolveAsync(overrideExe, CancellationToken.None);
+            CoreResolver resolver = new();
+            ResolvedCore result = await resolver.ResolveAsync(
+                emptyDir, corePathOverride: null, CancellationToken.None);
 
-        Assert.Equal(LaunchMode.DirectExecutable, result.LaunchMode);
-        Assert.Equal(Path.GetFullPath(overrideExe), result.Path);
+            Assert.Equal(LaunchMode.DirectExecutable, result.LaunchMode);
+            Assert.Equal(Path.GetFullPath(envExe), result.Path);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("DMON_CORE_PATH", original);
+        }
     }
 
     // ------------------------------------------------------------------
-    // Tier 3: cache hit — no network call
+    // Tier 1 beats tier 2: Dmon.cs beats DMON_CORE_PATH env var
     // ------------------------------------------------------------------
 
     [Fact]
-    public async Task ResolveAsync_CacheHit_DoesNotCallNetwork()
+    public async Task ResolveAsync_DmonCsInCwd_WinsOverEnvVar()
     {
-        string cacheExpandedDir = Path.Combine(_tempDir, "cached");
-        Directory.CreateDirectory(cacheExpandedDir);
-        await File.WriteAllTextAsync(Path.Combine(cacheExpandedDir, "dmoncore.dll"), "fake");
+        string dmonCs = Path.Combine(_tempDir, "Dmon.cs");
+        await File.WriteAllTextAsync(dmonCs, "// fake");
 
-        // Derive the cached version from ProtocolVersion.Current so the resolver's
-        // Major.Minor filter matches regardless of future protocol bumps.
-        string currentMM = ProtocolVersion.MajorMinor(ProtocolVersion.Current)!;
-        NuGetVersion cachedVersion = NuGetVersion.Parse($"{currentMM}.5");
-        FakeCoreAcquisitionSource source = new(
-            cachedEntry: (cachedVersion, cacheExpandedDir));
+        string envExe = Path.Combine(_tempDir, "env-dmoncore");
+        await File.WriteAllTextAsync(envExe, "fake");
 
-        CoreResolver resolver = new(source);
-        ResolvedCore result = await resolver.ResolveAsync(
-            corePathOverride: null, CancellationToken.None);
+        string? original = Environment.GetEnvironmentVariable("DMON_CORE_PATH");
+        try
+        {
+            Environment.SetEnvironmentVariable("DMON_CORE_PATH", envExe);
 
-        Assert.Equal(LaunchMode.DotnetExec, result.LaunchMode);
-        Assert.Contains("dmoncore.dll", result.Path);
-        Assert.False(source.GetAllVersionsCalled, "Network must not be hit when cache has a compatible version.");
-        Assert.False(source.AcquireCalled);
+            CoreResolver resolver = new();
+            ResolvedCore result = await resolver.ResolveAsync(
+                _tempDir, corePathOverride: null, CancellationToken.None);
+
+            Assert.Equal(LaunchMode.FileBasedProgram, result.LaunchMode);
+            Assert.Equal(Path.GetFullPath(dmonCs), result.Path);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("DMON_CORE_PATH", original);
+        }
     }
 
     // ------------------------------------------------------------------
-    // Tier 4: no cache → fetch; version filter selects newest matching Major.Minor
+    // Tier 3: published-sibling dmoncore.dll resolves as DotnetExec
+    //
+    // We can't place a file at the real published-sibling path (relative to the
+    // entry assembly), so this test exercises the resolver indirectly: with no
+    // Dmon.cs and no override, and both published and dev-bin paths absent, the
+    // resolver throws CoreAcquisitionException.  The DotnetExec assertion for the
+    // published tier is covered by the override-dll tests above (same code path —
+    // OverrideLaunchMode → DotnetExec for .dll) and by the integration build.
+    // ------------------------------------------------------------------
+
+    // ------------------------------------------------------------------
+    // Tier 3: no Dmon.cs, no override → resolves prebuilt default (DotnetExec) or
+    // throws CoreAcquisitionException when no default is built. Either way: offline,
+    // no NuGet/network call.
     // ------------------------------------------------------------------
 
     [Fact]
-    public async Task ResolveAsync_NoCache_FetchesAndPicks_NewestCompatible()
+    public async Task ResolveAsync_NoDmonCsNoOverride_IsOfflineFilesystemOnly()
     {
-        string targetMajorMinor = ProtocolVersion.MajorMinor(ProtocolVersion.Current)!;
+        // Working dir has no Dmon.cs; no override; no env var.
+        // In CI (after `make build`) the dev-bin path build/dmoncore/dmoncore.dll exists
+        // and Tier-3 resolves it as DotnetExec. In a clean checkout with no build output
+        // it throws CoreAcquisitionException. Either outcome is correct; what must NOT
+        // happen is any NuGet/network call — the resolver is filesystem-only.
+        string emptyDir = Path.Combine(_tempDir, "empty");
+        Directory.CreateDirectory(emptyDir);
 
-        // Build a version list: one older compatible, one newer compatible, one incompatible.
-        NuGetVersion olderCompatible = NuGetVersion.Parse($"{targetMajorMinor}.1");
-        NuGetVersion newerCompatible = NuGetVersion.Parse($"{targetMajorMinor}.9");
-        NuGetVersion incompatible = NuGetVersion.Parse("99.99.0");
+        string? original = Environment.GetEnvironmentVariable("DMON_CORE_PATH");
+        try
+        {
+            Environment.SetEnvironmentVariable("DMON_CORE_PATH", null);
 
-        string acquiredDir = Path.Combine(_tempDir, "acquired");
-        Directory.CreateDirectory(acquiredDir);
-        await File.WriteAllTextAsync(Path.Combine(acquiredDir, "dmoncore.dll"), "fake");
-
-        FakeCoreAcquisitionSource source = new(
-            networkVersions: [olderCompatible, newerCompatible, incompatible],
-            acquiredExpandedPath: acquiredDir);
-
-        CoreResolver resolver = new(source);
-        ResolvedCore result = await resolver.ResolveAsync(
-            corePathOverride: null, CancellationToken.None);
-
-        Assert.Equal(LaunchMode.DotnetExec, result.LaunchMode);
-        Assert.True(source.AcquireCalled);
-        Assert.Equal(newerCompatible, source.LastAcquiredVersion);
+            CoreResolver resolver = new();
+            try
+            {
+                ResolvedCore result = await resolver.ResolveAsync(emptyDir, corePathOverride: null, CancellationToken.None);
+                // If it resolved, it must be the prebuilt default via DotnetExec and the
+                // path must point at an existing dmoncore.dll.
+                Assert.Equal(LaunchMode.DotnetExec, result.LaunchMode);
+                Assert.True(File.Exists(result.Path), $"Resolved path must exist: {result.Path}");
+                Assert.True(result.Path.EndsWith("dmoncore.dll", StringComparison.OrdinalIgnoreCase),
+                    $"Resolved path must be dmoncore.dll, got: {result.Path}");
+            }
+            catch (CoreAcquisitionException ex)
+            {
+                // No build output — exception is fine; must be filesystem-only (no NuGet msg).
+                Assert.Contains("DMON_CORE_PATH", ex.Message);
+                Assert.Contains("--core-path", ex.Message);
+                Assert.Contains("Dmon.cs", ex.Message);
+            }
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("DMON_CORE_PATH", original);
+        }
     }
 
     // ------------------------------------------------------------------
-    // Version filter: incompatible Major.Minor is never selected
+    // Missing override file is skipped (falls through to next tier)
     // ------------------------------------------------------------------
 
     [Fact]
-    public async Task ResolveAsync_NoCompatibleVersion_ThrowsCoreAcquisitionException()
+    public async Task ResolveAsync_OverridePath_SkippedIfFileAbsent()
     {
-        FakeCoreAcquisitionSource source = new(
-            networkVersions: [NuGetVersion.Parse("99.99.0"), NuGetVersion.Parse("98.1.0")]);
+        string dmonCs = Path.Combine(_tempDir, "Dmon.cs");
+        await File.WriteAllTextAsync(dmonCs, "// fake");
 
-        CoreResolver resolver = new(source);
+        string missingOverride = Path.Combine(_tempDir, "does-not-exist");
 
-        CoreAcquisitionException ex = await Assert.ThrowsAsync<CoreAcquisitionException>(
-            () => resolver.ResolveAsync(corePathOverride: null, CancellationToken.None));
+        CoreResolver resolver = new();
+        // Even with a non-existent override path, Dmon.cs (tier 1) should win.
+        ResolvedCore result = await resolver.ResolveAsync(_tempDir, missingOverride, CancellationToken.None);
 
-        Assert.Contains(ProtocolVersion.Current, ex.Message);
+        Assert.Equal(LaunchMode.FileBasedProgram, result.LaunchMode);
+        Assert.Equal(Path.GetFullPath(dmonCs), result.Path);
     }
-
-    // ------------------------------------------------------------------
-    // Acquisition failure → actionable error naming the overrides
-    // ------------------------------------------------------------------
-
-    [Fact]
-    public async Task ResolveAsync_NetworkFailure_ThrowsActionableError()
-    {
-        string targetMajorMinor = ProtocolVersion.MajorMinor(ProtocolVersion.Current)!;
-        NuGetVersion compatible = NuGetVersion.Parse($"{targetMajorMinor}.0");
-
-        // GetAllVersions succeeds, but AcquireAsync throws.
-        FakeCoreAcquisitionSource source = new(
-            networkVersions: [compatible],
-            networkException: new HttpRequestException("Network unavailable"));
-
-        CoreResolver resolver = new(source);
-
-        // GetAllVersionsAsync will throw because the fake always throws on network exception.
-        CoreAcquisitionException ex = await Assert.ThrowsAsync<CoreAcquisitionException>(
-            () => resolver.ResolveAsync(corePathOverride: null, CancellationToken.None));
-
-        Assert.Contains("--core-path", ex.Message);
-        Assert.Contains("DMON_CORE_PATH", ex.Message);
-    }
-
-    // ------------------------------------------------------------------
-    // Acquisition failure from AcquireAsync specifically
-    // ------------------------------------------------------------------
-
-    [Fact]
-    public async Task ResolveAsync_AcquireFailure_ThrowsActionableError()
-    {
-        string targetMajorMinor = ProtocolVersion.MajorMinor(ProtocolVersion.Current)!;
-        NuGetVersion compatible = NuGetVersion.Parse($"{targetMajorMinor}.0");
-
-        // Separate fakes: versions come back fine, acquire throws.
-        PartialFailureCoreAcquisitionSource source = new(
-            networkVersions: [compatible],
-            acquireException: new HttpRequestException("Connection refused"));
-
-        CoreResolver resolver = new(source);
-
-        CoreAcquisitionException ex = await Assert.ThrowsAsync<CoreAcquisitionException>(
-            () => resolver.ResolveAsync(corePathOverride: null, CancellationToken.None));
-
-        Assert.Contains("--core-path", ex.Message);
-        Assert.Contains("DMON_CORE_PATH", ex.Message);
-    }
-}
-
-/// <summary>
-/// Variant fake where GetAllVersionsAsync succeeds but AcquireAsync throws.
-/// Needed to test the separate error path in <see cref="CoreResolver"/>.
-/// </summary>
-internal sealed class PartialFailureCoreAcquisitionSource : ICoreAcquisitionSource
-{
-    private readonly IReadOnlyList<NuGetVersion> _networkVersions;
-    private readonly Exception _acquireException;
-
-    public PartialFailureCoreAcquisitionSource(
-        IReadOnlyList<NuGetVersion> networkVersions,
-        Exception acquireException)
-    {
-        _networkVersions = networkVersions;
-        _acquireException = acquireException;
-    }
-
-    public (NuGetVersion Version, string ExpandedPath)? TryGetCompatibleCachedVersion(
-        string targetMajorMinor) => null;
-
-    public Task<IReadOnlyList<NuGetVersion>> GetAllVersionsAsync(CancellationToken cancellationToken)
-        => Task.FromResult(_networkVersions);
-
-    public Task<string> AcquireAsync(NuGetVersion version, CancellationToken cancellationToken)
-        => throw _acquireException;
 }

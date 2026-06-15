@@ -4,8 +4,8 @@ namespace Dmon.Runtime;
 
 /// <summary>
 /// Manages the dmoncore process lifecycle.
-/// Spawns the core either directly (apphost override/dev tiers) or via
-/// <c>dotnet exec</c> (cached NuGet package tier), connects stdio pipes,
+/// Spawns the core directly (apphost), via <c>dotnet exec</c> (prebuilt closure), or via
+/// <c>dotnet run --no-build</c> (file-based program), connects stdio pipes,
 /// and provides graceful shutdown.
 /// </summary>
 public sealed class CoreProcessManager : ICoreProcess
@@ -27,57 +27,10 @@ public sealed class CoreProcessManager : ICoreProcess
     }
 
     /// <summary>
-    /// Constructs a manager for a known apphost path (override / dev tier).
-    /// Intended for tests and callers that have already resolved the path externally.
+    /// The resolved core descriptor (path + launch mode) used by this manager.
+    /// Exposed so <see cref="CoreLauncher"/> can inspect the mode during restart.
     /// </summary>
-    public CoreProcessManager(
-        string? corePathOverride,
-        string? workingDirectory = null,
-        Action<string>? onStderrLine = null)
-        : this(
-            ResolveDirectExecutable(corePathOverride),
-            workingDirectory,
-            onStderrLine)
-    {
-    }
-
-    private static ResolvedCore ResolveDirectExecutable(string? corePathOverride)
-    {
-        if (!string.IsNullOrEmpty(corePathOverride) && File.Exists(corePathOverride))
-            return new ResolvedCore(Path.GetFullPath(corePathOverride), LaunchMode.DirectExecutable);
-
-        string? envPath = Environment.GetEnvironmentVariable("DMON_CORE_PATH");
-        if (!string.IsNullOrEmpty(envPath) && File.Exists(envPath))
-            return new ResolvedCore(Path.GetFullPath(envPath), LaunchMode.DirectExecutable);
-
-        string entryDir = Path.GetDirectoryName(
-            System.Reflection.Assembly.GetEntryAssembly()?.Location) ?? ".";
-
-        // Published layout: dmoncore/ sits next to the dmon executable.
-        string publishedCandidate = Path.Combine(entryDir, "dmoncore", "dmoncore");
-        if (File.Exists(publishedCandidate))
-            return new ResolvedCore(Path.GetFullPath(publishedCandidate), LaunchMode.DirectExecutable);
-
-        // Dev layout: walk back to the repo root and find the bin/ output.
-        string repoRoot = Path.GetFullPath(Path.Combine(entryDir, "../../../.."));
-
-        string[] devCandidates =
-        [
-            Path.Combine(repoRoot, "src/Dmon.Core/bin/Debug/net10.0/dmoncore"),
-            Path.Combine(repoRoot, "src/Dmon.Core/bin/Release/net10.0/dmoncore"),
-        ];
-
-        foreach (string candidate in devCandidates)
-        {
-            if (File.Exists(candidate))
-                return new ResolvedCore(Path.GetFullPath(candidate), LaunchMode.DirectExecutable);
-        }
-
-        throw new FileNotFoundException(
-            "Could not find dmoncore. " +
-            "Run 'make build' to produce the published layout, or set DMON_CORE_PATH / --core-path.",
-            "dmoncore");
-    }
+    internal ResolvedCore ResolvedCore => _resolvedCore;
 
     /// <summary>
     /// The core process's standard output stream (JSONL events).
@@ -186,28 +139,80 @@ public sealed class CoreProcessManager : ICoreProcess
         _process?.Dispose();
     }
 
+    /// <summary>
+    /// Runs <c>dotnet build &lt;dmonCsPath&gt;</c> as a separate captured process.
+    /// The SDK incremental up-to-date check acts as the staleness gate — an unchanged
+    /// <c>Dmon.cs</c> completes nearly instantly with no restore or recompile.
+    /// Stdout and stderr are captured; build output never reaches the JSONL/stdio channel.
+    /// </summary>
+    /// <param name="dmonCsPath">Absolute path to the <c>Dmon.cs</c> file.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <exception cref="CoreAcquisitionException">The build failed.</exception>
+    internal static async Task BuildFileBasedProgramAsync(
+        string dmonCsPath,
+        CancellationToken cancellationToken)
+    {
+        ProcessStartInfo psi = new()
+        {
+            FileName = "dotnet",
+            WorkingDirectory = Path.GetDirectoryName(dmonCsPath) ?? ".",
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+        };
+        // --tl:off is positionally consumed by dotnet before dispatch, causing MSB4025 (Dmon.cs parsed as a project file); silence the terminal logger via env var instead.
+        psi.Environment["MSBUILDTERMINALLOGGER"] = "off";
+        psi.ArgumentList.Add("build");
+        psi.ArgumentList.Add(dmonCsPath);
+
+        using Process proc = new() { StartInfo = psi };
+        proc.Start();
+
+        Task<string> stdoutTask = proc.StandardOutput.ReadToEndAsync(cancellationToken);
+        Task<string> stderrTask = proc.StandardError.ReadToEndAsync(cancellationToken);
+
+        await proc.WaitForExitAsync(cancellationToken).ConfigureAwait(false);
+
+        string stdout = await stdoutTask.ConfigureAwait(false);
+        string stderr = await stderrTask.ConfigureAwait(false);
+
+        if (proc.ExitCode != 0)
+        {
+            throw new CoreAcquisitionException(
+                $"Failed to build '{dmonCsPath}' (exit {proc.ExitCode}).\n" +
+                $"Build output:\n{stdout}\n{stderr}");
+        }
+    }
+
     private static ProcessStartInfo BuildProcessStartInfo(ResolvedCore core)
     {
         ProcessStartInfo psi;
 
-        if (core.LaunchMode == LaunchMode.DotnetExec)
+        switch (core.LaunchMode)
         {
-            // Cached NuGet publish closure: dotnet exec <dmoncore.dll>
-            // The deps.json / runtimeconfig.json in the same directory resolve all dependencies.
-            psi = new ProcessStartInfo
-            {
-                FileName = "dotnet",
-            };
-            psi.ArgumentList.Add("exec");
-            psi.ArgumentList.Add(core.Path);
-        }
-        else
-        {
-            // Override / dev tier: launch the apphost executable directly.
-            psi = new ProcessStartInfo
-            {
-                FileName = core.Path,
-            };
+            case LaunchMode.DotnetExec:
+                // Prebuilt publish closure: dotnet exec <dmoncore.dll>
+                // The deps.json / runtimeconfig.json in the same directory resolve all dependencies.
+                psi = new ProcessStartInfo { FileName = "dotnet" };
+                psi.ArgumentList.Add("exec");
+                psi.ArgumentList.Add(core.Path);
+                break;
+
+            case LaunchMode.FileBasedProgram:
+                // File-based program: dotnet run <Dmon.cs> --no-build
+                // --no-build skips the build phase (and implies --no-restore), so no MSBuild output
+                // reaches stdout. The first stdout line will be the agentReady JSONL frame.
+                psi = new ProcessStartInfo { FileName = "dotnet" };
+                psi.ArgumentList.Add("run");
+                psi.ArgumentList.Add(core.Path);
+                psi.ArgumentList.Add("--no-build");
+                break;
+
+            default:
+                // DirectExecutable: launch the apphost executable directly.
+                psi = new ProcessStartInfo { FileName = core.Path };
+                break;
         }
 
         psi.RedirectStandardInput = true;

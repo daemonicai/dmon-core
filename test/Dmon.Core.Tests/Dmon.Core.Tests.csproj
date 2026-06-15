@@ -15,6 +15,7 @@
     <PackageReference Include="NetEscapades.Configuration.Yaml" Version="3.1.0" />
     <PackageReference Include="xunit" Version="2.9.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
+    <PackageReference Include="xunit.skippablefact" Version="1.4.13" />
   </ItemGroup>
 
   <ItemGroup>
@@ -23,6 +24,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Dmon.Core\Dmon.Core.csproj" />
+    <ProjectReference Include="..\..\src\Dmon.Runtime\Dmon.Runtime.csproj" />
   </ItemGroup>
 
 </Project>
