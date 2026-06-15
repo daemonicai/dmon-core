@@ -77,7 +77,7 @@ public static class DmonRegistrationExtensions
     {
         registration.Configuration.AddInMemoryCollection(
         [
-            new KeyValuePair<string, string?>("activeModel", $"{provider}/{modelId}"),
+            new KeyValuePair<string, string?>(ConfigurationKeys.ActiveModel, $"{provider}/{modelId}"),
         ]);
         return registration;
     }

@@ -42,14 +42,21 @@
 - `scripts/pack-core.sh` packs the four provider packages; `default-core/Dmon.cs` `#:package`s them and composes `.UseAnthropic().UseOpenAI().UseGemini().UseOllama()`. OpenAI namespace collision handled via a type alias.
 - **CRITICAL BUILD LESSON:** `default-core/Dmon.cs` is a **file-based program OUTSIDE `Dmon.slnx`** — `dotnet build`/`dotnet test`/solution `make test` do NOT compile it. Only **`make build`** (→`build-core`: pack to `build/core-feed`, publish with `NUGET_PACKAGES=build/core-pkgs`) builds it. Group 4 initially shipped a green solution build but a BROKEN `default-core/Dmon.cs` (caught only by `make build`). Worse, `build/core-pkgs` caches the same-version `0.2.0` extraction across runs, so a stale composition silently persists — **`make clean` before `make build`** is required to authoritatively validate the composition root. Every group touching the builder/verbs/providers/system-prompt can break `default-core/Dmon.cs` invisibly to solution tests — so the per-group gate MUST include `make clean && make build`.
 
+## 5. Sub-agent provider isolation & IChatClientFactory
+
+- `SubAgent.BuildClient(Action<IProviderRegistration>)` (public, `Dmon.Abstractions`/`namespace Dmon.Hosting`) is the author entry point. It runs the action against an internal `SubAgentProviderRegistration` (own `ServiceCollection` + `ConfigurationManager` — **never touches `IProviderRegistry`**), validates structure eagerly, and returns a `SubAgentChatClientFactory : IChatClientFactory`.
+- **Eager structural validation** at build (empty action / >1 provider / provider-without-model all throw `InvalidOperationException`). **Lazy** at first `CreateAsync`: resolve `factory.DefaultEnvVar` (missing → `InvalidOperationException` naming the var), build the client, **memoize** (double-checked `SemaphoreSlim`). No network/credential I/O at build (handles the `IProviderExtension` path via `CreateFactory()` only — no `ListModels`/probe). `SubAgentChatClientFactory` implements `IDisposable` (disposes cached client + semaphore).
+- **Decision:** accepted a full `Microsoft.Extensions.DependencyInjection` ref on `Dmon.Abstractions` (for `ServiceCollection`/`BuildServiceProvider`). Reviewer judged it acceptable (shared-framework, no deployment weight, ASP.NET-style; M.E.AI already pulls it transitively). Lighter alt (enumerate `ServiceCollection` descriptors, `.Abstractions`-only) was rejected — it narrows authors to instance-only registration. Architectural note recorded for a future revisit if contract-surface minimalism becomes a priority.
+- Extracted `ConfigurationKeys.ActiveModel` const (one source of truth, referenced by `UseModel`, `SubAgentProviderRegistration`, `ActiveModelStore`).
+- 9 isolation/validation/memoization/different-provider tests. Reviewer: APPROVE WITH NITS → both nits (disposal, const) applied.
+
 ## NEXT
 
-- **Up next:** Group 5 — sub-agent provider isolation & `IChatClientFactory`. Implement the isolated `IProviderRegistration` → captured `IChatClientFactory` (no `IProviderRegistry`), `Action<IProviderRegistration>` tool-reg path, eager structural validation at `Build()` / lazy credential+client at first `CreateAsync` (memoizable).
+- **Up next:** Group 6 — system prompt as a plain string (no persona). Resolve from `IConfiguration["systemPrompt"]` base, overridable by `UseSystemPrompt` (replace) / `AppendToSystemPrompt` (ordered append); `final = base + appends`; no hidden scaffolding (tools via `ChatOptions`); keep the `ISystemPromptBuilder` raw-DI escape hatch. (Group 6 is system-prompt mechanics only; the persona/profile DELETION is Group 7.)
 - **Open questions / carry-forward:**
-  - **Per-group gate now includes `make clean && make build`** (compiles `default-core/Dmon.cs`) in addition to `make test` + `validate` — non-negotiable after the Group 4 lesson. Brief workers to run it.
-  - The Group-3 sync-over-async in `Build()` is now benign (registration does no I/O). If a future provider extension needs async work at registration, revisit `BuildAsync`.
-  - `protocol-schema` delta for `profile`→`agent` — author before Group 7 (pre-Group-7 pause).
-  - `ISessionAssetProvisioner` new signature — Group 7.
-  - Durable NuGet stale-cache fix (isolate/clear `build/core-pkgs` + `~/.nuget` dmon.* per pack) — consider Group 8.
-  - Non-blocking (later change): `RegisterExtensionAsync` hardcodes `Auth.Type="none"` for extension providers — fine for Ollama; revisit if a keyed-auth provider extension appears.
-- **Pacing:** run Groups 5–6, pause before Group 7 and before Group 8. Clear `~/.nuget/packages/dmon.*` + `make clean` before authoritative gates on this machine.
+  - **Per-group gate = `make clean && make build` (compiles `default-core/Dmon.cs`) + `make test` + `validate --strict`** — non-negotiable (Group 4 lesson). Brief every worker to run it.
+  - `protocol-schema` delta for `profile`→`agent` — AUTHOR IT during the pre-Group-7 pause (orchestrator).
+  - `ISessionAssetProvisioner` currently takes `AgentProfile` (deleted in G7) → new signature (path/flag from `UseAssets`) — Group 7.
+  - Durable NuGet stale-cache fix (`build/core-pkgs` + `~/.nuget` dmon.*) — consider Group 8.
+  - Non-blocking later: `RegisterExtensionAsync` hardcodes `Auth.Type="none"`; lighter sub-agent-registration alt (descriptor enumeration).
+- **Pacing:** run Group 6, then PAUSE before Group 7 (high-risk: protocol + runtime + asset provisioner) — and author the `protocol-schema` delta at that pause. Clear `~/.nuget/packages/dmon.*` + `make clean` before authoritative gates on this machine.

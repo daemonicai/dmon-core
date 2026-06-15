@@ -18,6 +18,8 @@
     <PackageReference Include="Microsoft.Extensions.Configuration" Version="10.0.8" />
     <!-- IServiceCollection is part of this package's public surface; declare it directly rather than relying on transitive resolution. -->
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.8" />
+    <!-- ServiceCollection + BuildServiceProvider() used by SubAgentProviderRegistration to build the isolated mini-container. -->
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.8" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Dmon.Protocol\Dmon.Protocol.csproj" />

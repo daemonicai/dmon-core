@@ -34,11 +34,11 @@
 
 ## 5. Sub-agent provider isolation & `IChatClientFactory`
 
-- [ ] 5.1 Implement the isolated `IProviderRegistration` materialization → captured `IChatClientFactory`; it MUST NOT touch `IProviderRegistry`.
-- [ ] 5.2 Add the `Action<IProviderRegistration>` tool-registration path (provider-agnostic base form; optional bundling convenience verb pattern documented).
-- [ ] 5.3 Implement validation/timing: structural validity (one provider verb + a model) at `Build()` (malformed → build failure); lazy credential resolution + client construction at first `CreateAsync` (`InvalidOperationException` names the missing env var); allow client memoization.
-- [ ] 5.4 Tests: isolation from `IProviderRegistry`, build-time structural failure, lazy missing-key error, memoization, single-turn usage.
-- [ ] 5.5 Gate: `make build` clean, `make test` green, `openspec validate composition-root-facets --strict`.
+- [x] 5.1 Implement the isolated `IProviderRegistration` materialization → captured `IChatClientFactory`; it MUST NOT touch `IProviderRegistry`.
+- [x] 5.2 Add the `Action<IProviderRegistration>` tool-registration path (provider-agnostic base form; optional bundling convenience verb pattern documented).
+- [x] 5.3 Implement validation/timing: structural validity (one provider verb + a model) at `Build()` (malformed → build failure); lazy credential resolution + client construction at first `CreateAsync` (`InvalidOperationException` names the missing env var); allow client memoization.
+- [x] 5.4 Tests: isolation from `IProviderRegistry`, build-time structural failure, lazy missing-key error, memoization, single-turn usage.
+- [x] 5.5 Gate: `make clean && make build`, `make test` green, `openspec validate composition-root-facets --strict`.
 
 ## 6. System prompt as a plain string (no persona)
 
