@@ -16,6 +16,9 @@ FEED="${1:-$REPO/.pack-out}"
 echo "==> Cleaning and recreating $FEED"
 rm -rf "$FEED"
 mkdir -p "$FEED"
+# Normalise to an absolute path: it is fed to -p:RestoreSources below, where a
+# relative path would resolve against the project directory, not the repo root.
+FEED="$(cd "$FEED" && pwd)"
 
 # Stable version override: ensures Major.Minor == 0.2 so:
 #   a) the version-skew guard (CheckProtocolVersionSkew) passes, and
@@ -41,9 +44,16 @@ dotnet pack "$REPO/src/Dmon.Core/Dmon.Core.csproj" \
     -p:MinVerVersionOverride="$VERSION_OVERRIDE"
 
 echo "==> Packing sample extension (version override: $VERSION_OVERRIDE)"
+# The sample consumes Dmon.Extensions as a PackageReference (it mirrors a real
+# third-party extension), so its restore needs the local feed. Its checked-in
+# nuget.config hardcodes ../../.pack-out, which is wrong when the script packs to
+# a different $FEED (e.g. CI's build/core-feed). Override the restore sources to
+# $FEED — where Dmon.Extensions 0.2.0 and the contract packages were just packed —
+# so packing is independent of the checked-in feed path.
 dotnet pack "$REPO/samples/Dmon.SampleExtension/Dmon.SampleExtension.csproj" \
     -c Release -o "$FEED" --nologo \
-    -p:MinVerVersionOverride="$VERSION_OVERRIDE"
+    -p:MinVerVersionOverride="$VERSION_OVERRIDE" \
+    -p:RestoreSources="$FEED;https://api.nuget.org/v3/index.json"
 
 echo ""
 echo "PASS: dmoncore $VERSION_OVERRIDE and contract packages packed to $FEED"
