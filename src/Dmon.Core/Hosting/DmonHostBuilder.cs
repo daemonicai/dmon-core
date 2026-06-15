@@ -1,6 +1,6 @@
 using Dmon.Abstractions.Extensions;
 using Dmon.Abstractions.Hosting;
-using Dmon.Abstractions.Profiles;
+using Dmon.Abstractions.Permissions;
 using Dmon.Abstractions.Providers;
 using Dmon.Core;
 using Dmon.Core.Extensions;
@@ -33,12 +33,6 @@ public sealed class DmonHostBuilder : IDmonHostBuilder
     // The stdio streams may be injected before Build() via WithStdio.
     private TextWriter? _stdout;
     private TextReader? _stdin;
-
-    // Profile override — left intact; Group 7 removes the profile subsystem.
-    private string? _profileOverride;
-
-    // Permission-mode override — preserved as per Group-3 scope.
-    private PermissionMode? _permissionModeOverride;
 
     internal DmonHostBuilder(string[] args)
     {
@@ -175,21 +169,14 @@ public sealed class DmonHostBuilder : IDmonHostBuilder
     }
 
     /// <summary>
-    /// Overrides the permission mode for the session. Takes precedence over the
-    /// profile's declared <see cref="PermissionMode"/>.
+    /// Registers a <see cref="PermissionModeOptions"/> DI marker so that
+    /// <see cref="Dmon.Core.Permissions.PermissionGateChatClient"/> and
+    /// <see cref="Dmon.Core.Rpc.TurnHandler"/> pick up the overridden mode.
+    /// When not called, those components default to <see cref="PermissionMode.Coding"/>.
     /// </summary>
     public DmonHostBuilder WithPermissionMode(PermissionMode mode)
     {
-        _permissionModeOverride = mode;
-        return this;
-    }
-
-    /// <summary>
-    /// Overrides the agent profile name. Left intact; Group 7 removes the profile subsystem.
-    /// </summary>
-    public DmonHostBuilder WithProfile(string profileName)
-    {
-        _profileOverride = profileName;
+        Services.AddSingleton(new PermissionModeOptions(mode));
         return this;
     }
 
@@ -218,43 +205,6 @@ public sealed class DmonHostBuilder : IDmonHostBuilder
             .AddDmonAuth()
             .AddDmonExtensions()
             .AddDmonCore();
-
-        // Profile override: replace the IAgentProfileResolver with a decorator that substitutes
-        // the builder-supplied profile name. Left intact; Group 7 removes the profile subsystem.
-        if (_profileOverride is not null)
-        {
-            ServiceDescriptor? profileInner = _appBuilder.Services
-                .LastOrDefault(d => d.ServiceType == typeof(IAgentProfileResolver));
-            if (profileInner is not null)
-            {
-                string profileOverride = _profileOverride;
-                _appBuilder.Services.AddSingleton<IAgentProfileResolver>(sp =>
-                {
-                    IAgentProfileResolver innerResolver = profileInner.ImplementationFactory is not null
-                        ? (IAgentProfileResolver)profileInner.ImplementationFactory(sp)
-                        : (IAgentProfileResolver)ActivatorUtilities.CreateInstance(sp, profileInner.ImplementationType!);
-                    return new ProfileOverrideResolver(innerResolver, profileOverride);
-                });
-            }
-        }
-
-        // Permission mode override: replace the IAgentProfileResolver with a decorator
-        // that wraps the one registered by AddDmonCore and overrides PermissionMode.
-        if (_permissionModeOverride is PermissionMode overrideMode)
-        {
-            ServiceDescriptor? inner = _appBuilder.Services
-                .LastOrDefault(d => d.ServiceType == typeof(IAgentProfileResolver));
-            if (inner is not null)
-            {
-                _appBuilder.Services.AddSingleton<IAgentProfileResolver>(sp =>
-                {
-                    IAgentProfileResolver innerResolver = inner.ImplementationFactory is not null
-                        ? (IAgentProfileResolver)inner.ImplementationFactory(sp)
-                        : (IAgentProfileResolver)ActivatorUtilities.CreateInstance(sp, inner.ImplementationType!);
-                    return new PermissionModeOverrideResolver(innerResolver, overrideMode);
-                });
-            }
-        }
 
         _appBuilder.Services.AddHostedService<RpcHostedService>();
 

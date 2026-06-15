@@ -1,6 +1,7 @@
 using System.IO.Pipelines;
 using System.Text.Json;
-using Dmon.Abstractions.Profiles;
+using Dmon.Abstractions.Hosting;
+using Dmon.Abstractions.Permissions;
 using Dmon.Abstractions.Providers;
 using Dmon.Core.Extensions;
 using Dmon.Core.Providers;
@@ -139,12 +140,13 @@ public sealed class DmonHostGoldenPathTests
     }
 
     /// <summary>
-    /// <see cref="DmonHostBuilder.WithProfile"/> causes the resolver to return the
-    /// named profile when no per-session profile is requested.
-    /// The built-in "coding" profile is used here because it requires no config files.
+    /// <see cref="DmonHostBuilder.WithPermissionMode"/> registers a
+    /// <see cref="PermissionModeOptions"/> singleton that downstream components
+    /// (<see cref="Dmon.Core.Permissions.PermissionGateChatClient"/>,
+    /// <see cref="Dmon.Core.Rpc.TurnHandler"/>) resolve from DI.
     /// </summary>
     [Fact]
-    public async Task Build_WithProfile_ResolverReturnsOverriddenProfile()
+    public void Build_WithPermissionMode_PermissionModeOptionsAvailableInDi()
     {
         using TextReader stdin = new StringReader(string.Empty);
         using StreamWriter stdout = new(Stream.Null);
@@ -152,15 +154,36 @@ public sealed class DmonHostGoldenPathTests
         DmonBuiltHost host = DmonHost.CreateBuilder([])
             .WithStdio(stdin, stdout)
             .WithoutTelemetry()
-            .WithProfile("coding")
+            .WithPermissionMode(PermissionMode.Sandbox)
             .Build();
 
-        IAgentProfileResolver resolver = host.Services.GetRequiredService<IAgentProfileResolver>();
+        PermissionModeOptions? opts = host.Services.GetService<PermissionModeOptions>();
 
-        // Pass null as the per-session requestedProfile — the builder override should supply it.
-        AgentProfile profile = await resolver.ResolveAsync(null, CancellationToken.None);
+        Assert.NotNull(opts);
+        Assert.Equal(PermissionMode.Sandbox, opts.Mode);
+    }
 
-        Assert.Equal("coding", profile.Name, StringComparer.OrdinalIgnoreCase);
+    /// <summary>
+    /// <see cref="DmonHostBuilder.UseAssets"/> (extension verb from
+    /// <c>Dmon.Abstractions</c>) registers an <see cref="AssetsOptions"/> singleton
+    /// that downstream components resolve from DI.
+    /// </summary>
+    [Fact]
+    public void Build_UseAssets_AssetsOptionsAvailableInDi()
+    {
+        using TextReader stdin = new StringReader(string.Empty);
+        using StreamWriter stdout = new(Stream.Null);
+
+        DmonBuiltHost host = DmonHost.CreateBuilder([])
+            .WithStdio(stdin, stdout)
+            .WithoutTelemetry()
+            .UseAssets("/custom/workspace")
+            .Build();
+
+        AssetsOptions? opts = host.Services.GetService<AssetsOptions>();
+
+        Assert.NotNull(opts);
+        Assert.Equal("/custom/workspace", opts.Path);
     }
 
     // Reads lines from the pipe until agentReady is found or the CTS fires.

@@ -1,9 +1,8 @@
 using Dmon.Abstractions;
-using Dmon.Abstractions.Profiles;
+using Dmon.Abstractions.Hosting;
 using Dmon.Abstractions.Providers;
 using Dmon.Core.Config;
 using Dmon.Core.Extensions;
-using Dmon.Core.Profiles;
 using Dmon.Core.Providers;
 using Dmon.Core.Rpc;
 using Dmon.Core.Session;
@@ -55,18 +54,17 @@ public sealed class SystemPromptBuilderTests : IDisposable
         FakeEventEmitter? emitter = null,
         ISessionHandler? sessionHandler = null,
         IConfiguration? configuration = null,
-        IEnumerable<SystemPromptAppend>? appends = null)
+        IEnumerable<SystemPromptAppend>? appends = null,
+        AssetsOptions? assetsOptions = null)
     {
         StubProviderRegistry providers = new();
         EmptyToolRegistry tools = new();
         AgentConfigResolver configResolver = new();
         IEventEmitter eventEmitter = emitter ?? new FakeEventEmitter();
-        // AgentProfileContext is kept unresolved; builder guards with IsResolved before reading Assets.
-        AgentProfileContext profileContext = new();
         ISessionHandler session = sessionHandler ?? new StubSessionHandler();
         IConfiguration config = configuration ?? new ConfigurationBuilder().Build();
         IEnumerable<SystemPromptAppend> promptAppends = appends ?? [];
-        return new SystemPromptBuilder(providers, tools, configResolver, eventEmitter, profileContext, session, config, promptAppends);
+        return new SystemPromptBuilder(providers, tools, configResolver, eventEmitter, session, config, promptAppends, assetsOptions);
     }
 
     private void WriteProjectFile(string filename, string content)

@@ -84,4 +84,10 @@ public sealed class GatewayOptions
     /// are always rejected regardless of this flag because they expose public NICs.
     /// </remarks>
     public bool AllowNonLoopbackBind { get; set; }
+
+    /// <summary>
+    /// The workspace root used to resolve named agents (<c>.dmon/agents/&lt;name&gt;.cs</c>).
+    /// When empty or not set, defaults to the current working directory at startup.
+    /// </summary>
+    public string WorkspaceRoot { get; set; } = string.Empty;
 }

@@ -1,11 +1,10 @@
-namespace Dmon.Core.Profiles;
+namespace Dmon.Core.Session;
 
 /// <summary>
 /// Derives the per-session asset directory path from a workspace root and session id.
-/// Consumed by SystemPromptBuilder (Group 4), the permission gate (Group 5),
-/// and asset directory provisioning (Group 6).
+/// Consumed by SystemPromptBuilder, the permission gate, and asset directory provisioning.
 /// </summary>
-internal static class ProfileAssetPath
+internal static class SessionAssetPath
 {
     /// <summary>
     /// Returns the absolute, normalised path of the per-session asset directory:

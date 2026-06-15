@@ -58,7 +58,24 @@
 - Escape hatch: `AddDmonCore` now `TryAddSingleton<ISystemPromptBuilder>` so a builder `AddSingleton<ISystemPromptBuilder>(…)` wins (same proven pattern as stdio `TextWriter`).
 - Reviewer: APPROVE. Two recorded items below.
 
-## NEXT — PAUSED before Group 7 (per pacing)
+## 7. Profile-subsystem demolition & `agent` selection
+
+- **Demolished the profile subsystem:** deleted `IAgentProfileResolver`, `AgentProfile`, `ProfilesConfigReader`, `EffectiveProfileSetResolver`, `AgentProfileContext`, `AgentProfileResolver`, `AgentProfileConfigException`, `BuiltInProfiles`, `ProfileOverrideResolver`, the old `Profiles/ISessionAssetProvisioner`+`SessionAssetProvisioner`, and the orphaned `ProfileConfigEntry` DTO (the `profiles:` map entry — its readers were gone; caught in orchestrator residue sweep, not on the named worklist). `PermissionMode` + `WithPermissionMode` retained.
+- **Carry-forward #1 done:** built-in default prompt relocated to `SystemPrompt/DefaultSystemPrompt.cs` (`DefaultSystemPrompt.Text`); `ResolveBase()` falls back to it. Re-verified it satisfies the `system-prompt` spec (D-mon identity, tool norms, permission awareness, terse tone).
+- **Carry-forward #2 done:** `ISessionAssetProvisioner.Provision(...)` no longer takes an `AgentProfile` — fed by the new `UseAssets(path)` verb via an `AssetsOptions` DI marker; `SystemPromptBuilder` asset-dir branch + sandbox gate read the `UseAssets` flag/path.
+- **Carry-forward #3 done:** `profile`→`agent` across `SessionMeta`/`SessionCommands`/`ControlFrames`, `GatewayConnectionEndpoint` (pre-spawn validation), `Program`, `TurnHandler`, `SessionStore`. `docs/protocol/schema.json` regenerated via `make schema` (0 `profile`, 7 `agent`); freshness test green. Gateway resolves `agent` to `.dmon/agents/<name>.cs` under the workspace root only (traversal-guarded), unknown → typed `createRejected {unknown_agent}` with no core/handler/slot.
+- **Decision (reviewer-endorsed):** the deleted `PermissionModeOverrideResolver` decorator was replaced by a `PermissionModeOptions` DI-marker record consumed directly by `PermissionGateChatClient` (`?.Mode ?? Coding`) — behaviour-equivalent and more consistent with the ADR-022 facet/options pattern than a bespoke resolver.
+- **Naming cleanup (folded in post-review):** moved `PermissionMode` out of `Dmon.Abstractions.Profiles` → `Dmon.Abstractions.Permissions`; renamed `ProfileAssetPath`→`SessionAssetPath` (→ `Dmon.Core.Session`); deleted both now-empty `Profiles/` folders — no `Profiles` namespace survives the demolition. Added a `[Theory]` path-traversal security test (`../../etc/passwd`, `../outside`, `/etc/passwd` → rejected, registry unchanged).
+- **TurnHandler single-sources** prompt (`ISystemPromptBuilder`) / permission (`PermissionModeOptions`) / assets (`AssetsOptions`) from the composed `.cs`; no resolved-profile object. Default-agent ("no stored agent → root `Dmon.cs`") is structural — the launcher *is* running a composition root, so the core has no in-core default-selection branch.
+- **Reviewer:** APPROVE WITH NITS → both substantive nits (Profiles-naming residue, traversal test) folded in; orchestrator additionally deleted the orphaned `ProfileConfigEntry`. Gates: `make clean && make build` clean, full `dotnet test -c Release` = 1289 passed / 2 skipped / 0 failed, `validate --strict` valid.
+- **⚠️ CACHE-GLOB DEFECT (cost ~an hour; fix the lore):** the documented `rm ~/.nuget/packages/dmon.*` glob **MISSES `dmoncore`** (no dot in the package id). A stale `~/.nuget/packages/dmoncore/0.2.0` (compiled against the *old* `Dmon.Abstractions` that still had `IAgentProfileResolver`) survives the clear and shadows every fresh pack → the composition tests (`FileBasedProgram_*`, `ComposedCore_*`, `Init_ScaffoldedDmonCs`) fail with **`TypeLoadException` / "did not emit agentReady"** — a false regression that looks exactly like a code bug. **Always clear with `rm -rf ~/.nuget/packages/dmon*` (NO dot — matches both `dmon.*` AND `dmoncore`).** This is the durable NuGet stale-cache fix flagged for Group 8; partially addressed here in the lore — Group 8 should still isolate the global-packages folder during pack/compose.
+
+## NEXT — Group 8 (Builtin-tools package, scaffold & verification)
+
+- **Deferred from Group 7 (low-priority, non-blocking):** none outstanding — both reviewer nits folded in.
+- **Group 8 carry-forwards:** publish `Dmon.Tools.Builtin` (`.AddBuiltinTools()`), remove the hard-wired builtin registration (currently `BuiltinToolsInitializer` `IHostedService`); protocol-keyed lockstep versions + incompatible-`#:package`-fails-restore; **8.4 is HITL** (provide the copy-pasteable recipe; do not auto-tick). Durable NuGet stale-cache isolation (see cache-glob defect above) belongs here.
+
+## (historical) NEXT — PAUSED before Group 7 (per pacing)
 
 **Pre-Group-7 orchestrator task: author the `protocol-schema` delta** for `profile`→`agent` (SessionMeta/SessionCommands/ControlFrames) + amend the proposal's Modified Capabilities. Then brief Group 7.
 

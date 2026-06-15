@@ -1,12 +1,10 @@
 using System.Runtime.CompilerServices;
 using Dmon.Abstractions;
 using Dmon.Abstractions.Memory;
-using Dmon.Abstractions.Profiles;
 using Dmon.Abstractions.Providers;
 using Dmon.Core.Extensions;
 using Dmon.Abstractions.Extensions;
 using Dmon.Core.Permissions;
-using Dmon.Core.Profiles;
 using Dmon.Core.Session;
 using Dmon.Protocol.Commands;
 using Dmon.Protocol.Conversation;
@@ -228,12 +226,6 @@ internal sealed class StubSystemPromptBuilder : ISystemPromptBuilder
         => Task.FromResult(new ChatMessage(ChatRole.System, "You are a test assistant."));
 }
 
-internal sealed class StubAgentProfileResolver : IAgentProfileResolver
-{
-    public Task<AgentProfile> ResolveAsync(string? requestedProfile, CancellationToken cancellationToken)
-        => Task.FromResult(BuiltInProfiles.Coding);
-}
-
 internal static class TurnHandlerFactory
 {
     public static (TurnHandler handler, TestEventEmitter emitter) Create(
@@ -275,11 +267,9 @@ internal static class TurnHandlerFactory
             systemPromptBuilder,
             pipelineBuilder,
             configuration,
-            new StubAgentProfileResolver(),
-            new AgentProfileContext(),
             new NoopSessionAssetProvisioner(),
             NullLogger<TurnHandler>.Instance,
-            sessionStore);
+            sessionStore: sessionStore);
 
         return (handler, emitter);
     }
@@ -835,11 +825,9 @@ internal static class ToolTurnHandlerFactory
             systemPromptBuilder,
             pipelineBuilder,
             configuration,
-            new StubAgentProfileResolver(),
-            new AgentProfileContext(),
             new NoopSessionAssetProvisioner(),
             NullLogger<TurnHandler>.Instance,
-            sessionStore);
+            sessionStore: sessionStore);
 
         return (handler, emitter);
     }
@@ -1427,7 +1415,7 @@ internal sealed class RoundTripSpySessionStore : ISessionStore
 /// </summary>
 internal sealed class NoopSessionAssetProvisioner : ISessionAssetProvisioner
 {
-    public string? Provision(AgentProfile profile, string? sessionId) => null;
+    public string? Provision(bool assetsEnabled, string? workspaceRoot, string? sessionId) => null;
 }
 
 /// <summary>

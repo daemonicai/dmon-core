@@ -85,6 +85,35 @@ public static class DmonRegistrationExtensions
         return builder;
     }
 
+    // ── IDmonHostBuilder: asset directory ───────────────────────────────────
+
+    /// <summary>
+    /// Enables per-session asset directory provisioning.
+    /// On each session start the core creates <c>assets/&lt;sessionId&gt;/</c> under
+    /// <paramref name="path"/> (defaults to the current working directory when
+    /// <see langword="null"/>) and surfaces the path in the dynamic-context block.
+    /// When this verb is not called, no asset directory is created.
+    /// </summary>
+    public static T UseAssets<T>(this T builder, string? path = null)
+        where T : IDmonHostBuilder
+    {
+        builder.Services.AddSingleton(new AssetsOptions(path));
+        return builder;
+    }
+
+    // ── IDmonHostBuilder: permission mode ────────────────────────────────────
+
+    /// <summary>
+    /// Sets the permission mode for the session. Defaults to <see cref="Dmon.Abstractions.Permissions.PermissionMode.Coding"/>
+    /// when not called.
+    /// </summary>
+    public static T WithPermissionMode<T>(this T builder, Dmon.Abstractions.Permissions.PermissionMode mode)
+        where T : IDmonHostBuilder
+    {
+        builder.Services.AddSingleton(new PermissionModeOptions(mode));
+        return builder;
+    }
+
     // ── IProviderRegistration ─────────────────────────────────────────────────
 
     /// <summary>

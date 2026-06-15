@@ -49,11 +49,11 @@
 
 ## 7. Profile-subsystem demolition & `agent` selection
 
-- [ ] 7.1 Delete the profile subsystem (`IAgentProfileResolver`, `AgentProfile`, `ProfilesConfigReader`, `EffectiveProfileSetResolver`, `AgentProfileContext`, `WithProfile`, `ProfileOverrideResolver`); retain `PermissionMode` behind `WithPermissionMode`.
-- [ ] 7.2 Add the `UseAssets(path)` verb wrapping `ISessionAssetProvisioner`; an agent is its `.cs` (default = root `Dmon.cs`; named = `.dmon/agents/<name>.cs`).
-- [ ] 7.3 Change the gateway `createSession` contract `profile`→`agent` (name of a `.cs` resolved under the gateway workspace root); update the handler, the protocol DTOs, and `openspec/specs` protocol schema delta if affected.
-- [ ] 7.4 Update/remove profile-related tests; add tests for `agent` selection and `UseAssets`.
-- [ ] 7.5 Gate: `make build` clean, `make test` green, `openspec validate composition-root-facets --strict`.
+- [x] 7.1 Delete the profile subsystem (`IAgentProfileResolver`, `AgentProfile`, `ProfilesConfigReader`, `EffectiveProfileSetResolver`, `AgentProfileContext`, `WithProfile`, `ProfileOverrideResolver`); retain `PermissionMode` behind `WithPermissionMode`.
+- [x] 7.2 Add the `UseAssets(path)` verb wrapping `ISessionAssetProvisioner`; an agent is its `.cs` (default = root `Dmon.cs`; named = `.dmon/agents/<name>.cs`).
+- [x] 7.3 Change the gateway `createSession` contract `profile`→`agent` (name of a `.cs` resolved under the gateway workspace root); update the handler, the protocol DTOs, and `openspec/specs` protocol schema delta if affected.
+- [x] 7.4 Update/remove profile-related tests; add tests for `agent` selection and `UseAssets`.
+- [x] 7.5 Gate: `make build` clean, `make test` green, `openspec validate composition-root-facets --strict`.
 
 ## 8. Builtin-tools package, scaffold & verification
 

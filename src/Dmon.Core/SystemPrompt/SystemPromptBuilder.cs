@@ -1,10 +1,11 @@
 using System.Runtime.InteropServices;
 using System.Text;
 using Dmon.Abstractions;
+using Dmon.Abstractions.Hosting;
 using Dmon.Abstractions.Providers;
 using Dmon.Core.Config;
 using Dmon.Core.Extensions;
-using Dmon.Core.Profiles;
+using Dmon.Core.Session;
 using Dmon.Core.Providers;
 using Dmon.Core.Rpc;
 using Dmon.Hosting;
@@ -20,8 +21,7 @@ public sealed class SystemPromptBuilder : ISystemPromptBuilder
     private readonly IToolRegistry _toolRegistry;
     private readonly AgentConfigResolver _configResolver;
     private readonly IEventEmitter _eventEmitter;
-    // Retained for the assets check; Group 7 replaces this with UseAssets.
-    private readonly AgentProfileContext _profileContext;
+    private readonly AssetsOptions? _assetsOptions;
     private readonly ISessionHandler _sessionHandler;
     private readonly IConfiguration _configuration;
     private readonly IEnumerable<SystemPromptAppend> _appends;
@@ -31,16 +31,16 @@ public sealed class SystemPromptBuilder : ISystemPromptBuilder
         IToolRegistry toolRegistry,
         AgentConfigResolver configResolver,
         IEventEmitter eventEmitter,
-        AgentProfileContext profileContext,
         ISessionHandler sessionHandler,
         IConfiguration configuration,
-        IEnumerable<SystemPromptAppend> appends)
+        IEnumerable<SystemPromptAppend> appends,
+        AssetsOptions? assetsOptions = null)
     {
         _providerRegistry = providerRegistry;
         _toolRegistry = toolRegistry;
         _configResolver = configResolver;
         _eventEmitter = eventEmitter;
-        _profileContext = profileContext;
+        _assetsOptions = assetsOptions;
         _sessionHandler = sessionHandler;
         _configuration = configuration;
         _appends = appends;
@@ -89,7 +89,7 @@ public sealed class SystemPromptBuilder : ISystemPromptBuilder
     /// among YAML layers and verb overrides in a single read.
     /// </summary>
     private string ResolveBase()
-        => _configuration[ConfigurationKeys.SystemPrompt] ?? BuiltInProfiles.CodingPersona;
+        => _configuration[ConfigurationKeys.SystemPrompt] ?? DefaultSystemPrompt.Text;
 
     private void AppendDynamicContext(StringBuilder sb)
     {
@@ -108,12 +108,13 @@ public sealed class SystemPromptBuilder : ISystemPromptBuilder
         string modelId = providerConfig.DefaultModelId ?? "(unknown)";
         sb.AppendLine($"- **Provider:** {providerConfig.Name} / {modelId}");
 
-        if (_profileContext.IsResolved && _profileContext.Profile.Assets)
+        if (_assetsOptions is not null)
         {
             string? sessionId = _sessionHandler.CurrentSession?.Id;
             if (sessionId is not null)
             {
-                string assetDir = ProfileAssetPath.Compute(cwd, sessionId);
+                string root = _assetsOptions.Path ?? cwd;
+                string assetDir = SessionAssetPath.Compute(root, sessionId);
                 sb.AppendLine($"- **Asset directory:** {assetDir}");
             }
         }

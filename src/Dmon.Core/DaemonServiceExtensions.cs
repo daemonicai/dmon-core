@@ -1,6 +1,5 @@
 using Dmon.Abstractions;
 using Dmon.Abstractions.Memory;
-using Dmon.Abstractions.Profiles;
 using Dmon.Abstractions.Providers;
 using Dmon.Core.Auth;
 using Dmon.Core.Config;
@@ -10,7 +9,6 @@ using Dmon.Core.GitHub;
 using Dmon.Core.SystemPrompt;
 using Dmon.Core.Bootstrap;
 using Dmon.Core.Permissions;
-using Dmon.Core.Profiles;
 using Dmon.Protocol.Permissions;
 using Dmon.Core.Providers;
 using Dmon.Core.Rpc;
@@ -56,9 +54,6 @@ public static class DmonServiceExtensions
         services.AddSingleton<IToolRegistry, ToolRegistry>();
         services.AddSingleton<IMiddlewareRegistry, MiddlewareRegistry>();
         services.AddSingleton<MiddlewarePipelineBuilder>();
-
-        services.AddSingleton<ProfilesConfigReader>();
-        services.AddSingleton<EffectiveProfileSetResolver>();
 
         return services;
     }
@@ -124,22 +119,9 @@ public static class DmonServiceExtensions
         // Services.AddSingleton<ISystemPromptBuilder>(…) and have it win.
         services.TryAddSingleton<ISystemPromptBuilder, SystemPromptBuilder>();
 
-        // Agent profile resolution — resolved once per session, shared by Groups 4-6 consumers.
-        // Config paths mirror BootstrapService conventions.
-        services.AddSingleton<IAgentProfileResolver>(sp =>
-        {
-            EffectiveProfileSetResolver setResolver = sp.GetRequiredService<EffectiveProfileSetResolver>();
-            string userConfigPath = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-                ".dmon", "config.yaml");
-            string projectConfigPath = Path.Combine(
-                Directory.GetCurrentDirectory(),
-                ".dmon", "config.yaml");
-            return new AgentProfileResolver(setResolver, userConfigPath, projectConfigPath);
-        });
-        services.AddSingleton<AgentProfileContext>();
-        services.AddSingleton<ISessionAssetProvisioner>(
-            _ => new SessionAssetProvisioner(Directory.GetCurrentDirectory()));
+        // Session asset provisioner: creates assets/<sessionId>/ when UseAssets is active.
+        // AssetsOptions and PermissionModeOptions are optional DI markers; their absence is valid.
+        services.AddSingleton<ISessionAssetProvisioner, SessionAssetProvisioner>();
 
         services.AddSingleton<TurnHandler>();
         services.AddSingleton<ITurnHandler>(sp => sp.GetRequiredService<TurnHandler>());

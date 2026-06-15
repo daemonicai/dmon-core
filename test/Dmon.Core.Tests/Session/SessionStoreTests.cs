@@ -126,14 +126,14 @@ public sealed class SessionStoreTests : IDisposable
     [Fact]
     public async Task CreateAsync_WithProfile_PersistsProfileToMetaJson()
     {
-        SessionMeta meta = await _store.CreateAsync(profile: "researcher");
+        SessionMeta meta = await _store.CreateAsync(agent: "researcher");
 
         string sessionDir = _store.GetSessionDirectory(meta.Id);
         string json = await File.ReadAllTextAsync(Path.Combine(sessionDir, "meta.json"));
         SessionMeta? loaded = JsonSerializer.Deserialize<SessionMeta>(json);
 
         Assert.NotNull(loaded);
-        Assert.Equal("researcher", loaded.Profile);
+        Assert.Equal("researcher", loaded.Agent);
     }
 
     [Fact]
@@ -146,17 +146,17 @@ public sealed class SessionStoreTests : IDisposable
         SessionMeta? loaded = JsonSerializer.Deserialize<SessionMeta>(json);
 
         Assert.NotNull(loaded);
-        Assert.Null(loaded.Profile);
+        Assert.Null(loaded.Agent);
     }
 
     [Fact]
     public async Task LoadAsync_RehydratesPersistedProfile()
     {
-        SessionMeta created = await _store.CreateAsync(profile: "researcher");
+        SessionMeta created = await _store.CreateAsync(agent: "researcher");
 
         SessionMeta loaded = await _store.LoadAsync(created.Id);
 
-        Assert.Equal("researcher", loaded.Profile);
+        Assert.Equal("researcher", loaded.Agent);
     }
 
     [Fact]
@@ -166,7 +166,7 @@ public sealed class SessionStoreTests : IDisposable
 
         SessionMeta loaded = await _store.LoadAsync(created.Id);
 
-        Assert.Null(loaded.Profile);
+        Assert.Null(loaded.Agent);
     }
 
     // ── AppendMessagesAsync ───────────────────────────────────────────────────

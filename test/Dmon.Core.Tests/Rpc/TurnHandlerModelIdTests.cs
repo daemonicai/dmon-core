@@ -3,7 +3,6 @@ using Dmon.Abstractions;
 using Dmon.Abstractions.Providers;
 using Dmon.Core.Extensions;
 using Dmon.Core.Permissions;
-using Dmon.Core.Profiles;
 using Dmon.Core.Providers;
 using Dmon.Core.Rpc;
 using Dmon.Core.Session;
@@ -109,8 +108,6 @@ public sealed class TurnHandlerModelIdTests
             systemPromptBuilder,
             pipelineBuilder,
             configuration,
-            new StubAgentProfileResolver(),
-            new AgentProfileContext(),
             new NoopSessionAssetProvisioner(),
             NullLogger<TurnHandler>.Instance);
 

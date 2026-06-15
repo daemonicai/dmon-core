@@ -1,9 +1,6 @@
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
-using Dmon.Abstractions.Profiles;
-using Dmon.Core.Config;
-using Dmon.Core.Profiles;
 using Dmon.Gateway.DeviceKeys;
 using Dmon.Gateway.Protocol;
 using Dmon.Gateway.Sessions;
@@ -25,11 +22,10 @@ namespace Dmon.Gateway;
 ///      - Unknown sessionId → close with 4404.
 ///      - Known: wrap the socket in <see cref="WebSocketGatewayConnection"/>, call
 ///        <see cref="SessionHandler.Attach"/>, reply <c>attached {generation, headSeq}</c>.
-///   2b. On <c>create {profile?}</c>:
-///      - Validate the requested profile (if named) against <see cref="IAgentProfileResolver"/>;
-///        an unknown profile name → <c>createRejected {code="unknown_profile"}</c>, no core spawned;
-///        a name that exists but whose config is invalid → <c>createRejected {code="invalid_profile"}</c>.
-///        (Design D3: gateway check is early-rejection convenience; core resolution is authoritative.)
+///   2b. On <c>create {agent?}</c>:
+///      - Validate the requested agent (if named): resolve <c>.dmon/agents/&lt;name&gt;.cs</c>
+///        under the gateway workspace root; unknown agent → <c>createRejected {code="unknown_agent"}</c>,
+///        no core spawned. Agent name is resolved under the workspace root only — never a client-supplied path.
 ///      - Spawn a core via <see cref="CoreLauncher"/>; drive the create+load handshake over the
 ///        raw stdio pipes BEFORE constructing <see cref="SessionHandler"/> (so the handshake
 ///        result events are not seq-assigned into the replay log — ADR-014).
@@ -63,9 +59,7 @@ public sealed class GatewayConnectionEndpoint
     private readonly SessionRegistry _registry;
     private readonly DeviceConnectionIndex _connectionIndex;
     private readonly ICoreLauncher? _coreLauncher;
-    private readonly IAgentProfileResolver? _profileResolver;
-    private readonly EffectiveProfileSetResolver? _effectiveProfileSetResolver;
-    private readonly GatewayProfilePaths? _gatewayProfilePaths;
+    private readonly string? _workspaceRoot;
     private readonly DeviceKeySetProvider _deviceKeySetProvider;
     private readonly IOptionsMonitor<GatewayOptions> _options;
     private readonly TimeProvider _timeProvider;
@@ -87,9 +81,7 @@ public sealed class GatewayConnectionEndpoint
         SessionRegistry registry,
         DeviceConnectionIndex connectionIndex,
         ICoreLauncher coreLauncher,
-        IAgentProfileResolver profileResolver,
-        EffectiveProfileSetResolver effectiveProfileSetResolver,
-        GatewayProfilePaths gatewayProfilePaths,
+        string? workspaceRoot,
         DeviceKeySetProvider deviceKeySetProvider,
         IOptionsMonitor<GatewayOptions> options,
         TimeProvider timeProvider,
@@ -99,9 +91,7 @@ public sealed class GatewayConnectionEndpoint
         _registry = registry;
         _connectionIndex = connectionIndex;
         _coreLauncher = coreLauncher;
-        _profileResolver = profileResolver;
-        _effectiveProfileSetResolver = effectiveProfileSetResolver;
-        _gatewayProfilePaths = gatewayProfilePaths;
+        _workspaceRoot = workspaceRoot;
         _deviceKeySetProvider = deviceKeySetProvider;
         _options = options;
         _timeProvider = timeProvider;
@@ -122,9 +112,7 @@ public sealed class GatewayConnectionEndpoint
             registry,
             options.ConnectionIndex,
             options.CoreLauncher!,
-            options.ProfileResolver!,
-            options.EffectiveProfileSetResolver!,
-            options.ProfilePaths!,
+            options.WorkspaceRoot,
             options.DeviceKeySetProvider,
             options.Options,
             options.TimeProvider,
@@ -139,9 +127,9 @@ public sealed class GatewayConnectionEndpoint
     /// the exercised path actually touches.
     /// </summary>
     /// <remarks>
-    /// Members that remain <see langword="null"/> (launcher, resolver, paths) will throw a
+    /// Members that remain <see langword="null"/> (launcher, workspace root) will throw a
     /// <see cref="NullReferenceException"/> if a code path reaches them — which is intentional:
-    /// it proves the tested path exits before the spawn or profile-validation step.
+    /// it proves the tested path exits before the spawn or agent-validation step.
     /// </remarks>
     internal sealed record TestOptions
     {
@@ -153,9 +141,7 @@ public sealed class GatewayConnectionEndpoint
         // remain IO-free even when authResult.KeyId is non-null.
         public LastSeenWriter LastSeenWriter { get; init; } = LastSeenWriter.CreateNoOp();
         public ICoreLauncher? CoreLauncher { get; init; }
-        public IAgentProfileResolver? ProfileResolver { get; init; }
-        public EffectiveProfileSetResolver? EffectiveProfileSetResolver { get; init; }
-        public GatewayProfilePaths? ProfilePaths { get; init; }
+        public string? WorkspaceRoot { get; init; }
     }
 
     /// <summary>Minimal <see cref="IOptionsMonitor{T}"/> for test / default construction.</summary>
@@ -301,17 +287,16 @@ public sealed class GatewayConnectionEndpoint
     }
 
     /// <summary>
-    /// Handles a <c>create</c> first frame: validates the requested profile (if named) against
-    /// the gateway's <see cref="IAgentProfileResolver"/> before spawning any core, then spawns
-    /// a core, drives the session.create + session.load handshake over the raw stdio pipes
-    /// (BEFORE constructing <see cref="SessionHandler"/> so the handshake result events are
-    /// never seq-assigned), registers the handler, and replies <c>created {sessionId}</c>.
+    /// Handles a <c>create</c> first frame: validates the requested agent (if named) against
+    /// the gateway's workspace root before spawning any core, then spawns a core, drives the
+    /// session.create + session.load handshake over the raw stdio pipes (BEFORE constructing
+    /// <see cref="SessionHandler"/> so the handshake result events are never seq-assigned),
+    /// registers the handler, and replies <c>created {sessionId}</c>.
     ///
-    /// On unknown profile name the gateway replies <c>createRejected {code="unknown_profile"}</c>;
-    /// on a name that exists but has invalid config it replies <c>createRejected {code="invalid_profile"}</c>
-    /// and returns without spawning. On cap-reached <see cref="SessionRegistry.TryRegister"/>
-    /// failure the just-spawned core is disposed (no orphaned process) and a typed
-    /// <c>createRejected</c> reply is sent.
+    /// On unknown agent name the gateway replies <c>createRejected {code="unknown_agent"}</c>,
+    /// no core spawned, no handler registered, no slot consumed.
+    /// On cap-reached <see cref="SessionRegistry.TryRegister"/> failure the just-spawned core
+    /// is disposed (no orphaned process) and a typed <c>createRejected</c> reply is sent.
     /// </summary>
     internal async Task HandleCreateAsync(
         WebSocket socket,
@@ -328,42 +313,33 @@ public sealed class GatewayConnectionEndpoint
             return;
         }
 
-        // --- Pre-spawn profile validation (task 5.1) ---
-        // Design D3: this check is an early-rejection convenience — the core's first-turn resolution
-        // is authoritative. The gateway forwards the profile NAME (not a resolved AgentProfile) to the
-        // core via session.create {profile}; the resolved object returned here is intentionally discarded.
-        // A null/absent profile is valid and resolves to the configured default (do not reject it).
-        if (createFrame.Profile is not null)
+        // --- Pre-spawn agent validation ---
+        // A named agent must resolve to a .cs composition root under the workspace root.
+        // Null selects the default agent (root Dmon.cs) — always valid, no path check.
+        // Agent name is resolved under the workspace root only — never a client-supplied path.
+        if (createFrame.Agent is not null)
         {
-            try
-            {
-                await _profileResolver!.ResolveAsync(createFrame.Profile, cancellationToken)
-                    .ConfigureAwait(false);
-            }
-            catch (AgentProfileConfigException ex)
-            {
-                // Distinguish "name not in the effective set" from "name exists but config is invalid":
-                // ContainsProfile does file I/O once (same as ResolveAsync already did), so the cost
-                // is a second Resolve call only on the error path — acceptable for an early-rejection check.
-                bool nameExists = _effectiveProfileSetResolver!.ContainsProfile(
-                    createFrame.Profile,
-                    _gatewayProfilePaths!.UserConfigPath,
-                    _gatewayProfilePaths.ProjectConfigPath);
+            string workspace = _workspaceRoot ?? Directory.GetCurrentDirectory();
+            string agentPath = Path.GetFullPath(
+                Path.Combine(workspace, ".dmon", "agents", createFrame.Agent + ".cs"));
 
-                string code = nameExists ? "invalid_profile" : "unknown_profile";
-
+            // Containment: ensure the resolved path is still under the workspace root
+            // (defence against ".." in the name).
+            if (!agentPath.StartsWith(Path.GetFullPath(workspace) + Path.DirectorySeparatorChar,
+                    StringComparison.OrdinalIgnoreCase)
+                || !File.Exists(agentPath))
+            {
                 _logger.LogWarning(
-                    "Session create rejected: {Code} for profile '{Profile}'. {Message}",
-                    code,
-                    createFrame.Profile,
-                    ex.Message);
+                    "Session create rejected: unknown_agent '{Agent}'.",
+                    createFrame.Agent);
 
                 await SendControlFrameAsync(
                     socket,
                     new CreateRejectedFrame
                     {
-                        Code = code,
-                        Message = ex.Message,
+                        Code = "unknown_agent",
+                        Message = $"Agent '{createFrame.Agent}' was not found. " +
+                                  $"Add '.dmon/agents/{createFrame.Agent}.cs' to the workspace root and retry.",
                     },
                     cancellationToken).ConfigureAwait(false);
                 return;
@@ -395,7 +371,7 @@ public sealed class GatewayConnectionEndpoint
             string sessionId = await DriveSessionHandshakeAsync(
                 coreSession.Process.StandardOutput,
                 coreSession.Process.StandardInput,
-                createFrame.Profile,
+                createFrame.Agent,
                 handshakeCts.Token).ConfigureAwait(false);
 
             // Pump starts here — stdout is positioned after session.loadResult.
@@ -499,7 +475,7 @@ public sealed class GatewayConnectionEndpoint
     internal static async Task<string> DriveSessionHandshakeAsync(
         TextReader stdout,
         TextWriter stdin,
-        string? profile,
+        string? agent,
         CancellationToken cancellationToken)
     {
         // Use a stable gateway-generated id for both commands. The core correlates each result
@@ -507,12 +483,12 @@ public sealed class GatewayConnectionEndpoint
         const string createCommandId = "gw-session-create";
         const string loadCommandId = "gw-session-load";
 
-        // Write session.create — the profile name is forwarded as-is (design D3; core is authoritative).
+        // Write session.create — the agent name is forwarded as-is; core is authoritative.
         // Serialize as the base Command type so the [JsonPolymorphic] discriminator "type" is emitted.
         Command createCmd = new SessionCreateCommand
         {
             Id = createCommandId,
-            Profile = profile,
+            Agent = agent,
         };
         string createJson = JsonSerializer.Serialize(createCmd, WireSerializerOptions.Default);
         await stdin.WriteAsync((createJson + "\n").AsMemory(), cancellationToken).ConfigureAwait(false);

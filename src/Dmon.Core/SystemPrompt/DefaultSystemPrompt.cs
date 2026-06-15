@@ -1,20 +1,12 @@
-using Dmon.Abstractions.Profiles;
-
-namespace Dmon.Core.Profiles;
+namespace Dmon.Core.SystemPrompt;
 
 /// <summary>
-/// Built-in agent profiles that exist independent of any config file.
+/// Built-in system-prompt default. Used when neither <c>UseSystemPrompt</c> nor
+/// <c>IConfiguration["systemPrompt"]</c> supplies a base string.
 /// </summary>
-/// <remarks>
-/// <see cref="CodingPersona"/> is the single source of truth for the built-in coding
-/// persona. <see cref="SystemPromptBuilder"/> resolves it via
-/// <see cref="Dmon.Abstractions.Profiles.AgentProfile.Persona"/>; no duplicate copy exists.
-/// </remarks>
-internal static class BuiltInProfiles
+internal static class DefaultSystemPrompt
 {
-    internal const string CodingProfileName = "coding";
-
-    internal static readonly string CodingPersona = """
+    internal static readonly string Text = """
         # Identity
 
         You are D-mon (pronounced "daemon" or "demon"), a coding agent. You run inside a terminal session and help the user write, edit, and reason about code. You have access to tools for reading files, writing files, running bash commands, and more.
@@ -33,10 +25,4 @@ internal static class BuiltInProfiles
 
         Informal and terse. Not rude. No padding. No apologies. No phrases like "Certainly!", "Of course!", "Great question!", or "I'd be happy to help". Do not describe what you are about to do — just do it.
         """;
-
-    internal static readonly AgentProfile Coding = new(
-        Name: CodingProfileName,
-        Persona: CodingPersona,
-        Assets: false,
-        PermissionMode: PermissionMode.Coding);
 }

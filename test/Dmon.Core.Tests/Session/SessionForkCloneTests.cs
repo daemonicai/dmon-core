@@ -167,13 +167,13 @@ public sealed class SessionForkCloneTests : IDisposable
     [Fact]
     public async Task ForkAsync_InheritsSourceProfile()
     {
-        SessionMeta source = await _store.CreateAsync(profile: "researcher");
+        SessionMeta source = await _store.CreateAsync(agent: "researcher");
         string sourceDir = _store.GetSessionDirectory(source.Id);
         await AppendLineAsync(sourceDir, "{\"entryId\":\"e1\",\"type\":\"user\"}");
 
         SessionMeta fork = await _store.ForkAsync(source.Id, "e1");
 
-        Assert.Equal("researcher", fork.Profile);
+        Assert.Equal("researcher", fork.Agent);
     }
 
     [Fact]
@@ -185,17 +185,17 @@ public sealed class SessionForkCloneTests : IDisposable
 
         SessionMeta fork = await _store.ForkAsync(source.Id, "e1");
 
-        Assert.Null(fork.Profile);
+        Assert.Null(fork.Agent);
     }
 
     [Fact]
     public async Task CloneAsync_InheritsSourceProfile()
     {
-        SessionMeta source = await _store.CreateAsync(profile: "researcher");
+        SessionMeta source = await _store.CreateAsync(agent: "researcher");
 
         SessionMeta clone = await _store.CloneAsync(source.Id);
 
-        Assert.Equal("researcher", clone.Profile);
+        Assert.Equal("researcher", clone.Agent);
     }
 
     [Fact]
@@ -205,7 +205,7 @@ public sealed class SessionForkCloneTests : IDisposable
 
         SessionMeta clone = await _store.CloneAsync(source.Id);
 
-        Assert.Null(clone.Profile);
+        Assert.Null(clone.Agent);
     }
 
     private sealed class FakeResolver : ISessionDirectoryResolver

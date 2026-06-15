@@ -1,4 +1,4 @@
-namespace Dmon.Abstractions.Profiles;
+namespace Dmon.Abstractions.Permissions;
 
 /// <summary>
 /// Controls the permission posture applied during a session.

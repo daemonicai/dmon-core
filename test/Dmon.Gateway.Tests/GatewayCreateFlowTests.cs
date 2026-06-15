@@ -2,9 +2,7 @@ using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Channels;
-using Dmon.Abstractions.Profiles;
 using Dmon.Core.Config;
-using Dmon.Core.Profiles;
 using Dmon.Gateway.Protocol;
 using Dmon.Gateway.Sessions;
 using Dmon.Protocol.Gateway;
@@ -15,15 +13,15 @@ namespace Dmon.Gateway.Tests;
 /// <summary>
 /// Group 6: gateway create-flow tests.
 ///
-/// 6.1 — Create with a known profile: handshake returns the session id, profile is forwarded
+/// 6.1 — Create with a known agent: handshake returns the session id, agent is forwarded
 ///        to core stdin, handler is registered, and <c>created {sessionId}</c> is sent to the client.
 ///        A subsequent attach to the registered session succeeds.
 ///
-/// 6.2 — Create with an unknown or misconfigured profile: a typed <c>createRejected</c> is returned,
+/// 6.2 — Create with an unknown agent: a typed <c>createRejected</c> is returned,
 ///        the registry count is unchanged, and no core is spawned
 ///        (<see cref="GatewayConnectionEndpoint.HandleCreateAsync"/> returns before calling
-///        <see cref="CoreLauncher"/>). Both the <c>unknown_profile</c> and <c>invalid_profile</c>
-///        error codes are covered.
+///        the core launcher). The <c>unknown_agent</c> error code is covered.
+///        A null agent bypasses validation entirely.
 ///
 /// 6.3 — Create at cap: <c>createRejected {code="cap_reached"}</c> is returned and the registry
 ///        count remains at the cap. Reattach to an already-registered session is exempt from the cap.
@@ -31,12 +29,12 @@ namespace Dmon.Gateway.Tests;
 public sealed class GatewayCreateFlowTests
 {
     // =========================================================================
-    // 6.1 — Create with a known profile
+    // 6.1 — Create with a known agent
     //
     // Coverage boundary (intentional — not a gap):
     //
     // The 6.1 success path is verified through three decomposed seam tests:
-    //   6.1a — DriveSessionHandshakeAsync (handshake result consumption + profile forwarding).
+    //   6.1a — DriveSessionHandshakeAsync (handshake result consumption + agent forwarding).
     //   6.1b — SessionRegistry.TryRegister + TryGet (handler registration / attach lookup).
     //   6.1c — CreatedFrame wire shape (the frame returned to the client).
     //
@@ -45,28 +43,25 @@ public sealed class GatewayCreateFlowTests
     // handshake result lines (session.createResult + session.loadResult) BEFORE new SessionHandler(...)
     // starts the seq-assigning stdout pump. A full HandleCreateAsync end-to-end test would need to
     // launch a real (or fake) OS process via an ICoreLauncher / CoreSession abstraction in
-    // Dmon.Runtime so a scripted FeedableReader can stand in for the process's stdout. Introducing
-    // that abstraction is a cross-project change (Dmon.Runtime + Dmon.Gateway public surface) that
-    // is deliberately out of scope for this change (per-session-profile-selection). The composition
-    // ordering is visible in GatewayConnectionEndpoint.HandleCreateAsync at the DriveSessionHandshakeAsync
-    // call site and is covered by code review.
+    // Dmon.Runtime so a scripted FeedableReader can stand in for the process's stdout. This
+    // abstraction is present and used in GatewayCreateE2ETests.
     // =========================================================================
 
     /// <summary>
     /// 6.1a — <see cref="GatewayConnectionEndpoint.DriveSessionHandshakeAsync"/> returns the
-    /// session id allocated by the core and forwards the profile name in the
+    /// session id allocated by the core and forwards the agent name in the
     /// <c>session.create</c> command written to core stdin.
     ///
     /// Seam: the static <c>internal</c> method is called directly with a scripted
     /// <see cref="FeedableReader"/> (simulating core stdout) and a <see cref="CapturingWriter"/>
     /// (capturing core stdin). This exercises the spec requirement "session created with the
-    /// profile stored" without spawning a real OS process.
+    /// agent stored" without spawning a real OS process.
     /// </summary>
     [Theory]
     [InlineData("coding")]
     [InlineData("researcher")]
     [InlineData(null)]
-    public async Task DriveSessionHandshake_ReturnsSessionId_AndForwardsProfileToStdin(string? profile)
+    public async Task DriveSessionHandshake_ReturnsSessionId_AndForwardsAgentToStdin(string? agent)
     {
         // Arrange: scripted stdout that delivers the two correlated result lines.
         const string sessionId = "sess-6-1-a";
@@ -74,29 +69,29 @@ public sealed class GatewayCreateFlowTests
         CapturingWriter stdin = new();
 
         // Feed session.createResult correlated to the gateway's command id.
-        stdout.Feed(MakeCreateResult("gw-session-create", sessionId, profile));
+        stdout.Feed(MakeCreateResult("gw-session-create", sessionId, agent));
         // Feed session.loadResult correlated to the gateway's load command id.
         stdout.Feed(MakeLoadResult("gw-session-load", sessionId));
 
         // Act.
         string returned = await GatewayConnectionEndpoint.DriveSessionHandshakeAsync(
-            stdout, stdin, profile, CancellationToken.None);
+            stdout, stdin, agent, CancellationToken.None);
 
-        // Assert: correct session id returned (spec: "session created with the profile stored").
+        // Assert: correct session id returned (spec: "session created with the agent stored").
         Assert.Equal(sessionId, returned);
 
-        // Assert: the create command written to stdin contains the profile field correctly.
-        // WireSerializerOptions.Default has WhenWritingNull, so a null profile is omitted entirely.
-        // A non-null profile is serialised as "profile":"<name>".
+        // Assert: the create command written to stdin contains the agent field correctly.
+        // WireSerializerOptions.Default has WhenWritingNull, so a null agent is omitted entirely.
+        // A non-null agent is serialised as "agent":"<name>".
         string writtenToCore = stdin.GetWritten();
-        if (profile is not null)
+        if (agent is not null)
         {
-            Assert.Contains($"\"profile\":\"{profile}\"", writtenToCore);
+            Assert.Contains($"\"agent\":\"{agent}\"", writtenToCore);
         }
         else
         {
-            // Null profile: the key is omitted entirely (WhenWritingNull).
-            Assert.DoesNotContain("\"profile\"", writtenToCore);
+            // Null agent: the key is omitted entirely (WhenWritingNull).
+            Assert.DoesNotContain("\"agent\"", writtenToCore);
             Assert.Contains("\"type\":\"session.create\"", writtenToCore);
         }
     }
@@ -116,11 +111,11 @@ public sealed class GatewayCreateFlowTests
         FeedableReader stdout = new();
         CapturingWriter stdin = new();
 
-        stdout.Feed(MakeCreateResult("gw-session-create", sessionId, profile: "coding"));
+        stdout.Feed(MakeCreateResult("gw-session-create", sessionId, agent: "coding"));
         stdout.Feed(MakeLoadResult("gw-session-load", sessionId));
 
         string handshakeSessionId = await GatewayConnectionEndpoint.DriveSessionHandshakeAsync(
-            stdout, stdin, profile: "coding", CancellationToken.None);
+            stdout, stdin, agent: "coding", CancellationToken.None);
 
         Assert.Equal(sessionId, handshakeSessionId);
 
@@ -163,124 +158,137 @@ public sealed class GatewayCreateFlowTests
     }
 
     // =========================================================================
-    // 6.2 — Create with unknown or misconfigured profile
+    // 6.2 — Create with unknown agent / null agent bypass
     // =========================================================================
 
     /// <summary>
-    /// 6.2a — Requesting an unknown profile name: gateway replies with
-    /// <c>createRejected {code="unknown_profile"}</c>, no handler is registered, no core spawned.
+    /// 6.2a — Requesting an unknown agent name: gateway replies with
+    /// <c>createRejected {code="unknown_agent"}</c>, no handler is registered, no core spawned.
     ///
     /// Seam: <see cref="GatewayConnectionEndpoint.HandleCreateAsync"/> is called directly (internal)
-    /// with a <see cref="CapturingWebSocket"/> and a fake <see cref="IAgentProfileResolver"/> that
-    /// throws. The <c>_coreLauncher</c> field is <c>null!</c> in the test ctor — if it were called
-    /// it would NullReferenceException immediately, proving the rejection path exits before spawn.
+    /// with a <see cref="CapturingWebSocket"/>. The <c>_coreLauncher</c> field is <c>null!</c>
+    /// in the test ctor — if it were called it would NullReferenceException immediately,
+    /// proving the rejection path exits before spawn.
     ///
-    /// "Unknown" is detected because the name is not "coding" (the only built-in) and the
-    /// non-existent config file paths contribute an empty effective set.
+    /// "Unknown" is detected because the agent .cs file does not exist under the workspace root.
+    /// A temporary directory is used so no real workspace is created.
     /// </summary>
     [Fact]
-    public async Task HandleCreate_UnknownProfile_ReturnsCreateRejected_NoCoreSpawned()
+    public async Task HandleCreate_UnknownAgent_ReturnsCreateRejected_NoCoreSpawned()
     {
-        // "not-a-real-profile" is not "coding" and not in any config file (paths don't exist).
-        // ContainsProfile returns false → code = "unknown_profile".
-        const string requestedProfile = "not-a-real-profile";
+        const string requestedAgent = "not-a-real-agent";
         SessionRegistry registry = new();
 
-        // Resolver throws with an actionable message; ContainsProfile is driven by the real
-        // EffectiveProfileSetResolver with non-existent config paths (returns empty set).
-        ThrowingProfileResolver resolver = new(message: $"Profile '{requestedProfile}' not found.");
+        // Use a temp directory that exists (so the path check is filesystem-backed)
+        // but contains no .dmon/agents/ subtree → the agent .cs will not be found.
+        string workspace = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(workspace);
+        try
+        {
+            GatewayConnectionEndpoint endpoint = MakeEndpointWithWorkspace(registry, workspace);
 
-        GatewayConnectionEndpoint endpoint = MakeEndpointWithResolver(registry, resolver);
+            CapturingWebSocket socket = new();
+            string createFrame = ControlFrameSerializer.Serialize(new CreateFrame { Agent = requestedAgent });
 
-        CapturingWebSocket socket = new();
-        string createFrame = ControlFrameSerializer.Serialize(new CreateFrame { Profile = requestedProfile });
+            // Act.
+            await endpoint.HandleCreateAsync(socket, createFrame, CancellationToken.None);
 
-        // Act.
-        await endpoint.HandleCreateAsync(socket, createFrame, CancellationToken.None);
+            // Assert: exactly one createRejected frame sent to the client.
+            string sentJson = Assert.Single(socket.SentFrames);
+            using JsonDocument doc = JsonDocument.Parse(sentJson);
+            Assert.Equal("createRejected", doc.RootElement.GetProperty("gw").GetString());
+            Assert.Equal("unknown_agent", doc.RootElement.GetProperty("code").GetString());
 
-        // Assert: exactly one createRejected frame sent to the client.
-        string sentJson = Assert.Single(socket.SentFrames);
-        using JsonDocument doc = JsonDocument.Parse(sentJson);
-        Assert.Equal("createRejected", doc.RootElement.GetProperty("gw").GetString());
-        Assert.Equal("unknown_profile", doc.RootElement.GetProperty("code").GetString());
+            // The message must be actionable (non-empty).
+            string message = doc.RootElement.GetProperty("message").GetString() ?? string.Empty;
+            Assert.False(string.IsNullOrWhiteSpace(message));
 
-        // The message must be actionable (non-empty).
-        string message = doc.RootElement.GetProperty("message").GetString() ?? string.Empty;
-        Assert.False(string.IsNullOrWhiteSpace(message));
-
-        // Assert: registry count unchanged (no handler leaked on rejection).
-        Assert.Equal(0, registry.Count);
+            // Assert: registry count unchanged (no handler leaked on rejection).
+            Assert.Equal(0, registry.Count);
+        }
+        finally
+        {
+            Directory.Delete(workspace, recursive: true);
+        }
     }
 
     /// <summary>
-    /// 6.2b — Requesting the built-in <c>coding</c> profile when its config is invalid:
-    /// gateway replies with <c>createRejected {code="invalid_profile"}</c>, no handler registered.
+    /// 6.2a-traversal — Path-traversal payloads in the agent name are rejected with
+    /// <c>createRejected {code="unknown_agent"}</c> before any core is spawned.
     ///
-    /// Covers the distinction added in Group 5: the name IS in the effective set (built-in "coding"
-    /// is always present), so ContainsProfile returns true → code = "invalid_profile".
+    /// The containment guard in <see cref="GatewayConnectionEndpoint.HandleCreateAsync"/>
+    /// uses <c>StartsWith(workspaceRoot + DirectorySeparatorChar, …)</c> after
+    /// <see cref="Path.GetFullPath"/> to ensure the resolved agent path cannot escape the
+    /// workspace root via <c>../</c> segments or an absolute path. This test verifies that
+    /// each traversal variant is caught and results in the same rejection as a plain
+    /// unknown-agent name — no core is spawned, registry count stays at zero.
     /// </summary>
-    [Fact]
-    public async Task HandleCreate_InvalidProfile_ReturnsCreateRejected_InvalidProfileCode()
+    [Theory]
+    [InlineData("../../etc/passwd")]
+    [InlineData("../outside")]
+    [InlineData("/etc/passwd")]
+    public async Task HandleCreate_TraversalAgent_ReturnsCreateRejected_NoCoreSpawned(string traversalAgent)
     {
-        // "coding" is always in the effective set (built-in).
-        // ContainsProfile("coding", ...) returns true → code = "invalid_profile".
-        const string requestedProfile = "coding";
         SessionRegistry registry = new();
 
-        ThrowingProfileResolver resolver = new(message: "Profile 'coding' has invalid config.");
+        string workspace = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(workspace);
+        try
+        {
+            GatewayConnectionEndpoint endpoint = MakeEndpointWithWorkspace(registry, workspace);
 
-        GatewayConnectionEndpoint endpoint = MakeEndpointWithResolver(registry, resolver);
+            CapturingWebSocket socket = new();
+            string createFrame = ControlFrameSerializer.Serialize(new CreateFrame { Agent = traversalAgent });
 
-        CapturingWebSocket socket = new();
-        string createFrame = ControlFrameSerializer.Serialize(new CreateFrame { Profile = requestedProfile });
+            // Act.
+            await endpoint.HandleCreateAsync(socket, createFrame, CancellationToken.None);
 
-        // Act.
-        await endpoint.HandleCreateAsync(socket, createFrame, CancellationToken.None);
+            // Assert: exactly one createRejected frame sent to the client.
+            string sentJson = Assert.Single(socket.SentFrames);
+            using JsonDocument doc = JsonDocument.Parse(sentJson);
+            Assert.Equal("createRejected", doc.RootElement.GetProperty("gw").GetString());
+            Assert.Equal("unknown_agent", doc.RootElement.GetProperty("code").GetString());
 
-        // Assert: createRejected with invalid_profile code.
-        string sentJson = Assert.Single(socket.SentFrames);
-        using JsonDocument doc = JsonDocument.Parse(sentJson);
-        Assert.Equal("createRejected", doc.RootElement.GetProperty("gw").GetString());
-        Assert.Equal("invalid_profile", doc.RootElement.GetProperty("code").GetString());
+            // The message must be actionable (non-empty).
+            string message = doc.RootElement.GetProperty("message").GetString() ?? string.Empty;
+            Assert.False(string.IsNullOrWhiteSpace(message));
 
-        // Assert: registry unchanged — no handler leaked.
-        Assert.Equal(0, registry.Count);
+            // Assert: no handler was registered — traversal payload never reaches spawn.
+            Assert.Equal(0, registry.Count);
+        }
+        finally
+        {
+            Directory.Delete(workspace, recursive: true);
+        }
     }
 
     /// <summary>
-    /// 6.2c — A null/absent profile bypasses validation entirely: the resolver is never called
-    /// and no createRejected is sent.
-    ///
-    /// Design D3: "A null/absent profile is valid and resolves to the configured default
-    /// — do not reject it."
+    /// 6.2b — A null/absent agent bypasses validation entirely: no createRejected is sent.
     ///
     /// The test ctor has _coreLauncher = null!, so HandleCreateAsync will fail at the spawn step
     /// (NRE caught by the inner exception handler, which closes the socket with 4500). What matters
-    /// for this spec assertion is that no createRejected frame was sent and ResolveAsync was
-    /// never invoked — both confirming validation was bypassed for a null profile.
+    /// for this spec assertion is that no createRejected frame was sent — confirming validation
+    /// was bypassed for a null agent.
     /// </summary>
     [Fact]
-    public async Task HandleCreate_NullProfile_ValidationSkipped_NoCreateRejected()
+    public async Task HandleCreate_NullAgent_ValidationSkipped_NoCreateRejected()
     {
         SessionRegistry registry = new();
-        TrackingProfileResolver resolver = new();
-
-        GatewayConnectionEndpoint endpoint = MakeEndpointWithResolver(registry, resolver);
+        GatewayConnectionEndpoint endpoint = new(
+            registry,
+            new GatewayConnectionEndpoint.TestOptions(),
+            NullLogger<GatewayConnectionEndpoint>.Instance);
 
         CapturingWebSocket socket = new();
-        // Create frame with no profile field (profile = null).
-        string createFrameNoProfile = ControlFrameSerializer.Serialize(new CreateFrame { Profile = null });
+        // Create frame with no agent field (agent = null).
+        string createFrameNoAgent = ControlFrameSerializer.Serialize(new CreateFrame { Agent = null });
 
         // Act: HandleCreateAsync completes normally — the null _coreLauncher NRE is caught by the
         // inner exception handler which closes the socket with 4500. The method does NOT rethrow.
-        await endpoint.HandleCreateAsync(socket, createFrameNoProfile, CancellationToken.None);
+        await endpoint.HandleCreateAsync(socket, createFrameNoAgent, CancellationToken.None);
 
         // Assert: no createRejected frame was sent — validation was not triggered.
         Assert.DoesNotContain(socket.SentFrames, f => f.Contains("createRejected"));
-
-        // Assert: ResolveAsync was NOT called for a null profile (design D3).
-        Assert.False(resolver.WasCalled,
-            "ResolveAsync must not be called when profile is null (design D3).");
 
         // Registry unchanged — the spawn failure leaves no handler registered.
         Assert.Equal(0, registry.Count);
@@ -412,28 +420,18 @@ public sealed class GatewayCreateFlowTests
     // =========================================================================
 
     /// <summary>
-    /// Builds a <see cref="GatewayConnectionEndpoint"/> wired with a real
-    /// <see cref="EffectiveProfileSetResolver"/> (default ctor reads from config files;
-    /// non-existent paths return an empty set) and the supplied profile resolver.
-    /// <c>CoreLauncher</c> is <see langword="null"/> in the options — only valid for tests
-    /// that assert rejection paths that return before the spawn step.
+    /// Builds a <see cref="GatewayConnectionEndpoint"/> with a supplied workspace root and
+    /// no core launcher — valid only for tests that assert rejection paths that exit before spawn.
     /// </summary>
-    private static GatewayConnectionEndpoint MakeEndpointWithResolver(
+    private static GatewayConnectionEndpoint MakeEndpointWithWorkspace(
         SessionRegistry registry,
-        IAgentProfileResolver resolver)
+        string workspaceRoot)
     {
-        // Non-existent paths → ProfilesConfigReader returns empty (optional: true).
-        GatewayProfilePaths paths = new(
-            UserConfigPath: "/dev/null/nonexistent-user.yaml",
-            ProjectConfigPath: "/dev/null/nonexistent-project.yaml");
-
         return new GatewayConnectionEndpoint(
             registry,
             new GatewayConnectionEndpoint.TestOptions
             {
-                ProfileResolver = resolver,
-                EffectiveProfileSetResolver = new EffectiveProfileSetResolver(),
-                ProfilePaths = paths,
+                WorkspaceRoot = workspaceRoot,
             },
             NullLogger<GatewayConnectionEndpoint>.Instance);
     }
@@ -442,7 +440,7 @@ public sealed class GatewayCreateFlowTests
     /// Builds the JSON line for a <c>session.createResult</c> event correlated to
     /// <paramref name="commandId"/> with the given <paramref name="sessionId"/>.
     /// </summary>
-    private static string MakeCreateResult(string commandId, string sessionId, string? profile) =>
+    private static string MakeCreateResult(string commandId, string sessionId, string? agent) =>
         JsonSerializer.Serialize(new
         {
             type = "session.createResult",
@@ -452,7 +450,7 @@ public sealed class GatewayCreateFlowTests
                 id = sessionId,
                 created = DateTimeOffset.UtcNow,
                 modified = DateTimeOffset.UtcNow,
-                profile,
+                agent,
             },
         });
 
@@ -472,41 +470,6 @@ public sealed class GatewayCreateFlowTests
                 modified = DateTimeOffset.UtcNow,
             },
         });
-
-    /// <summary>
-    /// Fake <see cref="IAgentProfileResolver"/> that always throws
-    /// <see cref="AgentProfileConfigException"/> with a fixed message. Tracks whether
-    /// <see cref="ResolveAsync"/> was called so tests can assert it was skipped for null profiles.
-    /// </summary>
-    private sealed class ThrowingProfileResolver : IAgentProfileResolver
-    {
-        private readonly string _message;
-
-        public ThrowingProfileResolver(string message)
-        {
-            _message = message;
-        }
-
-        public Task<AgentProfile> ResolveAsync(string? requestedProfile, CancellationToken cancellationToken)
-        {
-            throw new AgentProfileConfigException(_message);
-        }
-    }
-
-    /// <summary>
-    /// Fake <see cref="IAgentProfileResolver"/> that tracks whether it was called,
-    /// without throwing. Used to assert that null-profile validation is bypassed.
-    /// </summary>
-    private sealed class TrackingProfileResolver : IAgentProfileResolver
-    {
-        public bool WasCalled { get; private set; }
-
-        public Task<AgentProfile> ResolveAsync(string? requestedProfile, CancellationToken cancellationToken)
-        {
-            WasCalled = true;
-            return Task.FromResult(new AgentProfile("coding", "", false, PermissionMode.Coding));
-        }
-    }
 
     /// <summary>
     /// A WebSocket that captures all <see cref="SendAsync"/> calls as UTF-8 text frames
