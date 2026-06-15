@@ -1,8 +1,8 @@
 ## 1. Cleanup ghost dirs and cruft
 
-- [ ] 1.1 Remove the four untracked ghost dirs under `src/` (`Dmon.Extensions`, `Dmon.Providers`, `Dmon.BuiltinTools`, `Dmon.Tui`) — `bin`/`obj`-only, no tracked files
-- [ ] 1.2 Remove other stale build cruft not covered by `.gitignore` (verify with `git status` that nothing tracked is deleted)
-- [ ] 1.3 Confirm `make build` + `make test` still green at the current layout (baseline before any move)
+- [x] 1.1 Remove the four untracked ghost dirs under `src/` (`Dmon.Extensions`, `Dmon.Providers`, `Dmon.BuiltinTools`, `Dmon.Tui`) — `bin`/`obj`-only, no tracked files
+- [x] 1.2 Remove other stale build cruft not covered by `.gitignore` (verify with `git status` that nothing tracked is deleted)
+- [x] 1.3 Confirm `make build` + `make test` still green at the current layout (baseline before any move)
 
 ## 2. Central Package Management (at current layout)
 
