@@ -25,7 +25,6 @@ public sealed class ProviderRegistry : IProviderRegistry
         IActiveModelStore store,
         ILogger<ProviderRegistry> logger)
     {
-        _builtIn = configs.ToList();
         _credentials = credentials;
         _logger = logger;
 
@@ -34,14 +33,26 @@ public sealed class ProviderRegistry : IProviderRegistry
             f => f,
             StringComparer.OrdinalIgnoreCase);
 
-        foreach (ProviderConfig config in _builtIn)
+        // Filter configs to only those whose adapter has a registered factory.
+        // With the granular provider-package split (ADR-023 D7), the composition root
+        // decides which providers to compose; a config entry for an unregistered adapter
+        // is silently skipped (with a warning) rather than failing startup.
+        List<ProviderConfig> supported = [];
+        foreach (ProviderConfig config in configs)
         {
-            if (!_factories.ContainsKey(config.Adapter))
+            if (_factories.ContainsKey(config.Adapter))
             {
-                throw new InvalidOperationException(
-                    $"No factory registered for adapter '{config.Adapter}' (provider '{config.Name}').");
+                supported.Add(config);
+            }
+            else
+            {
+                _logger.LogWarning(
+                    "Provider '{Name}' (adapter: '{Adapter}') is in config but no factory is registered. " +
+                    "Add the corresponding Use<Provider>() verb to your Dmon.cs composition root.",
+                    config.Name, config.Adapter);
             }
         }
+        _builtIn = supported;
 
         _activeIndex = 0;
 
@@ -89,18 +100,20 @@ public sealed class ProviderRegistry : IProviderRegistry
         return combined;
     }
 
-    public async Task RegisterExtensionAsync(
+    public Task RegisterExtensionAsync(
         IProviderExtension extension,
         CancellationToken cancellationToken = default)
     {
         IProviderFactory factory = extension.CreateFactory();
-        IReadOnlyList<ModelInfo> models = await extension.ListModelsAsync(cancellationToken).ConfigureAwait(false);
 
+        // Do NOT call ListModelsAsync here — it is a network call (ADR-007: registration
+        // must be cheap and local). Model enumeration is deferred to on-demand paths
+        // (ModelModelsHandler, setup wizard). Use the factory's static default instead.
         ProviderConfig config = new()
         {
             Name = extension.ProviderName,
             Adapter = factory.AdapterName,
-            DefaultModelId = models.Count > 0 ? models[0].Id : null,
+            DefaultModelId = factory.DefaultModelId,
             Auth = new ProviderAuthConfig { Type = "none" }
         };
 
@@ -116,6 +129,8 @@ public sealed class ProviderRegistry : IProviderRegistry
 
         _logger.LogDebug("Registered extension provider '{Provider}' (adapter: {Adapter}).",
             extension.ProviderName, factory.AdapterName);
+
+        return Task.CompletedTask;
     }
 
     public void AddDynamicProvider(ProviderConfig config)

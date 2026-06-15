@@ -5,8 +5,9 @@ using Dmon.Abstractions.Wizard;
 using Dmon.Protocol.Wizard;
 using Microsoft.Extensions.AI;
 using OpenAI;
+using OpenAIChatClient = OpenAI.Chat.ChatClient;
 
-namespace Dmon.Providers;
+namespace Dmon.Providers.OpenAI;
 
 public sealed class OpenAiProviderFactory : IProviderFactory
 {
@@ -209,9 +210,9 @@ public sealed class OpenAiProviderFactory : IProviderFactory
         OpenAIClientOptions options = new();
         if (config.BaseUrl is not null)
             options.Endpoint = new Uri(config.BaseUrl);
-        OpenAI.Chat.ChatClient chatClient = string.IsNullOrWhiteSpace(apiKey)
-            ? new OpenAI.Chat.ChatClient(modelId, new ApiKeyCredential("none"), options)
-            : new OpenAI.Chat.ChatClient(modelId, new ApiKeyCredential(apiKey), options);
+        OpenAIChatClient chatClient = string.IsNullOrWhiteSpace(apiKey)
+            ? new OpenAIChatClient(modelId, new ApiKeyCredential("none"), options)
+            : new OpenAIChatClient(modelId, new ApiKeyCredential(apiKey), options);
         IChatClient client = chatClient.AsIChatClient();
         ChatClientCapabilities caps = GetCapabilities(modelId);
         return ValueTask.FromResult<IChatClient>(new CapabilitiesDecorator(client, caps));

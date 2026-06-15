@@ -33,12 +33,23 @@
 - **Reviewer:** APPROVE with nits → removed three uncallable two-type-param facet overloads (C# partial-inference dead-ends); added a `<remarks>` note steering DI-constructed registration to the concrete builder methods / `Services`.
 - **Provider Use-verb path CONFIRMED for Group 4:** `static T UseGemini<T>(this T r, string m) where T : IProviderRegistration => r.AddProvider(new GeminiProvider()).UseModel("gemini", m);` compiles against the Abstractions-only surface.
 
+## 4. Provider split & Option-B symmetry
+
+- Split the 3-in-1 `Dmon.Providers` into `Dmon.Providers.Anthropic` / `.OpenAI` / `.Gemini` (each refs `Dmon.Abstractions` + only its vendor SDK); `Dmon.Providers.Ollama` gained its verb. Old `Dmon.Providers` `git rm`'d. Each ships a self-type `Use<Provider>` verb (no-arg + model overload) in `namespace Dmon.Hosting`; prefixes verified == `AdapterName` (anthropic/openai/gemini/ollama).
+- **`Dmon.Core` is now vendor-SDK-free** — dropped the 4 vendor PackageReferences + PrivateAssets provider refs; deleted `AddDmonProviders` (registry/credential infra relocated to `AddDmonCore`). Cloud verbs register `IProviderFactory` singletons (consumed by `ProviderRegistry`'s existing `IEnumerable<IProviderFactory>`); Ollama is an `IProviderExtension` routed via the Group-3 discovery loop.
+- **Decision (`ProviderRegistry` ctor): throw → warn-and-filter** on an unknown adapter — necessary now that a `config.yaml` can name a provider whose package isn't composed; logs Warning naming the missing `Use<Provider>()`. `AddDynamicProvider` still throws (explicit op). Specced in `provider-registry` delta.
+- **B1 (reviewer blocker) fixed: no network I/O at provider registration.** `RegisterExtensionAsync` no longer calls `ListModelsAsync` (which hit `localhost:11434` untimed during `Build()` — would hang the stock core ~100s when Ollama is down). `DefaultModelId` now comes from the factory's static property; model enumeration is on-demand (wizard/model-list handler). Aligns with ADR-007 (no server probing at load). Regression test `RegisterExtensionAsync_DoesNotCallListModelsAsync` guards it. Reviewer: APPROVE.
+- `scripts/pack-core.sh` packs the four provider packages; `default-core/Dmon.cs` `#:package`s them and composes `.UseAnthropic().UseOpenAI().UseGemini().UseOllama()`. OpenAI namespace collision handled via a type alias.
+- **CRITICAL BUILD LESSON:** `default-core/Dmon.cs` is a **file-based program OUTSIDE `Dmon.slnx`** — `dotnet build`/`dotnet test`/solution `make test` do NOT compile it. Only **`make build`** (→`build-core`: pack to `build/core-feed`, publish with `NUGET_PACKAGES=build/core-pkgs`) builds it. Group 4 initially shipped a green solution build but a BROKEN `default-core/Dmon.cs` (caught only by `make build`). Worse, `build/core-pkgs` caches the same-version `0.2.0` extraction across runs, so a stale composition silently persists — **`make clean` before `make build`** is required to authoritatively validate the composition root. Every group touching the builder/verbs/providers/system-prompt can break `default-core/Dmon.cs` invisibly to solution tests — so the per-group gate MUST include `make clean && make build`.
+
 ## NEXT
 
-- **Up next:** Group 4 — provider split & Option-B symmetry. Extract `Dmon.Providers.<Name>` packages (vendor SDK + `Use<Provider>` verb in `Dmon.Hosting`), strip vendor refs + delete `AddDmonProviders` from `Dmon.Core`, update `default-core/Dmon.cs` to compose providers explicitly.
-- **Open questions:**
-  - **Sync-over-async at `DmonHostBuilder.Build():~292`** — `RegisterExtensionAsync(...).GetAwaiter().GetResult()`. A no-op for the stock core today, but Group 4 ships real `IProviderExtension`s; if any does real I/O in `RegisterExtensionAsync`, reconsider an `async BuildAsync` (and thread a `CancellationToken`). Decide in Group 4.
-  - `protocol-schema` delta for `profile`→`agent` — author before Group 7.
-  - `ISessionAssetProvisioner` new signature (path vs flag) — Group 7.
-  - Durable NuGet stale-cache fixture fix — consider Group 8.
-- **Carry-forward:** Pacing = run Groups 4–6, pause before Group 7 and before Group 8. Clear `~/.nuget/packages/dmon.*` before composition tests on this machine.
+- **Up next:** Group 5 — sub-agent provider isolation & `IChatClientFactory`. Implement the isolated `IProviderRegistration` → captured `IChatClientFactory` (no `IProviderRegistry`), `Action<IProviderRegistration>` tool-reg path, eager structural validation at `Build()` / lazy credential+client at first `CreateAsync` (memoizable).
+- **Open questions / carry-forward:**
+  - **Per-group gate now includes `make clean && make build`** (compiles `default-core/Dmon.cs`) in addition to `make test` + `validate` — non-negotiable after the Group 4 lesson. Brief workers to run it.
+  - The Group-3 sync-over-async in `Build()` is now benign (registration does no I/O). If a future provider extension needs async work at registration, revisit `BuildAsync`.
+  - `protocol-schema` delta for `profile`→`agent` — author before Group 7 (pre-Group-7 pause).
+  - `ISessionAssetProvisioner` new signature — Group 7.
+  - Durable NuGet stale-cache fix (isolate/clear `build/core-pkgs` + `~/.nuget` dmon.* per pack) — consider Group 8.
+  - Non-blocking (later change): `RegisterExtensionAsync` hardcodes `Auth.Type="none"` for extension providers — fine for Ollama; revisit if a keyed-auth provider extension appears.
+- **Pacing:** run Groups 5–6, pause before Group 7 and before Group 8. Clear `~/.nuget/packages/dmon.*` + `make clean` before authoritative gates on this machine.

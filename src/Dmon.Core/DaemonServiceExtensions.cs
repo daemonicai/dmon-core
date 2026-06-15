@@ -15,8 +15,6 @@ using Dmon.Protocol.Permissions;
 using Dmon.Core.Providers;
 using Dmon.Core.Rpc;
 using Dmon.Core.Session;
-using Dmon.Providers;
-using Dmon.Providers.Ollama;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
@@ -26,37 +24,13 @@ namespace Dmon.Core;
 public static class DmonServiceExtensions
 {
     /// <summary>
-    /// Registers provider-related services: configuration loading, credential
-    /// resolution, and the provider registry.
-    /// </summary>
-    public static IServiceCollection AddDmonProviders(this IServiceCollection services)
-    {
-        services.AddSingleton<ProviderConfigLoader>();
-        services.AddSingleton<IEnumerable<ProviderConfig>>(sp =>
-        {
-            ProviderConfigLoader loader = sp.GetRequiredService<ProviderConfigLoader>();
-            return loader.Load();
-        });
-
-        services.AddSingleton<ICredentialFileStore, CredentialFileStore>();
-        services.AddSingleton<ICredentialResolver, CredentialResolver>();
-        services.AddSingleton<IProviderFactory, OpenAiProviderFactory>();
-        services.AddSingleton<IProviderFactory, AnthropicProviderFactory>();
-        services.AddSingleton<IProviderFactory, GeminiProviderFactory>();
-        services.AddSingleton<IProviderFactory, OllamaProviderFactory>();
-        services.AddSingleton<IProviderRegistry, ProviderRegistry>();
-
-        return services;
-    }
-
-    /// <summary>
     /// Registers authentication services: credential file store and the
     /// auth command handler.
     /// </summary>
     public static IServiceCollection AddDmonAuth(this IServiceCollection services)
     {
-        // ICredentialFileStore is registered in AddDmonProviders — only
-        // add it here if providers haven't been registered yet.
+        // ICredentialFileStore is registered by AddDmonCore — only
+        // add it here if core services haven't been registered yet.
         services.TryAddSingleton<ICredentialFileStore, CredentialFileStore>();
         services.AddSingleton<IAuthService, AuthService>();
 
@@ -92,10 +66,27 @@ public static class DmonServiceExtensions
     /// <summary>
     /// Registers the RPC infrastructure: event emitter, command dispatcher,
     /// turn handler, stub handlers, and bootstrap service.
-    /// Call after AddDmonProviders, AddDmonAuth, and AddDmonExtensions.
+    /// Also registers provider infrastructure (config loading, credential resolution,
+    /// and the provider registry) — provider factories themselves are composed via
+    /// Use&lt;Provider&gt;() verbs in the Dmon.cs composition root.
+    /// Call after AddDmonAuth and AddDmonExtensions.
     /// </summary>
     public static IServiceCollection AddDmonCore(this IServiceCollection services)
     {
+        // Provider infrastructure: config loading, credential resolution, registry.
+        // Provider factories are NOT registered here — they come from Use<Provider>()
+        // verbs in the composition root (DI-discovered as IProviderFactory singletons).
+        services.AddSingleton<ProviderConfigLoader>();
+        services.AddSingleton<IEnumerable<ProviderConfig>>(sp =>
+        {
+            ProviderConfigLoader loader = sp.GetRequiredService<ProviderConfigLoader>();
+            return loader.Load();
+        });
+
+        services.AddSingleton<ICredentialFileStore, CredentialFileStore>();
+        services.AddSingleton<ICredentialResolver, CredentialResolver>();
+        services.AddSingleton<IProviderRegistry, ProviderRegistry>();
+
         services.AddSingleton<ISessionDirectoryResolver, SessionDirectoryResolver>();
         services.AddSingleton<IAttachmentStore, AttachmentStore>();
 

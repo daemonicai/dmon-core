@@ -6,7 +6,7 @@ using GeminiDotnet;
 using GeminiDotnet.Extensions.AI;
 using Microsoft.Extensions.AI;
 
-namespace Dmon.Providers;
+namespace Dmon.Providers.Gemini;
 
 public sealed class GeminiProviderFactory : IProviderFactory
 {

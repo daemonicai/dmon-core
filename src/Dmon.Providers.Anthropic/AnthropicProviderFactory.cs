@@ -6,7 +6,7 @@ using Dmon.Abstractions.Wizard;
 using Dmon.Protocol.Wizard;
 using Microsoft.Extensions.AI;
 
-namespace Dmon.Providers;
+namespace Dmon.Providers.Anthropic;
 
 public sealed class AnthropicProviderFactory : IProviderFactory
 {

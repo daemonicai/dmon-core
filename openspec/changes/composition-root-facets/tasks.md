@@ -25,12 +25,12 @@
 
 ## 4. Provider split & Option-B symmetry
 
-- [ ] 4.1 Extract `Dmon.Providers.Anthropic`, `Dmon.Providers.OpenAI`, `Dmon.Providers.Gemini`, `Dmon.Providers.Ollama` packages — each references `Dmon.Abstractions` + its vendor SDK and ships a `Use<Provider>` verb in `Dmon.Hosting`; the verb prefix equals the registered `ProviderName`/`AdapterName`.
-- [ ] 4.2 Remove the four vendor-SDK package references and the `PrivateAssets="all"` provider project refs from `Dmon.Core`; delete `AddDmonProviders`. Verify `dmoncore` no longer compiles against any vendor SDK.
-- [ ] 4.3 Wire provider DI-discovery for both shapes (`IProviderFactory` cloud + `IProviderExtension` local) through the facet verbs.
-- [ ] 4.4 Update `default-core/Dmon.cs` to compose providers explicitly (`UseAnthropic().UseOpenAI().UseGemini().UseOllama()`); add the optional `.AddDefaultProviders()` sugar.
-- [ ] 4.5 Update tests (provider registration, registry enumeration, setup wizard, model listing) for the package-supplied factories.
-- [ ] 4.6 Gate: `make build` clean, `make test` green, `openspec validate composition-root-facets --strict`.
+- [x] 4.1 Extract `Dmon.Providers.Anthropic`, `Dmon.Providers.OpenAI`, `Dmon.Providers.Gemini`, `Dmon.Providers.Ollama` packages — each references `Dmon.Abstractions` + its vendor SDK and ships a `Use<Provider>` verb in `Dmon.Hosting`; the verb prefix equals the registered `ProviderName`/`AdapterName`.
+- [x] 4.2 Remove the four vendor-SDK package references and the `PrivateAssets="all"` provider project refs from `Dmon.Core`; delete `AddDmonProviders`. Verify `dmoncore` no longer compiles against any vendor SDK.
+- [x] 4.3 Wire provider DI-discovery for both shapes (`IProviderFactory` cloud + `IProviderExtension` local) through the facet verbs. (Provider registration does NO network I/O — model enumeration is on-demand, per ADR-007.)
+- [x] 4.4 Update `default-core/Dmon.cs` to compose providers explicitly (`UseAnthropic().UseOpenAI().UseGemini().UseOllama()`). (Optional `.AddDefaultProviders()` aggregate deferred — it would need a meta-package referencing all four; ADR-023 D13 marks it MAY; the scaffold lists explicitly.)
+- [x] 4.5 Update tests (provider registration, registry enumeration, setup wizard, model listing) for the package-supplied factories.
+- [x] 4.6 Gate: `make build` clean, `make test` green, `openspec validate composition-root-facets --strict`.
 
 ## 5. Sub-agent provider isolation & `IChatClientFactory`
 

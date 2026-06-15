@@ -215,7 +215,6 @@ public sealed class DmonHostBuilder : IDmonHostBuilder
         _appBuilder.Services.AddSingleton<TextReader>(_ => stdin);
 
         _appBuilder.Services
-            .AddDmonProviders()
             .AddDmonAuth()
             .AddDmonExtensions()
             .AddDmonCore();
@@ -278,10 +277,10 @@ public sealed class DmonHostBuilder : IDmonHostBuilder
             toolRegistry.Register(ext.Name, ext, ext.Tools);
         }
 
-        // DI-discovery: enumerate IProviderExtension singletons registered via AddProvider
+        // DI-discovery: enumerate IProviderExtension singletons registered via AddProvider/UseOllama
         // and route into IProviderRegistry (gated by IsApplicable).
-        // No IProviderExtension is registered by the stock core (Group 4 adds provider packages),
-        // so this is a no-op for now; existing provider behaviour is unchanged.
+        // IProviderFactory singletons (cloud providers) are enumerated by ProviderRegistry
+        // directly from DI — they do not go through this loop.
         IProviderRegistry providerRegistry = host.Services.GetRequiredService<IProviderRegistry>();
         foreach (IProviderExtension providerExt in host.Services.GetServices<IProviderExtension>())
         {

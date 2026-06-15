@@ -30,13 +30,6 @@
     <PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.15.3" />
     <PackageReference Include="OpenTelemetry.Instrumentation.Http" Version="1.15.1" />
     <PackageReference Include="OpenTelemetry.Instrumentation.Runtime" Version="1.15.1" />
-    <!-- External deps of bundled impl projects (Dmon.Providers, Dmon.Providers.Ollama, Dmon.BuiltinTools).
-         Their DLLs are bundled into lib/net10.0/ and do not declare their own package dependencies,
-         so we declare them here so the consumer's restore closure is complete. -->
-    <PackageReference Include="Anthropic" Version="12.24.1" />
-    <PackageReference Include="GeminiDotnet.Extensions.AI" Version="0.25.0" />
-    <PackageReference Include="Microsoft.Extensions.AI.OpenAI" Version="10.5.1" />
-    <PackageReference Include="OllamaSharp" Version="5.4.25" />
   </ItemGroup>
 
   <ItemGroup>
@@ -45,8 +38,6 @@
     <ProjectReference Include="..\Dmon.Protocol\Dmon.Protocol.csproj" />
     <!-- Impl projects: bundled into lib/net10.0/ — PrivateAssets="all" suppresses them as nuspec deps. -->
     <ProjectReference Include="..\Dmon.BuiltinTools\Dmon.BuiltinTools.csproj" PrivateAssets="all" />
-    <ProjectReference Include="..\Dmon.Providers\Dmon.Providers.csproj" PrivateAssets="all" />
-    <ProjectReference Include="..\Dmon.Providers.Ollama\Dmon.Providers.Ollama.csproj" PrivateAssets="all" />
   </ItemGroup>
 
   <ItemGroup>
@@ -56,9 +47,11 @@
   </ItemGroup>
 
   <!--
-    Bundle impl project DLLs (Dmon.BuiltinTools, Dmon.Providers, Dmon.Providers.Ollama) into lib/net10.0/.
+    Bundle impl project DLL (Dmon.BuiltinTools) into lib/net10.0/.
+    Provider packages (Dmon.Providers.*) ship as separate granular NuGet packages
+    and are composed at the Dmon.cs composition-root level via Use<Provider>() verbs.
     TargetsForTfmSpecificBuildOutput registers the target so the SDK pack pipeline picks up the extra items.
-    We filter ReferenceCopyLocalPaths to only the three impl assemblies by filename to avoid accidentally
+    We filter ReferenceCopyLocalPaths to only the BuiltinTools assembly by filename to avoid accidentally
     bundling the contract packages (Protocol/Abstractions) which are proper package dependencies.
   -->
   <PropertyGroup>
@@ -69,11 +62,7 @@
     <ItemGroup>
       <BuildOutputInPackage Include="@(ReferenceCopyLocalPaths)"
                             Condition="'%(ReferenceCopyLocalPaths.ReferenceSourceTarget)' == 'ProjectReference'
-                                       And (
-                                         $([System.String]::Copy('%(Filename)').Equals('Dmon.BuiltinTools'))
-                                         Or $([System.String]::Copy('%(Filename)').Equals('Dmon.Providers'))
-                                         Or $([System.String]::Copy('%(Filename)').Equals('Dmon.Providers.Ollama'))
-                                       )" />
+                                       And $([System.String]::Copy('%(Filename)').Equals('Dmon.BuiltinTools'))" />
     </ItemGroup>
   </Target>
 
