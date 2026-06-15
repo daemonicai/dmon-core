@@ -14,6 +14,7 @@ Baseline before work: `make build` clean (0 warnings / 0 errors); `ProtocolVersi
 - **1.3 deferred (not ticked):** "entry-point-less library / no `Main` in the package" needs the replacement entry point (canonical `Dmon.cs`, G2) and the library-packaging flip (G7) to exist first. Completes in G2/G7.
 - Tests: `DmonHostGoldenPathTests` — `agentReady`/`protocolVersion=0.2` over a `Pipe`-backed in-proc stdio; a builder-registered `AIFunction` lands in `IToolRegistry`; `WithModel`/`WithProfile` overrides reach `ActiveModelStore`/the resolver (regression guards for B1/B2).
 - Gates: `make build` 0/0; full `make test` green (628 Core tests, only pre-existing skips); `openspec validate --strict` valid.
+- **1.3 done (post-G6, commit `0e51f5f`):** deleted `src/Dmon.Core/Program.cs` (the one-line shim) and flipped `Dmon.Core.csproj` to a pure library — `<OutputType>Library</OutputType>` + `<GenerateRuntimeConfigurationFiles>false</GenerateRuntimeConfigurationFiles>`, **Worker SDK retained** (minimal flip per the 7.1 nit) so the `appsettings*.json` auto-include is unchanged; no SDK switch needed. Deleted the vestigial `Properties/launchSettings.json`. Safe because the runnable core is the prebuilt `build/dmoncore/dmoncore.dll` closure (published from `default-core/Dmon.cs`, which keeps its entry point) and every spawning test resolves THAT via `FindCoreDll`; nothing execs the src assembly. **Resolves the 7.1 deferred nit** (the inert `lib/` runtimeconfig is now gone, not merely tolerated). Strengthened `PackagingChecksTests`: nupkg must contain zero `runtimeconfig.json` anywhere, and a new `DmoncorePackage_LibDll_HasNoManagedEntryPoint` extracts `lib/net10.0/Dmon.Core.dll` and asserts `PEReader` `CorHeader.EntryPointTokenOrRelativeVirtualAddress == 0` (a real regression guard — non-zero iff a `Main` is reintroduced). Reviewer signed off (no blockers; doc-comment nit fixed). Gates: `make build` 0/0; `make test` green (545 Core + 1 pre-existing skip; all suites pass); validate valid.
 
 ## 2. `Dmon.cs` composition root, canonical default, and `dmon init`
 
@@ -150,10 +151,10 @@ Baseline before work: `make build` clean (0 warnings / 0 errors); `ProtocolVersi
 
 ## NEXT
 
-- **Up next:** Task **1.3** (entry-point-less `dmoncore` library — remove the top-level program / confirm no `Main`; flip `OutputType`/`GenerateRuntimeConfigurationFiles`), then Group 8 (e2e + final gates).
+- **Up next:** Group 8 — end-to-end (8.1) + final gates (8.2). **All other groups (1–7) are complete.** 8.1 is the human-verifiable e2e walk: empty dir → prebuilt default serves a turn; `dmon init` + add an extension `#:package` → build-then-`--no-build`-run serves a turn with that extension's tools and clean JSONL stdout; `/reload` after an edit rebuilds + restarts. 8.2 is the full-gates sweep.
 - **Nits / deferred:**
   - **(7.3, reviewer arch-note):** the `[SkippableFact]` prereq-skip means a raw `dotnet test -c Release` (no `make`) skips the packaging tests instead of failing — CI could stay green while `build/dmoncore/` silently stops being produced. `test: build-core` mitigates `make test`; consider a CI-only env flag that converts these skips into hard failures for an airtight guarantee.
-  - **(7.1, for the 1.3/G2 work):** `lib/net10.0/dmoncore.runtimeconfig.json` is emitted because the Worker SDK defaults `OutputType=Exe`. Inert for a library ref. Clean it up when 1.3 makes dmoncore truly entry-point-less (`OutputType=Library` / `GenerateRuntimeConfigurationFiles=false`).
+  - ~~**(7.1):** `lib/net10.0/…runtimeconfig.json` emitted by the Worker SDK Exe default.~~ **Resolved in 1.3** (`OutputType=Library` + `GenerateRuntimeConfigurationFiles=false`); packaging test now asserts zero runtimeconfig anywhere.
   - `scripts/pack-core.sh` and `scripts/smoke-sdk.sh` share `.pack-out` (each `rm -rf`s it); harmless, both rebuild the trio.
   - (G1) `Build_WithProfile_ResolverReturnsOverriddenProfile` weakly discriminating; tighten when convenient.
 - **Carry-forward:**
