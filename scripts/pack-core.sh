@@ -61,6 +61,11 @@ dotnet pack "$REPO/providers/Dmon.Providers.Ollama/Dmon.Providers.Ollama.csproj"
     -p:MinVerVersionOverride="$VERSION_OVERRIDE" \
     -p:RestoreSources="$FEED;https://api.nuget.org/v3/index.json"
 
+dotnet pack "$REPO/providers/Dmon.Providers.Mtplx/Dmon.Providers.Mtplx.csproj" \
+    -c Release -o "$FEED" --nologo \
+    -p:MinVerVersionOverride="$VERSION_OVERRIDE" \
+    -p:RestoreSources="$FEED;https://api.nuget.org/v3/index.json"
+
 echo "==> Packing dmoncore library package (version override: $VERSION_OVERRIDE)"
 dotnet pack "$REPO/core/Dmon.Core/Dmon.Core.csproj" \
     -c Release -o "$FEED" --nologo \
@@ -81,5 +86,5 @@ echo "PASS: dmoncore $VERSION_OVERRIDE and contract packages packed to $FEED"
 echo "      Consumer can reference: #:package dmoncore@0.2.*"
 echo "      Builtin tools: #:package Dmon.Tools.Builtin@0.2.*"
 echo "      Composed core: #:package dmoncore@0.2.* + #:package Dmon.SampleExtension@0.2.*"
-echo "      Providers: Dmon.Providers.Anthropic/OpenAI/Gemini/Ollama@0.2.*"
+echo "      Providers: Dmon.Providers.Anthropic/OpenAI/Gemini/Ollama/Mtplx@0.2.*"
 echo "      Feed: $FEED"

@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+
+    <AssemblyName>Dmon.Providers.Mtplx</AssemblyName>
+    <RootNamespace>Dmon.Providers.Mtplx</RootNamespace>
+    <IsPackable>true</IsPackable>
+    <PackageId>Dmon.Providers.Mtplx</PackageId>
+    <MinVerTagPrefix>sdk-</MinVerTagPrefix>
+    <Description>Managed Apple-Silicon MTPLX provider for the dmon coding agent. Attaches to a local `mtplx serve` OpenAI-compatible server, exposes it as a Microsoft.Extensions.AI IChatClient, with probe-verified tool-calling. Exposes UseMtplx() in the Dmon.Hosting namespace.</Description>
+    <PackageTags>dmon;mtplx;apple-silicon;local-llm;mtp;provider;ai</PackageTags>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- M.E.AI pinned to the abstractions version Anthropic 12.x targets; re-validate when bumping Anthropic. -->
+    <PackageReference Include="Microsoft.Extensions.AI.OpenAI" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Dmon.Providers.Mtplx.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\core\Dmon.Abstractions\Dmon.Abstractions.csproj" />
+  </ItemGroup>
+
+</Project>

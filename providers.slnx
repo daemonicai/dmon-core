@@ -6,10 +6,12 @@
     <Project Path="providers\Dmon.Providers.OpenAI\Dmon.Providers.OpenAI.csproj" />
     <Project Path="providers\Dmon.Providers.Omlx\Dmon.Providers.Omlx.csproj" />
     <Project Path="providers\Dmon.Providers.LlamaCpp\Dmon.Providers.LlamaCpp.csproj" />
+    <Project Path="providers\Dmon.Providers.Mtplx\Dmon.Providers.Mtplx.csproj" />
   </Folder>
   <Folder Name="/test/">
     <Project Path="test\Dmon.Providers.Tests\Dmon.Providers.Tests.csproj" />
     <Project Path="test\Dmon.Providers.Omlx.Tests\Dmon.Providers.Omlx.Tests.csproj" />
     <Project Path="test\Dmon.Providers.LlamaCpp.Tests\Dmon.Providers.LlamaCpp.Tests.csproj" />
+    <Project Path="test\Dmon.Providers.Mtplx.Tests\Dmon.Providers.Mtplx.Tests.csproj" />
   </Folder>
 </Solution>
