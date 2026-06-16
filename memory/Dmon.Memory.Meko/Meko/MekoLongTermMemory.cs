@@ -1,6 +1,6 @@
 using System.Text.Json;
 using Dmon.Abstractions.Memory;
-using Microsoft.Extensions.AI;
+using Dmon.Protocol.Conversation;
 using Microsoft.Extensions.Logging;
 using ModelContextProtocol.Protocol;
 
@@ -115,12 +115,12 @@ internal sealed class MekoLongTermMemory : ILongTermMemory
     // -----------------------------------------------------------------------
 
     /// <summary>
-    /// Forwards turns to Meko via <c>memory_add(messages)</c> (JSON-string) when the
+    /// Forwards records to Meko via <c>memory_add(messages)</c> (JSON-string) when the
     /// configured <see cref="MekoCaptureMode"/> allows it. If the policy keeps nothing,
     /// this method completes successfully without any network call (D8).
     /// </summary>
     public async Task RecordAsync(
-        IReadOnlyList<ChatMessage> turns,
+        IReadOnlyList<MessageRecord> records,
         MemoryScope scope = MemoryScope.Agent,
         CancellationToken cancellationToken = default)
     {
@@ -129,7 +129,7 @@ internal sealed class MekoLongTermMemory : ILongTermMemory
             return;
         }
 
-        if (turns.Count == 0)
+        if (records.Count == 0)
         {
             return;
         }
@@ -137,7 +137,7 @@ internal sealed class MekoLongTermMemory : ILongTermMemory
         string conversationId = await EnsureConversationAsync(cancellationToken).ConfigureAwait(false);
 
         // messages must be a JSON string (6.4): serialize the array.
-        string messagesJson = SerializeMessages(turns);
+        string messagesJson = SerializeMessages(records);
 
         Dictionary<string, object?> args = BuildAmbientArgs(scope, conversationId);
         args[MekoArgNames.Messages] = messagesJson;
@@ -466,16 +466,17 @@ internal sealed class MekoLongTermMemory : ILongTermMemory
     }
 
     /// <summary>
-    /// Serializes a list of <see cref="ChatMessage"/> turns to the JSON string that
+    /// Serializes a list of <see cref="MessageRecord"/> turns to the JSON string that
     /// Meko's <c>memory_add.messages</c> arg expects (6.4).
     /// Format: <c>[{"role":"user","content":"..."},...]</c>
+    /// Text is extracted from <see cref="TextPart"/> parts; non-text parts are skipped.
     /// </summary>
-    private static string SerializeMessages(IReadOnlyList<ChatMessage> turns)
+    private static string SerializeMessages(IReadOnlyList<MessageRecord> records)
     {
-        var items = turns.Select(t => new Dictionary<string, string>
+        var items = records.Select(r => new Dictionary<string, string>
         {
-            ["role"] = t.Role.Value,
-            ["content"] = t.Text ?? string.Empty,
+            ["role"] = r.Role,
+            ["content"] = string.Concat(r.Parts.OfType<TextPart>().Select(p => p.Text)),
         });
         return JsonSerializer.Serialize(items);
     }

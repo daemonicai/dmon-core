@@ -1,5 +1,5 @@
 using Dmon.Abstractions.Memory;
-using Microsoft.Extensions.AI;
+using Dmon.Protocol.Conversation;
 
 namespace Dmon.Memory.Meko;
 
@@ -15,7 +15,7 @@ internal sealed class DisabledLongTermMemory : ILongTermMemory
     private DisabledLongTermMemory() { }
 
     public Task RecordAsync(
-        IReadOnlyList<ChatMessage> turns,
+        IReadOnlyList<MessageRecord> records,
         MemoryScope scope = MemoryScope.Agent,
         CancellationToken cancellationToken = default) => Task.CompletedTask;
 

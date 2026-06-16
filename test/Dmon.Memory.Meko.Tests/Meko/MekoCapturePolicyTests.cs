@@ -1,6 +1,6 @@
 using Dmon.Abstractions.Memory;
 using Dmon.Memory.Meko;
-using Microsoft.Extensions.AI;
+using Dmon.Protocol.Conversation;
 
 namespace Dmon.Memory.Meko.Tests.Meko;
 
@@ -19,8 +19,11 @@ public sealed class MekoCapturePolicyTests
         var fake = new FakeMekoToolInvoker();
         var memory = MekoTestHelpers.BuildMemory(fake, MekoCaptureMode.None);
 
-        var turns = new List<ChatMessage> { new(ChatRole.User, "hello") };
-        await memory.RecordAsync(turns);
+        var records = new List<MessageRecord>
+        {
+            new() { EntryId = "1", Timestamp = DateTimeOffset.UtcNow, Role = "user", Parts = [new TextPart { Text = "hello" }] },
+        };
+        await memory.RecordAsync(records);
 
         // CaptureMode.None must short-circuit before EnsureConversationAsync — no calls.
         Assert.Equal(0, fake.CallCount);
@@ -32,8 +35,11 @@ public sealed class MekoCapturePolicyTests
         var fake = new FakeMekoToolInvoker();
         var memory = MekoTestHelpers.BuildMemory(fake, MekoCaptureMode.None);
 
-        var turns = new List<ChatMessage> { new(ChatRole.User, "anything") };
-        await memory.RecordAsync(turns);
+        var records = new List<MessageRecord>
+        {
+            new() { EntryId = "1", Timestamp = DateTimeOffset.UtcNow, Role = "user", Parts = [new TextPart { Text = "anything" }] },
+        };
+        await memory.RecordAsync(records);
     }
 
     [Fact]
@@ -42,12 +48,12 @@ public sealed class MekoCapturePolicyTests
         var fake = new FakeMekoToolInvoker();
         var memory = MekoTestHelpers.BuildMemory(fake, MekoCaptureMode.EveryTurn);
 
-        var turns = new List<ChatMessage>
+        var records = new List<MessageRecord>
         {
-            new(ChatRole.User, "message one"),
-            new(ChatRole.Assistant, "reply one"),
+            new() { EntryId = "1", Timestamp = DateTimeOffset.UtcNow, Role = "user", Parts = [new TextPart { Text = "message one" }] },
+            new() { EntryId = "2", Timestamp = DateTimeOffset.UtcNow, Role = "assistant", Parts = [new TextPart { Text = "reply one" }] },
         };
-        await memory.RecordAsync(turns);
+        await memory.RecordAsync(records);
 
         Assert.Equal(2, fake.CallCount);
         Assert.Equal("conversation_create", fake.Calls[0].Tool);

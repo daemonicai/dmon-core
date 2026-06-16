@@ -20,6 +20,7 @@
   </Folder>
   <Folder Name="/memory/">
     <Project Path="memory\Dmon.Memory\Dmon.Memory.csproj" />
+    <Project Path="memory\Dmon.Memory.Meko\Dmon.Memory.Meko.csproj" />
   </Folder>
   <Folder Name="/frontends/">
     <Project Path="frontends\Dmon.Gateway\Dmon.Gateway.csproj" />
@@ -34,6 +35,7 @@
     <Project Path="test\Dmon.Providers.Omlx.Tests\Dmon.Providers.Omlx.Tests.csproj" />
     <Project Path="test\Dmon.Gateway.Tests\Dmon.Gateway.Tests.csproj" />
     <Project Path="test\Dmon.Memory.Tests\Dmon.Memory.Tests.csproj" />
+    <Project Path="test\Dmon.Memory.Meko.Tests\Dmon.Memory.Meko.Tests.csproj" />
     <Project Path="test\Dmon.Protocol.Tests\Dmon.Protocol.Tests.csproj" />
     <Project Path="test\Dmon.Providers.Tests\Dmon.Providers.Tests.csproj" />
     <Project Path="test\Dmon.Runtime.Tests\Dmon.Runtime.Tests.csproj" />

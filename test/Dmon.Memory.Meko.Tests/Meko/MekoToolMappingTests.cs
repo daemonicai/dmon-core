@@ -1,7 +1,7 @@
 using System.Text.Json;
 using Dmon.Abstractions.Memory;
 using Dmon.Memory.Meko;
-using Microsoft.Extensions.AI;
+using Dmon.Protocol.Conversation;
 
 namespace Dmon.Memory.Meko.Tests.Meko;
 
@@ -41,12 +41,12 @@ public sealed class MekoToolMappingTests
         var fake = new FakeMekoToolInvoker();
         var memory = MekoTestHelpers.BuildMemory(fake, MekoCaptureMode.EveryTurn);
 
-        var turns = new List<ChatMessage>
+        var records = new List<MessageRecord>
         {
-            new(ChatRole.User, "hello"),
-            new(ChatRole.Assistant, "hi there"),
+            new() { EntryId = "1", Timestamp = DateTimeOffset.UtcNow, Role = "user", Parts = [new TextPart { Text = "hello" }] },
+            new() { EntryId = "2", Timestamp = DateTimeOffset.UtcNow, Role = "assistant", Parts = [new TextPart { Text = "hi there" }] },
         };
-        await memory.RecordAsync(turns);
+        await memory.RecordAsync(records);
 
         var (tool, args) = FirstMemoryCall(fake);
         Assert.Equal("memory_add", tool);

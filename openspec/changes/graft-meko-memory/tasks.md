@@ -18,21 +18,21 @@
 
 ## 3. Re-wire the grafted package to monorepo conventions
 
-- [ ] 3.1 `Dmon.Memory.Meko.csproj`: replace the `Dmon.Abstractions` `PackageReference` with a `ProjectReference` to `..\..\core\Dmon.Abstractions\Dmon.Abstractions.csproj`; audit `using`s and add an explicit `core/Dmon.Protocol` `ProjectReference` only if `Dmon.Protocol.*` types are used directly.
-- [ ] 3.2 Move third-party pins to root CPM `Directory.Packages.props` (add `<PackageVersion>` for genuinely new ones — e.g. `ModelContextProtocol`; reuse existing pins for `Microsoft.Extensions.AI.Abstractions` and the `Microsoft.Extensions.*` abstractions); strip inline `Version=` from the grafted `.csproj`.
-- [ ] 3.3 `.csproj` packable hygiene: `IsPackable=true`, MinVer tag prefix, packed `README.md`, no inline `<Version>`/`<Authors>`; ensure the skew-guard target + `core/Dmon.Protocol/ProtocolVersion.cs` path apply.
-- [ ] 3.4 Test project: conform to the repo test convention (xunit, CPM-bare pins); if the imported test csproj diverges, scaffold a fresh `test/Dmon.Memory.Meko.Tests/Dmon.Memory.Meko.Tests.csproj` from a sibling (`test/Dmon.Memory.Tests`) referencing only `memory/Dmon.Memory.Meko`, keeping the imported test source. Confirm the live smoke test stays `Category=Live`-gated (skipped without `MEKO_API_KEY`).
-- [ ] 3.5 Repo-wide grep (excl. `bin/obj`, incl. `*.md`): no stale `Version=` inline pins, no `Dmon.Middleware` rename tokens, no broken `#:package`/namespace references in the grafted README.
+- [x] 3.1 `Dmon.Memory.Meko.csproj`: replace the `Dmon.Abstractions` `PackageReference` with a `ProjectReference` to `..\..\core\Dmon.Abstractions\Dmon.Abstractions.csproj`; audit `using`s and add an explicit `core/Dmon.Protocol` `ProjectReference` only if `Dmon.Protocol.*` types are used directly. (Protocol ref ADDED — `MessageRecord`/`TextPart` used directly; see 3.x note.)
+- [x] 3.2 Move third-party pins to root CPM `Directory.Packages.props` (add `<PackageVersion>` for genuinely new ones — e.g. `ModelContextProtocol`; reuse existing pins for `Microsoft.Extensions.AI.Abstractions` and the `Microsoft.Extensions.*` abstractions); strip inline `Version=` from the grafted `.csproj`. (Added ModelContextProtocol 1.3.0, M.E.AI.Abstractions/Logging.Abstractions/Options/Options.ConfigurationExtensions; bumped M.E.AI family 10.5.1→10.5.2 for MCP 1.3.0 — whole repo re-verified green.)
+- [x] 3.3 `.csproj` packable hygiene: `IsPackable=true`, MinVer tag prefix (`sdk-`), packed `README.md` (authored fresh — satellite README lived at repo root, not imported), no inline `<Version>`/`<Authors>` (URLs/license/symbols inherited from root props); skew-guard applies (pack → `0.2.0-alpha.0.42`).
+- [x] 3.4 Test project: conform to the repo test convention (xunit, CPM-bare pins) referencing `memory/Dmon.Memory.Meko` (+ `core/Dmon.Protocol`, used directly). Live smoke test stays `Category=Live`-gated (skipped without `MEKO_API_KEY`).
+- [x] 3.5 Repo-wide grep (excl. `bin/obj`, incl. `*.md`): no stale `Version=` inline pins, no `Dmon.Middleware` rename tokens (only ADR/spec prose), no broken `#:package`/namespace references.
 
 ## 4. Solutions
 
-- [ ] 4.1 Add `memory/Dmon.Memory.Meko/Dmon.Memory.Meko.csproj` to `memory.slnx` (under `/memory/`) and `test/Dmon.Memory.Meko.Tests` (under `/test/`).
-- [ ] 4.2 Add both projects to `Everything.slnx`.
+- [x] 4.1 Add `memory/Dmon.Memory.Meko/Dmon.Memory.Meko.csproj` to `memory.slnx` (under `/memory/`) and `test/Dmon.Memory.Meko.Tests` (under `/test/`).
+- [x] 4.2 Add both projects to `Everything.slnx`.
 
 ## 5. Verification gates
 
-- [ ] 5.1 `dotnet build Everything.slnx -c Release` clean (no warnings; `TreatWarningsAsErrors`).
-- [ ] 5.2 `make build` and `make test` green — the imported Meko tests (offline, fake invoker) plus all existing tests; live smoke test skipped.
-- [ ] 5.3 `dotnet pack memory/Dmon.Memory.Meko/Dmon.Memory.Meko.csproj -c Release` succeeds — skew-guard passes and a sane MinVer `Major.Minor` matching `core/Dmon.Protocol/ProtocolVersion.cs` is produced; repeat for `memory/Dmon.Memory`.
-- [ ] 5.4 `git log --follow memory/Dmon.Memory.Meko/Meko/MekoLongTermMemory.cs` shows pre-graft history (import preserved); `git log --follow memory/Dmon.Memory/Facade/Memory.cs` shows pre-move history.
-- [ ] 5.5 `openspec validate graft-meko-memory --strict` passes (the `monorepo-layout` delta and the new `memory-meko` capability).
+- [x] 5.1 `dotnet build Everything.slnx -c Release` clean (no warnings; `TreatWarningsAsErrors`).
+- [x] 5.2 `make build` and `make test` green — `Dmon.Memory.Meko.Tests` 71 passed (offline, fake invoker) plus all existing suites; live smoke test skipped; 0 failures.
+- [x] 5.3 `dotnet pack memory/Dmon.Memory.Meko/Dmon.Memory.Meko.csproj -c Release` succeeds — skew-guard passes, `0.2.0-alpha.0.42` (Major.Minor=0.2=`ProtocolVersion.Current`); `memory/Dmon.Memory` packs likewise.
+- [x] 5.4 `git log --follow memory/Dmon.Memory.Meko/Meko/MekoLongTermMemory.cs` shows pre-graft history (`6827681`/`4165a5f`/`f96b4a6`); `git log --follow memory/Dmon.Memory/Facade/Memory.cs` shows pre-move history.
+- [x] 5.5 `openspec validate graft-meko-memory --strict` passes (the `monorepo-layout` delta and the new `memory-meko` capability).

@@ -1,6 +1,6 @@
 using Dmon.Abstractions.Memory;
 using Dmon.Memory.Meko;
-using Microsoft.Extensions.AI;
+using Dmon.Protocol.Conversation;
 
 namespace Dmon.Memory.Meko.Tests.Meko;
 
@@ -15,8 +15,11 @@ public sealed class DisabledLongTermMemoryTests
     [Fact]
     public async Task RecordAsync_NoOps_DoesNotThrow()
     {
-        var turns = new List<ChatMessage> { new(ChatRole.User, "hi") };
-        await Disabled.RecordAsync(turns);
+        var records = new List<MessageRecord>
+        {
+            new() { EntryId = "1", Timestamp = DateTimeOffset.UtcNow, Role = "user", Parts = [new TextPart { Text = "hi" }] },
+        };
+        await Disabled.RecordAsync(records);
     }
 
     [Fact]

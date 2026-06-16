@@ -1,6 +1,6 @@
 using Dmon.Abstractions.Memory;
 using Dmon.Memory.Meko;
-using Microsoft.Extensions.AI;
+using Dmon.Protocol.Conversation;
 
 namespace Dmon.Memory.Meko.Tests.Meko;
 
@@ -163,7 +163,7 @@ public sealed class MekoScopeAndIdentityTests
         var fake = new FakeMekoToolInvoker();
         var memory = MekoTestHelpers.BuildMemory(fake, MekoCaptureMode.EveryTurn);
 
-        await memory.RecordAsync([new ChatMessage(ChatRole.User, "hi")]);
+        await memory.RecordAsync([new MessageRecord { EntryId = "1", Timestamp = DateTimeOffset.UtcNow, Role = "user", Parts = [new TextPart { Text = "hi" }] }]);
 
         IReadOnlyDictionary<string, object?> args = FirstMemoryCallArgs(fake);
         AssertAmbientIdentity(args);
