@@ -6,7 +6,7 @@ Phase 2 monorepo satellite graft: import the dmon Dmail **tool extension** into 
 
 - [x] Group 1 — History-preserving import
 - [x] Group 2 — Rename to the tool family (Dmon.Tools.Dmail)
-- [ ] Group 3 — API port to IToolExtension / Dmon.Abstractions
+- [x] Group 3 — API port to IToolExtension / Dmon.Abstractions
 - [ ] Group 4 — Re-wire to monorepo conventions (ProjectReference, CPM, fresh test csproj)
 - [ ] Group 5 — Solutions
 - [ ] Group 6 — Verification gates
@@ -37,3 +37,15 @@ Name-only rename, mirroring the Phase 0/1 Omlx/LlamaCpp rename. `git mv`'d the e
 **Lesson:** the rename gate's grep must include `*.md` (README), not just `*.cs`/`*.csproj`. The Group 2/3 README boundary is subtle: rename tokens (title, package pin, namespace `using`) are Group 2; the registration **verb** (`AddExtension` → `AddToolExtension`) and doc-comment are Group 3.
 
 **Gates:** repo-wide grep for `Dmon.Extensions.Dmail` / `Daemonic.Dmail` returns zero code-artifact matches (only the graft-dmail change docs + ADR-025 remain, which describe the rename); `make build` clean (0/0); `make test` green (565 + 51 pass, 1 skip — grafted Dmail tests not yet in a solution, run after Groups 4–5); `openspec validate --strict` passes. Project still intentionally not independently buildable (Group 3/4 fix the package reference).
+
+---
+
+## Group 3 — API port to IToolExtension / Dmon.Abstractions (ADR-022)
+
+The grafted extension targeted the deleted `Dmon.Extensions` package / `IDmonExtension`. ADR-022 collapsed that into `Dmon.Abstractions` and renamed the interface to `IToolExtension`. Port:
+- `DmailExtension.cs`: `using Dmon.Extensions;` → `using Dmon.Abstractions.Extensions;`, `: IDmonExtension` → `: IToolExtension`. **No body changes** — the contract surface (`Name`, `Description`, `IEnumerable<AIFunction> Tools`, `Evaluate(FunctionCallContent, IPermissionSettings, IPermissionSettings?) → PermissionResult`) is identical, and `DmonAIFunctionFactory` lives in the same `Dmon.Abstractions.Extensions` namespace, so the single `using` swap covers both the interface and the factory.
+- Registration verb updated `AddExtension` → `AddToolExtension` in the class doc-comment (3 spots) and `README.md` (2 spots); verb name confirmed against core `DmonRegistrationExtensions` + the `IToolExtension` doc-comment.
+
+**Verification:** `Everything.slnx` build clean (0/0); grep for `IDmonExtension` / `using Dmon.Extensions;` in `tools/Dmon.Tools.Dmail/**` returns nothing; `openspec validate --strict` passes. The orchestrator verified the diff directly (small, mechanical, contract independently confirmed by the worker against core) in lieu of a separate reviewer pass.
+
+**Still not independently buildable:** the csproj continues to reference the deleted `Dmon.Extensions` package — Group 4 swaps that for a `ProjectReference` to `core/Dmon.Abstractions`, at which point the ported source first compiles.

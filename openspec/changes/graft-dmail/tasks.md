@@ -15,9 +15,9 @@
 
 ## 3. API port to IToolExtension / Dmon.Abstractions (ADR-022)
 
-- [ ] 3.1 In `DmailExtension.cs`: `using Dmon.Extensions;` → `using Dmon.Abstractions.Extensions;`, and `: IDmonExtension` → `: IToolExtension` (method bodies unchanged; `DmonAIFunctionFactory` still in `Dmon.Abstractions`).
-- [ ] 3.2 Update the class doc-comment and the package `README.md` registration guidance from `AddExtension` to `builder.AddToolExtension<DmailExtension>()`.
-- [ ] 3.3 Repo-wide grep (excluding `bin/obj`) for `IDmonExtension` and `Dmon.Extensions` (the old package namespace) in the grafted files returns nothing.
+- [x] 3.1 In `DmailExtension.cs`: `using Dmon.Extensions;` → `using Dmon.Abstractions.Extensions;`, and `: IDmonExtension` → `: IToolExtension` (method bodies unchanged; `DmonAIFunctionFactory` confirmed in `Dmon.Abstractions.Extensions` — same `using` covers both).
+- [x] 3.2 Update the class doc-comment and the package `README.md` registration guidance from `AddExtension` to `builder.AddToolExtension<DmailExtension>()` (verb confirmed against core `DmonRegistrationExtensions`).
+- [x] 3.3 Repo-wide grep (excluding `bin/obj`) for `IDmonExtension` and `using Dmon.Extensions;` in the grafted files returns nothing.
 
 ## 4. Re-wire to monorepo conventions (ProjectReference, CPM, fresh test csproj)
 

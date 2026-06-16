@@ -1,6 +1,6 @@
 using System.ComponentModel;
 using System.Text;
-using Dmon.Extensions;
+using Dmon.Abstractions.Extensions;
 using Dmon.Protocol.Enums;
 using Dmon.Protocol.Permissions;
 using Microsoft.Extensions.AI;
@@ -12,12 +12,12 @@ namespace Dmon.Tools.Dmail;
 /// <c>check_new_messages</c> and <c>get_email</c>. Each tool calls the Dmail HTTP API.
 /// </summary>
 /// <remarks>
-/// Wire it into a composition root with <c>builder.AddExtension&lt;DmailExtension&gt;()</c>
+/// Wire it into a composition root with <c>builder.AddToolExtension&lt;DmailExtension&gt;()</c>
 /// (configured from the <c>DMAIL_BASE_URL</c> and <c>DMAIL_API_KEY</c> environment
-/// variables) or <c>builder.AddExtension(new DmailExtension(baseUrl, apiKey))</c> for
+/// variables) or <c>builder.AddToolExtension(new DmailExtension(baseUrl, apiKey))</c> for
 /// explicit configuration.
 /// </remarks>
-public sealed class DmailExtension : IDmonExtension
+public sealed class DmailExtension : IToolExtension
 {
     private const string DefaultBaseUrl = "http://localhost:8080";
 
@@ -27,7 +27,7 @@ public sealed class DmailExtension : IDmonExtension
     /// <summary>
     /// Creates the extension from environment configuration: <c>DMAIL_BASE_URL</c>
     /// (default <c>http://localhost:8080</c>) and <c>DMAIL_API_KEY</c>. Required by
-    /// <c>AddExtension&lt;T&gt;()</c>, which needs a parameterless constructor.
+    /// <c>AddToolExtension&lt;T&gt;()</c>, which needs a parameterless constructor.
     /// </summary>
     public DmailExtension()
         : this(

@@ -33,7 +33,7 @@ using Dmon.Hosting;
 using Dmon.Tools.Dmail;
 
 await DmonHost.CreateBuilder(args)
-    .AddExtension<DmailExtension>()              // configured from DMAIL_* env vars
+    .AddToolExtension<DmailExtension>()              // configured from DMAIL_* env vars
     .Build()
     .RunAsync();
 ```
@@ -41,7 +41,7 @@ await DmonHost.CreateBuilder(args)
 For explicit configuration instead of environment variables:
 
 ```csharp
-.AddExtension(new DmailExtension("http://localhost:8080", apiKey))
+.AddToolExtension(new DmailExtension("http://localhost:8080", apiKey))
 ```
 
 ## Versioning
