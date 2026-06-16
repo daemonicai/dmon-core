@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+
+    <AssemblyName>Dmon.Memory.Meko</AssemblyName>
+    <IsPackable>true</IsPackable>
+    <PackageId>Dmon.Memory.Meko</PackageId>
+    <MinVerTagPrefix>sdk-</MinVerTagPrefix>
+    <Description>Meko-backed long-term memory for dmon — an ILongTermMemory implementation driven over the Meko (mekodata.ai) MCP server.</Description>
+    <PackageTags>dmon;memory;meko;mcp;long-term-memory;ai;llm</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.AI.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Options" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
+    <PackageReference Include="ModelContextProtocol" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Dmon.Memory.Meko.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\core\Dmon.Abstractions\Dmon.Abstractions.csproj" />
+    <ProjectReference Include="..\..\core\Dmon.Protocol\Dmon.Protocol.csproj" />
+  </ItemGroup>
+
+</Project>

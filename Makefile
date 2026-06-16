@@ -35,7 +35,7 @@ build-terminal:
 		--no-self-contained
 
 build-memory:
-	dotnet build middleware/Dmon.Memory/Dmon.Memory.csproj -c $(CONFIG)
+	dotnet build memory/Dmon.Memory/Dmon.Memory.csproj -c $(CONFIG)
 
 test: build-core
 	dotnet test Everything.slnx -c $(CONFIG)
