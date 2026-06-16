@@ -36,6 +36,6 @@
 
 ## 6. Validation and spec sync
 
-- [ ] 6.1 `make build` clean (no warnings; `TreatWarningsAsErrors`) and `make test` green.
-- [ ] 6.2 `openspec validate mtplx-provider --strict` passes.
+- [x] 6.1 `make build` clean (no warnings; `TreatWarningsAsErrors`) and `make test` green.
+- [x] 6.2 `openspec validate mtplx-provider --strict` passes.
 - [ ] 6.3 On archive, sync the new standing spec to `openspec/specs/mtplx-provider/spec.md` and update any provider index/`monorepo-layout` notes that enumerate providers.
