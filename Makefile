@@ -1,9 +1,8 @@
-.PHONY: all build build-terminal build-core build-core-pack build-extensions build-memory test pack smoke schema clean
+.PHONY: all build build-terminal build-core build-core-pack build-memory test pack smoke schema clean
 
 CONFIG            ?= Release
 CORE_OUT          := build/dmoncore
 TERMINAL_OUT      := build
-EXTENSIONS_OUT    := build/extensions
 PACK_OUT          ?= .pack-out
 # Temp feed used only by build-core to resolve #:package dmoncore when publishing
 # the default-core/Dmon.cs composition root. Separate from PACK_OUT so `make build`
@@ -12,7 +11,7 @@ BUILD_CORE_FEED   := build/core-feed
 
 all: build test
 
-build: build-core build-terminal build-extensions build-memory
+build: build-core build-terminal build-memory
 
 # Pack dmoncore and contract packages to a private temp feed, then publish
 # default-core/Dmon.cs against that feed to produce the prebuilt default-core
@@ -30,26 +29,16 @@ build-core-pack:
 	bash scripts/pack-core.sh "$(BUILD_CORE_FEED)"
 
 build-terminal:
-	dotnet publish src/Dmon.Terminal/Dmon.Terminal.csproj \
+	dotnet publish frontends/Dmon.Terminal/Dmon.Terminal.csproj \
 		-c $(CONFIG) \
 		-o $(TERMINAL_OUT) \
 		--no-self-contained
 
-build-extensions:
-	@for csproj in extensions/*/*.csproj; do \
-		name=$$(basename $$(dirname $$csproj)); \
-		echo "Building extension: $$name"; \
-		dotnet publish "$$csproj" \
-			-c $(CONFIG) \
-			-o "$(EXTENSIONS_OUT)/$$name" \
-			--no-self-contained; \
-	done
-
 build-memory:
-	dotnet build src/Dmon.Memory/Dmon.Memory.csproj -c $(CONFIG)
+	dotnet build middleware/Dmon.Memory/Dmon.Memory.csproj -c $(CONFIG)
 
 test: build-core
-	dotnet test -c $(CONFIG)
+	dotnet test Everything.slnx -c $(CONFIG)
 
 # Pack dmoncore + the contract trio (and the sample extension) to a local
 # NuGet feed so a Dmon.cs composition root resolves `#:package dmoncore@<protocol>.*`
@@ -64,7 +53,7 @@ smoke:
 	bash scripts/smoke-sdk.sh
 
 schema:
-	dotnet run --project src/Dmon.Protocol.SchemaGen/Dmon.Protocol.SchemaGen.csproj \
+	dotnet run --project core/Dmon.Protocol.SchemaGen/Dmon.Protocol.SchemaGen.csproj \
 		-c $(CONFIG) -- docs/protocol/schema.json
 
 clean:

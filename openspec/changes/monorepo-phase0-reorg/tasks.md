@@ -30,10 +30,10 @@
 
 ## 5. Tooling and CI
 
-- [ ] 5.1 Update `Makefile` targets (build/test/clean/pack) to the new solutions/paths
-- [ ] 5.2 Update `scripts/` (`pack-core.sh`, `smoke-cache.sh`, `smoke-sdk.sh`) and `default-core/Dmon.cs` build/run paths
-- [ ] 5.3 Update the existing GitHub Actions workflow(s) to build/test/pack against the new layout (full dependency-aware path-filtering is a noted fast-follow, not this change)
-- [ ] 5.4 Smoke-run `default-core/Dmon.cs` build+run; pack one packable project to confirm MinVer + skew-guard intact
+- [x] 5.1 Update `Makefile` targets (build/test/clean/pack) to the new solutions/paths
+- [x] 5.2 Update `scripts/` (`pack-core.sh`, `smoke-cache.sh`, `smoke-sdk.sh`) and `default-core/Dmon.cs` build/run paths
+- [x] 5.3 Update the existing GitHub Actions workflow(s) to build/test/pack against the new layout (full dependency-aware path-filtering is a noted fast-follow, not this change)
+- [x] 5.4 Smoke-run `default-core/Dmon.cs` build+run; pack one packable project to confirm MinVer + skew-guard intact
 
 ## 6. Verification gates
 

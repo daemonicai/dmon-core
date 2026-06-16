@@ -35,9 +35,19 @@
 - Reviewer: Approve, no blockers. Independently confirmed build 0W/0E and Omlx tests 41/41.
 - Gates (direct `dotnet` — make still broken until Group 5): `dotnet build Everything.slnx -c Release` 0W/0E; full `dotnet test Everything.slnx -c Release` all green (Omlx 41/41); repo-wide grep for `Dmon.Extensions.Omlx` (excl. bin/obj) returns nothing; `openspec validate --strict` valid. Commit pending.
 
+## 5. Tooling and CI
+
+- `Makefile` repaths: `build-terminal` `src/Dmon.Terminal` → `frontends/Dmon.Terminal`; `build-memory` `src/Dmon.Memory` → `middleware/Dmon.Memory`; `schema` `src/Dmon.Protocol.SchemaGen` → `core/Dmon.Protocol.SchemaGen`.
+- **`test` target fix (required):** was `dotnet test -c $(CONFIG)` with no solution arg — now ambiguous because 6 `.slnx` files sit at repo root (`dotnet test` errors on >1 solution). Changed to `dotnet test Everything.slnx -c $(CONFIG)`. This is the line that makes `make test` "across Everything.slnx" (task 6.1).
+- **Removed the dead `build-extensions` target** entirely (from `.PHONY`, the `build:` aggregate, the recipe, and the `EXTENSIONS_OUT := build/extensions` var). Rationale verified before removal: it iterated `extensions/*/*.csproj`, but `extensions/` is empty post-Group-4 (Omlx → `providers/` as a package), `build/extensions` is consumed by **nothing** (grep: only self-referenced in the Makefile), and the empty glob would *break* `make build`. Providers/tools/middleware ship as packages via `#:package`, not published into `build/` — consistent with ADR-019/023.
+- `.github/workflows/release.yml` pack paths repaired: Protocol/Abstractions/Core `src/` → `core/`, Terminal → `frontends/`. **Removed the `dotnet pack src/Dmon.Extensions/...` line** — that project was deleted under ADR-022, so the line had been broken since; the `sdk-*` line now packs just Protocol + Abstractions. Tag matrix/triggers left untouched (ADR-024 per-package tags + release matrix are explicit Non-Goals).
+- `ci.yml` unchanged (drives everything through `make`, no path refs). `scripts/*.sh` + `default-core/Dmon.cs` confirmed clean — already repaired in Group 3 / package-based, **no `src/` refs to fix** (corrects the earlier NEXT note that flagged `default-core/Dmon.cs` as pending — it never had src paths).
+- Reviewer: Approve, no blockers. Independently confirmed `make build` 0W/0E, `make test` 0 failed (2 pre-existing skips: Nomic embedding + extension-source-fetcher network integration), `make pack` OK (dmoncore 0.2.0 + contracts + providers, MinVer/skew-guard intact). Note: a test *assembly* named `Dmon.Extensions.Tests.dll` still appears in test output — that's a display name, not the deleted project.
+- Gates (orchestrator re-ran): `make build` 0W/0E; `make test` green across `Everything.slnx`; stale-path grep (`src/`/`extensions/`/`Dmon.Extensions` in tooling files) clean. Commit pending.
+
 ## NEXT
 
-- **Up next:** Group 5 — tooling/CI (Makefile → `Everything.slnx`/bucket paths; `default-core/Dmon.cs` build-run paths; `.github/workflows/release.yml` lines ~56-67 still have `src/`; finish task 5.2). Group 6 — final gates (`make build`/`make test` green once Makefile restored, no intra-repo PackageReference, `openspec validate --strict`).
+- **Up next:** Group 6 — final verification gates (`make build`/`make test` green — already passing; assert no intra-repo `PackageReference` to a first-party project; `openspec validate --strict`). (Makefile → `Everything.slnx`/bucket paths; `default-core/Dmon.cs` build-run paths; `.github/workflows/release.yml` lines ~56-67 still have `src/`; finish task 5.2). Group 6 — final gates (`make build`/`make test` green once Makefile restored, no intra-repo PackageReference, `openspec validate --strict`).
 - **Carry-forward:**
   - `make` is intentionally red between Group 3 and Group 5 — don't treat it as a regression.
   - Remaining `src/` references live only in `Makefile` (lines 33/49/67) and `.github/workflows/release.yml` (~56-67) — both Group 5.
