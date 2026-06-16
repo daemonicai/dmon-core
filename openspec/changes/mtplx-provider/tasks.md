@@ -21,9 +21,9 @@
 
 ## 4. Composition verb and wiring
 
-- [ ] 4.1 Add `UseMtplxExtensions` in `namespace Dmon.Hosting`: `UseMtplx<T>(this T, string model)`, `UseMtplx<T>(this T, MtplxOptions)`, and parameterless `UseMtplx<T>(this T)` (options from `FromEnvironment()`), each `AddProvider(new MtplxProviderExtension(...))` then `UseModel("mtplx", modelId)`; constrained `where T : IProviderRegistration`.
-- [ ] 4.2 Wire `.UseMtplx()` into `default-core/Dmon.cs`.
-- [ ] 4.3 Add a composition-root sample if the repo carries per-provider samples (match the websearch/llamacpp sample convention).
+- [x] 4.1 Add `UseMtplxExtensions` in `namespace Dmon.Hosting`: `UseMtplx<T>(this T, string model)`, `UseMtplx<T>(this T, MtplxOptions)`, and parameterless `UseMtplx<T>(this T)` (options from `FromEnvironment()`), each `AddProvider(new MtplxProviderExtension(...))` then `UseModel("mtplx", modelId)`; constrained `where T : IProviderRegistration`.
+- [x] 4.2 Wire `.UseMtplx()` into `default-core/Dmon.cs`.
+- [x] 4.3 Add a composition-root sample if the repo carries per-provider samples (match the websearch/llamacpp sample convention).
 
 ## 5. Tests
 

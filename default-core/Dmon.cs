@@ -12,6 +12,7 @@
 #:package Dmon.Providers.OpenAI@0.2.*
 #:package Dmon.Providers.Gemini@0.2.*
 #:package Dmon.Providers.Ollama@0.2.*
+#:package Dmon.Providers.Mtplx@0.2.*
 #:package Dmon.Tools.Builtin@0.2.*
 
 using Dmon.Hosting;
@@ -21,6 +22,7 @@ await DmonHost.CreateBuilder(args)
     .UseOpenAI()
     .UseGemini()
     .UseOllama()
+    .UseMtplx()
     .AddBuiltinTools()
     .Build()
     .RunAsync();
