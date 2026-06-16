@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <RootNamespace>Daemonic.Dmail.Extension</RootNamespace>
+    <AssemblyName>Dmon.Extensions.Dmail</AssemblyName>
+
+    <!-- NuGet package -->
+    <PackageId>Dmon.Extensions.Dmail</PackageId>
+    <IsPackable>true</IsPackable>
+    <!-- Major.Minor must track the dmon protocol version (ADR-011); 0.2.x ↔ protocol 0.2. -->
+    <Version>0.2.0</Version>
+    <Authors>Daemonic</Authors>
+    <Description>dmon extension exposing Dmail email tools — search_email, check_new_messages and get_email — over the Dmail HTTP API. Lets a dmon agent search a mailbox and check for new mail.</Description>
+    <PackageTags>dmon;dmail;email;extension;tools;agent</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Published dmon SDK package only — no project reference into dmon-core.
+         Resolved from the local-dmon-feed source in nuget.config until it is on nuget.org. -->
+    <PackageReference Include="Dmon.Extensions" Version="0.2.*" />
+  </ItemGroup>
+
+</Project>

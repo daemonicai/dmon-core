@@ -1,10 +1,10 @@
 ## 1. History-preserving import
 
-- [ ] 1.1 Ensure `git-filter-repo` is available (`uvx git-filter-repo --version`; fallback `brew install git-filter-repo`).
-- [ ] 1.2 `git clone /Users/rendle/github/daemonicai/dmail /tmp/graft-dmail` and `git checkout feat/dmon-tool-dmail` (extension @ `b1af562`); never operate on the original repo.
-- [ ] 1.3 Run `uvx git-filter-repo` keeping only `src/Dmon.Extensions.Dmail/` and `test/Dmail.Tests/DmailExtensionTests.cs`, with `--path-rename`s to `tools/Dmon.Tools.Dmail/` and `test/Dmon.Tools.Dmail.Tests/DmailExtensionTests.cs` (per design).
-- [ ] 1.4 On branch `change/graft-dmail`, add the throwaway clone as a remote, `git merge --allow-unrelated-histories dmail-graft/feat/dmon-tool-dmail`, then remove the remote and delete `/tmp/graft-dmail`.
-- [ ] 1.5 Confirm only the intended paths landed (extension subtree incl. its `README.md` + the one test file); no server, server tests, satellite `openspec/`, `nuget.config`, vendored nupkgs, or `Directory.*` files imported.
+- [x] 1.1 Ensure `git-filter-repo` is available (`uvx git-filter-repo --version`; fallback `brew install git-filter-repo`).
+- [x] 1.2 `git clone --no-local -b feat/dmon-tool-dmail /Users/rendle/github/daemonicai/dmail /tmp/graft-dmail` (extension @ `b1af562`); never operate on the original repo. (`--no-local` + direct `-b` branch clone are required so filter-repo sees a fresh, single-reflog clone.)
+- [x] 1.3 Run `uvx git-filter-repo` keeping only `src/Dmon.Extensions.Dmail/` and `test/Dmail.Tests/DmailExtensionTests.cs`, with `--path-rename`s to `tools/Dmon.Tools.Dmail/` and `test/Dmon.Tools.Dmail.Tests/DmailExtensionTests.cs` (per design).
+- [x] 1.4 On branch `change/graft-dmail`, add the throwaway clone as a remote, `git merge --allow-unrelated-histories dmail-graft/feat/dmon-tool-dmail`, then remove the remote and delete `/tmp/graft-dmail`.
+- [x] 1.5 Confirm only the intended paths landed (extension subtree incl. its `README.md` + the one test file); no server, server tests, satellite `openspec/`, `nuget.config`, vendored nupkgs, or `Directory.*` files imported.
 
 ## 2. Rename to the tool family (Dmon.Tools.Dmail)
 
