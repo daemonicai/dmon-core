@@ -28,13 +28,13 @@
 
 ## 5. Solutions
 
-- [ ] 5.1 Add `tools/Dmon.Tools.Dmail/Dmon.Tools.Dmail.csproj` to `tools.slnx` (under `/tools/`) and the test to `tools.slnx` (under `/test/`).
-- [ ] 5.2 Add both projects to `Everything.slnx`.
+- [x] 5.1 Add `tools/Dmon.Tools.Dmail/Dmon.Tools.Dmail.csproj` to `tools.slnx` (under `/tools/`) and the test to `tools.slnx` (under `/test/`).
+- [x] 5.2 Add both projects to `Everything.slnx`.
 
 ## 6. Verification gates
 
-- [ ] 6.1 `dotnet build Everything.slnx -c Release` clean (no warnings; `TreatWarningsAsErrors`).
-- [ ] 6.2 `make build` and `make test` green — the four ported `DmailExtensionTests` plus all existing tests.
-- [ ] 6.3 `dotnet pack tools/Dmon.Tools.Dmail/Dmon.Tools.Dmail.csproj -c Release` succeeds — skew-guard passes and a sane MinVer `Major.Minor` matching `core/Dmon.Protocol/ProtocolVersion.cs` is produced.
-- [ ] 6.4 `git log --follow tools/Dmon.Tools.Dmail/DmailExtension.cs` shows pre-graft commits (history preserved).
-- [ ] 6.5 `openspec validate graft-dmail --strict` passes.
+- [x] 6.1 `dotnet build Everything.slnx -c Release` clean (no warnings; `TreatWarningsAsErrors`).
+- [x] 6.2 `make build` and `make test` green — the four ported `DmailExtensionTests` plus all existing tests.
+- [x] 6.3 `dotnet pack tools/Dmon.Tools.Dmail/Dmon.Tools.Dmail.csproj -c Release` succeeds — skew-guard passes and a sane MinVer `Major.Minor` (`0.2.0-alpha.0.39`) matching `core/Dmon.Protocol/ProtocolVersion.cs` is produced.
+- [x] 6.4 `git log --follow tools/Dmon.Tools.Dmail/DmailExtension.cs` shows pre-graft commit `7556790` (history preserved).
+- [x] 6.5 `openspec validate graft-dmail --strict` passes.

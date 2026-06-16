@@ -8,8 +8,8 @@ Phase 2 monorepo satellite graft: import the dmon Dmail **tool extension** into 
 - [x] Group 2 — Rename to the tool family (Dmon.Tools.Dmail)
 - [x] Group 3 — API port to IToolExtension / Dmon.Abstractions
 - [x] Group 4 — Re-wire to monorepo conventions (ProjectReference, CPM, fresh test csproj)
-- [ ] Group 5 — Solutions
-- [ ] Group 6 — Verification gates
+- [x] Group 5 — Solutions
+- [x] Group 6 — Verification gates
 
 ---
 
@@ -63,3 +63,19 @@ The group where the project first compiles. Swapped the deleted-package `<Packag
 **Lesson:** when scaffolding a grafted package's csproj from a sibling, the `Description`/verb claims are *content*, not boilerplate — verify them against the actual code, and reference assemblies whose types you use directly rather than leaning on transitive flow.
 
 **Gates:** `dotnet build` of the tool clean (0/0, TreatWarningsAsErrors); `dotnet test` of the new test project green (4/4); `Everything.slnx` build clean; `dotnet pack` → `Dmon.Tools.Dmail.0.2.0-alpha.0.39.nupkg`, `Major.Minor=0.2` matches `core/Dmon.Protocol/ProtocolVersion.cs` (skew-guard passes); `openspec validate --strict` passes. The two projects are still absent from all `.slnx` — Group 5 wires them in.
+
+---
+
+## Group 5 — Solutions
+
+Added `tools/Dmon.Tools.Dmail/Dmon.Tools.Dmail.csproj` (under `/tools/`) and `test/Dmon.Tools.Dmail.Tests/Dmon.Tools.Dmail.Tests.csproj` (under `/test/`) to both `tools.slnx` and `Everything.slnx`, matching the existing append convention (Dmail after Builtin/LlamaCpp). Done directly by the orchestrator (solution-file plumbing, two `<Project>` lines per file).
+
+## Group 6 — Verification gates (all green)
+
+- **6.1** `dotnet build Everything.slnx -c Release` — 0 warnings / 0 errors (TreatWarningsAsErrors).
+- **6.2** `make build` clean; `make test` green — the **4 `DmailExtensionTests` now run as part of the solution** (Dmon.Tools.Dmail.Tests 4/4) alongside the full existing suite (all projects pass, 0 failures).
+- **6.3** `dotnet pack` → `Dmon.Tools.Dmail.0.2.0-alpha.0.39.nupkg`; `Major.Minor=0.2` matches `core/Dmon.Protocol/ProtocolVersion.cs` (protocol skew-guard passes).
+- **6.4** `git log --follow tools/Dmon.Tools.Dmail/DmailExtension.cs` → `7556790 feat: add Dmon.Extensions.Dmail dmon extension package` (pre-graft history preserved through both path-renames).
+- **6.5** `openspec validate graft-dmail --strict` passes.
+
+**All 6 groups complete.** The Dmail tool extension is grafted into `tools/Dmon.Tools.Dmail`, ported to ADR-022 (`IToolExtension`), wired to monorepo conventions, in both solutions, building/testing/packing green with history preserved. The Dmail **server** remains a separate first-party repo (extension-only scope); `dmail` is left intact and untouched (absorbed-but-live — only the extension was grafted; the source branch `feat/dmon-tool-dmail` can optionally carry a local `extension-absorbed-into-dmon-core` tag).
