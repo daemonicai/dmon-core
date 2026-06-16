@@ -45,9 +45,18 @@
 - Reviewer: Approve, no blockers. Independently confirmed `make build` 0W/0E, `make test` 0 failed (2 pre-existing skips: Nomic embedding + extension-source-fetcher network integration), `make pack` OK (dmoncore 0.2.0 + contracts + providers, MinVer/skew-guard intact). Note: a test *assembly* named `Dmon.Extensions.Tests.dll` still appears in test output — that's a display name, not the deleted project.
 - Gates (orchestrator re-ran): `make build` 0W/0E; `make test` green across `Everything.slnx`; stale-path grep (`src/`/`extensions/`/`Dmon.Extensions` in tooling files) clean. Commit pending.
 
-## NEXT
+## 6. Verification gates
 
-- **Up next:** Group 6 — final verification gates (`make build`/`make test` green — already passing; assert no intra-repo `PackageReference` to a first-party project; `openspec validate --strict`). (Makefile → `Everything.slnx`/bucket paths; `default-core/Dmon.cs` build-run paths; `.github/workflows/release.yml` lines ~56-67 still have `src/`; finish task 5.2). Group 6 — final gates (`make build`/`make test` green once Makefile restored, no intra-repo PackageReference, `openspec validate --strict`).
+- 6.1: `make build` 0W/0E; `make test` green across `Everything.slnx` (2 pre-existing skips only).
+- 6.2: **Spec refinement (user-approved).** A repo-wide PackageReference scan found the only first-party `PackageReference`s are two `samples/` fixtures (`Dmon.ExtensionSmoke`, `Dmon.SampleExtension` → `Dmon.Abstractions`). These are (a) **excluded from every `.slnx`** (not in `Everything.slnx` or any area solution), (b) **pre-existing on `main`** (commit `b8fbd72`, not introduced here), (c) **by-design consumer simulations** that verify the published package surface from a local feed (same rationale as the Group 2 `VersionOverride` decision). ADR-025 D4's intent — intra-repo *solution* project graph is all `ProjectReference`, NuGet cache out of everyday builds — is fully satisfied: **0** first-party `PackageReference` across `core/providers/tools/middleware/frontends/test`. With the user's approval, refined the `monorepo-layout` spec's "Intra-repo references use ProjectReference" requirement + scenario to scope the rule to solution-build projects and name the `samples/` consumer fixtures as the explicit, solution-excluded exception. No code change; validate `--strict` re-passes.
+- 6.3: `openspec validate monorepo-phase0-reorg --strict` valid (after the spec refinement).
+
+## DONE
+
+- All 25 tasks ticked across 6 groups. Commits: `6684f24` (G1 ghost dirs), `22ca6b1` (G2 CPM), `8b2c4a3` (G3 bucket moves), `2d258a3` (G4 Omlx → provider), `72994c1` (G5 tooling/CI), + G6 (gates + spec refinement, pending commit).
+- Final state: flat `src/` + `extensions/` gone; projects in `core/ providers/ tools/ middleware/ frontends/`; per-area `.slnx` + root `Everything.slnx`; CPM via root `Directory.Packages.props`; Omlx packable as `Dmon.Providers.Omlx`; Makefile/release.yml on bucket paths. `make build` clean, `make test` green, `openspec validate --strict` passes.
+- **Next action:** push `change/monorepo-phase0-reorg` + open PR (on user request), then propose `/opsx:archive`.
+- **Carry-forward (later phases, not this change):** satellite repo grafts; `dcli`/`dmonium`; ADR-024 per-package tag prefixes + skew-guard patch-relax + 2-family release matrix; full dependency-aware path-filtered CI; `Dmon.sln.DotSettings`/`.user` still name the old slnx (non-blocking); `Everything.slnx` includes `spike/ScriptingSpike` (fine as superset — revisit whether the spike belongs). (Makefile → `Everything.slnx`/bucket paths; `default-core/Dmon.cs` build-run paths; `.github/workflows/release.yml` lines ~56-67 still have `src/`; finish task 5.2). Group 6 — final gates (`make build`/`make test` green once Makefile restored, no intra-repo PackageReference, `openspec validate --strict`).
 - **Carry-forward:**
   - `make` is intentionally red between Group 3 and Group 5 — don't treat it as a regression.
   - Remaining `src/` references live only in `Makefile` (lines 33/49/67) and `.github/workflows/release.yml` (~56-67) — both Group 5.

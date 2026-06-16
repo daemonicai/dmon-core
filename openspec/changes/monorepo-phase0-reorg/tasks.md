@@ -37,6 +37,6 @@
 
 ## 6. Verification gates
 
-- [ ] 6.1 `make build` clean (no warnings; `TreatWarningsAsErrors`) and `make test` green across `Everything.slnx`
-- [ ] 6.2 Assert no intra-repo `PackageReference` to a first-party project remains (all `ProjectReference`)
-- [ ] 6.3 `openspec validate monorepo-phase0-reorg --strict` passes
+- [x] 6.1 `make build` clean (no warnings; `TreatWarningsAsErrors`) and `make test` green across `Everything.slnx`
+- [x] 6.2 Assert no intra-repo `PackageReference` to a first-party project remains (all `ProjectReference`)
+- [x] 6.3 `openspec validate monorepo-phase0-reorg --strict` passes

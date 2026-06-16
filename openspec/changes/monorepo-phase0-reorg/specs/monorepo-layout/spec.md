@@ -33,12 +33,13 @@ The repository SHALL provide one `.slnx` per area (`core.slnx`, `providers.slnx`
 
 ### Requirement: Intra-repo references use ProjectReference
 
-Projects within the repository SHALL reference each other via `ProjectReference`, never `PackageReference`, so cross-area changes are atomic and the global NuGet cache is not involved in everyday builds.
+Solution-build projects within the repository SHALL reference each other via `ProjectReference`, never `PackageReference`, so cross-area changes are atomic and the global NuGet cache is not involved in everyday builds. Consumer-simulation fixtures under `samples/` are exempt: they exist to verify the *published package surface* and therefore deliberately consume first-party packages via `PackageReference` (against a local feed); they are excluded from the area `.slnx` and `Everything.slnx` solutions.
 
 #### Scenario: No intra-repo PackageReference
 
-- **WHEN** all `.csproj` files are inspected
-- **THEN** no project declares a `PackageReference` to another first-party project in the repository (`Dmon.*` / `dmoncore`)
+- **WHEN** the `.csproj` files of all projects included in any `.slnx` solution are inspected
+- **THEN** no such project declares a `PackageReference` to another first-party project in the repository (`Dmon.*` / `dmoncore`)
+- **AND** the only first-party `PackageReference`s in the repository are in the `samples/` consumer-simulation fixtures, which are excluded from the solutions
 
 ### Requirement: Nested build configuration
 
