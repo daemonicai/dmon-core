@@ -8,10 +8,10 @@
 
 ## 2. Rename to the tool family (Dmon.Tools.Dmail)
 
-- [ ] 2.1 `git mv` the extension `.csproj` to `tools/Dmon.Tools.Dmail/Dmon.Tools.Dmail.csproj`; set `AssemblyName`/`RootNamespace`/`PackageId` = `Dmon.Tools.Dmail`.
-- [ ] 2.2 Rewrite the C# namespace `Daemonic.Dmail.Extension` → `Dmon.Tools.Dmail` across the src files (`DmailExtension`, `DmailClient`, `DmailModels`, `DmailApiException`).
-- [ ] 2.3 Rewrite the test namespace `Daemonic.Dmail.Tests` → `Dmon.Tools.Dmail.Tests` in `DmailExtensionTests.cs` and update its `using` of the extension namespace.
-- [ ] 2.4 Repo-wide grep (excluding `bin/obj`) for `Dmon.Extensions.Dmail` and `Daemonic.Dmail` returns nothing.
+- [x] 2.1 `git mv` the extension `.csproj` to `tools/Dmon.Tools.Dmail/Dmon.Tools.Dmail.csproj`; set `AssemblyName`/`RootNamespace`/`PackageId` = `Dmon.Tools.Dmail`.
+- [x] 2.2 Rewrite the C# namespace `Daemonic.Dmail.Extension` → `Dmon.Tools.Dmail` across the src files (`DmailExtension`, `DmailClient`, `DmailModels`, `DmailApiException`).
+- [x] 2.3 Rewrite the test namespace `Daemonic.Dmail.Tests` → `Dmon.Tools.Dmail.Tests` in `DmailExtensionTests.cs` and update its `using` of the extension namespace.
+- [x] 2.4 Repo-wide grep (excluding `bin/obj`) for `Dmon.Extensions.Dmail` and `Daemonic.Dmail` returns nothing. (Includes the package `README.md` title + `#:package` pin + `using` — the `AddExtension` verb is the Group 3 concern and remains.)
 
 ## 3. API port to IToolExtension / Dmon.Abstractions (ADR-022)
 

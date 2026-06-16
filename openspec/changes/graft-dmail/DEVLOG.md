@@ -5,7 +5,7 @@ Phase 2 monorepo satellite graft: import the dmon Dmail **tool extension** into 
 ## Status
 
 - [x] Group 1 — History-preserving import
-- [ ] Group 2 — Rename to the tool family (Dmon.Tools.Dmail)
+- [x] Group 2 — Rename to the tool family (Dmon.Tools.Dmail)
 - [ ] Group 3 — API port to IToolExtension / Dmon.Abstractions
 - [ ] Group 4 — Re-wire to monorepo conventions (ProjectReference, CPM, fresh test csproj)
 - [ ] Group 5 — Solutions
@@ -25,3 +25,15 @@ Phase 2 monorepo satellite graft: import the dmon Dmail **tool extension** into 
 - The imported test (`DmailExtensionTests.cs`) is genuinely server-independent — references only the extension namespace, `Microsoft.Extensions.AI`, and `Dmon.Protocol.Enums`; it constructs `DmailExtension` against an unreachable port. Its `.csproj` is authored fresh in Group 4 (the satellite's test project referenced `src/Dmail`, which is not grafted).
 
 **Gates:** `Everything.slnx` build green; history verified via `git log --follow tools/Dmon.Tools.Dmail/DmailExtension.cs`; reviewer audit PASS (no blockers, no nits). Stale names/references (`Dmon.Extensions.Dmail`, `IDmonExtension`, `using Dmon.Extensions`, the `Dmon.Extensions` PackageReference, standalone `<Version>`, `Daemonic.Dmail.*` namespaces) are deferred-by-design to Groups 2–4.
+
+---
+
+## Group 2 — Rename to the tool family (Dmon.Tools.Dmail)
+
+Name-only rename, mirroring the Phase 0/1 Omlx/LlamaCpp rename. `git mv`'d the extension `.csproj` to `Dmon.Tools.Dmail.csproj` (git recorded it as a rename, ~87% similarity) and set `AssemblyName`/`RootNamespace`/`PackageId` = `Dmon.Tools.Dmail`. Rewrote `namespace Daemonic.Dmail.Extension` → `Dmon.Tools.Dmail` across the four src files and `Daemonic.Dmail.Tests` → `Dmon.Tools.Dmail.Tests` + the extension `using` in the test.
+
+**Review loop (1 iteration):** the worker's first pass missed the package `README.md` — its grep didn't cover the `# Dmon.Extensions.Dmail` title, the `#:package Dmon.Extensions.Dmail@0.2.*` pin, and the `using Daemonic.Dmail.Extension;` line, so gate 2.4 (clean repo-wide grep, which design Risk-list explicitly extends to the README) failed. Fixed the three rename tokens, leaving the `.AddExtension<>` verb for Group 3 (the README's verb update is task 3.2). Reviewer's other checks all passed first time, including confirming **no scope creep** — `using Dmon.Extensions;`, `IDmonExtension`, the `Dmon.Extensions` PackageReference, and `<Version>0.2.0</Version>` were correctly left untouched for Groups 3/4.
+
+**Lesson:** the rename gate's grep must include `*.md` (README), not just `*.cs`/`*.csproj`. The Group 2/3 README boundary is subtle: rename tokens (title, package pin, namespace `using`) are Group 2; the registration **verb** (`AddExtension` → `AddToolExtension`) and doc-comment are Group 3.
+
+**Gates:** repo-wide grep for `Dmon.Extensions.Dmail` / `Daemonic.Dmail` returns zero code-artifact matches (only the graft-dmail change docs + ADR-025 remain, which describe the rename); `make build` clean (0/0); `make test` green (565 + 51 pass, 1 skip — grafted Dmail tests not yet in a solution, run after Groups 4–5); `openspec validate --strict` passes. Project still intentionally not independently buildable (Group 3/4 fix the package reference).

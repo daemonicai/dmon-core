@@ -2,7 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 
-namespace Daemonic.Dmail.Extension;
+namespace Dmon.Tools.Dmail;
 
 /// <summary>
 /// Thin HTTP client over the Dmail agent API. Authenticates with the <c>X-Api-Key</c>

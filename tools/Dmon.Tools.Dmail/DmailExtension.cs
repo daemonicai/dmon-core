@@ -5,7 +5,7 @@ using Dmon.Protocol.Enums;
 using Dmon.Protocol.Permissions;
 using Microsoft.Extensions.AI;
 
-namespace Daemonic.Dmail.Extension;
+namespace Dmon.Tools.Dmail;
 
 /// <summary>
 /// dmon extension exposing Dmail email tools to an agent: <c>search_email</c>,

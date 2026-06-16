@@ -1,4 +1,4 @@
-namespace Daemonic.Dmail.Extension;
+namespace Dmon.Tools.Dmail;
 
 // Wire DTOs mirroring the Dmail HTTP API (src/Dmail/Models/*). The API uses
 // ASP.NET minimal-API web defaults, so JSON is camelCase and read case-insensitively.

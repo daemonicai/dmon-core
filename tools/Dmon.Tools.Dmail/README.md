@@ -1,4 +1,4 @@
-# Dmon.Extensions.Dmail
+# Dmon.Tools.Dmail
 
 A [dmon](https://github.com/daemonicai/dmon-core) extension that gives an agent access to
 the user's email via the [Dmail](https://github.com/daemonicai/dmail) HTTP API.
@@ -27,10 +27,10 @@ Read from the environment by the parameterless constructor:
 
 ```csharp
 #:package dmoncore@0.2.*
-#:package Dmon.Extensions.Dmail@0.2.*
+#:package Dmon.Tools.Dmail@0.2.*
 
 using Dmon.Hosting;
-using Daemonic.Dmail.Extension;
+using Dmon.Tools.Dmail;
 
 await DmonHost.CreateBuilder(args)
     .AddExtension<DmailExtension>()              // configured from DMAIL_* env vars

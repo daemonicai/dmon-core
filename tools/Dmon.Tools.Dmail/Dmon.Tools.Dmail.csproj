@@ -5,11 +5,11 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-    <RootNamespace>Daemonic.Dmail.Extension</RootNamespace>
-    <AssemblyName>Dmon.Extensions.Dmail</AssemblyName>
+    <RootNamespace>Dmon.Tools.Dmail</RootNamespace>
+    <AssemblyName>Dmon.Tools.Dmail</AssemblyName>
 
     <!-- NuGet package -->
-    <PackageId>Dmon.Extensions.Dmail</PackageId>
+    <PackageId>Dmon.Tools.Dmail</PackageId>
     <IsPackable>true</IsPackable>
     <!-- Major.Minor must track the dmon protocol version (ADR-011); 0.2.x ↔ protocol 0.2. -->
     <Version>0.2.0</Version>

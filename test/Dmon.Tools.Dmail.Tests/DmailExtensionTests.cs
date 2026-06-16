@@ -1,8 +1,8 @@
 using System.Linq;
-using Daemonic.Dmail.Extension;
+using Dmon.Tools.Dmail;
 using Microsoft.Extensions.AI;
 
-namespace Daemonic.Dmail.Tests;
+namespace Dmon.Tools.Dmail.Tests;
 
 public sealed class DmailExtensionTests
 {

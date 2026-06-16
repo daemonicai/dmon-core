@@ -1,6 +1,6 @@
 using System.Net;
 
-namespace Daemonic.Dmail.Extension;
+namespace Dmon.Tools.Dmail;
 
 /// <summary>
 /// Raised when the Dmail HTTP API returns a non-success status or an unreadable body.
