@@ -44,5 +44,6 @@
     <Project Path="test\Dmon.Tools.Builtin.Tests\Dmon.Tools.Builtin.Tests.csproj" />
     <Project Path="test\Dmon.Providers.LlamaCpp.Tests\Dmon.Providers.LlamaCpp.Tests.csproj" />
     <Project Path="test\Dmon.Tools.Dmail.Tests\Dmon.Tools.Dmail.Tests.csproj" />
+    <Project Path="test\Dmon.Tools.WebSearch.Tests\Dmon.Tools.WebSearch.Tests.csproj" />
   </Folder>
 </Solution>

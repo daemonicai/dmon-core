@@ -19,13 +19,13 @@
 
 ## 4. Tests
 
-- [ ] 4.1 Create `test/Dmon.Tools.WebSearch.Tests` (xunit) and add it to the test slnx/Everything.slnx.
-- [ ] 4.2 Test the projection against a stubbed `ChatResponse` containing `TextContent` + `WebSearchToolResultContent`/`UriContent` → asserts `{ answer, sources[] }`; plus the no-sources and provider-agnostic (same content shape) cases — using a fake `IChatClient`/`IChatClientFactory`, no network.
-- [ ] 4.3 Test that the tool issues exactly one `GetResponseAsync` whose `ChatOptions.Tools` contains a `HostedWebSearchTool`, and makes no HTTP call.
-- [ ] 4.4 Test `Evaluate` returns a prompt result for `web_search`.
-- [ ] 4.5 Test graceful failure: a throwing fake client yields a short error string (and a missing-key error names the env var).
-- [ ] 4.6 Test `AddAgentWebSearch` registers exactly one `web_search` tool, and that a malformed configure action fails the build with `InvalidOperationException`.
-- [ ] 4.7 Test that lazy resolution holds: registering the tool with an absent brain key does not throw at registration/build (only on invocation).
+- [x] 4.1 Create `test/Dmon.Tools.WebSearch.Tests` (xunit) and add it to the test slnx/Everything.slnx.
+- [x] 4.2 Test the projection against a stubbed `ChatResponse` containing `TextContent` + `WebSearchToolResultContent`/`UriContent` → asserts `{ answer, sources[] }`; plus the no-sources and provider-agnostic (same content shape) cases — using a fake `IChatClient`/`IChatClientFactory`, no network.
+- [x] 4.3 Test that the tool issues exactly one `GetResponseAsync` whose `ChatOptions.Tools` contains a `HostedWebSearchTool`, and makes no HTTP call.
+- [x] 4.4 Test `Evaluate` returns a prompt result for `web_search`.
+- [x] 4.5 Test graceful failure: a throwing fake client yields a short error string (and a missing-key error names the env var).
+- [x] 4.6 Test `AddAgentWebSearch` registers exactly one `web_search` tool, and that a malformed configure action fails the build with `InvalidOperationException`.
+- [x] 4.7 Test that lazy resolution holds: registering the tool with an absent brain key does not throw at registration/build (only on invocation).
 
 ## 5. Sample wiring and gates
 
