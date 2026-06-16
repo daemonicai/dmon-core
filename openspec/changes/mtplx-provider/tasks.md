@@ -15,9 +15,9 @@
 
 ## 3. Provider factory — chat client and capabilities
 
-- [ ] 3.1 Implement `MtplxProviderFactory : IProviderFactory` (`AdapterName = "mtplx"`, `DisplayName = "MTPLX"`) producing an `IChatClient` from `OpenAI.Chat.ChatClient.AsIChatClient()` pointed at `http://<host>:<port>/v1`, wrapped in `CapabilitiesDecorator`.
-- [ ] 3.2 Implement the probe-verified tool-calling capability (trivial tool round-trip → `SupportsToolCalling`; `Warning` + `false` on failure); reflect the probe outcome in `GetCapabilities`, never a model-name heuristic.
-- [ ] 3.3 Implement `GetNextStepAsync`/wizard surface consistent with the other local providers.
+- [x] 3.1 Implement `MtplxProviderFactory : IProviderFactory` (`AdapterName = "mtplx"`, `DisplayName = "MTPLX"`) producing an `IChatClient` from `OpenAI.Chat.ChatClient.AsIChatClient()` pointed at `http://<host>:<port>/v1`, wrapped in `CapabilitiesDecorator`.
+- [x] 3.2 Implement the probe-verified tool-calling capability (trivial tool round-trip → `SupportsToolCalling`; `Warning` + `false` on failure); reflect the probe outcome in `GetCapabilities`, never a model-name heuristic.
+- [x] 3.3 Implement `GetNextStepAsync`/wizard surface consistent with the other local providers.
 
 ## 4. Composition verb and wiring
 
