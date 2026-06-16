@@ -29,5 +29,5 @@
 
 ## 5. Sample wiring and gates
 
-- [ ] 5.1 Add a sample composition root under `samples/` (or extend an existing one) showing a local driving provider + `AddAgentWebSearch(p => p.UseGemini("gemini-2.5-flash"))`, matching the design's `Dmon.cs` shape.
-- [ ] 5.2 Run gates: `make build` clean (TreatWarningsAsErrors), `make test` green (new + existing), `openspec validate websearch-tool --strict`.
+- [x] 5.1 Add a sample composition root under `samples/` (or extend an existing one) showing a local driving provider + `AddAgentWebSearch(p => p.UseGemini("gemini-2.5-flash"))`, matching the design's `Dmon.cs` shape.
+- [x] 5.2 Run gates: `make build` clean (TreatWarningsAsErrors), `make test` green (new + existing), `openspec validate websearch-tool --strict`.
