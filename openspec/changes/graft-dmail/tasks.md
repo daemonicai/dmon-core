@@ -21,10 +21,10 @@
 
 ## 4. Re-wire to monorepo conventions (ProjectReference, CPM, fresh test csproj)
 
-- [ ] 4.1 Tool `.csproj`: replace `<PackageReference Include="Dmon.Extensions" Version="0.2.*" />` with a `ProjectReference` to `..\..\core\Dmon.Abstractions\Dmon.Abstractions.csproj`.
-- [ ] 4.2 Tool `.csproj`: remove the standalone `<Version>0.2.0</Version>` and strip inline `Version=` from `PackageReference`s; keep `IsPackable=true`, `MinVerTagPrefix`, packed `README.md`, and a `Description`/`PackageTags` consistent with `Dmon.Tools.Builtin`.
-- [ ] 4.3 Author a fresh `test/Dmon.Tools.Dmail.Tests/Dmon.Tools.Dmail.Tests.csproj` (`IsPackable=false`, `RootNamespace=Dmon.Tools.Dmail.Tests`) referencing only `..\..\tools\Dmon.Tools.Dmail\Dmon.Tools.Dmail.csproj`; reuse central test pins (no inline `Version=`).
-- [ ] 4.4 Add any missing third-party `<PackageVersion>` to root `Directory.Packages.props` only if a build surfaces one (expected: none).
+- [x] 4.1 Tool `.csproj`: replace `<PackageReference Include="Dmon.Extensions" Version="0.2.*" />` with `ProjectReference`s to `..\..\core\Dmon.Abstractions\Dmon.Abstractions.csproj` and `..\..\core\Dmon.Protocol\Dmon.Protocol.csproj` (Protocol added directly to match sibling `Dmon.Tools.Builtin`, since the source uses `Dmon.Protocol.*` types directly).
+- [x] 4.2 Tool `.csproj`: removed `<Version>0.2.0</Version>` and `<Authors>`, stripped inline `Version=` (CPM); kept `IsPackable=true`, `MinVerTagPrefix sdk-`, packed `README.md`, `PackageTags` (dropped stale `extension`), and a `Description` that names the real generic verb `AddToolExtension<DmailExtension>()` (no invented `AddDmailTools()`).
+- [x] 4.3 Authored a fresh `test/Dmon.Tools.Dmail.Tests/Dmon.Tools.Dmail.Tests.csproj` (`IsPackable=false`, `RootNamespace=Dmon.Tools.Dmail.Tests`) referencing only the tool; CPM-bare test pins matching the sibling test project.
+- [x] 4.4 No missing `<PackageVersion>` surfaced — `Directory.Packages.props` unchanged (all pins already central from Phase 0).
 
 ## 5. Solutions
 

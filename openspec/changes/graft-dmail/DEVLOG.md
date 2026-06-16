@@ -7,7 +7,7 @@ Phase 2 monorepo satellite graft: import the dmon Dmail **tool extension** into 
 - [x] Group 1 — History-preserving import
 - [x] Group 2 — Rename to the tool family (Dmon.Tools.Dmail)
 - [x] Group 3 — API port to IToolExtension / Dmon.Abstractions
-- [ ] Group 4 — Re-wire to monorepo conventions (ProjectReference, CPM, fresh test csproj)
+- [x] Group 4 — Re-wire to monorepo conventions (ProjectReference, CPM, fresh test csproj)
 - [ ] Group 5 — Solutions
 - [ ] Group 6 — Verification gates
 
@@ -49,3 +49,17 @@ The grafted extension targeted the deleted `Dmon.Extensions` package / `IDmonExt
 **Verification:** `Everything.slnx` build clean (0/0); grep for `IDmonExtension` / `using Dmon.Extensions;` in `tools/Dmon.Tools.Dmail/**` returns nothing; `openspec validate --strict` passes. The orchestrator verified the diff directly (small, mechanical, contract independently confirmed by the worker against core) in lieu of a separate reviewer pass.
 
 **Still not independently buildable:** the csproj continues to reference the deleted `Dmon.Extensions` package — Group 4 swaps that for a `ProjectReference` to `core/Dmon.Abstractions`, at which point the ported source first compiles.
+
+---
+
+## Group 4 — Re-wire to monorepo conventions (ProjectReference, CPM, fresh test csproj)
+
+The group where the project first compiles. Swapped the deleted-package `<PackageReference Include="Dmon.Extensions" Version="0.2.*" />` for `ProjectReference`s to `core/Dmon.Abstractions` **and** `core/Dmon.Protocol`; removed the standalone `<Version>0.2.0</Version>`/`<Authors>` (MinVer + root props drive versioning) and stripped inline `Version=` (CPM). Authored a fresh `test/Dmon.Tools.Dmail.Tests/Dmon.Tools.Dmail.Tests.csproj` (CPM-bare, references only the tool — the satellite's server-coupled test project was not imported). No `Directory.Packages.props` change needed (all pins already central from Phase 0).
+
+**Review loop (1 iteration) — two reviewer findings, both fixed:**
+- **B1 (blocker): false package metadata.** The worker pattern-copied the sibling `Dmon.Tools.Builtin` `Description` ("Exposes AddBuiltinTools()") into "Exposes AddDmailTools()" — but **no such verb exists**. Dmail is a single `IToolExtension` registered via the generic `builder.AddToolExtension<DmailExtension>()` (core's `Dmon.Hosting` verb), which already satisfies ADR-023's "ships its fluent verb" at the family level — a bespoke `AddDmailTools()` is not required. Corrected the `Description` to name the real verb (no new code). Confirmed the regenerated `obj/Release/*.nuspec` no longer contains `AddDmailTools`.
+- **N1 (strong nit): transitive Protocol reference.** The source directly `using`s `Dmon.Protocol.Enums`/`Dmon.Protocol.Permissions`, but the csproj referenced only `Dmon.Abstractions` (relying on transitive Protocol flow-through). Added the explicit `core/Dmon.Protocol` `ProjectReference` to match the sibling and avoid depending on transitive re-exposure of directly-used types.
+
+**Lesson:** when scaffolding a grafted package's csproj from a sibling, the `Description`/verb claims are *content*, not boilerplate — verify them against the actual code, and reference assemblies whose types you use directly rather than leaning on transitive flow.
+
+**Gates:** `dotnet build` of the tool clean (0/0, TreatWarningsAsErrors); `dotnet test` of the new test project green (4/4); `Everything.slnx` build clean; `dotnet pack` → `Dmon.Tools.Dmail.0.2.0-alpha.0.39.nupkg`, `Major.Minor=0.2` matches `core/Dmon.Protocol/ProtocolVersion.cs` (skew-guard passes); `openspec validate --strict` passes. The two projects are still absent from all `.slnx` — Group 5 wires them in.
