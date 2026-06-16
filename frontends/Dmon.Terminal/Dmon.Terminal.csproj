@@ -1,0 +1,87 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <AssemblyName>dmon</AssemblyName>
+    <RootNamespace>Dmon.Terminal</RootNamespace>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+
+    <IsPackable>true</IsPackable>
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>dmon</ToolCommandName>
+    <!-- Independent version line for the dmon console host -->
+    <MinVerTagPrefix>dmon-</MinVerTagPrefix>
+    <Description>The dmon console host — a .NET global tool that launches and communicates with the dmoncore agent over JSONL/stdio.</Description>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Markdig" />
+    <PackageReference Include="Dcli" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\core\Dmon.Protocol\Dmon.Protocol.csproj" />
+    <ProjectReference Include="..\..\core\Dmon.Runtime\Dmon.Runtime.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <!--
+    Bundle the prebuilt default-core closure (dmoncore.dll + deps + runtimeconfig.json)
+    into the dmon tool package as a file payload so first-run works offline with no SDK
+    and no network. Design D3 / ADR-019. The closure is produced by `make build-core`
+    (default-core/Dmon.cs published to ../../build/dmoncore/); `make build` runs
+    build-core before build-terminal so this always exists when packing.
+
+    No PackageReference on dmoncore: the tool carries a file payload, not a package dep.
+
+    Publish layout  : <publishDir>/dmoncore/dmoncore.dll   (for `make build` / CI)
+    Tool-package layout: tools/net10.0/any/dmoncore/dmoncore.dll  (for installed tool)
+    CoreResolver Tier-3 published-layout path: <entryDir>/dmoncore/dmoncore.dll
+  -->
+  <PropertyGroup>
+    <PrebuiltDefaultCoreDir>$(MSBuildThisFileDirectory)..\..\build\dmoncore</PrebuiltDefaultCoreDir>
+  </PropertyGroup>
+
+  <Target Name="CollectPrebuiltDefaultCore"
+          DependsOnTargets="ResolveReferences"
+          Condition="Exists('$(PrebuiltDefaultCoreDir)')">
+    <ItemGroup>
+      <PrebuiltDefaultCoreFile Include="$(PrebuiltDefaultCoreDir)\**\*" />
+    </ItemGroup>
+  </Target>
+
+  <!-- Copy prebuilt closure to publish output under dmoncore/ -->
+  <Target Name="CopyPrebuiltDefaultCoreToPublish"
+          AfterTargets="Publish"
+          DependsOnTargets="CollectPrebuiltDefaultCore"
+          Condition="Exists('$(PrebuiltDefaultCoreDir)')">
+    <Copy SourceFiles="@(PrebuiltDefaultCoreFile)"
+          DestinationFiles="@(PrebuiltDefaultCoreFile->'$(PublishDir)dmoncore\%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true" />
+  </Target>
+
+  <!-- Stage prebuilt closure into the tool package under tools/net10.0/any/dmoncore/ -->
+  <Target Name="StagePrebuiltDefaultCoreForPack"
+          BeforeTargets="GenerateNuspec"
+          DependsOnTargets="CollectPrebuiltDefaultCore"
+          Condition="Exists('$(PrebuiltDefaultCoreDir)')">
+    <ItemGroup>
+      <!--
+        Each item carries Pack="true" and PackagePath inline so MSBuild does not
+        batch over the shared None list (which contains README.md with no PackagePath,
+        causing MSB4096 if %(PackagePath) is referenced unqualified across that list).
+      -->
+      <None Include="@(PrebuiltDefaultCoreFile)"
+            Pack="true"
+            PackagePath="tools\net10.0\any\dmoncore\%(RecursiveDir)%(Filename)%(Extension)" />
+    </ItemGroup>
+  </Target>
+
+</Project>

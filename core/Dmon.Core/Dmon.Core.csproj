@@ -1,0 +1,47 @@
+<Project Sdk="Microsoft.NET.Sdk.Worker">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <OutputType>Library</OutputType>
+    <GenerateRuntimeConfigurationFiles>false</GenerateRuntimeConfigurationFiles>
+    <AssemblyName>Dmon.Core</AssemblyName>
+    <PackageId>dmoncore</PackageId>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <NoWarn>$(NoWarn);NU1901</NoWarn>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UserSecretsId>dotnet-Dmon.Core-235116ed-4152-4f15-a7a2-f92f60df0333</UserSecretsId>
+
+    <IsPackable>true</IsPackable>
+    <!-- Independent version line for the dmoncore agent core -->
+    <MinVerTagPrefix>core-</MinVerTagPrefix>
+    <Description>The dmoncore agent core — a .NET library package referenced by a Dmon.cs composition-root file via #:package dmoncore. Exposes Dmon.Hosting.DmonHost for building and running the agent.</Description>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Data.Sqlite" />
+    <!-- M.E.AI pinned to the abstractions version Anthropic 12.x targets; re-validate when bumping Anthropic. -->
+    <PackageReference Include="Microsoft.Extensions.AI" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+    <PackageReference Include="Microsoft.Extensions.Http" />
+    <PackageReference Include="NetEscapades.Configuration.Yaml" />
+    <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" />
+    <PackageReference Include="OpenTelemetry.Extensions.Hosting" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.Http" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.Runtime" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Contract packages: remain as normal refs so they appear as package dependencies in the nuspec. -->
+    <ProjectReference Include="..\Dmon.Abstractions\Dmon.Abstractions.csproj" />
+    <ProjectReference Include="..\Dmon.Protocol\Dmon.Protocol.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+    <!-- Suppress content/ + contentFiles/ injection from the Worker SDK auto-include of appsettings*.json. -->
+    <Content Update="appsettings*.json" Pack="false" />
+  </ItemGroup>
+
+</Project>

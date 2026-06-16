@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/tools/">
+    <Project Path="tools\Dmon.Tools.Builtin\Dmon.Tools.Builtin.csproj" />
+  </Folder>
+  <Folder Name="/test/">
+    <Project Path="test\Dmon.Tools.Builtin.Tests\Dmon.Tools.Builtin.Tests.csproj" />
+  </Folder>
+</Solution>

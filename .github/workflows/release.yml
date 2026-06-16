@@ -53,18 +53,17 @@ jobs:
           case "$TAG" in
             sdk-*)
               echo "line=sdk" >> "$GITHUB_OUTPUT"
-              dotnet pack src/Dmon.Protocol/Dmon.Protocol.csproj  -c Release -o out --no-build
-              dotnet pack src/Dmon.Abstractions/Dmon.Abstractions.csproj -c Release -o out --no-build
-              dotnet pack src/Dmon.Extensions/Dmon.Extensions.csproj -c Release -o out --no-build
+              dotnet pack core/Dmon.Protocol/Dmon.Protocol.csproj  -c Release -o out --no-build
+              dotnet pack core/Dmon.Abstractions/Dmon.Abstractions.csproj -c Release -o out --no-build
               ;;
             dmon-*)
               echo "line=dmon" >> "$GITHUB_OUTPUT"
-              dotnet pack src/Dmon.Terminal/Dmon.Terminal.csproj -c Release -o out --no-build
+              dotnet pack frontends/Dmon.Terminal/Dmon.Terminal.csproj -c Release -o out --no-build
               ;;
             core-*)
               echo "line=core" >> "$GITHUB_OUTPUT"
               # --no-build: make build already compiled the project; this step only packs the output.
-              dotnet pack src/Dmon.Core/Dmon.Core.csproj -c Release -o out --no-build
+              dotnet pack core/Dmon.Core/Dmon.Core.csproj -c Release -o out --no-build
               ;;
             *)
               echo "Unknown tag prefix: $TAG" >&2

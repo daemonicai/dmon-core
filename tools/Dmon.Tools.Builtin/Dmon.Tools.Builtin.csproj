@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+
+    <AssemblyName>Dmon.Tools.Builtin</AssemblyName>
+    <IsPackable>true</IsPackable>
+    <PackageId>Dmon.Tools.Builtin</PackageId>
+    <MinVerTagPrefix>sdk-</MinVerTagPrefix>
+    <Description>Built-in tools (read_file, write_file, edit_file, glob, fetch, bash) for the dmon coding agent. Exposes AddBuiltinTools() in the Dmon.Hosting namespace.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- M.E.AI pinned to the abstractions version Anthropic 12.x targets; re-validate when bumping Anthropic. -->
+    <PackageReference Include="Microsoft.Extensions.AI" />
+    <PackageReference Include="Microsoft.Extensions.Http" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\core\Dmon.Abstractions\Dmon.Abstractions.csproj" />
+    <ProjectReference Include="..\..\core\Dmon.Protocol\Dmon.Protocol.csproj" />
+  </ItemGroup>
+
+</Project>

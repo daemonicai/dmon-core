@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+
+    <AssemblyName>Dmon.Providers.Omlx</AssemblyName>
+    <RootNamespace>Dmon.Providers.Omlx</RootNamespace>
+    <IsPackable>true</IsPackable>
+    <PackageId>Dmon.Providers.Omlx</PackageId>
+    <MinVerTagPrefix>sdk-</MinVerTagPrefix>
+    <Description>oMLX provider factory for the dmon coding agent. Exposes UseOmlx() in the Dmon.Hosting namespace.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- M.E.AI pinned to the abstractions version Anthropic 12.x targets; re-validate when bumping Anthropic. -->
+    <PackageReference Include="Microsoft.Extensions.AI.OpenAI" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Dmon.Providers.Omlx.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\core\Dmon.Abstractions\Dmon.Abstractions.csproj" />
+  </ItemGroup>
+
+</Project>

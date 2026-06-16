@@ -1,0 +1,15 @@
+<Solution>
+  <Folder Name="/core/">
+    <Project Path="core\Dmon.Abstractions\Dmon.Abstractions.csproj" />
+    <Project Path="core\Dmon.Core\Dmon.Core.csproj" />
+    <Project Path="core\Dmon.Protocol\Dmon.Protocol.csproj" />
+    <Project Path="core\Dmon.Protocol.SchemaGen\Dmon.Protocol.SchemaGen.csproj" />
+    <Project Path="core\Dmon.Runtime\Dmon.Runtime.csproj" />
+  </Folder>
+  <Folder Name="/test/">
+    <Project Path="test\Dmon.Core.Tests\Dmon.Core.Tests.csproj" />
+    <Project Path="test\Dmon.Extensions.Tests\Dmon.Extensions.Tests.csproj" />
+    <Project Path="test\Dmon.Protocol.Tests\Dmon.Protocol.Tests.csproj" />
+    <Project Path="test\Dmon.Runtime.Tests\Dmon.Runtime.Tests.csproj" />
+  </Folder>
+</Solution>

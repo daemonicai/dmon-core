@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>Dmon.Gateway</RootNamespace>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <!-- Gateway is an app host, not a distributable tool or library. -->
+    <IsPackable>false</IsPackable>
+    <!-- NuGet.Protocol advisory warning: informational only, does not affect correctness. -->
+    <NoWarn>$(NoWarn);NU1901</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\core\Dmon.Runtime\Dmon.Runtime.csproj" />
+    <ProjectReference Include="..\..\core\Dmon.Core\Dmon.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Dmon.Gateway.Tests" />
+  </ItemGroup>
+
+</Project>

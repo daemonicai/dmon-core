@@ -31,7 +31,7 @@ trap cleanup EXIT
 echo "==> Packing dmoncore to $FEED"
 rm -rf "$FEED"
 mkdir -p "$FEED"
-dotnet pack "$REPO/src/Dmon.Core/Dmon.Core.csproj" -c Release -o "$FEED" --nologo
+dotnet pack "$REPO/core/Dmon.Core/Dmon.Core.csproj" -c Release -o "$FEED" --nologo
 
 NUPKG=$(ls "$FEED"/dmoncore.*.nupkg | head -1)
 VERSION=$(basename "$NUPKG" | sed 's/dmoncore\.\(.*\)\.nupkg/\1/')

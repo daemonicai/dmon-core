@@ -15,7 +15,9 @@
 
   <ItemGroup>
     <!-- Reference the packed SDK packages only — no ProjectReference into this repo. -->
-    <PackageReference Include="Dmon.Abstractions" Version="0.2.*" />
+    <!-- VersionOverride: bypasses CPM — this sample intentionally pins to a published
+         package range independent of the repo-internal version. -->
+    <PackageReference Include="Dmon.Abstractions" VersionOverride="0.2.*" />
   </ItemGroup>
 
 </Project>
