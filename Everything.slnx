@@ -12,6 +12,7 @@
     <Project Path="providers\Dmon.Providers.Ollama\Dmon.Providers.Ollama.csproj" />
     <Project Path="providers\Dmon.Providers.OpenAI\Dmon.Providers.OpenAI.csproj" />
     <Project Path="providers\Dmon.Providers.Omlx\Dmon.Providers.Omlx.csproj" />
+    <Project Path="providers\Dmon.Providers.LlamaCpp\Dmon.Providers.LlamaCpp.csproj" />
   </Folder>
   <Folder Name="/tools/">
     <Project Path="tools\Dmon.Tools.Builtin\Dmon.Tools.Builtin.csproj" />
@@ -37,5 +38,6 @@
     <Project Path="test\Dmon.Runtime.Tests\Dmon.Runtime.Tests.csproj" />
     <Project Path="test\Dmon.Terminal.Tests\Dmon.Terminal.Tests.csproj" />
     <Project Path="test\Dmon.Tools.Builtin.Tests\Dmon.Tools.Builtin.Tests.csproj" />
+    <Project Path="test\Dmon.Providers.LlamaCpp.Tests\Dmon.Providers.LlamaCpp.Tests.csproj" />
   </Folder>
 </Solution>

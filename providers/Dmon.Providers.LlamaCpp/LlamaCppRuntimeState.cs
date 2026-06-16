@@ -1,4 +1,4 @@
-namespace Dmon.Extensions.LlamaCpp;
+namespace Dmon.Providers.LlamaCpp;
 
 public sealed class LlamaCppRuntimeState
 {

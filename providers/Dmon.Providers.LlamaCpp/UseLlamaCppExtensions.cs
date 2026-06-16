@@ -1,6 +1,6 @@
 using Dmon.Abstractions.Hosting;
 using Dmon.Abstractions.Providers;
-using Dmon.Extensions.LlamaCpp;
+using Dmon.Providers.LlamaCpp;
 
 namespace Dmon.Hosting;
 

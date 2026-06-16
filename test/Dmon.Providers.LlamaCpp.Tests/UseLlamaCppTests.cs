@@ -1,11 +1,11 @@
 using Dmon.Abstractions.Hosting;
 using Dmon.Abstractions.Providers;
-using Dmon.Extensions.LlamaCpp;
+using Dmon.Providers.LlamaCpp;
 using Dmon.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace Dmon.Extensions.LlamaCpp.Tests;
+namespace Dmon.Providers.LlamaCpp.Tests;
 
 // ---------------------------------------------------------------------------
 // 6.7 — UseLlamaCpp composition verb

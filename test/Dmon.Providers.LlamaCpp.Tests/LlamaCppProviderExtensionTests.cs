@@ -4,7 +4,7 @@ using System.Runtime.InteropServices;
 using Microsoft.Extensions.AI;
 using Dmon.Abstractions.Providers;
 
-namespace Dmon.Extensions.LlamaCpp.Tests;
+namespace Dmon.Providers.LlamaCpp.Tests;
 
 // ---------------------------------------------------------------------------
 // Shared fakes

@@ -1,4 +1,4 @@
-# Dmon.Extensions.LlamaCpp
+# Dmon.Providers.LlamaCpp
 
 Managed local [llama.cpp](https://github.com/ggml-org/llama.cpp) provider for the [dmon](https://github.com/daemonicai/dmon-core) coding agent.
 
@@ -90,24 +90,21 @@ The probe never guesses capability from the model name or GGUF filename. The res
 
 ---
 
-## Building this repo (contributors)
+## Building from the monorepo (contributors)
 
-The `nuget.config` at the repo root points at a local feed:
-
-```
-../dmon-core/build/core-feed
-```
-
-This feed supplies `Dmon.Abstractions` so the build works offline. To populate it:
-
-1. Clone [dmon-core](https://github.com/daemonicai/dmon-core) as a sibling directory (`../dmon-core` relative to this repo).
-2. In `dmon-core`, run `dotnet pack` — this writes packages into `build/core-feed`.
-3. Return to this repo and run `dotnet restore` / `dotnet build`.
-
-Alternatively, if `Dmon.Abstractions` is available on another configured feed (e.g. a private GitHub Packages feed), add that source to your local `nuget.config` or `~/.nuget/NuGet/NuGet.Config`.
+`Dmon.Providers.LlamaCpp` lives under `providers/` in the [dmon-core monorepo](https://github.com/daemonicai/dmon-core). `Dmon.Abstractions` is consumed via `ProjectReference` — no local feed or manual pack step is required.
 
 ```sh
-dotnet build Dmon.Extensions.LlamaCpp.slnx
-dotnet test  Dmon.Extensions.LlamaCpp.slnx
-dotnet pack  src/Dmon.Extensions.LlamaCpp/Dmon.Extensions.LlamaCpp.csproj -o ./artifacts
+# build / test the whole solution (recommended)
+dotnet build Everything.slnx -c Release
+dotnet test  Everything.slnx -c Release
+
+# or scope to the providers solution
+dotnet build providers/providers.slnx -c Release
+dotnet test  providers/providers.slnx -c Release
+
+# pack the provider package
+dotnet pack providers/Dmon.Providers.LlamaCpp/Dmon.Providers.LlamaCpp.csproj -c Release -o ./artifacts
 ```
+
+When consuming the published NuGet package, `Dmon.Abstractions` arrives as a normal transitive package dependency — no manual feed configuration is needed.

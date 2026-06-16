@@ -6,7 +6,7 @@ using Microsoft.Extensions.AI;
 using OpenAI;
 using OpenAI.Chat;
 
-namespace Dmon.Extensions.LlamaCpp;
+namespace Dmon.Providers.LlamaCpp;
 
 public sealed class LlamaCppProviderFactory : IProviderFactory
 {

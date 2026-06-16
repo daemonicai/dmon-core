@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+
+    <AssemblyName>Dmon.Providers.LlamaCpp</AssemblyName>
+    <RootNamespace>Dmon.Providers.LlamaCpp</RootNamespace>
+    <IsPackable>true</IsPackable>
+    <PackageId>Dmon.Providers.LlamaCpp</PackageId>
+    <MinVerTagPrefix>sdk-</MinVerTagPrefix>
+    <Description>Managed local llama.cpp provider for the dmon coding agent. Spawns and owns a llama-server subprocess, exposes it as a Microsoft.Extensions.AI IChatClient, with probe-verified tool-calling. Exposes UseLlamaCpp() in the Dmon.Hosting namespace.</Description>
+    <PackageTags>dmon;llama.cpp;llamacpp;local-llm;gguf;provider;ai</PackageTags>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- M.E.AI pinned to the abstractions version Anthropic 12.x targets; re-validate when bumping Anthropic. -->
+    <PackageReference Include="Microsoft.Extensions.AI.OpenAI" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Dmon.Providers.LlamaCpp.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\core\Dmon.Abstractions\Dmon.Abstractions.csproj" />
+  </ItemGroup>
+
+</Project>
