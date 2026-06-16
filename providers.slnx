@@ -6,6 +6,7 @@
     <Project Path="providers\Dmon.Providers.OpenAI\Dmon.Providers.OpenAI.csproj" />
     <Project Path="providers\Dmon.Providers.Omlx\Dmon.Providers.Omlx.csproj" />
     <Project Path="providers\Dmon.Providers.LlamaCpp\Dmon.Providers.LlamaCpp.csproj" />
+    <Project Path="providers\Dmon.Providers.Mtplx\Dmon.Providers.Mtplx.csproj" />
   </Folder>
   <Folder Name="/test/">
     <Project Path="test\Dmon.Providers.Tests\Dmon.Providers.Tests.csproj" />
