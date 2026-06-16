@@ -33,6 +33,9 @@ public sealed class LlamaCppProviderExtension : IProviderExtension, IDisposable,
     // Allows tests to inject a real dummy process so the dispose-kills-server assertion is meaningful.
     internal void SetServerProcess(Process process) => _serverProcess = process;
 
+    // Exposes parsed options for test assertions without widening production visibility.
+    internal LlamaCppOptions Options => _options;
+
     public string ProviderName => "llama.cpp";
 
     // Public constructor — used in production.
