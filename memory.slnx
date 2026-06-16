@@ -1,6 +1,6 @@
 <Solution>
-  <Folder Name="/middleware/">
-    <Project Path="middleware\Dmon.Memory\Dmon.Memory.csproj" />
+  <Folder Name="/memory/">
+    <Project Path="memory\Dmon.Memory\Dmon.Memory.csproj" />
   </Folder>
   <Folder Name="/test/">
     <Project Path="test\Dmon.Memory.Tests\Dmon.Memory.Tests.csproj" />

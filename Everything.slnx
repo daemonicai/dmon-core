@@ -18,8 +18,8 @@
     <Project Path="tools\Dmon.Tools.Builtin\Dmon.Tools.Builtin.csproj" />
     <Project Path="tools\Dmon.Tools.Dmail\Dmon.Tools.Dmail.csproj" />
   </Folder>
-  <Folder Name="/middleware/">
-    <Project Path="middleware\Dmon.Memory\Dmon.Memory.csproj" />
+  <Folder Name="/memory/">
+    <Project Path="memory\Dmon.Memory\Dmon.Memory.csproj" />
   </Folder>
   <Folder Name="/frontends/">
     <Project Path="frontends\Dmon.Gateway\Dmon.Gateway.csproj" />

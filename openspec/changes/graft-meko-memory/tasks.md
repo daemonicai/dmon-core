@@ -1,12 +1,12 @@
 ## 1. Promote memory to the `memory/` bucket (in-tree move)
 
-- [ ] 1.1 `git mv middleware/Dmon.Memory memory/Dmon.Memory` (history-preserving); confirm `git log --follow memory/Dmon.Memory/Facade/Memory.cs` shows pre-move history.
-- [ ] 1.2 If a `Dmon.Memory` test project exists under `test/`, leave it in place (`test/` convention); fix its `ProjectReference` path to `..\..\memory\Dmon.Memory\Dmon.Memory.csproj`.
-- [ ] 1.3 Fix `Dmon.Memory`'s own `ProjectReference`s (to `core/Dmon.Abstractions`, `core/Dmon.Core`, etc.) for the new depth; confirm no inline first-party `PackageReference` crept in.
-- [ ] 1.4 Create `memory.slnx` (mirror a sibling area `.slnx`) containing `memory/Dmon.Memory` under `/memory/` (or `/src/`-style folder per the slnx convention) and its test under `/test/`.
-- [ ] 1.5 Remove `middleware.slnx` and the now-empty `middleware/` directory; grep the repo (excl. `bin/obj`) for `middleware/` and `middleware.slnx` references and fix/remove them.
-- [ ] 1.6 Repath `Everything.slnx` (`middleware/Dmon.Memory` → `memory/Dmon.Memory`) and the `Makefile` (any `middleware`/area references).
-- [ ] 1.7 Gate (Group 1 standalone): `make build` clean, `make test` green, `dotnet build memory.slnx -c Release` clean, `openspec validate graft-meko-memory --strict`.
+- [x] 1.1 `git mv middleware/Dmon.Memory memory/Dmon.Memory` (history-preserving); confirm `git log --follow memory/Dmon.Memory/Facade/Memory.cs` shows pre-move history.
+- [x] 1.2 If a `Dmon.Memory` test project exists under `test/`, leave it in place (`test/` convention); fix its `ProjectReference` path to `..\..\memory\Dmon.Memory\Dmon.Memory.csproj`.
+- [x] 1.3 Fix `Dmon.Memory`'s own `ProjectReference`s (to `core/Dmon.Abstractions`, `core/Dmon.Core`, etc.) for the new depth; confirm no inline first-party `PackageReference` crept in.
+- [x] 1.4 Create `memory.slnx` (mirror a sibling area `.slnx`) containing `memory/Dmon.Memory` under `/memory/` (or `/src/`-style folder per the slnx convention) and its test under `/test/`.
+- [x] 1.5 Remove `middleware.slnx` and the now-empty `middleware/` directory; grep the repo (excl. `bin/obj`) for `middleware/` and `middleware.slnx` references and fix/remove them.
+- [x] 1.6 Repath `Everything.slnx` (`middleware/Dmon.Memory` → `memory/Dmon.Memory`) and the `Makefile` (any `middleware`/area references).
+- [x] 1.7 Gate (Group 1 standalone): `make build` clean, `make test` green, `dotnet build memory.slnx -c Release` clean, `openspec validate graft-meko-memory --strict`.
 
 ## 2. History-preserving import of the dmon-meko long-term tier
 

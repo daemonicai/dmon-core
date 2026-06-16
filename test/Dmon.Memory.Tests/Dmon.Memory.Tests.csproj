@@ -21,7 +21,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\middleware\Dmon.Memory\Dmon.Memory.csproj" />
+    <ProjectReference Include="..\..\memory\Dmon.Memory\Dmon.Memory.csproj" />
     <ProjectReference Include="..\..\core\Dmon.Core\Dmon.Core.csproj" />
   </ItemGroup>
 
