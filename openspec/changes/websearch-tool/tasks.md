@@ -6,11 +6,11 @@
 
 ## 2. WebSearchExtension (sub-agent tool)
 
-- [ ] 2.1 Implement `WebSearchExtension : IToolExtension` that takes an `IChatClientFactory` in its constructor and exposes a single `web_search` `AIFunction` (param `query`, description directing the model to ask the web a question). Set `Name`/`Description`.
-- [ ] 2.2 Implement the call path: `await factory.CreateAsync(ct)`, one `GetResponseAsync(query, new ChatOptions { Tools = [new HostedWebSearchTool()] }, ct)`; make no HTTP request from the tool itself.
-- [ ] 2.3 Implement the provider-agnostic projection to `{ answer, sources[] }`: `answer` from response text; one source per `UriContent` inside `WebSearchToolResultContent` (carry uri + title from `AdditionalProperties`); empty source list when none present. Format a compact, deterministic string result.
-- [ ] 2.4 Implement `Evaluate` to return a prompt result for `web_search` (network egress).
-- [ ] 2.5 Wrap the hosted call so failures (missing key → `InvalidOperationException` naming the env var, transport/provider errors) return a short error string instead of throwing out of the tool.
+- [x] 2.1 Implement `WebSearchExtension : IToolExtension` that takes an `IChatClientFactory` in its constructor and exposes a single `web_search` `AIFunction` (param `query`, description directing the model to ask the web a question). Set `Name`/`Description`.
+- [x] 2.2 Implement the call path: `await factory.CreateAsync(ct)`, one `GetResponseAsync(query, new ChatOptions { Tools = [new HostedWebSearchTool()] }, ct)`; make no HTTP request from the tool itself.
+- [x] 2.3 Implement the provider-agnostic projection to `{ answer, sources[] }`: `answer` from response text; one source per `UriContent` inside `WebSearchToolResultContent` (carry uri + title from `AdditionalProperties`); empty source list when none present. Format a compact, deterministic string result.
+- [x] 2.4 Implement `Evaluate` to return a prompt result for `web_search` (network egress).
+- [x] 2.5 Wrap the hosted call so failures (missing key → `InvalidOperationException` naming the env var, transport/provider errors) return a short error string instead of throwing out of the tool.
 
 ## 3. Composition verb
 
