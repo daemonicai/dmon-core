@@ -10,11 +10,11 @@
 
 ## 2. History-preserving import of the dmon-meko long-term tier
 
-- [ ] 2.1 Ensure `git-filter-repo` is available (`uvx git-filter-repo --version`).
-- [ ] 2.2 `git clone --no-local -b main /Users/rendle/github/daemonicai/dmon-meko /tmp/graft-meko` (source `main` @ `8ed0886`, grafted as-is per design D6); never operate on the original repo. (`--no-local` + direct `-b main` are required so filter-repo sees a fresh, single-reflog clone.)
-- [ ] 2.3 Run `uvx git-filter-repo` keeping only `src/Dmon.Memory.Meko/` and `test/Dmon.Memory.Meko.Tests/`, with `--path-rename`s to `memory/Dmon.Memory.Meko/` and `test/Dmon.Memory.Meko.Tests/`.
-- [ ] 2.4 On branch `change/graft-meko-memory`, add the throwaway clone as a remote, `git merge --allow-unrelated-histories meko-graft/main`, then remove the remote and delete `/tmp/graft-meko`.
-- [ ] 2.5 Confirm only the intended paths landed (the two subtrees incl. the package `README.md`); no satellite `openspec/`, `nuget.config`, vendored nupkgs, `Directory.*` files, or the `add-memory-abstraction` change imported.
+- [x] 2.1 Ensure `git-filter-repo` is available (`uvx git-filter-repo --version`).
+- [x] 2.2 `git clone --no-local -b main /Users/rendle/github/daemonicai/dmon-meko /tmp/graft-meko` (source `main` @ `8ed0886`, grafted as-is per design D6); never operate on the original repo. (`--no-local` + direct `-b main` are required so filter-repo sees a fresh, single-reflog clone.)
+- [x] 2.3 Run `uvx git-filter-repo` keeping only `src/Dmon.Memory.Meko/` and `test/Dmon.Memory.Meko.Tests/`, with `--path-rename`s to `memory/Dmon.Memory.Meko/` and `test/Dmon.Memory.Meko.Tests/`.
+- [x] 2.4 On branch `change/graft-meko-memory`, add the throwaway clone as a remote, `git merge --allow-unrelated-histories meko-graft/main`, then remove the remote and delete `/tmp/graft-meko`.
+- [x] 2.5 Confirm only the intended paths landed (23 files: 11 src + 12 test). NB the satellite `README.md` lived at its repo root, not under `src/`, so it was correctly NOT imported — any packed-README reference in the csproj is a Group 3 packaging concern. No satellite `openspec/`, `nuget.config`, vendored nupkgs, `Directory.*` files, or the `add-memory-abstraction` change imported.
 
 ## 3. Re-wire the grafted package to monorepo conventions
 

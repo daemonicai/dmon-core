@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <PackageId>Dmon.Memory.Meko</PackageId>
+    <Version>0.1.0</Version>
+    <Authors>daemonicai</Authors>
+    <Company>daemonicai</Company>
+    <Description>Meko-backed long-term memory for dmon — an ILongTermMemory implementation driven over the Meko (mekodata.ai) MCP server.</Description>
+    <PackageTags>dmon;memory;meko;mcp;long-term-memory;ai;llm</PackageTags>
+    <PackageLicenseExpression>MPL-2.0</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/daemonicai/dmon-meko</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/daemonicai/dmon-meko</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!--
+      ModelContextProtocol.Core 1.3.0 (net10.0 TFM) requires M.E.AI.Abstractions >= 10.5.2.
+      dmon-core pins at 10.5.1; 10.5.2 is a backwards-compatible patch release — we accept
+      the upgrade here. Pin explicitly so future transitive pulls don't silently advance further.
+    -->
+    <PackageReference Include="Dmon.Abstractions" Version="0.1.0" />
+    <PackageReference Include="Microsoft.Extensions.AI.Abstractions" Version="10.5.2" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.7" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.7" />
+    <PackageReference Include="Microsoft.Extensions.Options" Version="10.0.7" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.7" />
+    <PackageReference Include="ModelContextProtocol" Version="1.3.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Dmon.Memory.Meko.Tests" />
+  </ItemGroup>
+
+</Project>
