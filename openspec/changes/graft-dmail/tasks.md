@@ -1,0 +1,40 @@
+## 1. History-preserving import
+
+- [x] 1.1 Ensure `git-filter-repo` is available (`uvx git-filter-repo --version`; fallback `brew install git-filter-repo`).
+- [x] 1.2 `git clone --no-local -b feat/dmon-tool-dmail /Users/rendle/github/daemonicai/dmail /tmp/graft-dmail` (extension @ `b1af562`); never operate on the original repo. (`--no-local` + direct `-b` branch clone are required so filter-repo sees a fresh, single-reflog clone.)
+- [x] 1.3 Run `uvx git-filter-repo` keeping only `src/Dmon.Extensions.Dmail/` and `test/Dmail.Tests/DmailExtensionTests.cs`, with `--path-rename`s to `tools/Dmon.Tools.Dmail/` and `test/Dmon.Tools.Dmail.Tests/DmailExtensionTests.cs` (per design).
+- [x] 1.4 On branch `change/graft-dmail`, add the throwaway clone as a remote, `git merge --allow-unrelated-histories dmail-graft/feat/dmon-tool-dmail`, then remove the remote and delete `/tmp/graft-dmail`.
+- [x] 1.5 Confirm only the intended paths landed (extension subtree incl. its `README.md` + the one test file); no server, server tests, satellite `openspec/`, `nuget.config`, vendored nupkgs, or `Directory.*` files imported.
+
+## 2. Rename to the tool family (Dmon.Tools.Dmail)
+
+- [x] 2.1 `git mv` the extension `.csproj` to `tools/Dmon.Tools.Dmail/Dmon.Tools.Dmail.csproj`; set `AssemblyName`/`RootNamespace`/`PackageId` = `Dmon.Tools.Dmail`.
+- [x] 2.2 Rewrite the C# namespace `Daemonic.Dmail.Extension` → `Dmon.Tools.Dmail` across the src files (`DmailExtension`, `DmailClient`, `DmailModels`, `DmailApiException`).
+- [x] 2.3 Rewrite the test namespace `Daemonic.Dmail.Tests` → `Dmon.Tools.Dmail.Tests` in `DmailExtensionTests.cs` and update its `using` of the extension namespace.
+- [x] 2.4 Repo-wide grep (excluding `bin/obj`) for `Dmon.Extensions.Dmail` and `Daemonic.Dmail` returns nothing. (Includes the package `README.md` title + `#:package` pin + `using` — the `AddExtension` verb is the Group 3 concern and remains.)
+
+## 3. API port to IToolExtension / Dmon.Abstractions (ADR-022)
+
+- [x] 3.1 In `DmailExtension.cs`: `using Dmon.Extensions;` → `using Dmon.Abstractions.Extensions;`, and `: IDmonExtension` → `: IToolExtension` (method bodies unchanged; `DmonAIFunctionFactory` confirmed in `Dmon.Abstractions.Extensions` — same `using` covers both).
+- [x] 3.2 Update the class doc-comment and the package `README.md` registration guidance from `AddExtension` to `builder.AddToolExtension<DmailExtension>()` (verb confirmed against core `DmonRegistrationExtensions`).
+- [x] 3.3 Repo-wide grep (excluding `bin/obj`) for `IDmonExtension` and `using Dmon.Extensions;` in the grafted files returns nothing.
+
+## 4. Re-wire to monorepo conventions (ProjectReference, CPM, fresh test csproj)
+
+- [x] 4.1 Tool `.csproj`: replace `<PackageReference Include="Dmon.Extensions" Version="0.2.*" />` with `ProjectReference`s to `..\..\core\Dmon.Abstractions\Dmon.Abstractions.csproj` and `..\..\core\Dmon.Protocol\Dmon.Protocol.csproj` (Protocol added directly to match sibling `Dmon.Tools.Builtin`, since the source uses `Dmon.Protocol.*` types directly).
+- [x] 4.2 Tool `.csproj`: removed `<Version>0.2.0</Version>` and `<Authors>`, stripped inline `Version=` (CPM); kept `IsPackable=true`, `MinVerTagPrefix sdk-`, packed `README.md`, `PackageTags` (dropped stale `extension`), and a `Description` that names the real generic verb `AddToolExtension<DmailExtension>()` (no invented `AddDmailTools()`).
+- [x] 4.3 Authored a fresh `test/Dmon.Tools.Dmail.Tests/Dmon.Tools.Dmail.Tests.csproj` (`IsPackable=false`, `RootNamespace=Dmon.Tools.Dmail.Tests`) referencing only the tool; CPM-bare test pins matching the sibling test project.
+- [x] 4.4 No missing `<PackageVersion>` surfaced — `Directory.Packages.props` unchanged (all pins already central from Phase 0).
+
+## 5. Solutions
+
+- [x] 5.1 Add `tools/Dmon.Tools.Dmail/Dmon.Tools.Dmail.csproj` to `tools.slnx` (under `/tools/`) and the test to `tools.slnx` (under `/test/`).
+- [x] 5.2 Add both projects to `Everything.slnx`.
+
+## 6. Verification gates
+
+- [x] 6.1 `dotnet build Everything.slnx -c Release` clean (no warnings; `TreatWarningsAsErrors`).
+- [x] 6.2 `make build` and `make test` green — the four ported `DmailExtensionTests` plus all existing tests.
+- [x] 6.3 `dotnet pack tools/Dmon.Tools.Dmail/Dmon.Tools.Dmail.csproj -c Release` succeeds — skew-guard passes and a sane MinVer `Major.Minor` (`0.2.0-alpha.0.39`) matching `core/Dmon.Protocol/ProtocolVersion.cs` is produced.
+- [x] 6.4 `git log --follow tools/Dmon.Tools.Dmail/DmailExtension.cs` shows pre-graft commit `7556790` (history preserved).
+- [x] 6.5 `openspec validate graft-dmail --strict` passes.

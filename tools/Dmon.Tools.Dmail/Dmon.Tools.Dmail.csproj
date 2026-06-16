@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+
+    <AssemblyName>Dmon.Tools.Dmail</AssemblyName>
+    <IsPackable>true</IsPackable>
+    <PackageId>Dmon.Tools.Dmail</PackageId>
+    <MinVerTagPrefix>sdk-</MinVerTagPrefix>
+    <Description>Dmail email tools (search_email, check_new_messages, get_email) for the dmon coding agent. Register with builder.AddToolExtension&lt;DmailExtension&gt;() from the Dmon.Hosting namespace.</Description>
+    <PackageTags>dmon;dmail;email;tools;agent</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.AI" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\core\Dmon.Abstractions\Dmon.Abstractions.csproj" />
+    <ProjectReference Include="..\..\core\Dmon.Protocol\Dmon.Protocol.csproj" />
+  </ItemGroup>
+
+</Project>
