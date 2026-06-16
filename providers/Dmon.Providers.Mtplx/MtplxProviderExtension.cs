@@ -25,6 +25,9 @@ public sealed class MtplxProviderExtension : IProviderExtension, IDisposable, IA
     private readonly Action<string>? _onWarning;
     private readonly Action<string>? _onServerLog;
     private readonly Func<string, string, IChatClient>? _probeClientFactory;
+    private readonly Func<bool>? _isMacOsOverride;
+    private readonly Func<Architecture>? _osArchitectureOverride;
+    private readonly Func<string?>? _resolveServerPathOverride;
 
     private Process? _serverProcess;
     private bool _disposed;
@@ -82,23 +85,43 @@ public sealed class MtplxProviderExtension : IProviderExtension, IDisposable, IA
         _ownsHttpClient = true;
     }
 
+    // Internal constructor for testability — injected OS/arch/resolve overrides (for IsApplicable tests).
+    internal MtplxProviderExtension(
+        MtplxOptions options,
+        Func<bool> isMacOsOverride,
+        Func<Architecture> osArchitectureOverride,
+        Func<string?> resolveServerPathOverride,
+        Action<string>? onWarning = null)
+    {
+        _options = options;
+        _runtimeState = new MtplxRuntimeState();
+        _isMacOsOverride = isMacOsOverride;
+        _osArchitectureOverride = osArchitectureOverride;
+        _resolveServerPathOverride = resolveServerPathOverride;
+        _onWarning = onWarning;
+        _httpClient = new HttpClient();
+        _ownsHttpClient = true;
+    }
+
     public bool IsApplicable()
     {
-        if (!OperatingSystem.IsMacOS())
+        bool isMacOs = (_isMacOsOverride ?? OperatingSystem.IsMacOS)();
+        if (!isMacOs)
         {
             _onWarning?.Invoke(
                 "MTPLX requires macOS on Apple Silicon. This system is not running macOS.");
             return false;
         }
 
-        if (RuntimeInformation.OSArchitecture != Architecture.Arm64)
+        Architecture arch = (_osArchitectureOverride ?? (() => RuntimeInformation.OSArchitecture))();
+        if (arch != Architecture.Arm64)
         {
             _onWarning?.Invoke(
                 "MTPLX requires Apple Silicon (arm64). This Mac is running on a non-arm64 architecture.");
             return false;
         }
 
-        string? resolved = ResolveServerPath();
+        string? resolved = (_resolveServerPathOverride ?? ResolveServerPath)();
         if (resolved is not null)
             return true;
 

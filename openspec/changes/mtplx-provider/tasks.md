@@ -27,12 +27,12 @@
 
 ## 5. Tests
 
-- [ ] 5.1 Create `test/Dmon.Providers.Mtplx.Tests` (xunit) wired into the test solution.
-- [ ] 5.2 Test `IsApplicable()`: asserts `false` on the CI platform (non-Apple-Silicon) and on missing binary; asserts the platform/arch/installed branches via injected probes.
-- [ ] 5.3 Test attach-first lifecycle: attach path (no process started), permission-gated cold-start path, and readiness `TimeoutException`, using injected HTTP/process seams.
-- [ ] 5.4 Test `ListModelsAsync()` parsing of `/v1/models` and default-model-follows-server behaviour.
-- [ ] 5.5 Test the factory: endpoint targets `http://<host>:<port>/v1`, `CapabilitiesDecorator` wrap, and probe-driven `SupportsToolCalling` true/false branches.
-- [ ] 5.6 Test `UseMtplx` verbs register the extension and set `mtplx/<modelId>` as the overridable default.
+- [x] 5.1 Create `test/Dmon.Providers.Mtplx.Tests` (xunit) wired into the test solution.
+- [x] 5.2 Test `IsApplicable()`: asserts `false` on the CI platform (non-Apple-Silicon) and on missing binary; asserts the platform/arch/installed branches via injected probes.
+- [x] 5.3 Test attach-first lifecycle: attach path (no process started), permission-gated cold-start path, and readiness `TimeoutException`, using injected HTTP/process seams.
+- [x] 5.4 Test `ListModelsAsync()` parsing of `/v1/models` and default-model-follows-server behaviour.
+- [x] 5.5 Test the factory: endpoint targets `http://<host>:<port>/v1`, `CapabilitiesDecorator` wrap, and probe-driven `SupportsToolCalling` true/false branches.
+- [x] 5.6 Test `UseMtplx` verbs register the extension and set `mtplx/<modelId>` as the overridable default.
 
 ## 6. Validation and spec sync
 
