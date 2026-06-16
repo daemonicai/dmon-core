@@ -1,7 +1,7 @@
 using Dmon.Abstractions.Providers;
-using Dmon.Extensions.Omlx;
+using Dmon.Providers.Omlx;
 
-namespace Dmon.Extensions.Omlx.Tests;
+namespace Dmon.Providers.Omlx.Tests;
 
 public sealed class OmlxCapabilityHeuristicTests
 {

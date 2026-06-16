@@ -1,4 +1,4 @@
-namespace Dmon.Extensions.Omlx;
+namespace Dmon.Providers.Omlx;
 
 public sealed class OmlxAuthHandler : DelegatingHandler
 {

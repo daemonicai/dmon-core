@@ -7,7 +7,7 @@ using Microsoft.Extensions.AI;
 using OpenAI;
 using OpenAI.Chat;
 
-namespace Dmon.Extensions.Omlx;
+namespace Dmon.Providers.Omlx;
 
 public sealed class OmlxProviderFactory : IProviderFactory
 {

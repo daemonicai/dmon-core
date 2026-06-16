@@ -1,6 +1,6 @@
 using Dmon.Abstractions.Providers;
 
-namespace Dmon.Extensions.Omlx;
+namespace Dmon.Providers.Omlx;
 
 public static class OmlxCapabilityHeuristic
 {

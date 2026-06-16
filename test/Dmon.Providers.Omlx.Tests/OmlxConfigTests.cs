@@ -1,4 +1,4 @@
-namespace Dmon.Extensions.Omlx.Tests;
+namespace Dmon.Providers.Omlx.Tests;
 
 public sealed class OmlxConfigTests
 {

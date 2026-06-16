@@ -26,10 +26,18 @@
 - **Scope creep (kept):** worker also path-repaired `scripts/pack-core.sh`, `smoke-cache.sh`, `smoke-sdk.sh` (Group 5 task 5.2). Reviewer verified correct + complete and recommended keeping them (revert = pure churn). → **Group 5 task 5.2 is partially done** (scripts ✓; `default-core/Dmon.cs` still pending).
 - Reviewer: Approve. All refs resolve, no `src/` leftovers, builds + pack re-verified.
 
+## 4. Omlx provider relocate and rename
+
+- `git mv extensions/Dmon.Extensions.Omlx → providers/Dmon.Providers.Omlx` (6 source files) and `test/Dmon.Extensions.Omlx.Tests → test/Dmon.Providers.Omlx.Tests` (5 files); all 11 staged as `renamed:` (history preserved). Test csproj `ProjectReference` repaired to `..\..\providers\Dmon.Providers.Omlx\Dmon.Providers.Omlx.csproj`.
+- Provider csproj: `AssemblyName`/`RootNamespace`/`PackageId` all = `Dmon.Providers.Omlx`; flipped `IsPackable=true`; added `MinVerTagPrefix=sdk-` + `Description` mirroring sibling packable providers; `InternalsVisibleTo` → `Dmon.Providers.Omlx.Tests`. (`RootNamespace` is mandated by task 4.2, hence present even though Anthropic/OpenAI omit it — not a deviation.)
+- Namespace/using rewrite across all 5 provider `.cs` + 4 test `.cs`: `Dmon.Extensions.Omlx` → `Dmon.Providers.Omlx`. Reviewer diffed every moved file against HEAD: **only** namespace/using lines changed — no logic/body edits (pure rename, behaviour preserved).
+- slnx wiring: Omlx provider + test added to `providers.slnx` (`/providers/`, `/test/`) and `Everything.slnx`; old `/extensions/` folder block and old test entry removed from `Everything.slnx`. `extensions/` is now empty (untracked) — left as-is.
+- Reviewer: Approve, no blockers. Independently confirmed build 0W/0E and Omlx tests 41/41.
+- Gates (direct `dotnet` — make still broken until Group 5): `dotnet build Everything.slnx -c Release` 0W/0E; full `dotnet test Everything.slnx -c Release` all green (Omlx 41/41); repo-wide grep for `Dmon.Extensions.Omlx` (excl. bin/obj) returns nothing; `openspec validate --strict` valid. Commit pending.
+
 ## NEXT
 
-- **Up next:** Group 4 — Omlx relocate + rename. `git mv extensions/Dmon.Extensions.Omlx → providers/Dmon.Providers.Omlx`; set `AssemblyName`/`RootNamespace`/`PackageId` = `Dmon.Providers.Omlx` and make it packable; rename its test project `test/Dmon.Extensions.Omlx.Tests → test/Dmon.Providers.Omlx.Tests`; update all `namespace`/`using` and grep the repo for any lingering `Dmon.Extensions.Omlx` assembly/namespace refs; add to `providers.slnx` + fix its path in `Everything.slnx`; remove the now-empty `extensions/` dir. Gate via direct `dotnet` (make still broken until Group 5).
-- **Then:** Group 5 — tooling/CI (Makefile → `Everything.slnx`/bucket paths; `default-core/Dmon.cs` build-run paths; `.github/workflows/release.yml` lines ~56-67 still have `src/`; finish task 5.2). Group 6 — final gates (`make build`/`make test` green once Makefile restored, no intra-repo PackageReference, `openspec validate --strict`).
+- **Up next:** Group 5 — tooling/CI (Makefile → `Everything.slnx`/bucket paths; `default-core/Dmon.cs` build-run paths; `.github/workflows/release.yml` lines ~56-67 still have `src/`; finish task 5.2). Group 6 — final gates (`make build`/`make test` green once Makefile restored, no intra-repo PackageReference, `openspec validate --strict`).
 - **Carry-forward:**
   - `make` is intentionally red between Group 3 and Group 5 — don't treat it as a regression.
   - Remaining `src/` references live only in `Makefile` (lines 33/49/67) and `.github/workflows/release.yml` (~56-67) — both Group 5.

@@ -20,7 +20,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\extensions\Dmon.Extensions.Omlx\Dmon.Extensions.Omlx.csproj" />
+    <ProjectReference Include="..\..\providers\Dmon.Providers.Omlx\Dmon.Providers.Omlx.csproj" />
   </ItemGroup>
 
 </Project>

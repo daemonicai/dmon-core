@@ -24,9 +24,9 @@
 
 ## 4. Omlx provider relocate and rename
 
-- [ ] 4.1 `git mv extensions/Dmon.Extensions.Omlx providers/Dmon.Providers.Omlx`; rename the `.csproj`; move its test project (path-repair its references)
-- [ ] 4.2 Set `AssemblyName`/`RootNamespace`/`PackageId` to `Dmon.Providers.Omlx`, flip to packable, update `namespace`/`using` in its source and tests
-- [ ] 4.3 Add Omlx to `providers.slnx` + `Everything.slnx`; confirm no lingering reference to the old assembly name; build + Omlx tests green
+- [x] 4.1 `git mv extensions/Dmon.Extensions.Omlx providers/Dmon.Providers.Omlx`; rename the `.csproj`; move its test project (path-repair its references)
+- [x] 4.2 Set `AssemblyName`/`RootNamespace`/`PackageId` to `Dmon.Providers.Omlx`, flip to packable, update `namespace`/`using` in its source and tests
+- [x] 4.3 Add Omlx to `providers.slnx` + `Everything.slnx`; confirm no lingering reference to the old assembly name; build + Omlx tests green
 
 ## 5. Tooling and CI
 

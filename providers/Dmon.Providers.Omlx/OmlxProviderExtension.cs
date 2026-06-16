@@ -4,7 +4,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Dmon.Abstractions.Providers;
 
-namespace Dmon.Extensions.Omlx;
+namespace Dmon.Providers.Omlx;
 
 public sealed class OmlxProviderExtension : IProviderExtension, IDisposable
 {

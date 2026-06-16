@@ -11,6 +11,7 @@
     <Project Path="providers\Dmon.Providers.Gemini\Dmon.Providers.Gemini.csproj" />
     <Project Path="providers\Dmon.Providers.Ollama\Dmon.Providers.Ollama.csproj" />
     <Project Path="providers\Dmon.Providers.OpenAI\Dmon.Providers.OpenAI.csproj" />
+    <Project Path="providers\Dmon.Providers.Omlx\Dmon.Providers.Omlx.csproj" />
   </Folder>
   <Folder Name="/tools/">
     <Project Path="tools\Dmon.Tools.Builtin\Dmon.Tools.Builtin.csproj" />
@@ -22,16 +23,13 @@
     <Project Path="frontends\Dmon.Gateway\Dmon.Gateway.csproj" />
     <Project Path="frontends\Dmon.Terminal\Dmon.Terminal.csproj" />
   </Folder>
-  <Folder Name="/extensions/">
-    <Project Path="extensions\Dmon.Extensions.Omlx\Dmon.Extensions.Omlx.csproj" />
-  </Folder>
   <Folder Name="/spike/">
     <Project Path="spike\ScriptingSpike\ScriptingSpike.csproj" />
   </Folder>
   <Folder Name="/test/">
     <Project Path="test\Dmon.Core.Tests\Dmon.Core.Tests.csproj" />
-    <Project Path="test\Dmon.Extensions.Omlx.Tests\Dmon.Extensions.Omlx.Tests.csproj" />
     <Project Path="test\Dmon.Extensions.Tests\Dmon.Extensions.Tests.csproj" />
+    <Project Path="test\Dmon.Providers.Omlx.Tests\Dmon.Providers.Omlx.Tests.csproj" />
     <Project Path="test\Dmon.Gateway.Tests\Dmon.Gateway.Tests.csproj" />
     <Project Path="test\Dmon.Memory.Tests\Dmon.Memory.Tests.csproj" />
     <Project Path="test\Dmon.Protocol.Tests\Dmon.Protocol.Tests.csproj" />

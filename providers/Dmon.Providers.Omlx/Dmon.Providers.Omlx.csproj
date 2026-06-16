@@ -5,6 +5,13 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+
+    <AssemblyName>Dmon.Providers.Omlx</AssemblyName>
+    <RootNamespace>Dmon.Providers.Omlx</RootNamespace>
+    <IsPackable>true</IsPackable>
+    <PackageId>Dmon.Providers.Omlx</PackageId>
+    <MinVerTagPrefix>sdk-</MinVerTagPrefix>
+    <Description>oMLX provider factory for the dmon coding agent. Exposes UseOmlx() in the Dmon.Hosting namespace.</Description>
   </PropertyGroup>
 
   <ItemGroup>
@@ -13,7 +20,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <InternalsVisibleTo Include="Dmon.Extensions.Omlx.Tests" />
+    <InternalsVisibleTo Include="Dmon.Providers.Omlx.Tests" />
   </ItemGroup>
 
   <ItemGroup>
