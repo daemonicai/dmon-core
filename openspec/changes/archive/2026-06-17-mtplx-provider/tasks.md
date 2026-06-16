@@ -38,4 +38,4 @@
 
 - [x] 6.1 `make build` clean (no warnings; `TreatWarningsAsErrors`) and `make test` green.
 - [x] 6.2 `openspec validate mtplx-provider --strict` passes.
-- [ ] 6.3 On archive, sync the new standing spec to `openspec/specs/mtplx-provider/spec.md` and update any provider index/`monorepo-layout` notes that enumerate providers.
+- [x] 6.3 On archive, sync the new standing spec to `openspec/specs/mtplx-provider/spec.md` and update any provider index/`monorepo-layout` notes that enumerate providers. (Standing spec created from the delta; no enumeration updates needed — no standing spec keeps an exhaustive provider list, and sibling local providers LlamaCpp/Omlx are likewise absent from the cloud-factory/package examples in `provider-factories`/`package-publishing`/`monorepo-layout`.)
