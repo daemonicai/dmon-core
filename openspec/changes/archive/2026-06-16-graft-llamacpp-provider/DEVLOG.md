@@ -24,7 +24,8 @@
 - 0 intra-repo first-party `PackageReference` in the grafted projects (Dmon.Abstractions is a ProjectReference). Repo-wide grep for `Dmon.Extensions.LlamaCpp` (excl bin/obj + this change's own docs) clean. `openspec validate graft-llamacpp-provider --strict` valid.
 - **5.6 source disposition:** `dmon-llama-cpp` is local-only (no GitHub repo) → tagged `absorbed-into-dmon-core` on its `main` (@ `f9c6c4d`) and recorded as read-only/historical; repo left intact.
 
-## NEXT
+## DONE
 
-- Commit Groups 2–5 integration; report; on user go-ahead push `change/graft-llamacpp-provider` + open PR; after merge, `/opsx:archive` (syncs the `llamacpp-provider` capability into `openspec/specs/`).
-- The graft recipe is now proven; **dmail** is the next graft candidate (already consolidated via PR #3) but needs the heavier `IDmonExtension`→`IToolExtension` / `Dmon.Extensions`→`Dmon.Abstractions` API port done inside its graft change.
+- All 19 tasks complete. Commits: `86e0bbb` propose · `bd8bcdc` import · `ccb6e4d` G1 tick · `bb8fdb0` integration (G2–5). **MERGED via PR #46** (merge commit `d12fd47`) and **ARCHIVED** here; standing spec synced to `openspec/specs/llamacpp-provider/` (archive commit `2357db3` on `main`). `dmon-llama-cpp` tagged `absorbed-into-dmon-core`, left intact.
+- **Recipe proven (resolves ADR-025 import-mechanics):** `uvx git-filter-repo` on a `git clone --no-local` clone → `--path`/`--path-rename` to bucket split → `merge --allow-unrelated-histories` → rename + PackageRef→ProjectRef + CPM + slnx + fix the shipped README (grep `.md` too).
+- **Next satellite:** **dmail** (consolidated via PR #3) — its graft additionally needs the heavier `IDmonExtension`→`IToolExtension` / `Dmon.Extensions`→`Dmon.Abstractions` API port done inside the graft change. Then dmon-meko (verify-then-graft); dmon-websearch is empty (greenfield).
