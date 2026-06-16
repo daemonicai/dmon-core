@@ -1,8 +1,8 @@
 ## 1. Package scaffold
 
-- [ ] 1.1 Create `tools/Dmon.Tools.WebSearch/Dmon.Tools.WebSearch.csproj` modelled on `Dmon.Tools.Dmail.csproj` (net10.0, `TreatWarningsAsErrors`, `IsPackable`, `MinVerTagPrefix=sdk-`, `PackageReadmeFile`); `PackageReference` to `Microsoft.Extensions.AI` and `ProjectReference` to `core/Dmon.Abstractions` only — **no** provider-package or provider-SDK reference.
-- [ ] 1.2 Add `tools/Dmon.Tools.WebSearch/README.md` describing the tool, the `AddAgentWebSearch(p => p.UseGemini("..."))` wiring, and the network-egress prompt.
-- [ ] 1.3 Add the project to the `tools/` `.slnx` and to `Everything.slnx`.
+- [x] 1.1 Create `tools/Dmon.Tools.WebSearch/Dmon.Tools.WebSearch.csproj` modelled on `Dmon.Tools.Dmail.csproj` (net10.0, `TreatWarningsAsErrors`, `IsPackable`, `MinVerTagPrefix=sdk-`, `PackageReadmeFile`); `PackageReference` to `Microsoft.Extensions.AI` and `ProjectReference` to `core/Dmon.Abstractions` only — **no** provider-package or provider-SDK reference.
+- [x] 1.2 Add `tools/Dmon.Tools.WebSearch/README.md` describing the tool, the `AddAgentWebSearch(p => p.UseGemini("..."))` wiring, and the network-egress prompt.
+- [x] 1.3 Add the project to the `tools/` `.slnx` and to `Everything.slnx`.
 
 ## 2. WebSearchExtension (sub-agent tool)
 
