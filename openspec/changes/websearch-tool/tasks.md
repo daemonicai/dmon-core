@@ -14,8 +14,8 @@
 
 ## 3. Composition verb
 
-- [ ] 3.1 Add `AddAgentWebSearch<T>(this T registration, Action<IProviderRegistration> configure) where T : IToolRegistration` in the `Dmon.Hosting` namespace → `registration.AddToolExtension(new WebSearchExtension(SubAgent.BuildClient(configure)))`.
-- [ ] 3.2 Confirm structural validation propagates: a configure action with zero/multiple providers or no model throws `InvalidOperationException` at build (covered by `SubAgent.BuildClient`); no extra validation in the verb.
+- [x] 3.1 Add `AddAgentWebSearch<T>(this T registration, Action<IProviderRegistration> configure) where T : IToolRegistration` in the `Dmon.Hosting` namespace → `registration.AddToolExtension(new WebSearchExtension(SubAgent.BuildClient(configure)))`.
+- [x] 3.2 Confirm structural validation propagates: a configure action with zero/multiple providers or no model throws `InvalidOperationException` at build (covered by `SubAgent.BuildClient`); no extra validation in the verb.
 
 ## 4. Tests
 
