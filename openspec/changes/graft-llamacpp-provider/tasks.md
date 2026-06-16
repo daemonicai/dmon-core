@@ -1,9 +1,9 @@
 ## 1. History-preserving import
 
-- [ ] 1.1 Acquire `git filter-repo` for the session (`uvx git-filter-repo --version`; fallback `brew install git-filter-repo`). Do not install into the repo.
-- [ ] 1.2 Clone the local-only source to a throwaway dir (`git clone /Users/rendle/github/daemonicai/dmon-llama-cpp /tmp/graft-llamacpp`); confirm it is on `main` @ `f9c6c4d` and clean. Never mutate the original repo.
-- [ ] 1.3 In the clone, run `git filter-repo` keeping only `src/Dmon.Extensions.LlamaCpp/` + `test/Dmon.Extensions.LlamaCpp.Tests/` with `--path-rename` to `providers/Dmon.Providers.LlamaCpp/` and `test/Dmon.Providers.LlamaCpp.Tests/` respectively (drops the satellite's `openspec/`, `nuget.config`, vendored nupkgs, root README/LICENSE, CI, `Directory.*`).
-- [ ] 1.4 On `change/graft-llamacpp-provider`, add the filtered clone as a remote, `git fetch`, `git merge --allow-unrelated-histories`, then remove the remote and delete the clone. Verify history with `git log --follow providers/Dmon.Providers.LlamaCpp/LlamaCppProviderExtension.cs` (shows pre-graft commits).
+- [x] 1.1 Acquire `git filter-repo` for the session (`uvx git-filter-repo --version`; fallback `brew install git-filter-repo`). Do not install into the repo.
+- [x] 1.2 Clone the local-only source to a throwaway dir (`git clone /Users/rendle/github/daemonicai/dmon-llama-cpp /tmp/graft-llamacpp`); confirm it is on `main` @ `f9c6c4d` and clean. Never mutate the original repo. _(Needed `--no-local` so filter-repo accepts the clone as fresh.)_
+- [x] 1.3 In the clone, run `git filter-repo` keeping only `src/Dmon.Extensions.LlamaCpp/` + `test/Dmon.Extensions.LlamaCpp.Tests/` with `--path-rename` to `providers/Dmon.Providers.LlamaCpp/` and `test/Dmon.Providers.LlamaCpp.Tests/` respectively (drops the satellite's `openspec/`, `nuget.config`, vendored nupkgs, root README/LICENSE, CI, `Directory.*`).
+- [x] 1.4 On `change/graft-llamacpp-provider`, add the filtered clone as a remote, `git fetch`, `git merge --allow-unrelated-histories`, then remove the remote and delete the clone. Verify history with `git log --follow providers/Dmon.Providers.LlamaCpp/LlamaCppProviderExtension.cs` (shows pre-graft commits).
 
 ## 2. Rename to the provider family (Dmon.Providers.LlamaCpp)
 
