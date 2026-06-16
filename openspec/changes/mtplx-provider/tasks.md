@@ -6,12 +6,12 @@
 
 ## 2. Provider extension — applicability and lifecycle
 
-- [ ] 2.1 Implement `MtplxProviderExtension : IProviderExtension` skeleton (`ProviderName = "mtplx"`) with constructor-injected seams (HTTP probe + process-start callbacks) mirroring `LlamaCppProviderExtension` so the lifecycle is unit-testable without a real server.
-- [ ] 2.2 Implement `IsApplicable()`: `true` only on macOS + arm64 with `mtplx` resolvable (PATH / `ServerPath` / `MTPLX_SERVER_PATH`); log distinct remediation `Warning`s for wrong-OS/arch vs not-installed; never bundle a binary.
-- [ ] 2.3 Implement `IsRunningAsync()` verifying server identity via `/health` plus `/v1/models` at the configured host/port (not bare TCP reachability).
-- [ ] 2.4 Implement attach-first `EnsureRunningAsync()`: attach if a server answers `/health`; otherwise launch `mtplx serve --port <port>` under the ADR-006 permission gate, poll `/health` to ready, throw `TimeoutException` on timeout; record process ownership in `MtplxRuntimeState`.
-- [ ] 2.5 Implement `IDisposable`/`IAsyncDisposable` to terminate only a dmon-started process; leave an attached server running.
-- [ ] 2.6 Implement `ListModelsAsync()` from `GET /v1/models`; when `ModelId` is unset, target the server's reported active model.
+- [x] 2.1 Implement `MtplxProviderExtension : IProviderExtension` skeleton (`ProviderName = "mtplx"`) with constructor-injected seams (HTTP probe + process-start callbacks) mirroring `LlamaCppProviderExtension` so the lifecycle is unit-testable without a real server.
+- [x] 2.2 Implement `IsApplicable()`: `true` only on macOS + arm64 with `mtplx` resolvable (PATH / `ServerPath` / `MTPLX_SERVER_PATH`); log distinct remediation `Warning`s for wrong-OS/arch vs not-installed; never bundle a binary.
+- [x] 2.3 Implement `IsRunningAsync()` verifying server identity via `/health` plus `/v1/models` at the configured host/port (not bare TCP reachability).
+- [x] 2.4 Implement attach-first `EnsureRunningAsync()`: attach if a server answers `/health`; otherwise launch `mtplx serve --port <port>` under the ADR-006 permission gate, poll `/health` to ready, throw `TimeoutException` on timeout; record process ownership in `MtplxRuntimeState`.
+- [x] 2.5 Implement `IDisposable`/`IAsyncDisposable` to terminate only a dmon-started process; leave an attached server running.
+- [x] 2.6 Implement `ListModelsAsync()` from `GET /v1/models`; when `ModelId` is unset, target the server's reported active model.
 
 ## 3. Provider factory — chat client and capabilities
 
