@@ -200,7 +200,7 @@ The Pi agent (`earendil-works/pi`) uses the skills in `.pi/skills/` and prompts 
 Do not implement, propose, or accept tasks for these unless the brief is explicitly updated:
 
 - Multi-agent orchestration
-- Avalonia desktop host
+- ~~Avalonia desktop host~~ — **now in scope** (gating precondition met): the single-session `frontends/Dmon.Desktop` host ships. Multi-session / multi-core tabbing and the V1.5+ desktop affordances remain deferred. See the scope clarification below.
 - Skill marketplace / discovery service
 - Generic multi-user / public remote agent execution (a single-tenant Tailscale-fronted gateway is in scope — ADR-012)
 - Mobile hosts as first-class agent hosts (a personal iOS client of the ADR-012 gateway is in scope)
@@ -209,6 +209,8 @@ Do not implement, propose, or accept tasks for these unless the brief is explici
 **Scope clarification (ADR-010):** "Multi-agent orchestration" means multiple `dmon-core` **processes** communicating over the stdio/RPC interface. A tool extension that constructs a scoped, single-turn in-process `IChatClient` to fulfil a tool call is *in scope* — it is simply an extension using an additional LLM model, not orchestration. See [`docs/adrs/ADR-010-sub-agent-extensions.md`](./docs/adrs/ADR-010-sub-agent-extensions.md).
 
 **Scope clarification (ADR-012/013):** A *single-tenant* remote access gateway — one user's `dmoncore` sessions exposed over WebSocket to a personal iOS client, reached only over **Tailscale** — is **in scope**. This is not "remote agent execution" in the deferred sense (multi-user / public / untrusted); it is one user reaching their own home-server agent over a private overlay. Selectable **agents** — each its own `.cs` composition root under `.dmon/agents/`, carrying its system prompt, permission mode, and assets as builder verbs (ADR-022, superseding the ADR-013 profile bundle) — are likewise in scope. See [`docs/adrs/ADR-012-remote-session-transport.md`](./docs/adrs/ADR-012-remote-session-transport.md) and [`docs/adrs/ADR-022-composition-root-registration-facets.md`](./docs/adrs/ADR-022-composition-root-registration-facets.md).
+
+**Scope clarification (Avalonia desktop host):** The brief's gating precondition — *"build the console host first, prove the RPC surface"* — is **met**: `Dmon.Terminal` ships and the host-facing RPC surface (`IRpcTransport`/`IRpcClient`/`ICoreLauncher`/`ICoreProcess`) lives in `Dmon.Runtime`, consumed by Terminal and Gateway. The Avalonia host (`frontends/Dmon.Desktop`) is therefore **in scope** as a thin local-spawn frontend over `Dmon.Runtime` at single-session parity with the TUI (ReactiveUI MVVM with routing from the start; PipBoy theme; `Markdown.Avalonia`). **Still deferred:** multi-session / multi-core tabbing (free at the per-instance runtime layer, an additive future change) and the V1.5+ affordances in the brief (visual diff preview, side-by-side tool panels, session-graph view, extension browser). A self-contained installable artifact that bundles its own core is also deferred — the first cut resolves the core at runtime from the NuGet cache like the `dmon` tool. No new ADR (all decisions fall inside existing ADRs).
 
 ## graphify
 

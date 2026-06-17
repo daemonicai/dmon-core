@@ -40,9 +40,9 @@
 
 ## 7. Docs and scope-gate amendment
 
-- [ ] 7.1 Amend `coding-agent-brief.md` ("Out of Scope for V1" + "Avalonia UI Possibilities") to record the gating precondition is met and the Avalonia host is in scope; note multi-tab + V1.5+ affordances remain deferred.
-- [ ] 7.2 Update the `CLAUDE.md` "Out of scope for V1" mirror to match.
-- [ ] 7.3 Add a `frontends/Dmon.Desktop/README.md`: prerequisites (populated `dmoncore` cache), how to run, the runtime-resolve core-acquisition note, and the deferred-installer caveat.
+- [x] 7.1 Amend `coding-agent-brief.md` ("Out of Scope for V1" + "Avalonia UI Possibilities") to record the gating precondition is met and the Avalonia host is in scope; note multi-tab + V1.5+ affordances remain deferred.
+- [x] 7.2 Update the `CLAUDE.md` "Out of scope for V1" mirror to match.
+- [x] 7.3 Add a `frontends/Dmon.Desktop/README.md`: prerequisites (populated `dmoncore` cache), how to run, the runtime-resolve core-acquisition note, and the deferred-installer caveat.
 
 ## 8. Gates and live verification
 

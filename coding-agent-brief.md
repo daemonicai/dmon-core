@@ -78,13 +78,19 @@ coding tool good.
 
 ## Avalonia UI Possibilities (V1.5+, not V1)
 
-Things a desktop UI earns its keep on:
+The Avalonia host itself now exists (`frontends/Dmon.Desktop`) at single-session
+parity with the TUI. The affordances below are what justify it long-term and
+remain deferred past this first cut:
 
-- Visual diff previews before approving file edits.
+- Visual diff previews before approving file edits. *(Slots into the existing
+  tool-confirmation `Interaction` modal without changing the VM plumbing.)*
 - Side-by-side tool output panels (file tree, terminal, web preview).
-- Session-graph view of forked conversations.
+- Session-graph view of forked conversations. *(A `Router.Navigate` push on the
+  existing `SessionViewModel : IScreen` routing stack.)*
 - Skill/extension browser.
-- Multi-session tabbed view.
+- Multi-session tabbed view. *(Free at the `Dmon.Runtime` layer — per-instance
+  launcher/client — and an additive `ShellViewModel` wrapper over the existing
+  `SessionViewModel`; no rework of the single-session design.)*
 
 None of these are needed for V1. They're what justifies the Avalonia host's
 existence long-term.
@@ -108,7 +114,7 @@ existence long-term.
 ## Out of Scope for V1
 
 - Multi-agent orchestration.
-- The Avalonia host (build the console host first, prove the RPC surface).
+- ~~The Avalonia host (build the console host first, prove the RPC surface).~~ *(**Gating precondition met** — `Dmon.Terminal` ships and the host-facing RPC surface was extracted into `Dmon.Runtime` and proven across two consumers. The Avalonia desktop host is now **in scope** and lands as `frontends/Dmon.Desktop`: a thin local-spawn frontend at single-session parity with the TUI. **Multi-session / multi-core tabbing and the V1.5+ affordances below remain deferred.**)*
 - Skill marketplace / discovery service.
 - Generic multi-user / public remote agent execution. *(A single-tenant, **Tailscale**-fronted remote access gateway exposing one user's sessions is **in scope** — ADR-012/013.)*
 - Mobile hosts as first-class agent hosts. *(A personal iOS **client** of the ADR-012 gateway is in scope.)*
