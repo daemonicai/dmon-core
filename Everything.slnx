@@ -33,6 +33,7 @@
     <Project Path="spike\ScriptingSpike\ScriptingSpike.csproj" />
   </Folder>
   <Folder Name="/test/">
+    <Project Path="test\Dmon.Desktop.Tests\Dmon.Desktop.Tests.csproj" />
     <Project Path="test\Dmon.Core.Tests\Dmon.Core.Tests.csproj" />
     <Project Path="test\Dmon.Extensions.Tests\Dmon.Extensions.Tests.csproj" />
     <Project Path="test\Dmon.Providers.Omlx.Tests\Dmon.Providers.Omlx.Tests.csproj" />

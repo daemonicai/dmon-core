@@ -6,8 +6,9 @@ namespace Dmon.Desktop;
 internal sealed class Program
 {
     // AppBuilder must be constructed on the UI thread (enforced by [STAThread]).
-    // All Avalonia init stays here; App.OnFrameworkInitializationCompleted wires DI.
-    // DI bridge (UseReactiveUIWithMicrosoftDependencyResolver) is wired in Group 2.
+    // UseReactiveUI registers ReactiveUI platform services (schedulers, activation hooks)
+    // into Splat. App.OnFrameworkInitializationCompleted then applies the MEDI bridge so
+    // Locator.Current resolves from the Microsoft.Extensions.DependencyInjection container.
     [STAThread]
     public static void Main(string[] args) =>
         BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);

@@ -7,8 +7,8 @@
 
 ## 2. Composition root and DI bridge
 
-- [ ] 2.1 Build the MS DI composition root for the app (services + view-models + `IViewFor` views) and bridge ReactiveUI's Splat locator to it via `Splat.Microsoft.Extensions.DependencyInjection`.
-- [ ] 2.2 Register views explicitly as `IViewFor<TViewModel>` (no convention-only scanning); add a smoke test asserting a `RoutedViewHost` resolves a view for a routed view-model through the container.
+- [x] 2.1 Build the MS DI composition root for the app (services + view-models + `IViewFor` views) and bridge ReactiveUI's Splat locator to it via `Splat.Microsoft.Extensions.DependencyInjection`.
+- [x] 2.2 Register views explicitly as `IViewFor<TViewModel>` (no convention-only scanning); add a smoke test asserting a `RoutedViewHost` resolves a view for a routed view-model through the container.
 
 ## 3. Core lifecycle and RPC wiring
 
