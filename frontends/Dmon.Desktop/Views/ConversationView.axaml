@@ -2,6 +2,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:local="clr-namespace:Dmon.Desktop"
              xmlns:md="clr-namespace:Markdown.Avalonia.Full;assembly=Markdown.Avalonia.Full"
+             xmlns:ctxt="clr-namespace:ColorTextBlock.Avalonia;assembly=ColorTextBlock.Avalonia"
              x:Class="Dmon.Desktop.Views.ConversationView"
              x:DataType="local:ConversationViewModel">
 
@@ -14,13 +15,111 @@
   <UserControl.DataTemplates>
 
     <!-- TextPart: rendered via Markdown.Avalonia's MarkdownScrollViewer.
-         Phosphor palette applied by the global PipboyTheme; MarkdownScrollViewer
-         does not expose Foreground/FontFamily/FontSize directly — styling is via
-         MarkdownStyle (open design question — approximate fidelity accepted per brief). -->
+         PipBoy phosphor theme applied via MarkdownScrollViewer.Styles — the
+         documented API for per-instance style customisation (whistyun/Markdown.Avalonia wiki).
+         Selectors target ColorTextBlock.Avalonia types (ctxt:CTextBlock, ctxt:CCode)
+         and Avalonia Border/TextBlock with markdown-assigned CSS classes.
+         Structural parsing is unaffected — styles only change presentation. -->
     <DataTemplate DataType="local:TextPartViewModel">
+      <!-- Wrap in a Border to establish the dark PipBoy background — MarkdownScrollViewer
+           is a UserControl and does not expose Background as an AvaloniaProperty. -->
+      <Border Background="#0a0a0a">
       <md:MarkdownScrollViewer
           Markdown="{Binding Text}"
-          MaxHeight="600" />
+          MaxHeight="600">
+        <md:MarkdownScrollViewer.Styles>
+
+          <!-- Body paragraph text: phosphor green, monospace -->
+          <Style Selector="ctxt|CTextBlock">
+            <Setter Property="Foreground" Value="#33ff33" />
+            <Setter Property="FontFamily" Value="Courier New, Monospace" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Background" Value="Transparent" />
+          </Style>
+
+          <!-- Headings: brighter/bolder phosphor, with a clear size hierarchy -->
+          <Style Selector="ctxt|CTextBlock.Heading1">
+            <Setter Property="Foreground" Value="#66ff66" />
+            <Setter Property="FontSize" Value="20" />
+            <Setter Property="FontWeight" Value="Bold" />
+          </Style>
+          <Style Selector="ctxt|CTextBlock.Heading2">
+            <Setter Property="Foreground" Value="#55ee55" />
+            <Setter Property="FontSize" Value="17" />
+            <Setter Property="FontWeight" Value="Bold" />
+          </Style>
+          <Style Selector="ctxt|CTextBlock.Heading3">
+            <Setter Property="Foreground" Value="#44dd44" />
+            <Setter Property="FontSize" Value="15" />
+            <Setter Property="FontWeight" Value="Bold" />
+          </Style>
+          <Style Selector="ctxt|CTextBlock.Heading4">
+            <Setter Property="Foreground" Value="#33cc33" />
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="FontWeight" Value="Bold" />
+          </Style>
+          <Style Selector="ctxt|CTextBlock.Heading5">
+            <Setter Property="Foreground" Value="#33cc33" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontWeight" Value="Bold" />
+          </Style>
+          <Style Selector="ctxt|CTextBlock.Heading6">
+            <Setter Property="Foreground" Value="#1a8a1a" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontWeight" Value="Bold" />
+          </Style>
+
+          <!-- Inline code: monospace, slightly distinct dim-green -->
+          <Style Selector="ctxt|CCode">
+            <Setter Property="Foreground" Value="#99ffaa" />
+            <Setter Property="Background" Value="#0f1f0f" />
+            <Setter Property="MonospaceFontFamily" Value="Courier New, Monospace" />
+            <Setter Property="FontSize" Value="12" />
+          </Style>
+
+          <!-- Fenced code block container: dark background, green border -->
+          <Style Selector="Border.CodeBlock">
+            <Setter Property="Background" Value="#0a140a" />
+            <Setter Property="BorderBrush" Value="#0d5c0d" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="2" />
+            <Setter Property="Padding" Value="8,6" />
+            <Setter Property="Margin" Value="0,4" />
+          </Style>
+
+          <!-- Fenced code block text: monospace, slightly brighter green -->
+          <Style Selector="TextBlock.CodeBlock">
+            <Setter Property="Foreground" Value="#99ffaa" />
+            <Setter Property="FontFamily" Value="Courier New, Monospace" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Background" Value="Transparent" />
+          </Style>
+
+          <!-- Blockquote: left-accent border, dimmer phosphor -->
+          <Style Selector="Border.Blockquote">
+            <Setter Property="Background" Value="#080f08" />
+            <Setter Property="BorderBrush" Value="#1a8a1a" />
+            <Setter Property="BorderThickness" Value="3,0,0,0" />
+            <Setter Property="Padding" Value="8,4" />
+            <Setter Property="Margin" Value="0,2" />
+          </Style>
+
+          <!-- List container and items: phosphor green, monospace -->
+          <Style Selector="Grid.List">
+            <Setter Property="Background" Value="Transparent" />
+          </Style>
+          <Style Selector=".List ctxt|CTextBlock">
+            <Setter Property="Foreground" Value="#33ff33" />
+            <Setter Property="FontFamily" Value="Courier New, Monospace" />
+          </Style>
+          <Style Selector="ctxt|CTextBlock.ListMarker">
+            <Setter Property="Foreground" Value="#1a8a1a" />
+            <Setter Property="FontFamily" Value="Courier New, Monospace" />
+          </Style>
+
+        </md:MarkdownScrollViewer.Styles>
+      </md:MarkdownScrollViewer>
+      </Border>
     </DataTemplate>
 
     <!-- ToolCallPart: tool name + args summary. -->
