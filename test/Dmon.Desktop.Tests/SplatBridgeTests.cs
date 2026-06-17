@@ -83,7 +83,7 @@ public sealed class SplatBridgeTests : IClassFixture<ReactiveUiTestFixture>, IDi
         // Regression test for the bridge bug: after UseMicrosoftDependencyResolver() swaps
         // the Splat resolver, ICreatesObservableForProperty (and other RxUI platform services)
         // must be re-populated into the new resolver via InitializeSplat() and the
-        // ReactiveUIBuilder (WithCoreServices/WithPlatformServices/BuildApp).
+        // ReactiveUIBuilder (WithCoreServices/WithPlatformServices/WithAvalonia/BuildApp).
         // Without the fix, this assert throws "Could not find ICreatesObservableForProperty".
         CompositionRoot.BuildDesktopServiceProvider();
 
@@ -91,6 +91,36 @@ public sealed class SplatBridgeTests : IClassFixture<ReactiveUiTestFixture>, IDi
             Locator.Current.GetService<ICreatesObservableForProperty>();
 
         Assert.NotNull(service);
+    }
+
+    [Fact]
+    public void BuildDesktopServiceProvider_RegistersAvaloniaActivationForViewFetcher()
+    {
+        // Regression guard for the RoutedViewHost crash:
+        //   "Don't know how to detect when RoutedViewHost is activated/deactivated,
+        //    you may need to implement IActivationForViewFetcher"
+        // RoutedViewHost's ctor calls this.WhenActivated(), which resolves
+        // IActivationForViewFetcher from Locator.Current. WithAvalonia() registers
+        // AvaloniaActivationForViewFetcher for this contract. Without WithAvalonia() the
+        // resolver swap (Step 4) leaves it absent and RoutedViewHost throws at construction.
+        CompositionRoot.BuildDesktopServiceProvider();
+
+        IActivationForViewFetcher? fetcher =
+            Locator.Current.GetService<IActivationForViewFetcher>();
+
+        Assert.NotNull(fetcher);
+    }
+
+    [Fact]
+    public void BuildDesktopServiceProvider_RegistersViewLocator()
+    {
+        // IViewLocator is used by RoutedViewHost to resolve the view for the active view-model.
+        // WithAvalonia() + WithCoreServices() together register DefaultViewLocator.
+        CompositionRoot.BuildDesktopServiceProvider();
+
+        IViewLocator? locator = Locator.Current.GetService<IViewLocator>();
+
+        Assert.NotNull(locator);
     }
 
     [Fact]

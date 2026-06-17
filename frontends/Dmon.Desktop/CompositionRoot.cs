@@ -2,6 +2,7 @@ using Dmon.Desktop.Views;
 using Dmon.Runtime;
 using Microsoft.Extensions.DependencyInjection;
 using ReactiveUI;
+using ReactiveUI.Avalonia;
 using ReactiveUI.Builder;
 using Splat;
 using Splat.Microsoft.Extensions.DependencyInjection;
@@ -33,14 +34,16 @@ public static class CompositionRoot
 
         // Step 2: re-register Splat and ReactiveUI platform services into the new resolver.
         // Locator.CurrentMutable now writes into `services`, so InitializeSplat() populates the
-        // MEDI collection with Splat core services. The ReactiveUIBuilder (WithCoreServices +
-        // WithPlatformServices + BuildApp) then registers ICreatesObservableForProperty and the
-        // other RxUI platform services into the same collection. Without this, WhenAnyValue throws
-        // "Could not find ICreatesObservableForProperty" when any ReactiveObject is constructed.
+        // MEDI collection with Splat core services. The ReactiveUIBuilder chain registers the
+        // full platform service set — base RxUI services (WithCoreServices/WithPlatformServices)
+        // plus the ReactiveUI.Avalonia-specific services (WithAvalonia: IActivationForViewFetcher,
+        // ICreatesCommandBinding via AvaloniaCreatesCommandBinding). Without WithAvalonia, the
+        // RoutedViewHost ctor throws "Don't know how to detect when ... is activated/deactivated".
         Locator.CurrentMutable.InitializeSplat();
         ReactiveUIBuilder rxBuilder = new(Locator.CurrentMutable, Locator.Current);
         rxBuilder.WithCoreServices();
         rxBuilder.WithPlatformServices();
+        rxBuilder.WithAvalonia();
         rxBuilder.BuildApp();
 
         // Step 3: register app services and explicit IViewFor<TViewModel> views.
