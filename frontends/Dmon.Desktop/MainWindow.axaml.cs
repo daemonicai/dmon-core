@@ -29,6 +29,10 @@ public partial class MainWindow : Window
             // equivalent to a compiled binding, without the XAML DataContext dependency.
             ConversationHost.Router = sessionViewModel.Router;
 
+            // Wire the reload affordance. CanExecute=!IsStreaming is enforced by the command
+            // itself. The button's HotKey="Ctrl+R" routes the gesture to the same command.
+            ReloadButton.Command = sessionViewModel.Reload;
+
             // Register interaction handlers. Handlers run on the UI thread (MainThreadScheduler
             // ensures events arrive here). Each handler opens a modal and returns the result.
             sessionViewModel.ToolConfirmInteraction.RegisterHandler(async context =>

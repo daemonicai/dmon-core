@@ -29,8 +29,33 @@
 
     <!-- Conversation area — hidden until Ready; hosts the routed view stack. -->
     <Grid x:Name="ConversationArea"
-          IsVisible="False">
-      <rxui:RoutedViewHost x:Name="ConversationHost" />
+          IsVisible="False"
+          RowDefinitions="Auto,*">
+
+      <!-- Thin top bar with reload affordance. Hidden with ConversationArea (child inherits). -->
+      <Border Grid.Row="0"
+              Background="#0a0a0a"
+              BorderBrush="#1a3a1a"
+              BorderThickness="0,0,0,1"
+              Padding="8,4">
+        <!-- HotKey routes Ctrl+R to this button's Command; CanExecute=!IsStreaming auto-disables. -->
+        <Button x:Name="ReloadButton"
+                Content="⟳ reload"
+                HotKey="Ctrl+R"
+                FontFamily="Courier New, Monospace"
+                FontSize="11"
+                Foreground="#33ff33"
+                Background="Transparent"
+                BorderBrush="#33ff33"
+                BorderThickness="1"
+                Padding="6,2"
+                HorizontalAlignment="Right"
+                Cursor="Hand" />
+      </Border>
+
+      <!-- Routed view stack fills remaining height. -->
+      <rxui:RoutedViewHost x:Name="ConversationHost"
+                           Grid.Row="1" />
     </Grid>
 
   </Grid>
