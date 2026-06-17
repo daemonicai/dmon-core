@@ -98,6 +98,14 @@ public sealed class ConversationViewModel : ReactiveObject, IRoutableViewModel
             {
                 string message = Prompt;
                 Prompt = string.Empty;
+
+                // Echo the user's message immediately so it's visible before the
+                // core responds. TurnEndEvent carries only the ASSISTANT turn, so
+                // this never duplicates.
+                MessageViewModel userMsg = new("user");
+                userMsg.AppendStreamingText(message);
+                _messages.Add(userMsg);
+
                 TurnSubmitCommand command = new()
                 {
                     Id = Guid.NewGuid().ToString("N"),
@@ -136,6 +144,29 @@ public sealed class ConversationViewModel : ReactiveObject, IRoutableViewModel
         session.Events
             .OfType<TurnEndEvent>()
             .Subscribe(e => SettleTurn(e.Message));
+
+        // Surface core status events as "system" messages so nothing is silent.
+        session.Events
+            .ObserveOn(scheduler)
+            .Subscribe(e =>
+            {
+                string? text = e switch
+                {
+                    ErrorEvent err          => $"[Error] {err.Message}",
+                    CommandErrorEvent cmd   => $"[Failed] {cmd.Command}: {cmd.Message}",
+                    SystemNoticeEvent note  => $"[Notice] {note.Message}",
+                    SetupRequiredEvent      => "[Setup required] No provider configured. Set a provider API key (e.g. ANTHROPIC_API_KEY) and restart.",
+                    BootstrapNoticeEvent b  => $"[Session] {b.Path}",
+                    _                      => null
+                };
+
+                if (text is null)
+                    return;
+
+                MessageViewModel msg = new("system");
+                msg.AppendStreamingText(text);
+                _messages.Add(msg);
+            });
     }
 
     public IScreen HostScreen { get; }

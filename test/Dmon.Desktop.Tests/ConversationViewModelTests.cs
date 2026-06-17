@@ -405,6 +405,143 @@ public sealed class ConversationViewModelTests : IClassFixture<ReactiveUiTestFix
     }
 
     // =========================================================================
+    // Gap 1 — Echo user message on SendPrompt
+    // =========================================================================
+
+    [Fact]
+    public void SendPrompt_Execute_EchoesUserMessage()
+    {
+        FakeCoreSession session = new();
+        TestScheduler scheduler = new();
+        IScreen fakeScreen = new FakeScreen();
+        ConversationViewModel sut = new(fakeScreen, session, scheduler);
+
+        sut.Prompt = "hello";
+        scheduler.AdvanceBy(1);
+
+        sut.SendPrompt.Execute().Subscribe();
+        scheduler.AdvanceBy(1);
+
+        // A user message must appear in the list.
+        Assert.Contains(sut.Messages, m => m.Role == "user");
+        MessageViewModel userMsg = sut.Messages.Single(m => m.Role == "user");
+        TextPartViewModel part = Assert.IsType<TextPartViewModel>(userMsg.Parts[0]);
+        Assert.Equal("hello", part.Text);
+
+        // The TurnSubmitCommand was also sent (existing behaviour preserved).
+        Assert.Single(session.SentCommands);
+    }
+
+    [Fact]
+    public void SendPrompt_Execute_UserEchoDoesNotDuplicateOnTurnEnd()
+    {
+        // TurnEndEvent carries the ASSISTANT record, not the user turn.
+        // After TurnEnd the user echo must still be present exactly once.
+        FakeCoreSession session = new();
+        TestScheduler scheduler = new();
+        IScreen fakeScreen = new FakeScreen();
+        ConversationViewModel sut = new(fakeScreen, session, scheduler);
+
+        sut.Prompt = "ping";
+        scheduler.AdvanceBy(1);
+
+        sut.SendPrompt.Execute().Subscribe();
+        scheduler.AdvanceBy(1);
+
+        // Simulate a TurnStart + delta + TurnEnd (assistant responds).
+        session.Push(new TurnStartEvent());
+        session.Push(MakeDeltaEvent("pong"));
+        scheduler.AdvanceBy(ConversationViewModel.DeltaCoalesceWindow.Ticks + 1);
+
+        MessageRecord settled = new()
+        {
+            EntryId = "msg-1",
+            Timestamp = DateTimeOffset.UtcNow,
+            Role = "assistant",
+            Parts = [new TextPart { Text = "pong" }]
+        };
+        session.Push(MakeTurnEndEvent(settled));
+        scheduler.AdvanceBy(1);
+
+        // Exactly one "user" message, exactly one "assistant" message.
+        Assert.Single(sut.Messages.Where(m => m.Role == "user"));
+        Assert.Single(sut.Messages.Where(m => m.Role == "assistant"));
+    }
+
+    // =========================================================================
+    // Gap 2 — Surface core status events as system messages
+    // =========================================================================
+
+    [Fact]
+    public void ErrorEvent_AddsSystemMessage()
+    {
+        FakeCoreSession session = new();
+        TestScheduler scheduler = new();
+        IScreen fakeScreen = new FakeScreen();
+        ConversationViewModel sut = new(fakeScreen, session, scheduler);
+
+        session.Push(new ErrorEvent { Code = "someError", Message = "something went wrong", Recoverable = false });
+        scheduler.AdvanceBy(1);
+
+        MessageViewModel msg = Assert.Single(sut.Messages.Where(m => m.Role == "system"));
+        TextPartViewModel part = Assert.IsType<TextPartViewModel>(msg.Parts[0]);
+        Assert.Contains("[Error]", part.Text);
+        Assert.Contains("something went wrong", part.Text);
+    }
+
+    [Fact]
+    public void SetupRequiredEvent_AddsActionableSystemMessage()
+    {
+        FakeCoreSession session = new();
+        TestScheduler scheduler = new();
+        IScreen fakeScreen = new FakeScreen();
+        ConversationViewModel sut = new(fakeScreen, session, scheduler);
+
+        session.Push(new SetupRequiredEvent { Adapters = [] });
+        scheduler.AdvanceBy(1);
+
+        MessageViewModel msg = Assert.Single(sut.Messages.Where(m => m.Role == "system"));
+        TextPartViewModel part = Assert.IsType<TextPartViewModel>(msg.Parts[0]);
+        Assert.Contains("[Setup required]", part.Text);
+        Assert.Contains("No provider configured", part.Text);
+    }
+
+    [Fact]
+    public void CommandErrorEvent_AddsSystemMessage()
+    {
+        FakeCoreSession session = new();
+        TestScheduler scheduler = new();
+        IScreen fakeScreen = new FakeScreen();
+        ConversationViewModel sut = new(fakeScreen, session, scheduler);
+
+        session.Push(new CommandErrorEvent { CommandId = "cmd-1", Command = "session.create", Code = "noSession", Message = "session not found" });
+        scheduler.AdvanceBy(1);
+
+        MessageViewModel msg = Assert.Single(sut.Messages.Where(m => m.Role == "system"));
+        TextPartViewModel part = Assert.IsType<TextPartViewModel>(msg.Parts[0]);
+        Assert.Contains("[Failed]", part.Text);
+        Assert.Contains("session.create", part.Text);
+        Assert.Contains("session not found", part.Text);
+    }
+
+    [Fact]
+    public void SystemNoticeEvent_AddsSystemMessage()
+    {
+        FakeCoreSession session = new();
+        TestScheduler scheduler = new();
+        IScreen fakeScreen = new FakeScreen();
+        ConversationViewModel sut = new(fakeScreen, session, scheduler);
+
+        session.Push(new SystemNoticeEvent { Message = "compaction running" });
+        scheduler.AdvanceBy(1);
+
+        MessageViewModel msg = Assert.Single(sut.Messages.Where(m => m.Role == "system"));
+        TextPartViewModel part = Assert.IsType<TextPartViewModel>(msg.Parts[0]);
+        Assert.Contains("[Notice]", part.Text);
+        Assert.Contains("compaction running", part.Text);
+    }
+
+    // =========================================================================
     // Helpers
     // =========================================================================
 
