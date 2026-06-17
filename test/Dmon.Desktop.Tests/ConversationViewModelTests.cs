@@ -76,7 +76,7 @@ public sealed class ConversationViewModelTests : IClassFixture<ReactiveUiTestFix
     }
 
     [Fact]
-    public void TurnEnd_SettlesStreamingMessage_WithFinalRecord()
+    public void TurnEnd_SettlesStreamingMessage_WithFinalContent()
     {
         // Arrange
         FakeCoreSession session = new();
@@ -91,15 +91,8 @@ public sealed class ConversationViewModelTests : IClassFixture<ReactiveUiTestFix
         // Advance the scheduler to flush the coalescing buffer.
         scheduler.AdvanceBy(ConversationViewModel.DeltaCoalesceWindow.Ticks + 1);
 
-        // Act — fire TurnEndEvent with a final MessageRecord containing a TextPart.
-        MessageRecord settled = new()
-        {
-            EntryId = "msg-1",
-            Timestamp = DateTimeOffset.UtcNow,
-            Role = "assistant",
-            Parts = [new TextPart { Text = "hello world" }]
-        };
-        session.Push(MakeTurnEndEvent(settled));
+        // Act — fire TurnEndEvent with the real wire shape: { role, content }.
+        session.Push(MakeTurnEndEvent("hello world"));
 
         // Assert: exactly one message, its part reflects the settled text.
         Assert.Single(sut.Messages);
@@ -217,17 +210,13 @@ public sealed class ConversationViewModelTests : IClassFixture<ReactiveUiTestFix
         session.Push(MakeDeltaEvent("world"));
         Assert.Empty(sut.Messages);
 
-        MessageRecord settled = new()
-        {
-            EntryId  = "msg-race",
-            Timestamp = DateTimeOffset.UtcNow,
-            Role     = "assistant",
-            Parts    = [new TextPart { Text = "hello world" }]
-        };
-        session.Push(MakeTurnEndEvent(settled));
+        // TurnEnd fires before the coalescing window elapses.
+        session.Push(MakeTurnEndEvent("hello world"));
 
+        // Now advance the scheduler: the buffered deltas arrive AFTER settle and are dropped.
         scheduler.AdvanceBy(ConversationViewModel.DeltaCoalesceWindow.Ticks + 1);
 
+        // Exactly one message, settled from TurnEnd's content (not duplicated by dropped deltas).
         Assert.Single(sut.Messages);
         TextPartViewModel part = Assert.IsType<TextPartViewModel>(sut.Messages[0].Parts[0]);
         Assert.Equal("hello world", part.Text);
@@ -247,14 +236,8 @@ public sealed class ConversationViewModelTests : IClassFixture<ReactiveUiTestFix
 
         session.Push(MakeDeltaEvent("world"));
 
-        MessageRecord settled = new()
-        {
-            EntryId   = "msg-race2",
-            Timestamp = DateTimeOffset.UtcNow,
-            Role      = "assistant",
-            Parts     = [new TextPart { Text = "hello world" }]
-        };
-        session.Push(MakeTurnEndEvent(settled));
+        // TurnEnd settles with the authoritative full text.
+        session.Push(MakeTurnEndEvent("hello world"));
         scheduler.AdvanceBy(ConversationViewModel.DeltaCoalesceWindow.Ticks + 1);
 
         Assert.Single(sut.Messages);
@@ -272,14 +255,7 @@ public sealed class ConversationViewModelTests : IClassFixture<ReactiveUiTestFix
 
         session.Push(MakeDeltaEvent("turn1 delta"));
 
-        MessageRecord turn1Settled = new()
-        {
-            EntryId   = "msg-turn1",
-            Timestamp = DateTimeOffset.UtcNow,
-            Role      = "assistant",
-            Parts     = [new TextPart { Text = "turn1 settled" }]
-        };
-        session.Push(MakeTurnEndEvent(turn1Settled));
+        session.Push(MakeTurnEndEvent("turn1 settled"));
         session.Push(new TurnStartEvent());
 
         scheduler.AdvanceBy(ConversationViewModel.DeltaCoalesceWindow.Ticks + 1);
@@ -287,6 +263,47 @@ public sealed class ConversationViewModelTests : IClassFixture<ReactiveUiTestFix
         Assert.Single(sut.Messages);
         TextPartViewModel part = Assert.IsType<TextPartViewModel>(sut.Messages[0].Parts[0]);
         Assert.Equal("turn1 settled", part.Text);
+    }
+
+    // =========================================================================
+    // Fast-turn: deltas buffered, TurnEnd fires before window elapses, then
+    // the buffer flushes and must be dropped — settle is the sole renderer.
+    //
+    // This is the live failure: short turns arrive so fast that the entire turn
+    // (deltas + TurnEnd) lands within one 50ms coalescing window. TurnEnd fires
+    // (incrementing the generation), then the buffer flushes with the now-stale
+    // generation and is dropped. SettleTurn must be the ONLY thing that renders.
+    // =========================================================================
+
+    [Fact]
+    public void FastTurn_TurnEndBeforeBufferFlush_AssistantMessageRendersFromContent()
+    {
+        FakeCoreSession session = new();
+        TestScheduler scheduler = new();
+        IScreen fakeScreen = new FakeScreen();
+        ConversationViewModel sut = new(fakeScreen, session, scheduler, scheduler);
+
+        // Push deltas — these are buffered and NOT yet applied (no scheduler advance).
+        session.Push(MakeDeltaEvent("fast "));
+        session.Push(MakeDeltaEvent("answer"));
+
+        // Before advancing the scheduler (no flush yet), TurnEnd fires.
+        // This increments the generation, making the buffered deltas stale.
+        session.Push(MakeTurnEndEvent("fast answer"));
+
+        // The VM must already have a message (SettleTurn created it from content).
+        Assert.Single(sut.Messages);
+        TextPartViewModel partBeforeFlush = Assert.IsType<TextPartViewModel>(sut.Messages[0].Parts[0]);
+        Assert.Equal("fast answer", partBeforeFlush.Text);
+
+        // Now advance the scheduler so the buffered delta batch flushes.
+        // The batch carries the old generation and must be DROPPED.
+        scheduler.AdvanceBy(ConversationViewModel.DeltaCoalesceWindow.Ticks + 1);
+
+        // Still exactly one message, text unchanged (deltas did not duplicate or overwrite).
+        Assert.Single(sut.Messages);
+        TextPartViewModel partAfterFlush = Assert.IsType<TextPartViewModel>(sut.Messages[0].Parts[0]);
+        Assert.Equal("fast answer", partAfterFlush.Text);
     }
 
     // =========================================================================
@@ -438,7 +455,8 @@ public sealed class ConversationViewModelTests : IClassFixture<ReactiveUiTestFix
         Assert.False(midStream);
 
         // End turn → CanExecute true (prompt still has text).
-        session.Push(new TurnEndEvent { Message = new object(), ToolResults = [] });
+        // Use the real wire shape; content is empty string (no text) — that's fine for this test.
+        session.Push(MakeTurnEndEvent(string.Empty));
         scheduler.AdvanceBy(1);
 
         bool? afterStream = null;
@@ -496,14 +514,7 @@ public sealed class ConversationViewModelTests : IClassFixture<ReactiveUiTestFix
         session.Push(MakeDeltaEvent("pong"));
         scheduler.AdvanceBy(ConversationViewModel.DeltaCoalesceWindow.Ticks + 1);
 
-        MessageRecord settled = new()
-        {
-            EntryId = "msg-1",
-            Timestamp = DateTimeOffset.UtcNow,
-            Role = "assistant",
-            Parts = [new TextPart { Text = "pong" }]
-        };
-        session.Push(MakeTurnEndEvent(settled));
+        session.Push(MakeTurnEndEvent("pong"));
         scheduler.AdvanceBy(1);
 
         // Exactly one "user" message, exactly one "assistant" message.
@@ -601,9 +612,17 @@ public sealed class ConversationViewModelTests : IClassFixture<ReactiveUiTestFix
         };
     }
 
-    private static TurnEndEvent MakeTurnEndEvent(MessageRecord record)
+    /// <summary>
+    /// Builds a <see cref="TurnEndEvent"/> whose Message carries the REAL wire shape:
+    /// <c>{ "role": "assistant", "content": "..." }</c>. This is what the core actually
+    /// emits — NOT a parts-based MessageRecord.
+    /// </summary>
+    private static TurnEndEvent MakeTurnEndEvent(string content)
     {
-        JsonElement messageElement = JsonSerializer.SerializeToElement(record, WireSerializerOptions.Default);
+        JsonElement messageElement = JsonSerializer.SerializeToElement(
+            new { role = "assistant", content },
+            WireSerializerOptions.Default);
+
         return new TurnEndEvent
         {
             Message = messageElement,

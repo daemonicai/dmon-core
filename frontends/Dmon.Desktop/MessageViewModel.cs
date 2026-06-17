@@ -70,8 +70,8 @@ public sealed class MessageViewModel : ReactiveObject
 
     /// <summary>
     /// Replaces the part list with the final settled content from <paramref name="record"/>.
-    /// Called on turn-end; clears any streaming-only interim parts and replaces with the
-    /// authoritative server-side record.
+    /// Called when history is loaded; clears any streaming-only interim parts and replaces
+    /// with the authoritative server-side record.
     /// </summary>
     internal void Settle(MessageRecord record)
     {
@@ -85,6 +85,21 @@ public sealed class MessageViewModel : ReactiveObject
             {
                 list.Add(PartViewModel.From(part));
             }
+        });
+    }
+
+    /// <summary>
+    /// Replaces the part list with a single authoritative text string.
+    /// Called on <c>turnEnd</c> with the final <c>content</c> extracted from the wire payload.
+    /// Clears any streaming-only interim parts and sets the single settled text.
+    /// </summary>
+    internal void SettleText(string content)
+    {
+        _streamingBuffer = null;
+        _parts.Edit(list =>
+        {
+            list.Clear();
+            list.Add(new TextPartViewModel(new TextPart { Text = content }));
         });
     }
 

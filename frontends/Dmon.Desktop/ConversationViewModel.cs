@@ -4,7 +4,6 @@ using System.Reactive.Linq;
 using System.Text.Json;
 using Dmon.Protocol;
 using Dmon.Protocol.Commands;
-using Dmon.Protocol.Conversation;
 using Dmon.Protocol.Events;
 using DynamicData;
 using ReactiveUI;
@@ -28,7 +27,7 @@ namespace Dmon.Desktop;
 ///   Keeping the coalescing timer off the UI dispatcher prevents the Heisenbug where
 ///   <c>Buffer</c>'s window never fires when its scheduler is the live Avalonia dispatcher.
 /// - On <c>turnEnd</c> the in-progress assistant message is settled from the final
-///   <see cref="MessageRecord"/> carried in the event payload.
+///   <c>content</c> string carried in the <c>{ "role", "content" }</c> wire payload.
 /// - <see cref="UnknownPartViewModel"/> parts are rendered but excluded from outbound payloads
 ///   (see <see cref="MessageViewModel.OutboundParts"/>).
 ///
@@ -213,23 +212,28 @@ public sealed class ConversationViewModel : ReactiveObject, IRoutableViewModel
         // discarded when the coalescing window flushes.
         _currentGeneration++;
 
-        MessageRecord? record = DeserializeMessageRecord(messagePayload);
-        if (record is null)
-        {
-            _inProgressAssistant = null;
-            return;
-        }
+        string? content = ExtractAssistantContent(messagePayload);
 
         if (_inProgressAssistant is not null)
         {
-            _inProgressAssistant.Settle(record);
+            // Finalise the in-progress bubble. Replace its accumulated text with the
+            // authoritative server-side content if available; otherwise keep the streamed
+            // text (do not blank it — the streamed text is correct, content just wasn't sent).
+            if (content is not null)
+                _inProgressAssistant.SettleText(content);
             _inProgressAssistant = null;
         }
-        else
+        else if (content is not null)
         {
-            // No streaming took place (e.g. pure tool-call turn); append from the settled record.
-            _messages.Add(new MessageViewModel(record));
+            // Fast turn: no streaming bubble was started (all deltas were dropped before
+            // the coalescing window fired, or the turn was tool-only with text). Create a
+            // new bubble directly from the authoritative content.
+            MessageViewModel msg = new("assistant");
+            msg.SettleText(content);
+            _messages.Add(msg);
         }
+        // If content is null and no bubble existed there is nothing to render — this
+        // should be rare (pure tool-call turn with no text), so we add nothing.
     }
 
     // ---------------------------------------------------------------------------
@@ -252,20 +256,16 @@ public sealed class ConversationViewModel : ReactiveObject, IRoutableViewModel
     }
 
     // ---------------------------------------------------------------------------
-    // MessageRecord deserialisation from the boxed JsonElement in TurnEndEvent.Message
+    // Content extraction from TurnEndEvent.Message — the wire shape is
+    // { "role": "assistant", "content": "<full text>" }, NOT a parts-based MessageRecord.
     // ---------------------------------------------------------------------------
 
-    private static MessageRecord? DeserializeMessageRecord(object payload)
+    private static string? ExtractAssistantContent(object payload)
     {
         if (payload is not JsonElement element)
             return null;
-        try
-        {
-            return JsonSerializer.Deserialize<MessageRecord>(element, WireSerializerOptions.Default);
-        }
-        catch (JsonException)
-        {
+        if (!element.TryGetProperty("content", out JsonElement contentProp))
             return null;
-        }
+        return contentProp.GetString();
     }
 }
