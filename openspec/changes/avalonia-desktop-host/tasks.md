@@ -46,6 +46,6 @@
 
 ## 8. Gates and live verification
 
-- [ ] 8.1 `make build` clean under `TreatWarningsAsErrors`; `make test` green (new desktop view-model/unit tests + all existing tests).
-- [ ] 8.2 `openspec validate avalonia-desktop-host --strict` passes.
+- [x] 8.1 `make build` clean under `TreatWarningsAsErrors`; `make test` green (new desktop view-model/unit tests + all existing tests).
+- [x] 8.2 `openspec validate avalonia-desktop-host --strict` passes.
 - [ ] 8.3 Live verification (human-in-the-loop, copy-pasteable recipe): launch `Dmon.Desktop` against a live core with a configured provider; confirm the boot→agentReady gate, a streamed turn renders markdown, a tool-confirmation modal round-trips, and reload restarts the core between turns. Confirm no `Dmon.Core`/`Dmon.Protocol`/`Dmon.Runtime` change was required — if any was, stop and surface it as an RPC-surface-leak finding.
