@@ -1,21 +1,30 @@
 using Avalonia.Controls;
+using ReactiveUI;
 using System.Reactive.Linq;
 
 namespace Dmon.Desktop;
 
 /// <summary>
 /// Application shell. Shows a boot/fault state until the core is ready,
-/// then reveals the conversation area placeholder (Groups 4–5 replace it with the real UI).
-/// All reactive state observation happens on RxSchedulers.MainThreadScheduler (injected into
-/// <see cref="CoreSessionService"/>), so no manual dispatcher marshalling is needed here.
+/// then reveals the routed conversation area. All reactive state observation happens on
+/// RxSchedulers.MainThreadScheduler (injected into <see cref="CoreSessionService"/>),
+/// so no manual dispatcher marshalling is needed here.
 /// </summary>
 public partial class MainWindow : Window
 {
-    public MainWindow() : this(null) { }
+    public MainWindow() : this(null, null) { }
 
-    public MainWindow(CoreSessionService? sessionService)
+    public MainWindow(CoreSessionService? sessionService, SessionViewModel? sessionViewModel)
     {
         InitializeComponent();
+
+        if (sessionViewModel is not null)
+        {
+            // Wire the RoutedViewHost to the session's router. Router is a styled property;
+            // setting it imperatively here as a local value before the control renders is
+            // equivalent to a compiled binding, without the XAML DataContext dependency.
+            ConversationHost.Router = sessionViewModel.Router;
+        }
 
         if (sessionService is null)
             return;

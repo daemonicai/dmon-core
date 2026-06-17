@@ -2,6 +2,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:rxui="http://reactiveui.net"
         xmlns:local="clr-namespace:Dmon.Desktop"
         mc:Ignorable="d"
         x:Class="Dmon.Desktop.MainWindow"
@@ -10,8 +11,7 @@
         Height="768"
         Background="#0a0a0a">
 
-  <!-- Boot gate: shows BootPanel while Booting/Faulted, ConversationArea when Ready.
-       Groups 4-5 replace ConversationArea with the real routed view host. -->
+  <!-- Boot gate: BootPanel while Booting/Faulted; ConversationArea when Ready. -->
   <Grid>
 
     <!-- Boot / fault state panel -->
@@ -27,15 +27,10 @@
                  HorizontalAlignment="Center" />
     </StackPanel>
 
-    <!-- Conversation placeholder — hidden until Ready (Groups 4-5 replace this) -->
+    <!-- Conversation area — hidden until Ready; hosts the routed view stack. -->
     <Grid x:Name="ConversationArea"
           IsVisible="False">
-      <TextBlock Text="[conversation area — Groups 4–5]"
-                 HorizontalAlignment="Center"
-                 VerticalAlignment="Center"
-                 Foreground="#33ff33"
-                 FontFamily="Courier New, Monospace"
-                 FontSize="14" />
+      <rxui:RoutedViewHost x:Name="ConversationHost" />
     </Grid>
 
   </Grid>

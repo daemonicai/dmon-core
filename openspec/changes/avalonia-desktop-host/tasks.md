@@ -19,9 +19,9 @@
 
 ## 4. ReactiveUI routing shell
 
-- [ ] 4.1 Implement `SessionViewModel : ReactiveObject, IScreen` owning a `RoutingState Router`; host one instance in a top-level `RoutedViewHost`.
-- [ ] 4.2 Implement `ConversationViewModel` as the default routed screen and navigate to it on startup.
-- [ ] 4.3 Add a unit test asserting `SessionViewModel.Router` initializes with `ConversationViewModel` as the current screen.
+- [x] 4.1 Implement `SessionViewModel : ReactiveObject, IScreen` owning a `RoutingState Router`; host one instance in a top-level `RoutedViewHost`.
+- [x] 4.2 Implement `ConversationViewModel` as the default routed screen and navigate to it on startup.
+- [x] 4.3 Add a unit test asserting `SessionViewModel.Router` initializes with `ConversationViewModel` as the current screen.
 
 ## 5. Conversation rendering (parts + streaming)
 

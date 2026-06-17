@@ -42,7 +42,8 @@ public sealed partial class App : Application
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             CoreSessionService sessionService = provider.GetRequiredService<CoreSessionService>();
-            desktop.MainWindow = new MainWindow(sessionService);
+            SessionViewModel sessionViewModel = provider.GetRequiredService<SessionViewModel>();
+            desktop.MainWindow = new MainWindow(sessionService, sessionViewModel);
 
             // Teardown: cancel on Exit so the core pump unblocks before process exit.
             desktop.Exit += async (_, _) =>

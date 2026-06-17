@@ -1,3 +1,4 @@
+using Dmon.Desktop.Views;
 using Dmon.Runtime;
 using Microsoft.Extensions.DependencyInjection;
 using ReactiveUI;
@@ -31,6 +32,9 @@ public static class CompositionRoot
             RxSchedulers.MainThreadScheduler,
             corePathOverride));
 
+        // SessionViewModel — singleton for the app lifetime; owns the RoutingState.
+        services.AddSingleton<SessionViewModel>();
+
         // Views are registered explicitly in AddDesktopViews; this extension is the
         // single entry point so callers (App + tests) both use the same root.
         services.AddDesktopViews();
@@ -43,9 +47,8 @@ public static class CompositionRoot
     /// </summary>
     public static IServiceCollection AddDesktopViews(this IServiceCollection services)
     {
-        // Groups 4–5 add real view registrations here.
-        // The method exists now so the bridge test can prove resolution goes through
-        // the MEDI container before any real views exist.
+        // ConversationView — transient; RoutedViewHost creates a new instance per navigation.
+        services.AddTransient<IViewFor<ConversationViewModel>, ConversationView>();
         return services;
     }
 }

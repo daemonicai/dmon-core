@@ -1,0 +1,14 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:Dmon.Desktop.Views"
+             x:Class="Dmon.Desktop.Views.ConversationView">
+  <!-- Group 5 fills this with the message list and input bar. -->
+  <Grid>
+    <TextBlock Text="conversation"
+               HorizontalAlignment="Center"
+               VerticalAlignment="Center"
+               Foreground="#33ff33"
+               FontFamily="Courier New, Monospace"
+               FontSize="14" />
+  </Grid>
+</UserControl>
