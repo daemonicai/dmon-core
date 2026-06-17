@@ -76,6 +76,53 @@ public sealed class SplatBridgeTests : IClassFixture<ReactiveUiTestFixture>, IDi
         Exception? caught = Record.Exception(() => services.AddDesktopServices());
         Assert.Null(caught);
     }
+
+    [Fact]
+    public void BuildDesktopServiceProvider_RegistersReactiveUIPlatformServices()
+    {
+        // Regression test for the bridge bug: after UseMicrosoftDependencyResolver() swaps
+        // the Splat resolver, ICreatesObservableForProperty (and other RxUI platform services)
+        // must be re-populated into the new resolver via InitializeSplat() and the
+        // ReactiveUIBuilder (WithCoreServices/WithPlatformServices/BuildApp).
+        // Without the fix, this assert throws "Could not find ICreatesObservableForProperty".
+        CompositionRoot.BuildDesktopServiceProvider();
+
+        ICreatesObservableForProperty? service =
+            Locator.Current.GetService<ICreatesObservableForProperty>();
+
+        Assert.NotNull(service);
+    }
+
+    [Fact]
+    public void BuildDesktopServiceProvider_WhenAnyValue_DoesNotThrow()
+    {
+        // Proves the fix end-to-end: a ReactiveObject that uses WhenAnyValue (the exact
+        // call site that threw "Could not find ICreatesObservableForProperty" at runtime)
+        // can be constructed and subscribed to without throwing after the bridge runs.
+        CompositionRoot.BuildDesktopServiceProvider();
+
+        Exception? caught = Record.Exception(() =>
+        {
+            BridgeProbeViewModel vm = new();
+            bool value = false;
+            vm.WhenAnyValue(x => x.IsActive).Subscribe(v => value = v);
+            vm.IsActive = true;
+            Assert.True(value);
+        });
+
+        Assert.Null(caught);
+    }
+}
+
+// Minimal fixture type for probing WhenAnyValue through the bridged resolver.
+internal sealed class BridgeProbeViewModel : ReactiveObject
+{
+    private bool _isActive;
+    public bool IsActive
+    {
+        get => _isActive;
+        set => this.RaiseAndSetIfChanged(ref _isActive, value);
+    }
 }
 
 // Minimal fixture types — no IScreen dependency; purely for proving the bridge.

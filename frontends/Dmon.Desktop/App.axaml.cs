@@ -2,7 +2,6 @@ using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using Microsoft.Extensions.DependencyInjection;
-using Splat.Microsoft.Extensions.DependencyInjection;
 
 namespace Dmon.Desktop;
 
@@ -24,20 +23,14 @@ public sealed partial class App : Application
 
     public override void OnFrameworkInitializationCompleted()
     {
-        // Step 1: swap Splat's global resolver to a collection-backed one.
-        // UseReactiveUI (Program.cs) already registered ReactiveUI platform services
-        // into the default resolver; ReactiveUI re-resolves most of them lazily via
-        // RxSchedulers, so they remain available after the resolver is replaced below.
-        ServiceCollection services = new();
-        services.UseMicrosoftDependencyResolver();
-
-        // Step 2: register app services and explicit IViewFor<TViewModel> views.
-        services.AddDesktopServices(_corePathOverride);
-
-        // Step 3: build the provider and make it the active Splat resolver.
-        // From this point, Locator.Current resolves from the MEDI container.
-        IServiceProvider provider = services.BuildServiceProvider();
-        provider.UseMicrosoftDependencyResolver();
+        // Build the service provider via the full bridge sequence (see CompositionRoot).
+        // This re-registers ReactiveUI platform services (ICreatesObservableForProperty, etc.)
+        // into the MEDI-backed resolver so WhenAnyValue/ObservableForProperty work after the
+        // Splat resolver is replaced. Program.cs UseReactiveUI still runs first to configure
+        // schedulers/activation on the Avalonia dispatcher; the ReactiveUIBuilder
+        // (WithCoreServices/WithPlatformServices/BuildApp) called inside BuildDesktopServiceProvider
+        // then repopulates the new resolver with the platform service registrations.
+        IServiceProvider provider = CompositionRoot.BuildDesktopServiceProvider(_corePathOverride);
 
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {

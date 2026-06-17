@@ -2,6 +2,9 @@ using Dmon.Desktop.Views;
 using Dmon.Runtime;
 using Microsoft.Extensions.DependencyInjection;
 using ReactiveUI;
+using ReactiveUI.Builder;
+using Splat;
+using Splat.Microsoft.Extensions.DependencyInjection;
 
 namespace Dmon.Desktop;
 
@@ -11,6 +14,45 @@ namespace Dmon.Desktop;
 /// </summary>
 public static class CompositionRoot
 {
+    /// <summary>
+    /// Builds and activates the desktop service provider with the full Splat/ReactiveUI
+    /// bridge sequence. Must be used instead of calling <c>UseMicrosoftDependencyResolver</c>
+    /// + <c>BuildServiceProvider</c> directly, because the bridge sequence must re-register
+    /// ReactiveUI platform services (e.g. <c>ICreatesObservableForProperty</c>) into the
+    /// new MEDI-backed resolver — they are not preserved when the resolver is replaced.
+    /// </summary>
+    /// <param name="corePathOverride">Value of the <c>--core-path</c> CLI argument, or <see langword="null"/>.</param>
+    /// <returns>The built <see cref="IServiceProvider"/>; <c>Locator.Current</c> now resolves from it.</returns>
+    public static IServiceProvider BuildDesktopServiceProvider(string? corePathOverride = null)
+    {
+        ServiceCollection services = new();
+
+        // Step 1: swap Splat's global resolver to a collection-backed one.
+        // After this call, Locator.CurrentMutable writes into `services`.
+        services.UseMicrosoftDependencyResolver();
+
+        // Step 2: re-register Splat and ReactiveUI platform services into the new resolver.
+        // Locator.CurrentMutable now writes into `services`, so InitializeSplat() populates the
+        // MEDI collection with Splat core services. The ReactiveUIBuilder (WithCoreServices +
+        // WithPlatformServices + BuildApp) then registers ICreatesObservableForProperty and the
+        // other RxUI platform services into the same collection. Without this, WhenAnyValue throws
+        // "Could not find ICreatesObservableForProperty" when any ReactiveObject is constructed.
+        Locator.CurrentMutable.InitializeSplat();
+        ReactiveUIBuilder rxBuilder = new(Locator.CurrentMutable, Locator.Current);
+        rxBuilder.WithCoreServices();
+        rxBuilder.WithPlatformServices();
+        rxBuilder.BuildApp();
+
+        // Step 3: register app services and explicit IViewFor<TViewModel> views.
+        services.AddDesktopServices(corePathOverride);
+
+        // Step 4: build the provider and make it the active Splat resolver.
+        IServiceProvider provider = services.BuildServiceProvider();
+        provider.UseMicrosoftDependencyResolver();
+
+        return provider;
+    }
+
     /// <summary>
     /// Adds core desktop services to the container. Views are registered explicitly as
     /// <see cref="IViewFor{TViewModel}"/> — no convention-based assembly scanning.
