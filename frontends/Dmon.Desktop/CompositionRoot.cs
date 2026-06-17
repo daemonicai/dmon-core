@@ -6,6 +6,7 @@ using ReactiveUI.Avalonia;
 using ReactiveUI.Builder;
 using Splat;
 using Splat.Microsoft.Extensions.DependencyInjection;
+using System.Reactive.Concurrency;
 
 namespace Dmon.Desktop;
 
@@ -39,12 +40,25 @@ public static class CompositionRoot
         // plus the ReactiveUI.Avalonia-specific services (WithAvalonia: IActivationForViewFetcher,
         // ICreatesCommandBinding via AvaloniaCreatesCommandBinding). Without WithAvalonia, the
         // RoutedViewHost ctor throws "Don't know how to detect when ... is activated/deactivated".
+        //
+        // WithMainThreadScheduler(AvaloniaScheduler.Instance) must be included in this chain:
+        // UseReactiveUI() in Program.cs installs the Avalonia scheduler on the *old* Splat
+        // resolver; after UseMicrosoftDependencyResolver() swaps to the MEDI resolver,
+        // RxSchedulers.MainThreadScheduler falls back to DefaultScheduler (a thread-pool
+        // scheduler). Explicitly re-registering AvaloniaScheduler.Instance here ensures the
+        // new resolver serves the correct UI-thread scheduler for all ObserveOn/OAPH paths.
         Locator.CurrentMutable.InitializeSplat();
         ReactiveUIBuilder rxBuilder = new(Locator.CurrentMutable, Locator.Current);
         rxBuilder.WithCoreServices();
         rxBuilder.WithPlatformServices();
         rxBuilder.WithAvalonia();
+        rxBuilder.WithMainThreadScheduler(AvaloniaScheduler.Instance);
         rxBuilder.BuildApp();
+
+        // Belt-and-suspenders: also assign the ambient RxSchedulers.MainThreadScheduler so
+        // that Interaction<TIn,TOut>.Handle() (which dispatches on the main-thread scheduler
+        // by default) and any code reading the ambient scheduler also land on the UI thread.
+        RxSchedulers.MainThreadScheduler = AvaloniaScheduler.Instance;
 
         // Step 3: register app services and explicit IViewFor<TViewModel> views.
         services.AddDesktopServices(corePathOverride);
@@ -71,10 +85,12 @@ public static class CompositionRoot
         services.AddSingleton<ICoreLauncher>(_ => new CoreLauncher());
 
         // CoreSessionService — singleton for the app lifetime.
-        // Production scheduler is RxSchedulers.MainThreadScheduler (the Avalonia dispatcher).
+        // Inject AvaloniaScheduler.Instance explicitly so the production scheduler is the
+        // Avalonia UI-thread dispatcher regardless of RxApp ambient state. This is the
+        // deterministic production scheduler; tests inject TestScheduler via the other ctor.
         services.AddSingleton(sp => new CoreSessionService(
             sp.GetRequiredService<ICoreLauncher>(),
-            RxSchedulers.MainThreadScheduler,
+            AvaloniaScheduler.Instance,
             corePathOverride));
 
         // SessionViewModel — singleton for the app lifetime; owns the RoutingState.

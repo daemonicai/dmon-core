@@ -4,6 +4,7 @@ using System.Text.Json;
 using Dmon.Protocol.Commands;
 using Dmon.Protocol.Events;
 using ReactiveUI;
+using ReactiveUI.Avalonia;
 
 namespace Dmon.Desktop;
 
@@ -35,10 +36,10 @@ public sealed class SessionViewModel : ReactiveObject, IScreen
     /// <summary>
     /// Production constructor — called from <see cref="CompositionRoot"/>.
     /// The <paramref name="sessionService"/> provides the event stream already marshalled
-    /// onto the scheduler injected into it (production: <c>RxSchedulers.MainThreadScheduler</c>).
+    /// onto <see cref="AvaloniaScheduler.Instance"/> (the Avalonia UI-thread dispatcher).
     /// </summary>
     public SessionViewModel(CoreSessionService sessionService)
-        : this(sessionService, RxSchedulers.MainThreadScheduler) { }
+        : this(sessionService, AvaloniaScheduler.Instance) { }
 
     /// <summary>
     /// Testable constructor — accepts <see cref="ICoreSession"/> and scheduler directly,

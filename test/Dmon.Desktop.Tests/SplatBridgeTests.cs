@@ -1,5 +1,7 @@
+using System.Reactive.Concurrency;
 using Microsoft.Extensions.DependencyInjection;
 using ReactiveUI;
+using ReactiveUI.Avalonia;
 using Splat;
 using Splat.Microsoft.Extensions.DependencyInjection;
 
@@ -141,6 +143,33 @@ public sealed class SplatBridgeTests : IClassFixture<ReactiveUiTestFixture>, IDi
         });
 
         Assert.Null(caught);
+    }
+
+    [Fact]
+    public void BuildDesktopServiceProvider_MainThreadScheduler_IsAvaloniaScheduler()
+    {
+        // Guard for the UI-thread/scheduler bug:
+        //   CoreSessionService.State/Events use ObserveOn(_scheduler), where _scheduler is
+        //   the one registered as the main-thread scheduler. If the Splat→MEDI resolver swap
+        //   leaves the main-thread scheduler as DefaultScheduler (thread-pool), State events
+        //   fire on a background thread and direct control mutations (BootLabel.Text = ...)
+        //   throw cross-thread InvalidOperationException.
+        //
+        // This test asserts the mechanism: after BuildDesktopServiceProvider runs,
+        // RxSchedulers.MainThreadScheduler resolves to AvaloniaScheduler (the Avalonia
+        // UI-thread dispatcher scheduler), NOT DefaultScheduler or CurrentThreadScheduler.
+        //
+        // Limitation: this is a type-identity check, not a live-dispatch check. We cannot
+        // spin up an Avalonia dispatcher in a headless xUnit process to confirm that
+        // AvaloniaScheduler.Instance actually posts to the UI thread at runtime. The human
+        // verification step (launch the app and confirm no cross-thread exception after
+        // receiving a State event) remains necessary. This test is the automated proxy that
+        // would have caught the regression.
+        CompositionRoot.BuildDesktopServiceProvider();
+
+        IScheduler mainThreadScheduler = RxSchedulers.MainThreadScheduler;
+
+        Assert.IsType<AvaloniaScheduler>(mainThreadScheduler);
     }
 }
 
