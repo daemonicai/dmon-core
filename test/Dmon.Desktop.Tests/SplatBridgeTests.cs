@@ -11,7 +11,7 @@ namespace Dmon.Desktop.Tests;
 /// convention-only assembly scanning. This is the same resolution path used by
 /// <see cref="RoutedViewHost"/> at runtime (spec: "View resolution flows through MS DI").
 /// </summary>
-public sealed class SplatBridgeTests : IDisposable
+public sealed class SplatBridgeTests : IClassFixture<ReactiveUiTestFixture>, IDisposable
 {
     // Capture the resolver active before the test so we can restore it afterward.
     // This keeps Splat's process-global state from leaking between tests.

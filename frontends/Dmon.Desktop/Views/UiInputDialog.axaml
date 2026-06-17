@@ -1,0 +1,66 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="Dmon.Desktop.Views.UiInputDialog"
+        Title="input required"
+        Width="420"
+        SizeToContent="Height"
+        WindowStartupLocation="CenterOwner"
+        Background="#0a0a0a"
+        CanResize="False">
+
+  <StackPanel Margin="16" Spacing="12">
+
+    <!-- Prompt label -->
+    <TextBlock x:Name="PromptLabel"
+               FontFamily="Courier New, Monospace"
+               FontSize="13"
+               Foreground="#33ff33"
+               TextWrapping="Wrap" />
+
+    <!-- Text / Secret input box (hidden for Select) -->
+    <TextBox x:Name="InputBox"
+             FontFamily="Courier New, Monospace"
+             FontSize="13"
+             Foreground="#33ff33"
+             Background="#0a0a0a"
+             CaretBrush="#33ff33"
+             BorderBrush="#0d5c0d"
+             BorderThickness="1"
+             Padding="6,4" />
+
+    <!-- Select options list (hidden for Text/Secret) -->
+    <ListBox x:Name="OptionsList"
+             IsVisible="False"
+             Background="#0a0a0a"
+             BorderBrush="#0d5c0d"
+             BorderThickness="1"
+             FontFamily="Courier New, Monospace"
+             FontSize="13"
+             Foreground="#33ff33"
+             MaxHeight="200" />
+
+    <!-- Buttons -->
+    <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+      <Button x:Name="OkButton"
+              Content="ok"
+              FontFamily="Courier New, Monospace"
+              FontSize="12"
+              Foreground="#33ff33"
+              Background="#0a0a0a"
+              BorderBrush="#0d5c0d"
+              BorderThickness="1"
+              Padding="12,4" />
+      <Button x:Name="CancelButton"
+              Content="cancel"
+              FontFamily="Courier New, Monospace"
+              FontSize="12"
+              Foreground="#1a8a1a"
+              Background="#0a0a0a"
+              BorderBrush="#0d5c0d"
+              BorderThickness="1"
+              Padding="12,4" />
+    </StackPanel>
+
+  </StackPanel>
+
+</Window>

@@ -3,6 +3,7 @@ using System.Reactive.Concurrency;
 using System.Reactive.Linq;
 using System.Text.Json;
 using Dmon.Protocol;
+using Dmon.Protocol.Commands;
 using Dmon.Protocol.Conversation;
 using Dmon.Protocol.Events;
 using DynamicData;
@@ -11,7 +12,7 @@ using ReactiveUI;
 namespace Dmon.Desktop;
 
 /// <summary>
-/// Routed screen that owns the live message list.
+/// Routed screen that owns the live message list and the prompt input bar.
 ///
 /// Design constraints (spec Group 5 / design.md Decision 3):
 /// - Message list is a DynamicData <see cref="SourceList{T}"/> transformed to a
@@ -25,6 +26,12 @@ namespace Dmon.Desktop;
 ///   <see cref="MessageRecord"/> carried in the event payload.
 /// - <see cref="UnknownPartViewModel"/> parts are rendered but excluded from outbound payloads
 ///   (see <see cref="MessageViewModel.OutboundParts"/>).
+///
+/// Group 6.1 additions:
+/// - <see cref="Prompt"/> — mutable string bound to the input box.
+/// - <see cref="IsStreaming"/> — true while a turn is in progress; derived from
+///   <see cref="TurnStartEvent"/>/<see cref="TurnEndEvent"/>.
+/// - <see cref="SendPrompt"/> — ReactiveCommand; CanExecute = !IsStreaming AND non-blank Prompt.
 /// </summary>
 public sealed class ConversationViewModel : ReactiveObject, IRoutableViewModel
 {
@@ -34,6 +41,7 @@ public sealed class ConversationViewModel : ReactiveObject, IRoutableViewModel
     private readonly SourceList<MessageViewModel> _messages = new();
     private readonly ReadOnlyObservableCollection<MessageViewModel> _messagesView;
     private readonly IDisposable _eventSubscription;
+    private readonly ICoreSession _session;
 
     // The assistant message currently being streamed; null when no turn is in progress.
     private MessageViewModel? _inProgressAssistant;
@@ -45,19 +53,66 @@ public sealed class ConversationViewModel : ReactiveObject, IRoutableViewModel
     // emitted before the most recent SettleTurn will always carry a stale generation.
     private int _currentGeneration;
 
-    public ConversationViewModel(IScreen hostScreen, IObservable<Event> events, IScheduler scheduler)
+    private string _prompt = string.Empty;
+
+    public string Prompt
+    {
+        get => _prompt;
+        set => this.RaiseAndSetIfChanged(ref _prompt, value);
+    }
+
+    private readonly ObservableAsPropertyHelper<bool> _isStreaming;
+    public bool IsStreaming => _isStreaming.Value;
+
+    public ReactiveCommand<System.Reactive.Unit, System.Reactive.Unit> SendPrompt { get; }
+
+    public ConversationViewModel(IScreen hostScreen, ICoreSession session, IScheduler scheduler)
     {
         HostScreen = hostScreen;
+        _session = session;
 
         _messages.Connect()
                  .Bind(out _messagesView)
                  .Subscribe();
 
+        // IsStreaming: TurnStartEvent → true, TurnEndEvent → false.
+        _isStreaming = session.Events
+            .Select(e => e switch
+            {
+                TurnStartEvent => true,
+                TurnEndEvent   => false,
+                _              => (bool?)null
+            })
+            .Where(b => b.HasValue)
+            .Select(b => b!.Value)
+            .StartWith(false)
+            .ToProperty(this, x => x.IsStreaming, scheduler: scheduler);
+
+        // SendPrompt: disabled while streaming or when prompt is blank.
+        IObservable<bool> canSend = this
+            .WhenAnyValue(x => x.IsStreaming, x => x.Prompt,
+                (streaming, prompt) => !streaming && !string.IsNullOrWhiteSpace(prompt));
+
+        SendPrompt = ReactiveCommand.CreateFromTask(
+            async () =>
+            {
+                string message = Prompt;
+                Prompt = string.Empty;
+                TurnSubmitCommand command = new()
+                {
+                    Id = Guid.NewGuid().ToString("N"),
+                    Message = message
+                };
+                await _session.SendAsync(command).ConfigureAwait(false);
+            },
+            canSend,
+            outputScheduler: scheduler);
+
         // Coalesce textDelta bursts: buffer for the window, then flatten and apply.
         // Each delta is tagged with the current generation at emission time.
         // The flush discards batches whose generation no longer matches, which closes
         // both the single-turn and cross-turn settle/flush ordering race.
-        _eventSubscription = events
+        _eventSubscription = session.Events
             .OfType<MessageDeltaEvent>()
             .Select(e => (Text: ExtractTextDelta(e.Delta), Generation: _currentGeneration))
             .Where(tagged => tagged.Text is not null)
@@ -78,7 +133,7 @@ public sealed class ConversationViewModel : ReactiveObject, IRoutableViewModel
             });
 
         // Settle the turn on TurnEndEvent.
-        events
+        session.Events
             .OfType<TurnEndEvent>()
             .Subscribe(e => SettleTurn(e.Message));
     }

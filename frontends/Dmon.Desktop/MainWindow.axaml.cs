@@ -1,4 +1,5 @@
 using Avalonia.Controls;
+using Dmon.Desktop.Views;
 using ReactiveUI;
 using System.Reactive.Linq;
 
@@ -9,6 +10,9 @@ namespace Dmon.Desktop;
 /// then reveals the routed conversation area. All reactive state observation happens on
 /// RxSchedulers.MainThreadScheduler (injected into <see cref="CoreSessionService"/>),
 /// so no manual dispatcher marshalling is needed here.
+///
+/// Group 6: registers <see cref="SessionViewModel.ToolConfirmInteraction"/> and
+/// <see cref="SessionViewModel.UiInputInteraction"/> handlers that show modal dialogs.
 /// </summary>
 public partial class MainWindow : Window
 {
@@ -24,6 +28,24 @@ public partial class MainWindow : Window
             // setting it imperatively here as a local value before the control renders is
             // equivalent to a compiled binding, without the XAML DataContext dependency.
             ConversationHost.Router = sessionViewModel.Router;
+
+            // Register interaction handlers. Handlers run on the UI thread (MainThreadScheduler
+            // ensures events arrive here). Each handler opens a modal and returns the result.
+            sessionViewModel.ToolConfirmInteraction.RegisterHandler(async context =>
+            {
+                ToolConfirmDialog dialog = new(context.Input);
+                ToolConfirmResult result = await dialog.ShowDialog<ToolConfirmResult>(this)
+                    .ConfigureAwait(true);
+                context.SetOutput(result ?? new ToolConfirmResult(ToolConfirmChoice.Cancelled));
+            });
+
+            sessionViewModel.UiInputInteraction.RegisterHandler(async context =>
+            {
+                UiInputDialog dialog = new(context.Input);
+                UiInputResult result = await dialog.ShowDialog<UiInputResult>(this)
+                    .ConfigureAwait(true);
+                context.SetOutput(result ?? new UiInputResult(null, Cancelled: true));
+            });
         }
 
         if (sessionService is null)

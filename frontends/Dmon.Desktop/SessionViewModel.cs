@@ -1,4 +1,7 @@
 using System.Reactive.Concurrency;
+using System.Reactive.Linq;
+using System.Text.Json;
+using Dmon.Protocol.Commands;
 using Dmon.Protocol.Events;
 using ReactiveUI;
 
@@ -8,10 +11,26 @@ namespace Dmon.Desktop;
 /// Top-level screen view-model. Owns the <see cref="RoutingState"/> and hosts one active
 /// routed view-model at a time — a degenerate single-tab shell that does not foreclose a
 /// future multi-tab design.
+///
+/// Group 6 additions:
+/// - <see cref="ToolConfirmInteraction"/> — raised when a <see cref="ToolConfirmRequestEvent"/>
+///   arrives; the view handler shows a modal and returns a <see cref="ToolConfirmResult"/>.
+/// - <see cref="UiInputInteraction"/> — raised when a <see cref="UiInputRequestEvent"/> arrives.
+/// - <see cref="Reload"/> — ReactiveCommand; CanExecute = !IsStreaming (between turns only).
 /// </summary>
 public sealed class SessionViewModel : ReactiveObject, IScreen
 {
     public RoutingState Router { get; } = new();
+
+    private readonly ICoreSession _session;
+    private readonly ObservableAsPropertyHelper<bool> _isStreaming;
+    private string? _activeSessionId;
+
+    // Exposed for the view to register interaction handlers.
+    public Interaction<ToolConfirmRequest, ToolConfirmResult> ToolConfirmInteraction { get; } = new();
+    public Interaction<UiInputRequest, UiInputResult> UiInputInteraction { get; } = new();
+
+    public ReactiveCommand<System.Reactive.Unit, System.Reactive.Unit> Reload { get; }
 
     /// <summary>
     /// Production constructor — called from <see cref="CompositionRoot"/>.
@@ -19,18 +38,154 @@ public sealed class SessionViewModel : ReactiveObject, IScreen
     /// onto the scheduler injected into it (production: <c>RxSchedulers.MainThreadScheduler</c>).
     /// </summary>
     public SessionViewModel(CoreSessionService sessionService)
-        : this(sessionService.Events, RxSchedulers.MainThreadScheduler) { }
+        : this(sessionService, RxSchedulers.MainThreadScheduler) { }
 
     /// <summary>
-    /// Testable constructor — accepts a raw event stream and scheduler directly,
-    /// so tests can use a <c>Subject&lt;Event&gt;</c> and <c>TestScheduler</c> without
-    /// wiring up a live <see cref="CoreSessionService"/>.
+    /// Testable constructor — accepts <see cref="ICoreSession"/> and scheduler directly,
+    /// so tests can use a fake session + <c>TestScheduler</c> without wiring up a live
+    /// <see cref="CoreSessionService"/>.
     /// </summary>
-    public SessionViewModel(IObservable<Event> events, IScheduler scheduler)
+    public SessionViewModel(ICoreSession session, IScheduler scheduler)
     {
-        ConversationViewModel conversation = new(this, events, scheduler);
+        _session = session;
+
+        // IsStreaming: TurnStartEvent → true, TurnEndEvent → false.
+        _isStreaming = session.Events
+            .Select<Event, bool?>(e => e switch
+            {
+                TurnStartEvent => true,
+                TurnEndEvent   => false,
+                _              => null
+            })
+            .Where(b => b.HasValue)
+            .Select(b => b!.Value)
+            .StartWith(false)
+            .ToProperty(this, x => x.IsStreaming, scheduler: scheduler);
+
+        // Reload: only allowed between turns.
+        IObservable<bool> canReload = this
+            .WhenAnyValue(x => x.IsStreaming, streaming => !streaming);
+
+        Reload = ReactiveCommand.CreateFromTask(
+            async () =>
+            {
+                await session.ReloadAsync().ConfigureAwait(false);
+
+                if (_activeSessionId is not null)
+                {
+                    SessionLoadCommand load = new()
+                    {
+                        Id = Guid.NewGuid().ToString("N"),
+                        Path = _activeSessionId
+                    };
+                    await session.SendAsync(load).ConfigureAwait(false);
+                }
+            },
+            canReload,
+            outputScheduler: scheduler);
+
+        // Track the active session id from session-lifecycle result events.
+        session.Events.Subscribe(TrackActiveSession);
+
+        // Handle tool-confirm requests: fire-and-forget; protocol mapping at the edge.
+        session.Events
+            .OfType<ToolConfirmRequestEvent>()
+            .Subscribe(e => HandleToolConfirmAsync(e));
+
+        // Handle UI-input requests.
+        session.Events
+            .OfType<UiInputRequestEvent>()
+            .Subscribe(e => HandleUiInputAsync(e));
+
+        ConversationViewModel conversation = new(this, session, scheduler);
         // Navigate synchronously on construction so the router is populated before
         // the host renders. Subscribe() is required to trigger the cold observable.
         Router.Navigate.Execute(conversation).Subscribe();
+    }
+
+    public bool IsStreaming => _isStreaming.Value;
+
+    // ---------------------------------------------------------------------------
+    // Active session tracking — mirrors Terminal's TrackActiveSession
+    // ---------------------------------------------------------------------------
+
+    private void TrackActiveSession(Event evt)
+    {
+        switch (evt)
+        {
+            case SessionCreatedResultEvent e:
+                _activeSessionId = e.Session.Id;
+                break;
+            case SessionForkedResultEvent e:
+                _activeSessionId = e.Session.Id;
+                break;
+            case SessionClonedResultEvent e:
+                _activeSessionId = e.Session.Id;
+                break;
+            case SessionLoadedResultEvent e:
+                _activeSessionId = e.Session.Id;
+                break;
+        }
+    }
+
+    // ---------------------------------------------------------------------------
+    // Interaction dispatchers — fire-and-forget async void; protocol mapping at the edge.
+    // Interaction<TInput,TOutput>.Handle() returns IObservable<TOutput>; FirstAsync()
+    // converts it to an awaitable Task<TOutput>.
+    // ---------------------------------------------------------------------------
+
+    private async void HandleToolConfirmAsync(ToolConfirmRequestEvent confirm)
+    {
+        string argsText = confirm.Args is JsonElement el ? el.ToString() : string.Empty;
+
+        ToolConfirmRequest request = new(
+            Name: confirm.Name,
+            Args: argsText,
+            Risk: confirm.Risk,
+            ConfirmId: confirm.ConfirmId);
+
+        ToolConfirmResult result = await ToolConfirmInteraction.Handle(request).FirstAsync();
+
+        string? scope = result.Choice switch
+        {
+            ToolConfirmChoice.AllowOnce    => "once",
+            ToolConfirmChoice.AllowProject => "project",
+            ToolConfirmChoice.AllowGlobal  => "global",
+            _                              => null
+        };
+
+        bool confirmed = result.Choice is ToolConfirmChoice.AllowOnce
+                                       or ToolConfirmChoice.AllowProject
+                                       or ToolConfirmChoice.AllowGlobal;
+
+        ToolConfirmResponseCommand response = new()
+        {
+            Id        = confirm.ConfirmId,
+            Confirmed = confirmed,
+            Cancelled = result.Choice == ToolConfirmChoice.Cancelled,
+            Scope     = scope
+        };
+
+        await _session.SendAsync(response).ConfigureAwait(false);
+    }
+
+    private async void HandleUiInputAsync(UiInputRequestEvent uiInput)
+    {
+        UiInputRequest request = new(
+            Prompt: uiInput.Prompt,
+            Kind: uiInput.Kind,
+            Options: uiInput.Options,
+            EventId: uiInput.EventId);
+
+        UiInputResult result = await UiInputInteraction.Handle(request).FirstAsync();
+
+        UiInputResponseCommand response = new()
+        {
+            Id        = uiInput.EventId,
+            Value     = result.Value,
+            Cancelled = result.Cancelled
+        };
+
+        await _session.SendAsync(response).ConfigureAwait(false);
     }
 }

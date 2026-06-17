@@ -33,10 +33,10 @@
 
 ## 6. Input and commands
 
-- [ ] 6.1 Implement the prompt input + `SendPrompt` `ReactiveCommand` calling `IRpcClient.SendAsync`; bind `CanExecute` to an `IsStreaming` observable so send is disabled mid-turn.
-- [ ] 6.2 Implement tool-confirmation via a ReactiveUI `Interaction<,>`: modal shows tool name/args/risk (high-risk visually distinct) with allow-once/allow-project/allow-global/deny, and relays the confirm-response command. Unit-test the VM raises the interaction and maps the result to the correct command.
-- [ ] 6.3 Implement UI-input requests via an input `Interaction<,>`, relaying the response to the core.
-- [ ] 6.4 Implement the reload action (dispose client + relaunch core + rebind + re-open session dir), allowed only between turns and rejected during streaming. Unit-test the between-turns guard.
+- [x] 6.1 Implement the prompt input + `SendPrompt` `ReactiveCommand` calling `IRpcClient.SendAsync`; bind `CanExecute` to an `IsStreaming` observable so send is disabled mid-turn.
+- [x] 6.2 Implement tool-confirmation via a ReactiveUI `Interaction<,>`: modal shows tool name/args/risk (high-risk visually distinct) with allow-once/allow-project/allow-global/deny, and relays the confirm-response command. Unit-test the VM raises the interaction and maps the result to the correct command.
+- [x] 6.3 Implement UI-input requests via an input `Interaction<,>`, relaying the response to the core.
+- [x] 6.4 Implement the reload action (dispose client + relaunch core + rebind + re-open session dir), allowed only between turns and rejected during streaming. Unit-test the between-turns guard.
 
 ## 7. Docs and scope-gate amendment
 

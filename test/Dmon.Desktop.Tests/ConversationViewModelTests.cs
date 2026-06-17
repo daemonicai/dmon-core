@@ -2,7 +2,9 @@ using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.Reactive.Subjects;
 using System.Text.Json;
+using Dmon.Desktop;
 using Dmon.Protocol;
+using Dmon.Protocol.Commands;
 using Dmon.Protocol.Conversation;
 using Dmon.Protocol.Events;
 using Microsoft.Reactive.Testing;
@@ -12,6 +14,7 @@ namespace Dmon.Desktop.Tests;
 
 /// <summary>
 /// Group 5 — conversation rendering tests.
+/// Group 6.1 — SendPrompt CanExecute/IsStreaming tests.
 ///
 /// 5.4: Proves that a burst of <c>textDelta</c> events is coalesced into O(1) UI updates
 ///      per window, not N, and that the settled text after the window equals the
@@ -20,7 +23,7 @@ namespace Dmon.Desktop.Tests;
 /// 5.5: Proves that <see cref="UnknownPartViewModel"/> is present in the rendered VM but
 ///      never included in any outbound payload.
 /// </summary>
-public sealed class ConversationViewModelTests
+public sealed class ConversationViewModelTests : IClassFixture<ReactiveUiTestFixture>
 {
     // =========================================================================
     // 5.4 — coalescing: burst of N deltas collapses to bounded UI updates
@@ -30,15 +33,15 @@ public sealed class ConversationViewModelTests
     public void DeltaBurst_CoalesceWindow_CollapsesBatchToSingleAppend()
     {
         // Arrange
-        Subject<Event> events = new();
+        FakeCoreSession session = new();
         TestScheduler scheduler = new();
         IScreen fakeScreen = new FakeScreen();
 
-        ConversationViewModel sut = new(fakeScreen, events, scheduler);
+        ConversationViewModel sut = new(fakeScreen, session, scheduler);
 
         // Track how many times the Messages collection changes.
         int collectionChangeCount = 0;
-        ((System.Collections.Specialized.INotifyCollectionChanged)sut.Messages)
+        ((INotifyCollectionChanged)sut.Messages)
             .CollectionChanged += (_, _) => collectionChangeCount++;
 
         // Build N textDelta events.
@@ -49,7 +52,7 @@ public sealed class ConversationViewModelTests
         // Act — push all N deltas into the subject BEFORE advancing the scheduler.
         foreach (string delta in deltas)
         {
-            events.OnNext(MakeDeltaEvent(delta));
+            session.Push(MakeDeltaEvent(delta));
         }
 
         // Assert part 1: before the scheduler advances, nothing has been applied yet.
@@ -67,8 +70,6 @@ public sealed class ConversationViewModelTests
         Assert.Equal(expected, textPart.Text);
 
         // Assert part 4 (coalescing proof): the collection changed FAR fewer times than N.
-        // One message was added (1 change) plus at most a handful of part updates,
-        // certainly not N times.
         Assert.True(collectionChangeCount < n,
             $"Expected fewer than {n} collection changes but got {collectionChangeCount}. " +
             "Coalescing is not working — each delta is triggering a separate UI update.");
@@ -78,14 +79,14 @@ public sealed class ConversationViewModelTests
     public void TurnEnd_SettlesStreamingMessage_WithFinalRecord()
     {
         // Arrange
-        Subject<Event> events = new();
+        FakeCoreSession session = new();
         TestScheduler scheduler = new();
         IScreen fakeScreen = new FakeScreen();
-        ConversationViewModel sut = new(fakeScreen, events, scheduler);
+        ConversationViewModel sut = new(fakeScreen, session, scheduler);
 
         // Push two deltas.
-        events.OnNext(MakeDeltaEvent("hello "));
-        events.OnNext(MakeDeltaEvent("world"));
+        session.Push(MakeDeltaEvent("hello "));
+        session.Push(MakeDeltaEvent("world"));
 
         // Advance the scheduler to flush the coalescing buffer.
         scheduler.AdvanceBy(ConversationViewModel.DeltaCoalesceWindow.Ticks + 1);
@@ -98,7 +99,7 @@ public sealed class ConversationViewModelTests
             Role = "assistant",
             Parts = [new TextPart { Text = "hello world" }]
         };
-        events.OnNext(MakeTurnEndEvent(settled));
+        session.Push(MakeTurnEndEvent(settled));
 
         // Assert: exactly one message, its part reflects the settled text.
         Assert.Single(sut.Messages);
@@ -109,25 +110,22 @@ public sealed class ConversationViewModelTests
     [Fact]
     public void MultipleBursts_EachInSeparateWindow_ProducesMultipleAppends()
     {
-        // Proves each window tick produces a bounded batch, not one giant concatenation
-        // across windows.
-        Subject<Event> events = new();
+        FakeCoreSession session = new();
         TestScheduler scheduler = new();
         IScreen fakeScreen = new FakeScreen();
-        ConversationViewModel sut = new(fakeScreen, events, scheduler);
+        ConversationViewModel sut = new(fakeScreen, session, scheduler);
 
         // First burst.
-        events.OnNext(MakeDeltaEvent("A"));
-        events.OnNext(MakeDeltaEvent("B"));
+        session.Push(MakeDeltaEvent("A"));
+        session.Push(MakeDeltaEvent("B"));
         scheduler.AdvanceBy(ConversationViewModel.DeltaCoalesceWindow.Ticks + 1);
 
         // Second burst.
-        events.OnNext(MakeDeltaEvent("C"));
+        session.Push(MakeDeltaEvent("C"));
         scheduler.AdvanceBy(ConversationViewModel.DeltaCoalesceWindow.Ticks + 1);
 
         Assert.Single(sut.Messages);
         TextPartViewModel part = Assert.IsType<TextPartViewModel>(sut.Messages[0].Parts[0]);
-        // The two batches should be appended in order: "AB" then "C".
         Assert.Equal("ABC", part.Text);
     }
 
@@ -138,7 +136,6 @@ public sealed class ConversationViewModelTests
     [Fact]
     public void UnknownPart_IsPresentInRenderedMessage_ButExcludedFromOutboundParts()
     {
-        // Arrange — build a MessageRecord with a mix of known and unknown parts.
         MessageRecord record = new()
         {
             EntryId = "msg-u1",
@@ -154,13 +151,11 @@ public sealed class ConversationViewModelTests
 
         MessageViewModel vm = new(record);
 
-        // Assert part 1: all three parts are present in the rendered VM.
         Assert.Equal(3, vm.Parts.Count);
         Assert.IsType<TextPartViewModel>(vm.Parts[0]);
         Assert.IsType<UnknownPartViewModel>(vm.Parts[1]);
         Assert.IsType<TextPartViewModel>(vm.Parts[2]);
 
-        // Assert part 2: OutboundParts() excludes the UnknownPartViewModel.
         IReadOnlyList<PartViewModel> outbound = vm.OutboundParts();
         Assert.Equal(2, outbound.Count);
         Assert.All(outbound, p => Assert.IsNotType<UnknownPartViewModel>(p));
@@ -169,7 +164,6 @@ public sealed class ConversationViewModelTests
     [Fact]
     public void UnknownPart_DisplayLabel_IncludesRawJsonAndProducer()
     {
-        // Confirms UnknownPartViewModel presents useful render-only information.
         UnknownPart part = new()
         {
             Raw = JsonDocument.Parse("{\"exotic\":true}").RootElement,
@@ -184,7 +178,6 @@ public sealed class ConversationViewModelTests
     [Fact]
     public void UsagePart_IsExcludedFromOutboundParts()
     {
-        // UsagePart is also render-only metadata; must not appear in outbound payloads.
         MessageRecord record = new()
         {
             EntryId = "msg-u2",
@@ -209,41 +202,21 @@ public sealed class ConversationViewModelTests
     }
 
     // =========================================================================
-    // Settle/flush ordering race — regression test
+    // Settle/flush ordering race — regression tests
     // =========================================================================
 
-    /// <summary>
-    /// Regression: when TurnEndEvent fires while buffered deltas are still pending (before
-    /// the coalescing window advances), SettleTurn must win and the trailing buffer flush
-    /// must NOT create an orphan/duplicate assistant bubble.
-    ///
-    /// Production ordering on RxApp.MainThreadScheduler:
-    ///   1. Deltas D1..Dn enter the 50ms buffer (not yet flushed).
-    ///   2. TurnEndEvent fires immediately → SettleTurn settles the in-progress assistant.
-    ///   3. Scheduler advances past the window → buffer flushes stale deltas.
-    ///
-    /// Expected: exactly ONE assistant message whose text matches the authoritative
-    /// MessageRecord from TurnEndEvent, not a duplicate trailing bubble.
-    /// </summary>
     [Fact]
     public void TurnEnd_BeforeBufferFlush_DoesNotProduceOrphanBubble()
     {
-        // Arrange
-        Subject<Event> events = new();
+        FakeCoreSession session = new();
         TestScheduler scheduler = new();
         IScreen fakeScreen = new FakeScreen();
-        ConversationViewModel sut = new(fakeScreen, events, scheduler);
+        ConversationViewModel sut = new(fakeScreen, session, scheduler);
 
-        // Push deltas into the subject — they are now buffered but NOT yet flushed
-        // (the TestScheduler has not advanced past the coalescing window).
-        events.OnNext(MakeDeltaEvent("hello "));
-        events.OnNext(MakeDeltaEvent("world"));
-
-        // Confirm nothing is visible yet (buffer hasn't flushed).
+        session.Push(MakeDeltaEvent("hello "));
+        session.Push(MakeDeltaEvent("world"));
         Assert.Empty(sut.Messages);
 
-        // Act step 1 — fire TurnEndEvent BEFORE advancing the scheduler.
-        // This is the race: settle arrives while deltas are still buffered.
         MessageRecord settled = new()
         {
             EntryId  = "msg-race",
@@ -251,49 +224,29 @@ public sealed class ConversationViewModelTests
             Role     = "assistant",
             Parts    = [new TextPart { Text = "hello world" }]
         };
-        events.OnNext(MakeTurnEndEvent(settled));
+        session.Push(MakeTurnEndEvent(settled));
 
-        // The scheduler still hasn't advanced — TurnEnd was processed synchronously
-        // (no buffer delay on TurnEndEvent), so SettleTurn has run.
-        // Because no in-progress assistant existed yet (buffer not flushed), SettleTurn
-        // takes the else-branch: appends from the authoritative record.
-        // _currentGeneration is now 1; the buffered deltas carry generation 0.
-
-        // Act step 2 — advance past the coalescing window so the buffer flushes.
-        // The stale deltas must be silently dropped, not resurrected as a new bubble.
         scheduler.AdvanceBy(ConversationViewModel.DeltaCoalesceWindow.Ticks + 1);
 
-        // Assert: exactly ONE message, no orphan.
         Assert.Single(sut.Messages);
-
-        // Its content must be the authoritative settled text, not the raw streaming delta.
         TextPartViewModel part = Assert.IsType<TextPartViewModel>(sut.Messages[0].Parts[0]);
         Assert.Equal("hello world", part.Text);
     }
 
-    /// <summary>
-    /// Variant: deltas DID create an in-progress assistant (buffer flushed at least once),
-    /// then TurnEndEvent arrives and settles it, then MORE buffered deltas arrive.
-    /// The second flush must also be dropped — no second bubble or mutation of settled text.
-    /// </summary>
     [Fact]
     public void TurnEnd_AfterFirstFlush_SecondFlushIsDropped()
     {
-        Subject<Event> events = new();
+        FakeCoreSession session = new();
         TestScheduler scheduler = new();
         IScreen fakeScreen = new FakeScreen();
-        ConversationViewModel sut = new(fakeScreen, events, scheduler);
+        ConversationViewModel sut = new(fakeScreen, session, scheduler);
 
-        // First flush: push deltas and advance scheduler — creates in-progress assistant.
-        events.OnNext(MakeDeltaEvent("hello "));
+        session.Push(MakeDeltaEvent("hello "));
         scheduler.AdvanceBy(ConversationViewModel.DeltaCoalesceWindow.Ticks + 1);
-
         Assert.Single(sut.Messages);
 
-        // Push more deltas (still buffered, not yet flushed).
-        events.OnNext(MakeDeltaEvent("world"));
+        session.Push(MakeDeltaEvent("world"));
 
-        // TurnEndEvent arrives before the second flush.
         MessageRecord settled = new()
         {
             EntryId   = "msg-race2",
@@ -301,42 +254,24 @@ public sealed class ConversationViewModelTests
             Role      = "assistant",
             Parts     = [new TextPart { Text = "hello world" }]
         };
-        events.OnNext(MakeTurnEndEvent(settled));
-
-        // Advance past the window — second flush fires, must be dropped.
+        session.Push(MakeTurnEndEvent(settled));
         scheduler.AdvanceBy(ConversationViewModel.DeltaCoalesceWindow.Ticks + 1);
 
-        // Still exactly one message — no orphan bubble.
         Assert.Single(sut.Messages);
-
-        // Text is the settled authoritative content.
         TextPartViewModel part = Assert.IsType<TextPartViewModel>(sut.Messages[0].Parts[0]);
         Assert.Equal("hello world", part.Text);
     }
 
-    /// <summary>
-    /// Cross-turn race regression: turn-1 deltas are buffered, TurnEndEvent fires,
-    /// then TurnStartEvent fires (turn 2 begins) — all before the coalescing window
-    /// has elapsed. When the window flushes, the stale turn-1 deltas must NOT be
-    /// appended to the turn-2 stream or create an orphan bubble.
-    ///
-    /// This was the failure mode of the prior single-bool guard: TurnStart reset the
-    /// bool to false, so the stale flush saw a clear guard and created a duplicate bubble.
-    /// The generation counter is immune because the tag is captured at emission and is
-    /// never reset — only SettleTurn increments the generation.
-    /// </summary>
     [Fact]
     public void CrossTurnRace_StaleDeltas_DroppedAfterTurnStartResets()
     {
-        Subject<Event> events = new();
+        FakeCoreSession session = new();
         TestScheduler scheduler = new();
         IScreen fakeScreen = new FakeScreen();
-        ConversationViewModel sut = new(fakeScreen, events, scheduler);
+        ConversationViewModel sut = new(fakeScreen, session, scheduler);
 
-        // Turn 1: push deltas (buffered, not yet flushed).
-        events.OnNext(MakeDeltaEvent("turn1 delta"));
+        session.Push(MakeDeltaEvent("turn1 delta"));
 
-        // Turn 1 ends: SettleTurn fires, generation increments to 1.
         MessageRecord turn1Settled = new()
         {
             EntryId   = "msg-turn1",
@@ -344,24 +279,129 @@ public sealed class ConversationViewModelTests
             Role      = "assistant",
             Parts     = [new TextPart { Text = "turn1 settled" }]
         };
-        events.OnNext(MakeTurnEndEvent(turn1Settled));
+        session.Push(MakeTurnEndEvent(turn1Settled));
+        session.Push(new TurnStartEvent());
 
-        // Turn 2 begins immediately (still within the 50ms window for turn-1 deltas).
-        events.OnNext(new TurnStartEvent());
-
-        // Advance past the coalescing window — the turn-1 buffered delta flushes here.
-        // With the prior bool guard, TurnStart would have reset the guard to false, so
-        // EnsureInProgressAssistant would run and create an orphan bubble for turn-1 text.
-        // With the generation counter, the batch carries generation 0; _currentGeneration
-        // is 1 (bumped by SettleTurn); the batch is silently dropped.
         scheduler.AdvanceBy(ConversationViewModel.DeltaCoalesceWindow.Ticks + 1);
 
-        // Assert: exactly ONE message — the turn-1 settled record (from the else branch
-        // in SettleTurn, since no in-progress assistant existed when TurnEnd fired).
-        // No orphan bubble containing "turn1 delta" appended after TurnStart.
         Assert.Single(sut.Messages);
         TextPartViewModel part = Assert.IsType<TextPartViewModel>(sut.Messages[0].Parts[0]);
         Assert.Equal("turn1 settled", part.Text);
+    }
+
+    // =========================================================================
+    // 6.1 — SendPrompt CanExecute / IsStreaming
+    // =========================================================================
+
+    [Fact]
+    public void SendPrompt_CanExecute_FalseWhileStreaming()
+    {
+        FakeCoreSession session = new();
+        TestScheduler scheduler = new();
+        IScreen fakeScreen = new FakeScreen();
+        ConversationViewModel sut = new(fakeScreen, session, scheduler);
+
+        sut.Prompt = "hello";
+
+        // Advance scheduler to materialise initial IsStreaming = false.
+        scheduler.AdvanceBy(1);
+
+        bool? canExecuteBeforeStream = null;
+        sut.SendPrompt.CanExecute.Subscribe(v => canExecuteBeforeStream = v);
+        scheduler.AdvanceBy(1);
+
+        Assert.True(canExecuteBeforeStream);
+
+        // Start streaming.
+        session.Push(new TurnStartEvent());
+        scheduler.AdvanceBy(1);
+
+        bool? canExecuteWhileStreaming = null;
+        sut.SendPrompt.CanExecute.Subscribe(v => canExecuteWhileStreaming = v);
+        scheduler.AdvanceBy(1);
+
+        Assert.False(canExecuteWhileStreaming);
+    }
+
+    [Fact]
+    public void SendPrompt_CanExecute_TrueWhenIdleAndNonBlankPrompt()
+    {
+        FakeCoreSession session = new();
+        TestScheduler scheduler = new();
+        IScreen fakeScreen = new FakeScreen();
+        ConversationViewModel sut = new(fakeScreen, session, scheduler);
+
+        sut.Prompt = "  "; // whitespace only — should be false
+        scheduler.AdvanceBy(1);
+
+        bool? canExecuteBlank = null;
+        sut.SendPrompt.CanExecute.Subscribe(v => canExecuteBlank = v);
+        scheduler.AdvanceBy(1);
+
+        Assert.False(canExecuteBlank);
+
+        sut.Prompt = "hello world";
+        scheduler.AdvanceBy(1);
+
+        bool? canExecuteWithText = null;
+        sut.SendPrompt.CanExecute.Subscribe(v => canExecuteWithText = v);
+        scheduler.AdvanceBy(1);
+
+        Assert.True(canExecuteWithText);
+    }
+
+    [Fact]
+    public void SendPrompt_Execute_SendsTurnSubmitCommandAndClearsPrompt()
+    {
+        FakeCoreSession session = new();
+        TestScheduler scheduler = new();
+        IScreen fakeScreen = new FakeScreen();
+        ConversationViewModel sut = new(fakeScreen, session, scheduler);
+
+        sut.Prompt = "what is the answer?";
+        scheduler.AdvanceBy(1);
+
+        // Execute synchronously by subscribing then advancing.
+        sut.SendPrompt.Execute().Subscribe();
+        scheduler.AdvanceBy(1);
+
+        // Assert: a TurnSubmitCommand was sent.
+        Assert.Single(session.SentCommands);
+        TurnSubmitCommand cmd = Assert.IsType<TurnSubmitCommand>(session.SentCommands[0]);
+        Assert.Equal("what is the answer?", cmd.Message);
+
+        // Assert: Prompt was cleared.
+        Assert.Equal(string.Empty, sut.Prompt);
+    }
+
+    [Fact]
+    public void SendPrompt_ReEnabled_AfterTurnEnd()
+    {
+        FakeCoreSession session = new();
+        TestScheduler scheduler = new();
+        IScreen fakeScreen = new FakeScreen();
+        ConversationViewModel sut = new(fakeScreen, session, scheduler);
+
+        sut.Prompt = "hello";
+        scheduler.AdvanceBy(1);
+
+        // Start streaming → CanExecute false.
+        session.Push(new TurnStartEvent());
+        scheduler.AdvanceBy(1);
+
+        bool? midStream = null;
+        sut.SendPrompt.CanExecute.Subscribe(v => midStream = v);
+        scheduler.AdvanceBy(1);
+        Assert.False(midStream);
+
+        // End turn → CanExecute true (prompt still has text).
+        session.Push(new TurnEndEvent { Message = new object(), ToolResults = [] });
+        scheduler.AdvanceBy(1);
+
+        bool? afterStream = null;
+        sut.SendPrompt.CanExecute.Subscribe(v => afterStream = v);
+        scheduler.AdvanceBy(1);
+        Assert.True(afterStream);
     }
 
     // =========================================================================
@@ -370,7 +410,6 @@ public sealed class ConversationViewModelTests
 
     private static MessageDeltaEvent MakeDeltaEvent(string text)
     {
-        // Construct the delta payload as a JsonElement (the shape the RPC layer emits).
         JsonElement delta = JsonSerializer.SerializeToElement(
             new { type = "textDelta", delta = text },
             WireSerializerOptions.Default);

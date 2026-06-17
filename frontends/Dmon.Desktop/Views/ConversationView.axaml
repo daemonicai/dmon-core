@@ -114,26 +114,65 @@
   </UserControl.DataTemplates>
 
   <!-- ====================================================================
-       Layout: scrollable message list.
-       Each message shows a role label followed by its parts.
+       Layout: message list + input bar.
        ==================================================================== -->
-  <ScrollViewer Background="#0a0a0a">
-    <ItemsControl ItemsSource="{Binding Messages}">
-      <ItemsControl.ItemTemplate>
-        <DataTemplate DataType="local:MessageViewModel">
-          <StackPanel Margin="8,6">
-            <TextBlock Text="{Binding Role}"
-                       FontFamily="Courier New, Monospace"
-                       FontSize="11"
-                       Foreground="#1a8a1a"
-                       FontWeight="Bold"
-                       Margin="0,0,0,2" />
-            <!-- Parts list — DataTemplate selected by PartViewModel subtype -->
-            <ItemsControl ItemsSource="{Binding Parts}" />
-          </StackPanel>
-        </DataTemplate>
-      </ItemsControl.ItemTemplate>
-    </ItemsControl>
-  </ScrollViewer>
+  <Grid RowDefinitions="*,Auto"
+        Background="#0a0a0a">
+
+    <!-- Row 0: scrollable message list -->
+    <ScrollViewer Grid.Row="0">
+      <ItemsControl ItemsSource="{Binding Messages}">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate DataType="local:MessageViewModel">
+            <StackPanel Margin="8,6">
+              <TextBlock Text="{Binding Role}"
+                         FontFamily="Courier New, Monospace"
+                         FontSize="11"
+                         Foreground="#1a8a1a"
+                         FontWeight="Bold"
+                         Margin="0,0,0,2" />
+              <!-- Parts list — DataTemplate selected by PartViewModel subtype -->
+              <ItemsControl ItemsSource="{Binding Parts}" />
+            </StackPanel>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </ScrollViewer>
+
+    <!-- Row 1: prompt input bar -->
+    <Border Grid.Row="1"
+            BorderBrush="#0d5c0d"
+            BorderThickness="0,1,0,0"
+            Padding="8,6"
+            Background="#0a0a0a">
+      <Grid ColumnDefinitions="*,Auto">
+        <TextBox Grid.Column="0"
+                 x:Name="PromptBox"
+                 Text="{Binding Prompt}"
+                 FontFamily="Courier New, Monospace"
+                 FontSize="13"
+                 Foreground="#33ff33"
+                 Background="#0a0a0a"
+                 CaretBrush="#33ff33"
+                 BorderBrush="#0d5c0d"
+                 BorderThickness="1"
+                 Padding="6,4"
+                 PlaceholderText="&gt; enter prompt"
+                 AcceptsReturn="False"
+                 Margin="0,0,6,0" />
+        <Button Grid.Column="1"
+                Command="{Binding SendPrompt}"
+                Content="send"
+                FontFamily="Courier New, Monospace"
+                FontSize="13"
+                Foreground="#33ff33"
+                Background="#0a0a0a"
+                BorderBrush="#0d5c0d"
+                BorderThickness="1"
+                Padding="12,4" />
+      </Grid>
+    </Border>
+
+  </Grid>
 
 </UserControl>

@@ -1,6 +1,7 @@
 using System.Reactive.Concurrency;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
+using Dmon.Protocol.Commands;
 using Dmon.Protocol.Events;
 using Dmon.Runtime;
 
@@ -18,12 +19,14 @@ namespace Dmon.Desktop;
 /// - Exposes <see cref="State"/> (<see cref="IObservable{T}"/> of <see cref="CoreState"/>)
 ///   so views gate interaction on core readiness (3.3).
 /// - Disposes the RPC client and stops the core on teardown; idempotent (3.4).
+/// - Implements <see cref="ICoreSession"/> so VMs can send commands without taking a direct
+///   dependency on the concrete service (6.1–6.4 testability seam).
 ///
 /// Production usage: inject <see cref="RxSchedulers.MainThreadScheduler"/> as the scheduler.
 /// Test usage: inject a <see cref="Microsoft.Reactive.Testing.TestScheduler"/> to assert
 /// that state mutations do not happen before the scheduler is advanced.
 /// </summary>
-public sealed class CoreSessionService : IAsyncDisposable
+public sealed class CoreSessionService : IAsyncDisposable, ICoreSession
 {
     private readonly ICoreLauncher _launcher;
     private readonly IScheduler _scheduler;
@@ -164,6 +167,18 @@ public sealed class CoreSessionService : IAsyncDisposable
             CompleteSubjects();
             throw;
         }
+    }
+
+    /// <summary>
+    /// Forwards a command to the current RPC client.
+    /// Returns immediately when the core is not in the Ready state (no client available) —
+    /// callers gate eligibility via CanExecute / IsStreaming before invoking.
+    /// </summary>
+    public async Task SendAsync(Command command, CancellationToken cancellationToken = default)
+    {
+        if (_client is null)
+            return;
+        await _client.SendAsync(command, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
