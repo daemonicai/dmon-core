@@ -1,5 +1,6 @@
 <Solution>
   <Folder Name="/frontends/">
+    <Project Path="frontends\Dmon.Desktop\Dmon.Desktop.csproj" />
     <Project Path="frontends\Dmon.Gateway\Dmon.Gateway.csproj" />
     <Project Path="frontends\Dmon.Terminal\Dmon.Terminal.csproj" />
   </Folder>

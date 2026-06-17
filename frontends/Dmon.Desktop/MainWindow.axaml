@@ -1,0 +1,7 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="Dmon.Desktop.MainWindow"
+        Title="dmon"
+        Width="1024"
+        Height="768">
+</Window>

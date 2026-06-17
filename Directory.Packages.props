@@ -31,6 +31,9 @@
   <!-- Third-party package versions -->
   <ItemGroup>
     <PackageVersion Include="Anthropic" Version="12.24.1" />
+    <PackageVersion Include="Avalonia" Version="12.0.4" />
+    <PackageVersion Include="Avalonia.Desktop" Version="12.0.4" />
+    <PackageVersion Include="Avalonia.Themes.Fluent" Version="12.0.4" />
     <PackageVersion Include="coverlet.collector" Version="6.0.4" />
     <PackageVersion Include="Dcli" Version="0.2.0-rc.4" />
     <PackageVersion Include="Dcli.Testing" Version="0.2.0-rc.4" />
@@ -40,6 +43,7 @@
     <PackageVersion Include="LLamaSharp" Version="0.27.0" />
     <PackageVersion Include="LLamaSharp.Backend.Cpu" Version="0.27.0" />
     <PackageVersion Include="Markdig" Version="1.*" />
+    <PackageVersion Include="Markdown.Avalonia" Version="12.0.0-a3" />
     <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="5.0.0-2.final" />
     <PackageVersion Include="Microsoft.Data.Sqlite" Version="10.0.8" />
     <PackageVersion Include="Microsoft.Extensions.AI" Version="10.5.2" />
@@ -63,6 +67,10 @@
     <PackageVersion Include="OpenTelemetry.Extensions.Hosting" Version="1.15.3" />
     <PackageVersion Include="OpenTelemetry.Instrumentation.Http" Version="1.15.1" />
     <PackageVersion Include="OpenTelemetry.Instrumentation.Runtime" Version="1.15.1" />
+    <PackageVersion Include="Pipboy.Avalonia" Version="1.0.0" />
+    <PackageVersion Include="Pipboy.Avalonia.Fx" Version="1.0.0" />
+    <PackageVersion Include="ReactiveUI.Avalonia" Version="12.0.3" />
+    <PackageVersion Include="Splat.Microsoft.Extensions.DependencyInjection" Version="19.4.1" />
     <PackageVersion Include="xunit" Version="2.9.3" />
     <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.4" />
     <PackageVersion Include="xunit.skippablefact" Version="1.4.13" />
