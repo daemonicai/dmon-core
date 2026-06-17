@@ -1,14 +1,139 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:local="clr-namespace:Dmon.Desktop.Views"
-             x:Class="Dmon.Desktop.Views.ConversationView">
-  <!-- Group 5 fills this with the message list and input bar. -->
-  <Grid>
-    <TextBlock Text="conversation"
-               HorizontalAlignment="Center"
-               VerticalAlignment="Center"
-               Foreground="#33ff33"
-               FontFamily="Courier New, Monospace"
-               FontSize="14" />
-  </Grid>
+             xmlns:local="clr-namespace:Dmon.Desktop"
+             xmlns:md="clr-namespace:Markdown.Avalonia.Full;assembly=Markdown.Avalonia.Full"
+             x:Class="Dmon.Desktop.Views.ConversationView"
+             x:DataType="local:ConversationViewModel">
+
+  <!-- ================================================================
+       Part DataTemplates — placed in UserControl.DataTemplates so they
+       are resolved by type when the inner ItemsControl renders Parts.
+       Avalonia's compiled-bindings path requires DataTemplates (not
+       Resources) for typed template selection.
+       ================================================================ -->
+  <UserControl.DataTemplates>
+
+    <!-- TextPart: rendered via Markdown.Avalonia's MarkdownScrollViewer.
+         Phosphor palette applied by the global PipboyTheme; MarkdownScrollViewer
+         does not expose Foreground/FontFamily/FontSize directly — styling is via
+         MarkdownStyle (open design question — approximate fidelity accepted per brief). -->
+    <DataTemplate DataType="local:TextPartViewModel">
+      <md:MarkdownScrollViewer
+          Markdown="{Binding Text}"
+          MaxHeight="600" />
+    </DataTemplate>
+
+    <!-- ToolCallPart: tool name + args summary. -->
+    <DataTemplate DataType="local:ToolCallPartViewModel">
+      <Border BorderBrush="#0d5c0d"
+              BorderThickness="1"
+              CornerRadius="2"
+              Padding="6,4"
+              Margin="0,2">
+        <StackPanel>
+          <TextBlock Text="{Binding Name, StringFormat='tool: {0}'}"
+                     FontFamily="Courier New, Monospace"
+                     FontSize="12"
+                     Foreground="#1a8a1a" />
+          <TextBlock Text="{Binding Args}"
+                     FontFamily="Courier New, Monospace"
+                     FontSize="11"
+                     Foreground="#0d5c0d"
+                     TextWrapping="Wrap"
+                     MaxHeight="120" />
+        </StackPanel>
+      </Border>
+    </DataTemplate>
+
+    <!-- ToolResultPart: call id + result summary. -->
+    <DataTemplate DataType="local:ToolResultPartViewModel">
+      <Border BorderBrush="#0d5c0d"
+              BorderThickness="1"
+              CornerRadius="2"
+              Padding="6,4"
+              Margin="0,2">
+        <StackPanel>
+          <TextBlock Text="{Binding CallId, StringFormat='result: {0}'}"
+                     FontFamily="Courier New, Monospace"
+                     FontSize="11"
+                     Foreground="#1a8a1a" />
+          <TextBlock Text="{Binding Summary}"
+                     FontFamily="Courier New, Monospace"
+                     FontSize="11"
+                     Foreground="#33ff33"
+                     TextWrapping="Wrap"
+                     MaxHeight="120" />
+        </StackPanel>
+      </Border>
+    </DataTemplate>
+
+    <!-- ImagePart: placeholder label (inline image rendering is deferred). -->
+    <DataTemplate DataType="local:ImagePartViewModel">
+      <TextBlock Text="{Binding MediaType, StringFormat='[image: {0}]'}"
+                 FontFamily="Courier New, Monospace"
+                 FontSize="12"
+                 Foreground="#1a8a1a"
+                 FontStyle="Italic" />
+    </DataTemplate>
+
+    <!-- ReasoningPart: dim phosphor, italic — chain-of-thought, not primary content. -->
+    <DataTemplate DataType="local:ReasoningPartViewModel">
+      <TextBlock Text="{Binding Text}"
+                 FontFamily="Courier New, Monospace"
+                 FontSize="12"
+                 Foreground="#0d5c0d"
+                 FontStyle="Italic"
+                 TextWrapping="Wrap" />
+    </DataTemplate>
+
+    <!-- UsagePart: render-only token-count metadata, right-aligned, very dim. -->
+    <DataTemplate DataType="local:UsagePartViewModel">
+      <TextBlock FontFamily="Courier New, Monospace"
+                 FontSize="10"
+                 Foreground="#0d5c0d"
+                 HorizontalAlignment="Right"
+                 Text="{Binding DisplayTokens}" />
+    </DataTemplate>
+
+    <!-- UnknownPart: render-only verbatim JSON. NEVER replayed to the model. -->
+    <DataTemplate DataType="local:UnknownPartViewModel">
+      <Border BorderBrush="#0d5c0d"
+              BorderThickness="1"
+              CornerRadius="2"
+              Padding="4,3"
+              Margin="0,2">
+        <TextBlock Text="{Binding DisplayLabel}"
+                   FontFamily="Courier New, Monospace"
+                   FontSize="10"
+                   Foreground="#0d5c0d"
+                   FontStyle="Italic"
+                   TextWrapping="Wrap" />
+      </Border>
+    </DataTemplate>
+
+  </UserControl.DataTemplates>
+
+  <!-- ====================================================================
+       Layout: scrollable message list.
+       Each message shows a role label followed by its parts.
+       ==================================================================== -->
+  <ScrollViewer Background="#0a0a0a">
+    <ItemsControl ItemsSource="{Binding Messages}">
+      <ItemsControl.ItemTemplate>
+        <DataTemplate DataType="local:MessageViewModel">
+          <StackPanel Margin="8,6">
+            <TextBlock Text="{Binding Role}"
+                       FontFamily="Courier New, Monospace"
+                       FontSize="11"
+                       Foreground="#1a8a1a"
+                       FontWeight="Bold"
+                       Margin="0,0,0,2" />
+            <!-- Parts list — DataTemplate selected by PartViewModel subtype -->
+            <ItemsControl ItemsSource="{Binding Parts}" />
+          </StackPanel>
+        </DataTemplate>
+      </ItemsControl.ItemTemplate>
+    </ItemsControl>
+  </ScrollViewer>
+
 </UserControl>

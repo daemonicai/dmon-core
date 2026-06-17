@@ -36,6 +36,7 @@
     <PackageVersion Include="Avalonia.Themes.Fluent" Version="12.0.4" />
     <PackageVersion Include="coverlet.collector" Version="6.0.4" />
     <PackageVersion Include="Dcli" Version="0.2.0-rc.4" />
+    <PackageVersion Include="DynamicData" Version="9.4.31" />
     <PackageVersion Include="Dcli.Testing" Version="0.2.0-rc.4" />
     <PackageVersion Include="Dotnet.Script.Core" Version="2.0.0" />
     <PackageVersion Include="GeminiDotnet.Extensions.AI" Version="0.25.0" />

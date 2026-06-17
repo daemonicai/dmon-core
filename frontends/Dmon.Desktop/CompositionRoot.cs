@@ -33,7 +33,8 @@ public static class CompositionRoot
             corePathOverride));
 
         // SessionViewModel — singleton for the app lifetime; owns the RoutingState.
-        services.AddSingleton<SessionViewModel>();
+        // Receives CoreSessionService so it can pass the event stream to ConversationViewModel.
+        services.AddSingleton(sp => new SessionViewModel(sp.GetRequiredService<CoreSessionService>()));
 
         // Views are registered explicitly in AddDesktopViews; this extension is the
         // single entry point so callers (App + tests) both use the same root.

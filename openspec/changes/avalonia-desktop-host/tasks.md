@@ -25,11 +25,11 @@
 
 ## 5. Conversation rendering (parts + streaming)
 
-- [ ] 5.1 Model the message list as a DynamicData `SourceList`/`SourceCache` transformed to message view-models, bound to a `ReadOnlyObservableCollection` on `ConversationViewModel`.
-- [ ] 5.2 Add Avalonia `DataTemplates` selected by `Part` subtype: `TextPart`, `ToolCallPart`, `ToolResultPart`, `ImagePart`, `ReasoningPart`, `UnknownPart` (render-only).
-- [ ] 5.3 Render `TextPart` markdown with `Markdown.Avalonia`, themed to the PipBoy phosphor/monospace palette.
-- [ ] 5.4 Stream `messageDelta` into the in-progress assistant message; coalesce the delta stream with `Buffer`/`Sample` over a short window; settle the turn on the turn-end event. Unit-test that a burst of deltas collapses to bounded UI updates and the settled text matches.
-- [ ] 5.5 Assert (unit test) that `UnknownPart` is rendered but never included in any outbound command.
+- [x] 5.1 Model the message list as a DynamicData `SourceList`/`SourceCache` transformed to message view-models, bound to a `ReadOnlyObservableCollection` on `ConversationViewModel`.
+- [x] 5.2 Add Avalonia `DataTemplates` selected by `Part` subtype: `TextPart`, `ToolCallPart`, `ToolResultPart`, `ImagePart`, `ReasoningPart`, `UnknownPart` (render-only).
+- [x] 5.3 Render `TextPart` markdown with `Markdown.Avalonia`, themed to the PipBoy phosphor/monospace palette.
+- [x] 5.4 Stream `messageDelta` into the in-progress assistant message; coalesce the delta stream with `Buffer`/`Sample` over a short window; settle the turn on the turn-end event. Unit-test that a burst of deltas collapses to bounded UI updates and the settled text matches.
+- [x] 5.5 Assert (unit test) that `UnknownPart` is rendered but never included in any outbound command.
 
 ## 6. Input and commands
 

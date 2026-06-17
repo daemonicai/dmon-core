@@ -15,6 +15,7 @@
     <PackageReference Include="Avalonia" />
     <PackageReference Include="Avalonia.Desktop" />
     <PackageReference Include="Avalonia.Themes.Fluent" />
+    <PackageReference Include="DynamicData" />
     <PackageReference Include="Markdown.Avalonia" />
     <PackageReference Include="Pipboy.Avalonia" />
     <PackageReference Include="Pipboy.Avalonia.Fx" />
