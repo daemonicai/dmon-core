@@ -1,7 +1,43 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:Dmon.Desktop"
+        mc:Ignorable="d"
         x:Class="Dmon.Desktop.MainWindow"
         Title="dmon"
         Width="1024"
-        Height="768">
+        Height="768"
+        Background="#0a0a0a">
+
+  <!-- Boot gate: shows BootPanel while Booting/Faulted, ConversationArea when Ready.
+       Groups 4-5 replace ConversationArea with the real routed view host. -->
+  <Grid>
+
+    <!-- Boot / fault state panel -->
+    <StackPanel x:Name="BootPanel"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                Spacing="12">
+      <TextBlock x:Name="BootLabel"
+                 Text="booting..."
+                 FontFamily="Courier New, Monospace"
+                 FontSize="16"
+                 Foreground="#33ff33"
+                 HorizontalAlignment="Center" />
+    </StackPanel>
+
+    <!-- Conversation placeholder — hidden until Ready (Groups 4-5 replace this) -->
+    <Grid x:Name="ConversationArea"
+          IsVisible="False">
+      <TextBlock Text="[conversation area — Groups 4–5]"
+                 HorizontalAlignment="Center"
+                 VerticalAlignment="Center"
+                 Foreground="#33ff33"
+                 FontFamily="Courier New, Monospace"
+                 FontSize="14" />
+    </Grid>
+
+  </Grid>
+
 </Window>

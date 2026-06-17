@@ -12,10 +12,10 @@
 
 ## 3. Core lifecycle and RPC wiring
 
-- [ ] 3.1 Implement a session service that launches the local core via `ICoreLauncher.StartProtocolCompatibleCoreAsync` and builds an `IRpcClient` over `CoreProcessRpcTransport`, calling `StartAsync` before any command.
-- [ ] 3.2 Bridge `IRpcClient.Events` to an `IObservable<Event>` and `ObserveOn(RxApp.MainThreadScheduler)`; route events to view-model state. Verify (unit test) that state mutation happens only after the scheduler hop.
-- [ ] 3.3 Gate interaction on `agentReady`: present a boot/startup state (optionally `Pipboy.Avalonia.Fx`) until the launcher's protocol-compat handshake is observed, then enable the conversation UI.
-- [ ] 3.4 Implement clean teardown (dispose `IRpcClient`, stop the core) on window close and cancellation.
+- [x] 3.1 Implement a session service that launches the local core via `ICoreLauncher.StartProtocolCompatibleCoreAsync` and builds an `IRpcClient` over `CoreProcessRpcTransport`, calling `StartAsync` before any command.
+- [x] 3.2 Bridge `IRpcClient.Events` to an `IObservable<Event>` and `ObserveOn(RxApp.MainThreadScheduler)`; route events to view-model state. Verify (unit test) that state mutation happens only after the scheduler hop.
+- [x] 3.3 Gate interaction on `agentReady`: present a boot/startup state (optionally `Pipboy.Avalonia.Fx`) until the launcher's protocol-compat handshake is observed, then enable the conversation UI.
+- [x] 3.4 Implement clean teardown (dispose `IRpcClient`, stop the core) on window close and cancellation.
 
 ## 4. ReactiveUI routing shell
 

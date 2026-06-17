@@ -10,11 +10,23 @@ internal sealed class Program
     // into Splat. App.OnFrameworkInitializationCompleted then applies the MEDI bridge so
     // Locator.Current resolves from the Microsoft.Extensions.DependencyInjection container.
     [STAThread]
-    public static void Main(string[] args) =>
-        BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
+    public static void Main(string[] args)
+    {
+        string? corePathOverride = null;
+        for (int i = 0; i < args.Length - 1; i++)
+        {
+            if (args[i] == "--core-path")
+            {
+                corePathOverride = args[i + 1];
+                break;
+            }
+        }
 
-    public static AppBuilder BuildAvaloniaApp() =>
-        AppBuilder.Configure<App>()
+        BuildAvaloniaApp(corePathOverride).StartWithClassicDesktopLifetime(args);
+    }
+
+    public static AppBuilder BuildAvaloniaApp(string? corePathOverride = null) =>
+        AppBuilder.Configure(() => new App(corePathOverride))
             .UsePlatformDetect()
             .UseReactiveUI(_ => { })
             .LogToTrace();

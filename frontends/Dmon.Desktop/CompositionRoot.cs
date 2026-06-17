@@ -1,3 +1,4 @@
+using Dmon.Runtime;
 using Microsoft.Extensions.DependencyInjection;
 using ReactiveUI;
 
@@ -14,8 +15,22 @@ public static class CompositionRoot
     /// <see cref="IViewFor{TViewModel}"/> — no convention-based assembly scanning.
     /// Add further services/view-models here as later groups implement them.
     /// </summary>
-    public static IServiceCollection AddDesktopServices(this IServiceCollection services)
+    /// <param name="services">The service collection to populate.</param>
+    /// <param name="corePathOverride">Value of the <c>--core-path</c> CLI argument, or <see langword="null"/>.</param>
+    public static IServiceCollection AddDesktopServices(
+        this IServiceCollection services,
+        string? corePathOverride = null)
     {
+        // ICoreLauncher — testable seam; real launcher in production.
+        services.AddSingleton<ICoreLauncher>(_ => new CoreLauncher());
+
+        // CoreSessionService — singleton for the app lifetime.
+        // Production scheduler is RxSchedulers.MainThreadScheduler (the Avalonia dispatcher).
+        services.AddSingleton(sp => new CoreSessionService(
+            sp.GetRequiredService<ICoreLauncher>(),
+            RxSchedulers.MainThreadScheduler,
+            corePathOverride));
+
         // Views are registered explicitly in AddDesktopViews; this extension is the
         // single entry point so callers (App + tests) both use the same root.
         services.AddDesktopViews();
