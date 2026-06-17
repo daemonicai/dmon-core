@@ -37,7 +37,7 @@ public sealed class ConversationViewModelTests : IClassFixture<ReactiveUiTestFix
         TestScheduler scheduler = new();
         IScreen fakeScreen = new FakeScreen();
 
-        ConversationViewModel sut = new(fakeScreen, session, scheduler);
+        ConversationViewModel sut = new(fakeScreen, session, scheduler, scheduler);
 
         // Track how many times the Messages collection changes.
         int collectionChangeCount = 0;
@@ -82,7 +82,7 @@ public sealed class ConversationViewModelTests : IClassFixture<ReactiveUiTestFix
         FakeCoreSession session = new();
         TestScheduler scheduler = new();
         IScreen fakeScreen = new FakeScreen();
-        ConversationViewModel sut = new(fakeScreen, session, scheduler);
+        ConversationViewModel sut = new(fakeScreen, session, scheduler, scheduler);
 
         // Push two deltas.
         session.Push(MakeDeltaEvent("hello "));
@@ -113,7 +113,7 @@ public sealed class ConversationViewModelTests : IClassFixture<ReactiveUiTestFix
         FakeCoreSession session = new();
         TestScheduler scheduler = new();
         IScreen fakeScreen = new FakeScreen();
-        ConversationViewModel sut = new(fakeScreen, session, scheduler);
+        ConversationViewModel sut = new(fakeScreen, session, scheduler, scheduler);
 
         // First burst.
         session.Push(MakeDeltaEvent("A"));
@@ -211,7 +211,7 @@ public sealed class ConversationViewModelTests : IClassFixture<ReactiveUiTestFix
         FakeCoreSession session = new();
         TestScheduler scheduler = new();
         IScreen fakeScreen = new FakeScreen();
-        ConversationViewModel sut = new(fakeScreen, session, scheduler);
+        ConversationViewModel sut = new(fakeScreen, session, scheduler, scheduler);
 
         session.Push(MakeDeltaEvent("hello "));
         session.Push(MakeDeltaEvent("world"));
@@ -239,7 +239,7 @@ public sealed class ConversationViewModelTests : IClassFixture<ReactiveUiTestFix
         FakeCoreSession session = new();
         TestScheduler scheduler = new();
         IScreen fakeScreen = new FakeScreen();
-        ConversationViewModel sut = new(fakeScreen, session, scheduler);
+        ConversationViewModel sut = new(fakeScreen, session, scheduler, scheduler);
 
         session.Push(MakeDeltaEvent("hello "));
         scheduler.AdvanceBy(ConversationViewModel.DeltaCoalesceWindow.Ticks + 1);
@@ -268,7 +268,7 @@ public sealed class ConversationViewModelTests : IClassFixture<ReactiveUiTestFix
         FakeCoreSession session = new();
         TestScheduler scheduler = new();
         IScreen fakeScreen = new FakeScreen();
-        ConversationViewModel sut = new(fakeScreen, session, scheduler);
+        ConversationViewModel sut = new(fakeScreen, session, scheduler, scheduler);
 
         session.Push(MakeDeltaEvent("turn1 delta"));
 
@@ -290,6 +290,49 @@ public sealed class ConversationViewModelTests : IClassFixture<ReactiveUiTestFix
     }
 
     // =========================================================================
+    // Two-scheduler path — regression guard for the Heisenbug where Buffer's window
+    // never fires when coalesceScheduler IS the live UI dispatcher
+    // =========================================================================
+
+    /// <summary>
+    /// Exercises the split-scheduler path: coalesceScheduler and uiScheduler are
+    /// two distinct <see cref="TestScheduler"/> instances. A burst of deltas should
+    /// only appear in the VM after BOTH (a) the coalesce window elapses on the coalesce
+    /// scheduler AND (b) the ui scheduler is advanced to pump the ObserveOn marshal.
+    ///
+    /// This is the headless proxy for the live Heisenbug: if the coalesce window timer
+    /// were run on the UI scheduler, the flush would not arrive until the UI scheduler
+    /// was advanced — which in production means "never, because the dispatcher is busy".
+    /// </summary>
+    [Fact]
+    public void TwoSchedulers_DeltaAppearsOnlyAfterBothSchedulersAdvance()
+    {
+        FakeCoreSession session = new();
+        TestScheduler coalesceScheduler = new();
+        TestScheduler uiScheduler = new();
+        IScreen fakeScreen = new FakeScreen();
+
+        ConversationViewModel sut = new(fakeScreen, session, uiScheduler, coalesceScheduler);
+
+        session.Push(MakeDeltaEvent("hello "));
+        session.Push(MakeDeltaEvent("world"));
+
+        // Part 1: advancing ONLY the coalesce scheduler past the window flushes the batch
+        // off the thread-pool timer but the marshal onto the UI thread has not yet occurred.
+        // The VM must still be empty (ObserveOn has queued work on the uiScheduler).
+        coalesceScheduler.AdvanceBy(ConversationViewModel.DeltaCoalesceWindow.Ticks + 1);
+        Assert.Empty(sut.Messages);
+
+        // Part 2: advancing the uiScheduler pumps the queued ObserveOn work.
+        // Now the message must appear.
+        uiScheduler.AdvanceBy(1);
+        Assert.Single(sut.Messages);
+
+        TextPartViewModel part = Assert.IsType<TextPartViewModel>(sut.Messages[0].Parts[0]);
+        Assert.Equal("hello world", part.Text);
+    }
+
+    // =========================================================================
     // 6.1 — SendPrompt CanExecute / IsStreaming
     // =========================================================================
 
@@ -299,7 +342,7 @@ public sealed class ConversationViewModelTests : IClassFixture<ReactiveUiTestFix
         FakeCoreSession session = new();
         TestScheduler scheduler = new();
         IScreen fakeScreen = new FakeScreen();
-        ConversationViewModel sut = new(fakeScreen, session, scheduler);
+        ConversationViewModel sut = new(fakeScreen, session, scheduler, scheduler);
 
         sut.Prompt = "hello";
 
@@ -329,7 +372,7 @@ public sealed class ConversationViewModelTests : IClassFixture<ReactiveUiTestFix
         FakeCoreSession session = new();
         TestScheduler scheduler = new();
         IScreen fakeScreen = new FakeScreen();
-        ConversationViewModel sut = new(fakeScreen, session, scheduler);
+        ConversationViewModel sut = new(fakeScreen, session, scheduler, scheduler);
 
         sut.Prompt = "  "; // whitespace only — should be false
         scheduler.AdvanceBy(1);
@@ -356,7 +399,7 @@ public sealed class ConversationViewModelTests : IClassFixture<ReactiveUiTestFix
         FakeCoreSession session = new();
         TestScheduler scheduler = new();
         IScreen fakeScreen = new FakeScreen();
-        ConversationViewModel sut = new(fakeScreen, session, scheduler);
+        ConversationViewModel sut = new(fakeScreen, session, scheduler, scheduler);
 
         sut.Prompt = "what is the answer?";
         scheduler.AdvanceBy(1);
@@ -380,7 +423,7 @@ public sealed class ConversationViewModelTests : IClassFixture<ReactiveUiTestFix
         FakeCoreSession session = new();
         TestScheduler scheduler = new();
         IScreen fakeScreen = new FakeScreen();
-        ConversationViewModel sut = new(fakeScreen, session, scheduler);
+        ConversationViewModel sut = new(fakeScreen, session, scheduler, scheduler);
 
         sut.Prompt = "hello";
         scheduler.AdvanceBy(1);
@@ -414,7 +457,7 @@ public sealed class ConversationViewModelTests : IClassFixture<ReactiveUiTestFix
         FakeCoreSession session = new();
         TestScheduler scheduler = new();
         IScreen fakeScreen = new FakeScreen();
-        ConversationViewModel sut = new(fakeScreen, session, scheduler);
+        ConversationViewModel sut = new(fakeScreen, session, scheduler, scheduler);
 
         sut.Prompt = "hello";
         scheduler.AdvanceBy(1);
@@ -440,7 +483,7 @@ public sealed class ConversationViewModelTests : IClassFixture<ReactiveUiTestFix
         FakeCoreSession session = new();
         TestScheduler scheduler = new();
         IScreen fakeScreen = new FakeScreen();
-        ConversationViewModel sut = new(fakeScreen, session, scheduler);
+        ConversationViewModel sut = new(fakeScreen, session, scheduler, scheduler);
 
         sut.Prompt = "ping";
         scheduler.AdvanceBy(1);
@@ -478,7 +521,7 @@ public sealed class ConversationViewModelTests : IClassFixture<ReactiveUiTestFix
         FakeCoreSession session = new();
         TestScheduler scheduler = new();
         IScreen fakeScreen = new FakeScreen();
-        ConversationViewModel sut = new(fakeScreen, session, scheduler);
+        ConversationViewModel sut = new(fakeScreen, session, scheduler, scheduler);
 
         session.Push(new ErrorEvent { Code = "someError", Message = "something went wrong", Recoverable = false });
         scheduler.AdvanceBy(1);
@@ -495,7 +538,7 @@ public sealed class ConversationViewModelTests : IClassFixture<ReactiveUiTestFix
         FakeCoreSession session = new();
         TestScheduler scheduler = new();
         IScreen fakeScreen = new FakeScreen();
-        ConversationViewModel sut = new(fakeScreen, session, scheduler);
+        ConversationViewModel sut = new(fakeScreen, session, scheduler, scheduler);
 
         session.Push(new SetupRequiredEvent { Adapters = [] });
         scheduler.AdvanceBy(1);
@@ -512,7 +555,7 @@ public sealed class ConversationViewModelTests : IClassFixture<ReactiveUiTestFix
         FakeCoreSession session = new();
         TestScheduler scheduler = new();
         IScreen fakeScreen = new FakeScreen();
-        ConversationViewModel sut = new(fakeScreen, session, scheduler);
+        ConversationViewModel sut = new(fakeScreen, session, scheduler, scheduler);
 
         session.Push(new CommandErrorEvent { CommandId = "cmd-1", Command = "session.create", Code = "noSession", Message = "session not found" });
         scheduler.AdvanceBy(1);
@@ -530,7 +573,7 @@ public sealed class ConversationViewModelTests : IClassFixture<ReactiveUiTestFix
         FakeCoreSession session = new();
         TestScheduler scheduler = new();
         IScreen fakeScreen = new FakeScreen();
-        ConversationViewModel sut = new(fakeScreen, session, scheduler);
+        ConversationViewModel sut = new(fakeScreen, session, scheduler, scheduler);
 
         session.Push(new SystemNoticeEvent { Message = "compaction running" });
         scheduler.AdvanceBy(1);

@@ -39,14 +39,23 @@ public sealed class SessionViewModel : ReactiveObject, IScreen
     /// onto <see cref="AvaloniaScheduler.Instance"/> (the Avalonia UI-thread dispatcher).
     /// </summary>
     public SessionViewModel(CoreSessionService sessionService)
-        : this(sessionService, AvaloniaScheduler.Instance) { }
+        : this(sessionService, AvaloniaScheduler.Instance, DefaultScheduler.Instance) { }
 
     /// <summary>
-    /// Testable constructor — accepts <see cref="ICoreSession"/> and scheduler directly,
-    /// so tests can use a fake session + <c>TestScheduler</c> without wiring up a live
-    /// <see cref="CoreSessionService"/>.
+    /// Testable constructor — accepts <see cref="ICoreSession"/> and a single scheduler that
+    /// is used as BOTH the UI scheduler and the coalesce timer scheduler, so that
+    /// <c>TestScheduler.AdvanceBy</c> drives the <c>Buffer</c> window AND the
+    /// <c>ObserveOn</c> marshal step deterministically.
     /// </summary>
     public SessionViewModel(ICoreSession session, IScheduler scheduler)
+        : this(session, scheduler, scheduler) { }
+
+    /// <summary>
+    /// Full constructor. Separate schedulers allow the coalescing <c>Buffer</c> window timer
+    /// to run on a reliable thread-pool scheduler (<paramref name="coalesceScheduler"/>) while
+    /// all VM-state mutations are marshalled onto the UI thread via <paramref name="uiScheduler"/>.
+    /// </summary>
+    private SessionViewModel(ICoreSession session, IScheduler uiScheduler, IScheduler coalesceScheduler)
     {
         _session = session;
 
@@ -61,7 +70,7 @@ public sealed class SessionViewModel : ReactiveObject, IScreen
             .Where(b => b.HasValue)
             .Select(b => b!.Value)
             .StartWith(false)
-            .ToProperty(this, x => x.IsStreaming, scheduler: scheduler);
+            .ToProperty(this, x => x.IsStreaming, scheduler: uiScheduler);
 
         // Reload: only allowed between turns.
         IObservable<bool> canReload = this
@@ -83,7 +92,7 @@ public sealed class SessionViewModel : ReactiveObject, IScreen
                 }
             },
             canReload,
-            outputScheduler: scheduler);
+            outputScheduler: uiScheduler);
 
         // Track the active session id from session-lifecycle result events.
         session.Events.Subscribe(TrackActiveSession);
@@ -98,7 +107,7 @@ public sealed class SessionViewModel : ReactiveObject, IScreen
             .OfType<UiInputRequestEvent>()
             .Subscribe(e => HandleUiInputAsync(e));
 
-        ConversationViewModel conversation = new(this, session, scheduler);
+        ConversationViewModel conversation = new(this, session, uiScheduler, coalesceScheduler);
         // Navigate synchronously on construction so the router is populated before
         // the host renders. Subscribe() is required to trigger the cold observable.
         Router.Navigate.Execute(conversation).Subscribe();

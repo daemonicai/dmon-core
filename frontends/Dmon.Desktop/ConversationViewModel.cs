@@ -17,11 +17,16 @@ namespace Dmon.Desktop;
 /// Design constraints (spec Group 5 / design.md Decision 3):
 /// - Message list is a DynamicData <see cref="SourceList{T}"/> transformed to a
 ///   <see cref="ReadOnlyObservableCollection{T}"/> bound in the view.
-/// - All state mutations must happen on the injected <paramref name="scheduler"/>
-///   (production: <c>RxSchedulers.MainThreadScheduler</c>; tests: <c>TestScheduler</c>).
+/// - All VM-state mutations must happen on the injected <paramref name="uiScheduler"/>
+///   (production: <see cref="AvaloniaScheduler.Instance"/>; tests: <c>TestScheduler</c>).
 /// - Incoming <c>messageDelta</c> text events are coalesced with a
 ///   <see cref="Observable.Buffer{TSource,TBufferClosing}"/> window driven by the injected
-///   scheduler so the UI update rate is bounded regardless of burst size.
+///   <paramref name="coalesceScheduler"/> (production: <see cref="DefaultScheduler.Instance"/>,
+///   a thread-pool timer; tests: the same <c>TestScheduler</c> as <paramref name="uiScheduler"/>
+///   so that <c>AdvanceBy</c> drives both). The flushed batch is then marshalled onto
+///   <paramref name="uiScheduler"/> via <c>ObserveOn</c> before mutating <c>_messages</c>.
+///   Keeping the coalescing timer off the UI dispatcher prevents the Heisenbug where
+///   <c>Buffer</c>'s window never fires when its scheduler is the live Avalonia dispatcher.
 /// - On <c>turnEnd</c> the in-progress assistant message is settled from the final
 ///   <see cref="MessageRecord"/> carried in the event payload.
 /// - <see cref="UnknownPartViewModel"/> parts are rendered but excluded from outbound payloads
@@ -66,7 +71,7 @@ public sealed class ConversationViewModel : ReactiveObject, IRoutableViewModel
 
     public ReactiveCommand<System.Reactive.Unit, System.Reactive.Unit> SendPrompt { get; }
 
-    public ConversationViewModel(IScreen hostScreen, ICoreSession session, IScheduler scheduler)
+    public ConversationViewModel(IScreen hostScreen, ICoreSession session, IScheduler uiScheduler, IScheduler coalesceScheduler)
     {
         HostScreen = hostScreen;
         _session = session;
@@ -86,7 +91,7 @@ public sealed class ConversationViewModel : ReactiveObject, IRoutableViewModel
             .Where(b => b.HasValue)
             .Select(b => b!.Value)
             .StartWith(false)
-            .ToProperty(this, x => x.IsStreaming, scheduler: scheduler);
+            .ToProperty(this, x => x.IsStreaming, scheduler: uiScheduler);
 
         // SendPrompt: disabled while streaming or when prompt is blank.
         IObservable<bool> canSend = this
@@ -114,19 +119,31 @@ public sealed class ConversationViewModel : ReactiveObject, IRoutableViewModel
                 await _session.SendAsync(command).ConfigureAwait(false);
             },
             canSend,
-            outputScheduler: scheduler);
+            outputScheduler: uiScheduler);
 
-        // Coalesce textDelta bursts: buffer for the window, then flatten and apply.
-        // Each delta is tagged with the current generation at emission time.
-        // The flush discards batches whose generation no longer matches, which closes
-        // both the single-turn and cross-turn settle/flush ordering race.
+        // Coalesce textDelta bursts: buffer for the window, then marshal onto the UI thread.
+        //
+        // The Buffer window timer runs on coalesceScheduler (DefaultScheduler.Instance in
+        // production — a thread-pool timer that fires reliably regardless of UI-thread load).
+        // ObserveOn(uiScheduler) then marshals the flushed batch onto the UI thread before
+        // any _messages / _inProgressAssistant mutation. This decoupling prevents the
+        // Heisenbug where Buffer's window never fires when its scheduler IS the live Avalonia
+        // dispatcher (the UI thread is busy rendering, so the timer callback never gets pumped).
+        //
+        // Each delta is tagged with the current generation at emission time. The flush discards
+        // batches whose generation no longer matches, which closes both the single-turn and
+        // cross-turn settle/flush ordering race. Generation reads and writes all occur on the
+        // UI thread (via ObserveOn here, and directly in SettleTurn which is called from the
+        // TurnEndEvent subscription whose source is already marshalled onto the UI thread by
+        // CoreSessionService's ObserveOn in production, and synchronously in tests).
         _eventSubscription = session.Events
             .OfType<MessageDeltaEvent>()
             .Select(e => (Text: ExtractTextDelta(e.Delta), Generation: _currentGeneration))
             .Where(tagged => tagged.Text is not null)
             .Select(tagged => (Text: tagged.Text!, tagged.Generation))
-            .Buffer(DeltaCoalesceWindow, scheduler)
+            .Buffer(DeltaCoalesceWindow, coalesceScheduler)
             .Where(batch => batch.Count > 0)
+            .ObserveOn(uiScheduler)
             .Subscribe(batch =>
             {
                 // All items in a buffered batch share the same generation (the buffer is
@@ -141,13 +158,15 @@ public sealed class ConversationViewModel : ReactiveObject, IRoutableViewModel
             });
 
         // Settle the turn on TurnEndEvent.
+        // No explicit ObserveOn needed: in production CoreSessionService already ObserveOn's
+        // session.Events to AvaloniaScheduler.Instance; in tests Push() fires synchronously.
         session.Events
             .OfType<TurnEndEvent>()
             .Subscribe(e => SettleTurn(e.Message));
 
         // Surface core status events as "system" messages so nothing is silent.
         session.Events
-            .ObserveOn(scheduler)
+            .ObserveOn(uiScheduler)
             .Subscribe(e =>
             {
                 string? text = e switch
