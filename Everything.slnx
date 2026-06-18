@@ -25,6 +25,7 @@
     <Project Path="memory\Dmon.Memory.Meko\Dmon.Memory.Meko.csproj" />
   </Folder>
   <Folder Name="/frontends/">
+    <Project Path="frontends\Dmon.Desktop\Dmon.Desktop.csproj" />
     <Project Path="frontends\Dmon.Gateway\Dmon.Gateway.csproj" />
     <Project Path="frontends\Dmon.Terminal\Dmon.Terminal.csproj" />
   </Folder>
@@ -32,6 +33,7 @@
     <Project Path="spike\ScriptingSpike\ScriptingSpike.csproj" />
   </Folder>
   <Folder Name="/test/">
+    <Project Path="test\Dmon.Desktop.Tests\Dmon.Desktop.Tests.csproj" />
     <Project Path="test\Dmon.Core.Tests\Dmon.Core.Tests.csproj" />
     <Project Path="test\Dmon.Extensions.Tests\Dmon.Extensions.Tests.csproj" />
     <Project Path="test\Dmon.Providers.Omlx.Tests\Dmon.Providers.Omlx.Tests.csproj" />

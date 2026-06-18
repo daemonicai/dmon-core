@@ -1,0 +1,91 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="Dmon.Desktop.Views.ToolConfirmDialog"
+        Title="confirm tool"
+        Width="480"
+        MinHeight="220"
+        SizeToContent="Height"
+        WindowStartupLocation="CenterOwner"
+        Background="#0a0a0a"
+        CanResize="False">
+
+  <StackPanel Margin="16" Spacing="12">
+
+    <!-- High-risk warning header — visible only for High risk -->
+    <Border x:Name="HighRiskBanner"
+            Background="#3a0000"
+            BorderBrush="#cc0000"
+            BorderThickness="1"
+            CornerRadius="2"
+            Padding="8,6"
+            IsVisible="False">
+      <TextBlock Text="HIGH RISK — review carefully before allowing"
+                 FontFamily="Courier New, Monospace"
+                 FontSize="12"
+                 Foreground="#ff4444"
+                 FontWeight="Bold" />
+    </Border>
+
+    <!-- Tool name -->
+    <TextBlock x:Name="ToolNameLabel"
+               FontFamily="Courier New, Monospace"
+               FontSize="13"
+               Foreground="#33ff33"
+               TextWrapping="Wrap" />
+
+    <!-- Args -->
+    <Border BorderBrush="#0d5c0d"
+            BorderThickness="1"
+            CornerRadius="2"
+            Padding="6,4">
+      <TextBlock x:Name="ArgsLabel"
+                 FontFamily="Courier New, Monospace"
+                 FontSize="11"
+                 Foreground="#1a8a1a"
+                 TextWrapping="Wrap"
+                 MaxHeight="200" />
+    </Border>
+
+    <!-- Buttons -->
+    <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+      <Button x:Name="AllowOnceButton"
+              Content="allow once"
+              FontFamily="Courier New, Monospace"
+              FontSize="12"
+              Foreground="#33ff33"
+              Background="#0a0a0a"
+              BorderBrush="#0d5c0d"
+              BorderThickness="1"
+              Padding="10,4" />
+      <Button x:Name="AllowProjectButton"
+              Content="allow project"
+              FontFamily="Courier New, Monospace"
+              FontSize="12"
+              Foreground="#33ff33"
+              Background="#0a0a0a"
+              BorderBrush="#0d5c0d"
+              BorderThickness="1"
+              Padding="10,4" />
+      <Button x:Name="AllowGlobalButton"
+              Content="allow global"
+              FontFamily="Courier New, Monospace"
+              FontSize="12"
+              Foreground="#33ff33"
+              Background="#0a0a0a"
+              BorderBrush="#0d5c0d"
+              BorderThickness="1"
+              Padding="10,4" />
+      <Button x:Name="DenyButton"
+              Content="deny"
+              FontFamily="Courier New, Monospace"
+              FontSize="12"
+              Foreground="#ff4444"
+              Background="#0a0a0a"
+              BorderBrush="#550000"
+              BorderThickness="1"
+              Padding="10,4" />
+    </StackPanel>
+
+  </StackPanel>
+
+</Window>

@@ -1,0 +1,281 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:Dmon.Desktop"
+             xmlns:md="clr-namespace:Markdown.Avalonia.Full;assembly=Markdown.Avalonia.Full"
+             xmlns:ctxt="clr-namespace:ColorTextBlock.Avalonia;assembly=ColorTextBlock.Avalonia"
+             x:Class="Dmon.Desktop.Views.ConversationView"
+             x:DataType="local:ConversationViewModel">
+
+  <!-- ================================================================
+       Part DataTemplates — placed in UserControl.DataTemplates so they
+       are resolved by type when the inner ItemsControl renders Parts.
+       Avalonia's compiled-bindings path requires DataTemplates (not
+       Resources) for typed template selection.
+       ================================================================ -->
+  <UserControl.DataTemplates>
+
+    <!-- TextPart: rendered via Markdown.Avalonia's MarkdownScrollViewer.
+         PipBoy phosphor theme applied via MarkdownScrollViewer.Styles — the
+         documented API for per-instance style customisation (whistyun/Markdown.Avalonia wiki).
+         Selectors target ColorTextBlock.Avalonia types (ctxt:CTextBlock, ctxt:CCode)
+         and Avalonia Border/TextBlock with markdown-assigned CSS classes.
+         Structural parsing is unaffected — styles only change presentation. -->
+    <DataTemplate DataType="local:TextPartViewModel">
+      <!-- Wrap in a Border to establish the dark PipBoy background — MarkdownScrollViewer
+           is a UserControl and does not expose Background as an AvaloniaProperty. -->
+      <Border Background="#0a0a0a">
+      <md:MarkdownScrollViewer
+          Markdown="{Binding Text}"
+          MaxHeight="600">
+        <md:MarkdownScrollViewer.Styles>
+
+          <!-- Body paragraph text: phosphor green, monospace -->
+          <Style Selector="ctxt|CTextBlock">
+            <Setter Property="Foreground" Value="#33ff33" />
+            <Setter Property="FontFamily" Value="Courier New, Monospace" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Background" Value="Transparent" />
+          </Style>
+
+          <!-- Headings: brighter/bolder phosphor, with a clear size hierarchy -->
+          <Style Selector="ctxt|CTextBlock.Heading1">
+            <Setter Property="Foreground" Value="#66ff66" />
+            <Setter Property="FontSize" Value="20" />
+            <Setter Property="FontWeight" Value="Bold" />
+          </Style>
+          <Style Selector="ctxt|CTextBlock.Heading2">
+            <Setter Property="Foreground" Value="#55ee55" />
+            <Setter Property="FontSize" Value="17" />
+            <Setter Property="FontWeight" Value="Bold" />
+          </Style>
+          <Style Selector="ctxt|CTextBlock.Heading3">
+            <Setter Property="Foreground" Value="#44dd44" />
+            <Setter Property="FontSize" Value="15" />
+            <Setter Property="FontWeight" Value="Bold" />
+          </Style>
+          <Style Selector="ctxt|CTextBlock.Heading4">
+            <Setter Property="Foreground" Value="#33cc33" />
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="FontWeight" Value="Bold" />
+          </Style>
+          <Style Selector="ctxt|CTextBlock.Heading5">
+            <Setter Property="Foreground" Value="#33cc33" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontWeight" Value="Bold" />
+          </Style>
+          <Style Selector="ctxt|CTextBlock.Heading6">
+            <Setter Property="Foreground" Value="#1a8a1a" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontWeight" Value="Bold" />
+          </Style>
+
+          <!-- Inline code: monospace, slightly distinct dim-green -->
+          <Style Selector="ctxt|CCode">
+            <Setter Property="Foreground" Value="#99ffaa" />
+            <Setter Property="Background" Value="#0f1f0f" />
+            <Setter Property="MonospaceFontFamily" Value="Courier New, Monospace" />
+            <Setter Property="FontSize" Value="12" />
+          </Style>
+
+          <!-- Fenced code block container: dark background, green border -->
+          <Style Selector="Border.CodeBlock">
+            <Setter Property="Background" Value="#0a140a" />
+            <Setter Property="BorderBrush" Value="#0d5c0d" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="2" />
+            <Setter Property="Padding" Value="8,6" />
+            <Setter Property="Margin" Value="0,4" />
+          </Style>
+
+          <!-- Fenced code block text: monospace, slightly brighter green -->
+          <Style Selector="TextBlock.CodeBlock">
+            <Setter Property="Foreground" Value="#99ffaa" />
+            <Setter Property="FontFamily" Value="Courier New, Monospace" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Background" Value="Transparent" />
+          </Style>
+
+          <!-- Blockquote: left-accent border, dimmer phosphor -->
+          <Style Selector="Border.Blockquote">
+            <Setter Property="Background" Value="#080f08" />
+            <Setter Property="BorderBrush" Value="#1a8a1a" />
+            <Setter Property="BorderThickness" Value="3,0,0,0" />
+            <Setter Property="Padding" Value="8,4" />
+            <Setter Property="Margin" Value="0,2" />
+          </Style>
+
+          <!-- List container and items: phosphor green, monospace -->
+          <Style Selector="Grid.List">
+            <Setter Property="Background" Value="Transparent" />
+          </Style>
+          <Style Selector=".List ctxt|CTextBlock">
+            <Setter Property="Foreground" Value="#33ff33" />
+            <Setter Property="FontFamily" Value="Courier New, Monospace" />
+          </Style>
+          <Style Selector="ctxt|CTextBlock.ListMarker">
+            <Setter Property="Foreground" Value="#1a8a1a" />
+            <Setter Property="FontFamily" Value="Courier New, Monospace" />
+          </Style>
+
+        </md:MarkdownScrollViewer.Styles>
+      </md:MarkdownScrollViewer>
+      </Border>
+    </DataTemplate>
+
+    <!-- ToolCallPart: tool name + args summary. -->
+    <DataTemplate DataType="local:ToolCallPartViewModel">
+      <Border BorderBrush="#0d5c0d"
+              BorderThickness="1"
+              CornerRadius="2"
+              Padding="6,4"
+              Margin="0,2">
+        <StackPanel>
+          <TextBlock Text="{Binding Name, StringFormat='tool: {0}'}"
+                     FontFamily="Courier New, Monospace"
+                     FontSize="12"
+                     Foreground="#1a8a1a" />
+          <TextBlock Text="{Binding Args}"
+                     FontFamily="Courier New, Monospace"
+                     FontSize="11"
+                     Foreground="#0d5c0d"
+                     TextWrapping="Wrap"
+                     MaxHeight="120" />
+        </StackPanel>
+      </Border>
+    </DataTemplate>
+
+    <!-- ToolResultPart: call id + result summary. -->
+    <DataTemplate DataType="local:ToolResultPartViewModel">
+      <Border BorderBrush="#0d5c0d"
+              BorderThickness="1"
+              CornerRadius="2"
+              Padding="6,4"
+              Margin="0,2">
+        <StackPanel>
+          <TextBlock Text="{Binding CallId, StringFormat='result: {0}'}"
+                     FontFamily="Courier New, Monospace"
+                     FontSize="11"
+                     Foreground="#1a8a1a" />
+          <TextBlock Text="{Binding Summary}"
+                     FontFamily="Courier New, Monospace"
+                     FontSize="11"
+                     Foreground="#33ff33"
+                     TextWrapping="Wrap"
+                     MaxHeight="120" />
+        </StackPanel>
+      </Border>
+    </DataTemplate>
+
+    <!-- ImagePart: placeholder label (inline image rendering is deferred). -->
+    <DataTemplate DataType="local:ImagePartViewModel">
+      <TextBlock Text="{Binding MediaType, StringFormat='[image: {0}]'}"
+                 FontFamily="Courier New, Monospace"
+                 FontSize="12"
+                 Foreground="#1a8a1a"
+                 FontStyle="Italic" />
+    </DataTemplate>
+
+    <!-- ReasoningPart: dim phosphor, italic — chain-of-thought, not primary content. -->
+    <DataTemplate DataType="local:ReasoningPartViewModel">
+      <TextBlock Text="{Binding Text}"
+                 FontFamily="Courier New, Monospace"
+                 FontSize="12"
+                 Foreground="#0d5c0d"
+                 FontStyle="Italic"
+                 TextWrapping="Wrap" />
+    </DataTemplate>
+
+    <!-- UsagePart: render-only token-count metadata, right-aligned, very dim. -->
+    <DataTemplate DataType="local:UsagePartViewModel">
+      <TextBlock FontFamily="Courier New, Monospace"
+                 FontSize="10"
+                 Foreground="#0d5c0d"
+                 HorizontalAlignment="Right"
+                 Text="{Binding DisplayTokens}" />
+    </DataTemplate>
+
+    <!-- UnknownPart: render-only verbatim JSON. NEVER replayed to the model. -->
+    <DataTemplate DataType="local:UnknownPartViewModel">
+      <Border BorderBrush="#0d5c0d"
+              BorderThickness="1"
+              CornerRadius="2"
+              Padding="4,3"
+              Margin="0,2">
+        <TextBlock Text="{Binding DisplayLabel}"
+                   FontFamily="Courier New, Monospace"
+                   FontSize="10"
+                   Foreground="#0d5c0d"
+                   FontStyle="Italic"
+                   TextWrapping="Wrap" />
+      </Border>
+    </DataTemplate>
+
+  </UserControl.DataTemplates>
+
+  <!-- ====================================================================
+       Layout: message list + input bar.
+       ==================================================================== -->
+  <Grid RowDefinitions="*,Auto"
+        Background="#0a0a0a">
+
+    <!-- Row 0: scrollable message list -->
+    <ScrollViewer Grid.Row="0">
+      <ItemsControl ItemsSource="{Binding Messages}">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate DataType="local:MessageViewModel">
+            <StackPanel Margin="8,6">
+              <TextBlock Text="{Binding Role}"
+                         FontFamily="Courier New, Monospace"
+                         FontSize="11"
+                         Foreground="#1a8a1a"
+                         FontWeight="Bold"
+                         Margin="0,0,0,2" />
+              <!-- Parts list — DataTemplate selected by PartViewModel subtype -->
+              <ItemsControl ItemsSource="{Binding Parts}" />
+            </StackPanel>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </ScrollViewer>
+
+    <!-- Row 1: prompt input bar -->
+    <Border Grid.Row="1"
+            BorderBrush="#0d5c0d"
+            BorderThickness="0,1,0,0"
+            Padding="8,6"
+            Background="#0a0a0a">
+      <Grid ColumnDefinitions="*,Auto">
+        <TextBox Grid.Column="0"
+                 x:Name="PromptBox"
+                 Text="{Binding Prompt}"
+                 FontFamily="Courier New, Monospace"
+                 FontSize="13"
+                 Foreground="#33ff33"
+                 Background="#0a0a0a"
+                 CaretBrush="#33ff33"
+                 BorderBrush="#0d5c0d"
+                 BorderThickness="1"
+                 Padding="6,4"
+                 PlaceholderText="&gt; enter prompt"
+                 AcceptsReturn="False"
+                 Margin="0,0,6,0">
+          <TextBox.KeyBindings>
+            <KeyBinding Gesture="Enter" Command="{Binding SendPrompt}" />
+          </TextBox.KeyBindings>
+        </TextBox>
+        <Button Grid.Column="1"
+                Command="{Binding SendPrompt}"
+                Content="send"
+                FontFamily="Courier New, Monospace"
+                FontSize="13"
+                Foreground="#33ff33"
+                Background="#0a0a0a"
+                BorderBrush="#0d5c0d"
+                BorderThickness="1"
+                Padding="12,4" />
+      </Grid>
+    </Border>
+
+  </Grid>
+
+</UserControl>

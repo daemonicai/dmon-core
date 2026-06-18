@@ -1,9 +1,11 @@
 <Solution>
   <Folder Name="/frontends/">
+    <Project Path="frontends\Dmon.Desktop\Dmon.Desktop.csproj" />
     <Project Path="frontends\Dmon.Gateway\Dmon.Gateway.csproj" />
     <Project Path="frontends\Dmon.Terminal\Dmon.Terminal.csproj" />
   </Folder>
   <Folder Name="/test/">
+    <Project Path="test\Dmon.Desktop.Tests\Dmon.Desktop.Tests.csproj" />
     <Project Path="test\Dmon.Gateway.Tests\Dmon.Gateway.Tests.csproj" />
     <Project Path="test\Dmon.Terminal.Tests\Dmon.Terminal.Tests.csproj" />
   </Folder>
