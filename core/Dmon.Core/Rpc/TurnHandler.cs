@@ -95,6 +95,10 @@ public sealed class TurnHandler : ITurnHandler
         _logger = logger;
         _terminalClientFactory = terminalClientFactory;
         _serviceProvider = serviceProvider;
+
+        if (terminalClientFactory is not null && serviceProvider is null)
+            throw new ArgumentNullException(nameof(serviceProvider),
+                "An ITerminalClientFactory requires an IServiceProvider to resolve backends.");
     }
 
     /// <summary>

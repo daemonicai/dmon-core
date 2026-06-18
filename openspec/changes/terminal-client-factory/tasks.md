@@ -17,6 +17,6 @@
 
 ## 4. Tests
 
-- [ ] 4.1 Test `AbilityRegistry.ForScope`: a scope returns only its own tools; case-insensitive match; empty registry returns empty list for any scope; unknown scope returns empty list; multiple providers of the same scope are all discovered; `IToolExtension`-registered tools do NOT appear
-- [ ] 4.2 Test the `Build()` hook: a builder with an `ITerminalClientFactory` registered produces that factory's output as the terminal client; a builder without one uses the provider-registry active provider as before
-- [ ] 4.3 Confirm `make build` and `make test` are clean; `openspec validate terminal-client-factory --strict` passes
+- [x] 4.1 Test `AbilityRegistry.ForScope`: a scope returns only its own tools; case-insensitive match; empty registry returns empty list for any scope; unknown scope returns empty list; multiple providers of the same scope are all discovered; `IToolExtension`-registered tools do NOT appear
+- [x] 4.2 Test the `Build()` hook: a builder with an `ITerminalClientFactory` registered produces that factory's output as the terminal client; a builder without one uses the provider-registry active provider as before
+- [x] 4.3 Confirm `make build` and `make test` are clean; `openspec validate terminal-client-factory --strict` passes
