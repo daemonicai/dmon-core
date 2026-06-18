@@ -1,57 +1,8 @@
-# dmon provider configuration
-# See docs/adrs/ADR-001-llm-provider-abstraction.md for provider adapter types.
-#
-# `providers` is a MAP keyed by provider name (the name shown in /model).
-# Each entry:
-#   adapter:        IChatClient adapter — anthropic, openai, or gemini
-#   defaultModelId: Default model ID for this provider
-#   baseUrl:        Optional custom endpoint (Ollama, llama.cpp, oMLX)
-#   auth:
-#     type:         envVar | none
-#     envVar:       Name of the env var holding the API key (when type is envVar)
-
-providers:
-  anthropic:
-    adapter: anthropic
-    defaultModelId: claude-sonnet-4-6
-    auth:
-      type: envVar
-      envVar: ANTHROPIC_API_KEY
-
-  openai:
-    adapter: openai
-    defaultModelId: gpt-4o
-    auth:
-      type: envVar
-      envVar: OPENAI_API_KEY
-
-  gemini:
-    adapter: gemini
-    defaultModelId: gemini-2.5-pro
-    auth:
-      type: envVar
-      envVar: GEMINI_API_KEY
-
-  ollama:
-    adapter: ollama
-    defaultModelId: gemma4:31b-nvfp4
-    auth:
-      type: envVar
-      envVar: OLLAMA_HOST
-
-  llama.cpp:
-    adapter: openai
-    defaultModelId: llama3.2
-    baseUrl: http://localhost:8080/v1
-    auth:
-      type: none
-
-  oMLX:
-    adapter: openai
-    defaultModelId: mlx-community/Meta-Llama-3.1-8B-Instruct-4bit
-    baseUrl: http://localhost:8080/v1
-    auth:
-      type: none
+# dmon configuration
+# Providers are now declared in Dmon.cs via #:package directives and fluent verbs.
+# A verb with no arguments uses the factory's defaults; for a custom endpoint or
+# model use the verb overloads in Dmon.cs (e.g. UseOllama(baseUrl, model)).
+# See docs/adrs/ADR-022-composition-root-registration-facets.md.
 
 # Session storage settings
 Dmon:

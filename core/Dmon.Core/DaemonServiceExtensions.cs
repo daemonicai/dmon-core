@@ -78,7 +78,8 @@ public static class DmonServiceExtensions
         services.AddSingleton<IEnumerable<ProviderConfig>>(sp =>
         {
             ProviderConfigLoader loader = sp.GetRequiredService<ProviderConfigLoader>();
-            return loader.Load();
+            IEnumerable<IProviderFactory> factories = sp.GetServices<IProviderFactory>();
+            return ProviderConfigComposer.Compose(loader.Load(), factories);
         });
 
         services.AddSingleton<ICredentialFileStore, CredentialFileStore>();
