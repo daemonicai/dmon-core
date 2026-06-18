@@ -165,6 +165,10 @@ public sealed class CoreProcessManager : ICoreProcess
         psi.Environment["MSBUILDTERMINALLOGGER"] = "off";
         psi.ArgumentList.Add("build");
         psi.ArgumentList.Add(dmonCsPath);
+        // A file-based program's #:package directives always carry a version, which is
+        // incompatible with Central Package Management (NU1008). Force CPM off so Dmon.cs
+        // builds from any directory, including one under a CPM-managed Directory.Packages.props.
+        psi.ArgumentList.Add("-p:ManagePackageVersionsCentrally=false");
 
         using Process proc = new() { StartInfo = psi };
         proc.Start();
