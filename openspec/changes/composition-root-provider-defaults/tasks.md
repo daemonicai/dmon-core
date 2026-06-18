@@ -6,8 +6,8 @@
 
 ## 2. Registry empty-case relaxation
 
-- [ ] 2.1 Confirm `ProviderConfigLoader.Load()` returns an empty list (no throw) when the `providers:` section is absent; add a unit test pinning this if not already covered.
-- [ ] 2.2 Verify `ProviderRegistry.EnsureProviderConfigured` throws only on a genuinely empty composed list (no config AND no factories) and no longer fires when factories are wired; keep the existing warn-and-skip for config entries whose adapter has no factory.
+- [x] 2.1 Confirm `ProviderConfigLoader.Load()` returns an empty list (no throw) when the `providers:` section is absent; add a unit test pinning this if not already covered. (Already pinned by `Load_NoProvidersSection_ReturnsEmpty`.)
+- [x] 2.2 Verify `ProviderRegistry.EnsureProviderConfigured` throws only on a genuinely empty composed list (no config AND no factories) and no longer fires when factories are wired; keep the existing warn-and-skip for config entries whose adapter has no factory. (Verified: throw is resolve-time via `GetCurrentConfig`/`GetCurrentAsync`; pinned by `Constructor_EmptyConfigs_Succeeds`, `GetCurrentConfig_EmptyConfigs_ThrowsInvalidOperation`, `Constructor_UnknownAdapter_ExcludesConfigAndDoesNotThrow`. No code change needed.)
 
 ## 3. Composition root + config
 

@@ -34,8 +34,8 @@ The system SHALL synthesize a default `ProviderConfig` for each wired cloud `IPr
 
 #### Scenario: No providers map and no wired factories is fatal
 - **WHEN** `config.yaml` has no `providers:` map AND no `Use<Provider>()` verb has been called
-- **THEN** `ProviderRegistry` throws `InvalidOperationException` ("At least one provider must be configured.")
+- **THEN** the registry constructs without throwing, but resolving the current provider (`GetCurrentConfig`/`GetCurrentAsync`) throws `InvalidOperationException` ("At least one provider must be configured.")
 
 #### Scenario: No providers map but a factory is wired is not fatal
 - **WHEN** `config.yaml` has no `providers:` map AND at least one `Use<Provider>()` verb has been called
-- **THEN** the registry is constructed successfully with the synthesized provider(s) and does not throw
+- **THEN** the registry is constructed successfully with the synthesized provider(s) and resolving the current provider does not throw
