@@ -82,5 +82,9 @@ graphify-out/
 # local pack staging directory (created by smoke scripts; not for source control)
 .pack-out/
 
+# root nuget.config wires the local .pack-out feed for running Dmon.cs directly;
+# it is developer-local — committing it breaks CI restore (no .pack-out in CI).
+/nuget.config
+
 # macOS
 .DS_Store
