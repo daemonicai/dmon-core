@@ -16,9 +16,9 @@
 
 ## 4. Tests
 
-- [ ] 4.1 Unit-test `ProviderConfigComposer`: synth-when-absent, suppress-when-config-represents-adapter, ordering (config first then factory order), keyless default when `DefaultEnvVar` empty.
-- [ ] 4.2 Registry/resolver tests: verb-only provider is listed and its env-var key resolves via `CredentialResolver` (shared list); no-config+factory does not throw; no-config+no-factory throws; unknown-adapter config entry warns and is skipped.
-- [ ] 4.3 `make build` clean (TreatWarningsAsErrors) and `make test` green.
+- [x] 4.1 Unit-test `ProviderConfigComposer`: synth-when-absent, suppress-when-config-represents-adapter, ordering (config first then factory order), keyless default when `DefaultEnvVar` empty.
+- [x] 4.2 Registry/resolver tests: verb-only provider is listed and its env-var key resolves via `CredentialResolver` (shared list); no-config+factory does not throw; no-config+no-factory throws; unknown-adapter config entry warns and is skipped.
+- [x] 4.3 `make build` clean (TreatWarningsAsErrors) and `make test` green.
 
 ## 5. Spec sync
 
