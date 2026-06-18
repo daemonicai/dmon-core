@@ -11,8 +11,8 @@
 
 ## 3. Composition root + config
 
-- [ ] 3.1 Update root `Dmon.cs` to wire providers explicitly via verbs (`UseAnthropic().UseOpenAI().UseGemini().UseOllama()` plus the matching `#:package Dmon.Providers.*` directives) alongside `AddBuiltinTools()`.
-- [ ] 3.2 Remove the `providers:` map from `.dmon/config.yaml`, keeping the `Dmon:` session/provider/compaction settings.
+- [x] 3.1 Update root `Dmon.cs` to wire providers explicitly via verbs (`UseAnthropic().UseOpenAI().UseGemini().UseOllama().UseMtplx()` plus the matching `#:package Dmon.Providers.*` directives) alongside `AddBuiltinTools()` — matches `default-core/Dmon.cs`.
+- [x] 3.2 Remove the `providers:` map from `.dmon/config.yaml`, keeping the `Dmon:` session/provider/compaction settings.
 
 ## 4. Tests
 
