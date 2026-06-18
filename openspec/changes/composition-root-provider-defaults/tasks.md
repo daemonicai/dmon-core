@@ -22,5 +22,5 @@
 
 ## 5. Spec sync
 
-- [ ] 5.1 `openspec validate composition-root-provider-defaults --strict` passes.
-- [ ] 5.2 Manual verification recipe: run `build/dmon` in the repo root, confirm no "in config but no factory" warnings and that `[Ready]` reports with the wired providers selectable.
+- [x] 5.1 `openspec validate composition-root-provider-defaults --strict` passes.
+- [x] 5.2 Manual verification recipe: run `build/dmon` in the repo root, confirm no "in config but no factory" warnings and that `[Ready]` reports with the wired providers selectable.

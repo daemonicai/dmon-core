@@ -60,6 +60,7 @@ The merged list is `config-derived first` (preserving today's index-0 = first co
 - [A config entry under a custom name suppresses the synthesized default for that adapter] → Documented in Decision 2; users wanting both add an explicit `anthropic: { adapter: anthropic }` entry. Low impact (uncommon).
 - [Spec reconciliation is technically a normative change to shipped behavior] → It only aligns the spec with code that already shipped under ADR-023 D7; no runtime behavior changes for that path.
 - [Removing `providers:` from the default `config.yaml` is user-visible] → Intended; the new `Dmon.cs` is the documented place to declare providers, and `config.yaml` overrides still work for customization.
+- [Extension-based providers (`IProviderExtension`, e.g. Ollama via `UseOllama()`) are NOT covered by `ProviderConfigComposer`] → Their factory is materialized by `ProviderRegistry.RegisterExtensionAsync` **after** the ctor, not registered as an `IProviderFactory` DI singleton, so the composer never sees it. Two consequences when a `config.yaml` entry names such an adapter: (1) the ctor warns "in config but no factory registered" spuriously (the extension factory isn't materialized yet), and (2) `RegisterExtensionAsync` synthesizes the config purely from factory defaults, **discarding the config override** (custom `defaultModelId`/`auth`/`baseUrl`). The provider is still usable from its defaults. This is **deferred** — see Open Questions; this change scopes the parity fix to cloud `IProviderFactory` verbs only, matching its Goals/Non-Goals.
 
 ## Migration Plan
 
@@ -69,4 +70,4 @@ The merged list is `config-derived first` (preserving today's index-0 = first co
 
 ## Open Questions
 
-None.
+**Deferred (follow-up change): extension-provider config-merge parity.** Verification (task 5.2) surfaced that the "config entry overrides a synthesized default by name" guarantee holds only for cloud `IProviderFactory` verbs, not for `IProviderExtension` providers (Ollama). Bringing extensions to full parity requires either (a) having extension verbs also contribute to the composer's pre-ctor view, or (b) teaching `RegisterExtensionAsync` to merge a matching `config.yaml` entry before synthesizing from factory defaults — and suppressing the ctor warn-and-skip for adapters a wired extension will later cover. Tracked for a separate change; out of scope here (see the corresponding Risks/Trade-offs bullet).
