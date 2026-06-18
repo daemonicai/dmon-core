@@ -91,6 +91,18 @@ public sealed class DmonHostBuilder : IDmonHostBuilder
     }
 
     /// <summary>
+    /// Registers <typeparamref name="TProvider"/> as an <see cref="IAbilityProvider"/>
+    /// singleton via DI-discovery. <c>AbilityRegistry.ForScope</c> enumerates registered
+    /// providers; <typeparamref name="TProvider"/> never enters the global tool pipeline.
+    /// </summary>
+    public DmonHostBuilder AddAbilities<TProvider>()
+        where TProvider : class, IAbilityProvider
+    {
+        Services.AddSingleton<IAbilityProvider, TProvider>();
+        return this;
+    }
+
+    /// <summary>
     /// Registers <typeparamref name="TMiddleware"/> via DI-discovery. An optional
     /// <paramref name="priorityOverride"/> beats the <see cref="DmonMiddlewareAttribute"/> priority.
     /// </summary>

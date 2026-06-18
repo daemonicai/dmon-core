@@ -1,5 +1,6 @@
 using System.Runtime.CompilerServices;
 using Dmon.Abstractions;
+using Dmon.Abstractions.Hosting;
 using Dmon.Abstractions.Memory;
 using Dmon.Abstractions.Providers;
 using Dmon.Core.Extensions;
@@ -270,6 +271,47 @@ internal static class TurnHandlerFactory
             new NoopSessionAssetProvisioner(),
             NullLogger<TurnHandler>.Instance,
             sessionStore: sessionStore);
+
+        return (handler, emitter);
+    }
+
+    public static (TurnHandler handler, TestEventEmitter emitter) Create(
+        IProviderRegistry providers,
+        ITerminalClientFactory? terminalClientFactory,
+        IServiceProvider? serviceProvider,
+        TestEventEmitter? emitter = null,
+        IActiveModelStore? store = null,
+        ISessionHandler? sessionHandler = null,
+        ISessionStore? sessionStore = null,
+        IToolRegistry? tools = null)
+    {
+        emitter ??= new TestEventEmitter();
+        IToolRegistry toolRegistry = tools ?? new EmptyToolRegistry();
+        PermitAllPolicy policy = new();
+        NoopThinkingHandler thinking = new();
+        sessionHandler ??= new StubSessionHandler();
+        StubSystemPromptBuilder systemPromptBuilder = new();
+        IConfiguration configuration = new ConfigurationBuilder().Build();
+        store ??= new NoopActiveModelStore();
+
+        MiddlewarePipelineBuilder pipelineBuilder = new(new MiddlewareRegistry(), configuration);
+
+        TurnHandler handler = new(
+            providers,
+            store,
+            toolRegistry,
+            emitter,
+            policy,
+            thinking,
+            sessionHandler,
+            systemPromptBuilder,
+            pipelineBuilder,
+            configuration,
+            new NoopSessionAssetProvisioner(),
+            NullLogger<TurnHandler>.Instance,
+            sessionStore: sessionStore,
+            terminalClientFactory: terminalClientFactory,
+            serviceProvider: serviceProvider);
 
         return (handler, emitter);
     }
