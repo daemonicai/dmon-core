@@ -114,6 +114,20 @@ public static class DmonRegistrationExtensions
         return builder;
     }
 
+    // ── IToolRegistration: abilities ─────────────────────────────────────────
+
+    /// <summary>
+    /// Registers a pre-constructed <see cref="IAbilityProvider"/> instance via DI-discovery.
+    /// <c>AbilityRegistry.ForScope</c> enumerates all registered <see cref="IAbilityProvider"/>
+    /// instances; this provider never enters the global tool pipeline.
+    /// </summary>
+    public static T AddAbilities<T>(this T registration, IAbilityProvider provider)
+        where T : IToolRegistration
+    {
+        registration.Services.AddSingleton<IAbilityProvider>(provider);
+        return registration;
+    }
+
     // ── IProviderRegistration ─────────────────────────────────────────────────
 
     /// <summary>

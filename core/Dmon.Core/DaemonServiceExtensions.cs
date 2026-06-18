@@ -145,6 +145,10 @@ public static class DmonServiceExtensions
         services.AddSingleton<BootstrapService>();
         services.AddSingleton<SetupCheckService>();
 
+        // AbilityRegistry: resolves AITool sets by scope for terminal-client sub-agents.
+        // Resolves fine with zero IAbilityProvider registrations — ForScope returns empty list.
+        services.AddSingleton<AbilityRegistry>();
+
         services.AddHttpClient();
 
         // Engine-internal tools: extension discovery. These are always-on and

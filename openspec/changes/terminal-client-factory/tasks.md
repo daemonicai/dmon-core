@@ -5,10 +5,10 @@
 
 ## 2. AbilityRegistry
 
-- [ ] 2.1 Implement `sealed class AbilityRegistry` in `core/Dmon.Core` that accepts `IEnumerable<IAbilityProvider>` via constructor injection
-- [ ] 2.2 Implement `IList<AITool> ForScope(string scope)` — returns all tools from providers whose `Scope` matches `scope` using `OrdinalIgnoreCase`; never returns tools from another scope; built per-call (not cached)
-- [ ] 2.3 Register `AbilityRegistry` as a singleton in `AddDmonCore()` so it is resolvable from DI whether or not any `IAbilityProvider` is registered
-- [ ] 2.4 Implement `AddAbilities<T>()` extension on `IToolRegistration` (self-typed `where T2 : IToolRegistration` per the verb grammar) that registers `T` as an `IAbilityProvider` singleton via `Services.AddSingleton<IAbilityProvider, T>()` — same pattern as `AddToolExtension<T>()`
+- [x] 2.1 Implement `sealed class AbilityRegistry` in `core/Dmon.Core` that accepts `IEnumerable<IAbilityProvider>` via constructor injection
+- [x] 2.2 Implement `IList<AITool> ForScope(string scope)` — returns all tools from providers whose `Scope` matches `scope` using `OrdinalIgnoreCase`; never returns tools from another scope; built per-call (not cached)
+- [x] 2.3 Register `AbilityRegistry` as a singleton in `AddDmonCore()` so it is resolvable from DI whether or not any `IAbilityProvider` is registered
+- [x] 2.4 Implement `AddAbilities<T>()` extension on `IToolRegistration` (self-typed `where T2 : IToolRegistration` per the verb grammar) that registers `T` as an `IAbilityProvider` singleton via `Services.AddSingleton<IAbilityProvider, T>()` — same pattern as `AddToolExtension<T>()`
 
 ## 3. Build() hook
 
