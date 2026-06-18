@@ -31,9 +31,7 @@ public static class InitCommand
         File.WriteAllText(outputPath, content);
         stdout.WriteLine($"Created {outputPath}");
         stdout.WriteLine();
-        stdout.WriteLine("Next steps:");
-        stdout.WriteLine($"  dotnet build {FileName}   # compile the composition root");
-        stdout.WriteLine($"  dotnet run {FileName}     # run the core");
+        stdout.WriteLine("Run `dmon` to start.");
         return 0;
     }
 
@@ -52,9 +50,6 @@ public static class InitCommand
 //       .AddToolExtension<Acme.DmonExt.AcmeExtension>()
 //       .Build()
 //       .RunAsync();
-//
-// Build:  dotnet build {FileName}
-// Run:    dotnet run {FileName}
 #:package dmoncore@{pin}.*
 #:package Dmon.Tools.Builtin@{pin}.*
 
