@@ -1,7 +1,7 @@
 ## 1. Contracts in Dmon.Abstractions
 
-- [ ] 1.1 Define `interface ITerminalClientFactory` with `IChatClient Create(IServiceProvider services)` in `core/Dmon.Abstractions` — the hook `DmonHostBuilder.Build()` checks before falling back to the provider-registry active provider
-- [ ] 1.2 Define `interface IAbilityProvider` with `string Scope { get; }` and `IEnumerable<AITool> Tools { get; }` in `core/Dmon.Abstractions` — the DI-discovery contract for ability registration; no scope constants are defined in `Dmon.Abstractions`
+- [x] 1.1 Define `interface ITerminalClientFactory` with `IChatClient Create(IServiceProvider services)` in `core/Dmon.Abstractions` — the hook `DmonHostBuilder.Build()` checks before falling back to the provider-registry active provider
+- [x] 1.2 Define `interface IAbilityProvider` with `string Scope { get; }` and `IEnumerable<AITool> Tools { get; }` in `core/Dmon.Abstractions` — the DI-discovery contract for ability registration; no scope constants are defined in `Dmon.Abstractions`
 
 ## 2. AbilityRegistry
 
