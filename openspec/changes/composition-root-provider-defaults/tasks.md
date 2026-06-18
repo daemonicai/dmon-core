@@ -1,8 +1,8 @@
 ## 1. Default synthesis + merge
 
-- [ ] 1.1 Add a `ProviderConfigComposer` (helper/class in `core/Dmon.Core/Providers/`) with `Compose(IReadOnlyList<ProviderConfig> fromConfig, IEnumerable<IProviderFactory> factories) : IReadOnlyList<ProviderConfig>` that appends a synthesized default for each factory whose `AdapterName` is not already the `Adapter` of any config entry (case-insensitive), config entries first then synthesized in factory order.
-- [ ] 1.2 Implement the synthesized-default shape per design Decision 2: `Name`=`Adapter`=`AdapterName`, `DefaultModelId`=`factory.DefaultModelId`, `Auth`=`{ Type="envVar", EnvVar=DefaultEnvVar }` when `DefaultEnvVar` non-empty else `{ Type="none" }`, `BaseUrl`=null.
-- [ ] 1.3 Wire the composer into the shared `IEnumerable<ProviderConfig>` registration in `DaemonServiceExtensions.AddDmonCore` (resolve `IEnumerable<IProviderFactory>` and the loader result, return the composed list) so `ProviderRegistry` and `CredentialResolver` share it.
+- [x] 1.1 Add a `ProviderConfigComposer` (helper/class in `core/Dmon.Core/Providers/`) with `Compose(IReadOnlyList<ProviderConfig> fromConfig, IEnumerable<IProviderFactory> factories) : IReadOnlyList<ProviderConfig>` that appends a synthesized default for each factory whose `AdapterName` is not already the `Adapter` of any config entry (case-insensitive), config entries first then synthesized in factory order.
+- [x] 1.2 Implement the synthesized-default shape per design Decision 2: `Name`=`Adapter`=`AdapterName`, `DefaultModelId`=`factory.DefaultModelId`, `Auth`=`{ Type="envVar", EnvVar=DefaultEnvVar }` when `DefaultEnvVar` non-empty else `{ Type="none" }`, `BaseUrl`=null.
+- [x] 1.3 Wire the composer into the shared `IEnumerable<ProviderConfig>` registration in `DaemonServiceExtensions.AddDmonCore` (resolve `IEnumerable<IProviderFactory>` and the loader result, return the composed list) so `ProviderRegistry` and `CredentialResolver` share it.
 
 ## 2. Registry empty-case relaxation
 
