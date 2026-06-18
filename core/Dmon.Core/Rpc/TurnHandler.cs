@@ -37,6 +37,8 @@ public sealed class TurnHandler : ITurnHandler
     private readonly AssetsOptions? _assetsOptions;
     private readonly PermissionModeOptions? _permissionModeOptions;
     private readonly ILogger<TurnHandler> _logger;
+    private readonly ITerminalClientFactory? _terminalClientFactory;
+    private readonly IServiceProvider? _serviceProvider;
 
     // Pending confirm/ui-input response channels keyed by request id.
     private readonly ConcurrentDictionary<string, TaskCompletionSource<bool>> _pendingConfirms = new();
@@ -72,7 +74,9 @@ public sealed class TurnHandler : ITurnHandler
         ILogger<TurnHandler> logger,
         AssetsOptions? assetsOptions = null,
         PermissionModeOptions? permissionModeOptions = null,
-        ISessionStore? sessionStore = null)
+        ISessionStore? sessionStore = null,
+        ITerminalClientFactory? terminalClientFactory = null,
+        IServiceProvider? serviceProvider = null)
     {
         _providers = providers;
         _activeModelStore = activeModelStore;
@@ -89,6 +93,8 @@ public sealed class TurnHandler : ITurnHandler
         _assetsOptions = assetsOptions;
         _permissionModeOptions = permissionModeOptions;
         _logger = logger;
+        _terminalClientFactory = terminalClientFactory;
+        _serviceProvider = serviceProvider;
     }
 
     /// <summary>
@@ -265,7 +271,11 @@ public sealed class TurnHandler : ITurnHandler
         while (true)
         {
             // Build the pipeline per-turn so provider switches take effect immediately.
-            IChatClient providerClient = await _providers.GetCurrentAsync(cancellationToken).ConfigureAwait(false);
+            // If a terminal-client factory is registered, it supplies the base client; otherwise
+            // fall through to the provider-registry active provider (no-factory path unchanged).
+            IChatClient providerClient = _terminalClientFactory is not null
+                ? _terminalClientFactory.Create(_serviceProvider!)
+                : await _providers.GetCurrentAsync(cancellationToken).ConfigureAwait(false);
             // Fold user middleware over the raw provider client. Instances live for the process
             // lifetime (D6 — no hot-reload); only the Wrap call repeats each turn so that the
             // fresh providerClient (rebuilt on model/provider switch) is always the innermost layer.

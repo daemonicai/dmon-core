@@ -10,10 +10,10 @@
 - [x] 2.3 Register `AbilityRegistry` as a singleton in `AddDmonCore()` so it is resolvable from DI whether or not any `IAbilityProvider` is registered
 - [x] 2.4 Implement `AddAbilities<T>()` extension on `IToolRegistration` (self-typed `where T2 : IToolRegistration` per the verb grammar) that registers `T` as an `IAbilityProvider` singleton via `Services.AddSingleton<IAbilityProvider, T>()` — same pattern as `AddToolExtension<T>()`
 
-## 3. Build() hook
+## 3. Terminal-client materialization hook
 
-- [ ] 3.1 Add `ITerminalClientFactory` resolution to `DmonHostBuilder.Build()`: after provider/middleware DI-discovery, check `host.Services.GetService<ITerminalClientFactory>()`; if present, call `Create(host.Services)` for the terminal `IChatClient`; otherwise use the existing provider-registry path — do not change the fallback behaviour
-- [ ] 3.2 Confirm the terminal client produced by the factory flows through the rest of `Build()` (permission gate, retry, etc.) identically to a provider-registry client, or document precisely where it diverges and why
+- [x] 3.1 At the terminal-client materialization point (`TurnHandler.RunTurnAsync`, where `_providers.GetCurrentAsync(...)` supplies the base client), resolve an optional `ITerminalClientFactory` from DI; if present, use `factory.Create(services)` as the base terminal `IChatClient` instead of the provider-registry active provider; if absent, use the existing provider-registry path **byte-for-byte unchanged**. (`DmonHostBuilder.Build()` does not construct the terminal client, so the hook lives here, not in `Build()`.)
+- [x] 3.2 Confirm the factory's output flows through the existing wrappers (middleware fold, retry, function-invocation, permission gate) identically to a provider-registry client; keep the no-factory path unchanged. Note the provider-switch interaction (a factory-supplied router is not a switchable provider) as a Phase-3/daemon-app concern — do not attempt to reconcile switching here.
 
 ## 4. Tests
 
