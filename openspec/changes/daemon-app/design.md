@@ -96,7 +96,7 @@ IChatClient target = route switch
 };
 ```
 
-`EgressThreshold` defaults to `0.8f`, configurable via `TriageOptions`. Privacy does not depend on which client is selected: `AbilityRegistry.ForScope(route.Scope)` builds the manifest, so even if egress were reached on a personal turn it would carry no personal tools. A `Tier.Reasoner` turn dispatches to the local reasoner *regardless of scope* — a world+reasoner turn runs locally with the world (web) manifest (the stubbed "WebSearch + 26B synthesis" path); scope still governs the manifest, tier governs the backend.
+`EgressThreshold` defaults to `0.8f`, configurable via `TriageOptions`. Privacy does not depend on which client is selected: `AbilityRegistry.ForScope(effectiveScope)` builds the manifest, so even if egress were reached on a personal turn it would carry no personal tools. **The switch arms are ordered, so egress takes precedence:** a `Tier.Reasoner` turn dispatches to the local reasoner **only when it does not meet the egress condition** — a world+impersonal+confident turn goes to egress even if its tier is `Reasoner`. A reasoner-tier turn that is *not* egress-eligible (personal scope, or not impersonal, or low confidence) runs locally on the reasoner with that turn's scope-gated manifest; scope still governs the manifest, tier governs the backend among the non-egress arms.
 
 #### R6: Egress is provider-agnostic — explicit AddEgress(IChatClient) (resolves former OQ-B)
 

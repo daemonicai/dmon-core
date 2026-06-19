@@ -105,9 +105,11 @@ public sealed class TriageRouter : DelegatingChatClient
         ChatResponse<RouteDecision> classifyResponse = await _classifier.GetResponseAsync<RouteDecision>(
             messages,
             cancellationToken: cancellationToken);
-        // A1: if the model returns unparseable JSON, Result is null — fail safe to personal (R4).
-        RouteDecision raw = classifyResponse.Result
-            ?? new RouteDecision("personal", Tier.Direct, Impersonal: false, Confidence: 1f);
+        // A1: Result throws JsonException on unparseable JSON (never returns null in M.E.AI 10.5+).
+        // TryGetResult returns false without throwing — fail safe to confident-personal (R4).
+        RouteDecision raw = classifyResponse.TryGetResult(out RouteDecision? parsed) && parsed is not null
+            ? parsed
+            : new RouteDecision("personal", Tier.Direct, Impersonal: false, Confidence: 1f);
 
         // R4/R7: privacy gate — override world→personal when confidence is below threshold.
         string effectiveScope = raw.Scope;

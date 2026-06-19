@@ -58,5 +58,6 @@
     <Project Path="test\Dcal.Tests\Dcal.Tests.csproj" />
     <Project Path="test\Dmon.Tools.Dmail.Tests\Dmon.Tools.Dmail.Tests.csproj" />
     <Project Path="test\Dmon.Tools.WebSearch.Tests\Dmon.Tools.WebSearch.Tests.csproj" />
+    <Project Path="test\Daemon.Routing.Tests\Daemon.Routing.Tests.csproj" />
   </Folder>
 </Solution>

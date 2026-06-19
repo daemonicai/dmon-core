@@ -2,4 +2,7 @@
   <Folder Name="/daemon/">
     <Project Path="daemon\Daemon.Routing\Daemon.Routing.csproj" />
   </Folder>
+  <Folder Name="/test/">
+    <Project Path="test\Daemon.Routing.Tests\Daemon.Routing.Tests.csproj" />
+  </Folder>
 </Solution>

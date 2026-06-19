@@ -71,8 +71,8 @@
 
 ## 11. Routing tests
 
-- [ ] 11.1 Add `test/Daemon.Routing.Tests/` xUnit project; add to solution files
-- [ ] 11.2 Test `TriageRouter.GetResponseAsync` routing invariants with a fake `IChatClient` classifier: `"personal"`/`Direct` → e2bWithTools; `"world"`/`Impersonal`/high-confidence → egress; `Tier.Reasoner` → reasoner; low-confidence `"world"` overridden to `"personal"`
-- [ ] 11.3 Test the privacy gate: `ChatOptions.Tools` passed to the dispatched client contains no `"world"`-scope tools on a `"personal"` turn, and no `"personal"`-scope tools on a `"world"` turn
-- [ ] 11.4 Test the misclassification counter: `dmon.triage.misclassify.personal_to_world` increments exactly once when the gate overrides `"world"`→`"personal"`, and not on a confident `"personal"` classification
-- [ ] 11.5 Test the terminal-client hook: a builder with `UseTriage(...)`/`AddReasoner(...)`/`AddEgress(...)` produces a `TriageRouter` as the terminal client
+- [x] 11.1 Add `test/Daemon.Routing.Tests/` xUnit project; add to solution files
+- [x] 11.2 Test `TriageRouter.GetResponseAsync` routing invariants with a fake `IChatClient` classifier: `"personal"`/`Direct` → e2bWithTools; `"world"`/`Impersonal`/high-confidence → egress; `Tier.Reasoner` → reasoner; low-confidence `"world"` overridden to `"personal"`
+- [x] 11.3 Test the privacy gate: `ChatOptions.Tools` passed to the dispatched client contains no `"world"`-scope tools on a `"personal"` turn, and no `"personal"`-scope tools on a `"world"` turn
+- [x] 11.4 Test the misclassification counter: `dmon.triage.misclassify.personal_to_world` increments exactly once when the gate overrides `"world"`→`"personal"`, and not on a confident `"personal"` classification
+- [x] 11.5 Test the terminal-client hook: a builder with `UseTriage(...)`/`AddReasoner(...)`/`AddEgress(...)` produces a `TriageRouter` as the terminal client
