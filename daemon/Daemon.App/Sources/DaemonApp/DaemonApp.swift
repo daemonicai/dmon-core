@@ -38,9 +38,10 @@ struct DaemonApp: App {
         }
 
         Settings {
-            // Placeholder settings; real SettingsView arrives in §10.
-            Text("Settings")
-                .padding()
+            // Pass the same GatewayManager instance used by the menu bar;
+            // Settings scenes do NOT inherit MenuBarExtra's environmentObject chain.
+            SettingsView()
+                .environmentObject(gateway)
         }
     }
 }

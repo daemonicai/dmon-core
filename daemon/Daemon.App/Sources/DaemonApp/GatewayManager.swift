@@ -10,6 +10,9 @@ final class GatewayManager: ObservableObject {
     // Settable override for the Gateway binary path (§10 wires this from Settings).
     var gatewayPathOverride: String?
 
+    // Settings-panel values surfaced to the core via env on (re)launch (§10.3).
+    var settingsEnvironment: [String: String] = [:]
+
     private var process: Process?
     private var currentBackoff: TimeInterval = 2
     // Prevents terminationHandler from scheduling a restart on an intentional stop.
@@ -32,6 +35,12 @@ final class GatewayManager: ObservableObject {
         let p = Process()
         p.executableURL = url
         p.arguments = ["--agent", "daemon/Daemon.cs"]
+
+        // Surface Settings-panel values to the core via env on (re)launch (§10.3).
+        // Settings keys override inherited env; everything else passes through unchanged.
+        if !settingsEnvironment.isEmpty {
+            p.environment = ProcessInfo.processInfo.environment.merging(settingsEnvironment) { _, new in new }
+        }
 
         p.terminationHandler = { [weak self] terminatedProcess in
             // terminationHandler fires on an arbitrary background thread.

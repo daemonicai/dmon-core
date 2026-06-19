@@ -15,10 +15,10 @@
 
 ## 3. Monorepo wiring for daemon/
 
-- [ ] 3.1 The root `daemon.slnx` already exists; after 2.2 it no longer references the calendar server (moved to `services/`) — add `Daemon.Routing` to it in §4
-- [ ] 3.2 Ensure the root `daemon.slnx` / `services.slnx` and `Everything.slnx` include all C# projects in both buckets
+- [x] 3.1 The root `daemon.slnx` already exists; after 2.2 it no longer references the calendar server (moved to `services/`) — add `Daemon.Routing` to it in §4
+- [x] 3.2 Ensure the root `daemon.slnx` / `services.slnx` and `Everything.slnx` include all C# projects in both buckets
 - [x] 3.3 Add a `Makefile` target `daemon-app` that runs `swift build -c release` from `daemon/Daemon.App/`; confirm `make build` (C# only) is unaffected
-- [ ] 3.4 Add a `Directory.Build.props` stub under `daemon/` that sets `<RootNamespace>Daemon</RootNamespace>` and `<AssemblyName>Daemon.$(MSBuildProjectName)</AssemblyName>` defaults for C# projects in the bucket, chain-importing the root
+- [x] 3.4 **N/A — not added (would be harmful as worded).** A `daemon/Directory.Build.props` setting `<AssemblyName>Daemon.$(MSBuildProjectName)</AssemblyName>` would rename the existing `Daemon.Routing` assembly to `Daemon.Daemon.Routing` (double-prefix, since its `MSBuildProjectName` is already `Daemon.Routing`). No daemon C# project needs `Daemon.*` assembly-name defaults — `Daemon.Routing` builds clean without it and `Daemon.cs` is a file-based program (props don't apply). Revisit if a second, un-prefixed daemon C# project lands.
 
 ## 4. Daemon.Routing — triage router policy
 
@@ -64,10 +64,10 @@
 
 ## 10. Settings panel
 
-- [ ] 10.1 Implement `SettingsView` as a SwiftUI `Settings` scene with sections: Inference (e2b URL, reasoner URL, Gemini key), Calendar (iCal URL, API key, sync interval, recurrence horizon), Email (Dmail URL, API key), Advanced (confidence threshold, Gateway path)
-- [ ] 10.2 Store API keys in macOS Keychain via `Security.framework` (`SecItemAdd`/`SecItemUpdate`/`SecItemCopyMatching`); store non-secret settings in `~/.dmon/config.yaml`; confirm unsigned dev builds fall back to config.yaml with a visible warning
-- [ ] 10.3 On settings save: write `~/.dmon/config.yaml`; call `GatewayManager.restart()` after showing a confirmation alert ("Saving will restart the Daemon session. Continue?")
-- [ ] 10.4 Implement login item toggle using `SMAppService.mainApp.register()` / `.unregister()`; default to registered on first launch; persist toggle state in `UserDefaults`
+- [x] 10.1 Implement `SettingsView` as a SwiftUI `Settings` scene with sections: Inference (e2b URL, reasoner URL, Gemini key), Calendar (iCal URL, API key, sync interval, recurrence horizon), Email (Dmail URL, API key), Advanced (confidence threshold, Gateway path)
+- [x] 10.2 Store API keys in macOS Keychain via `Security.framework` (`SecItemAdd`/`SecItemUpdate`/`SecItemCopyMatching`); store non-secret settings in `~/.dmon/config.yaml`; confirm unsigned dev builds fall back to config.yaml with a visible warning
+- [x] 10.3 On settings save: write `~/.dmon/config.yaml`; call `GatewayManager.restart()` after showing a confirmation alert ("Saving will restart the Daemon session. Continue?")
+- [x] 10.4 Implement login item toggle using `SMAppService.mainApp.register()` / `.unregister()`; default to registered on first launch; persist toggle state in `UserDefaults`
 
 ## 11. Routing tests
 
