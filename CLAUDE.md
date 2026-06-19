@@ -71,48 +71,51 @@ Use `/opsx:propose` to create a new change. This generates a proposal, design, s
 
 Use `/opsx:apply`. **This subsection is authoritative** — if the skill's behaviour ever conflicts with what's written here, follow this document.
 
-#### Roles — the main thread never writes feature code
+#### Roles — the main thread never plans or writes feature code
 
-- **Orchestrator** = the main thread (you). Reads specs, selects work, briefs agents, runs the gates, ticks boxes, and commits. **Does not implement feature code directly.**
-- **`worker`** agent — implements the tasks of one group.
-- **`reviewer`** agent — audits the worker's diff and **reports findings; it does not edit code.**
+- **Orchestrator** = the main thread (you). You drive the loop: run pre-flight, spawn agents, run the gates, tick boxes, keep `DEVLOG.md` current, handle the user conversation, and commit. **You do not plan the blocks, write the briefs, or implement feature code directly** — those belong to the architect and worker.
+- **`architect`** agent (Opus) — looks at the remaining tasks and picks the **smallest reasonable, independently gate-passing block** of work (one task or a small contiguous range), then writes the self-contained brief for the worker. Plans and briefs only; never edits, spawns, or commits. Flags stop-and-ask blockers (including any task that would contradict a binding ADR) instead of briefing around them.
+- **`worker`** agent (Sonnet) — implements the block from the architect's brief; writes tests; leaves the tree green.
+- **`reviewer`** agent (Opus) — audits the worker's block diff and **reports findings; it does not edit code.**
 
-Both agents are defined in `.claude/agents/`. Delegate; don't shortcut by implementing yourself.
+All three agents are defined in `.claude/agents/`. Delegate; don't shortcut by planning, briefing, or implementing yourself.
 
-#### Pre-flight (before any group)
+#### Pre-flight (orchestrator, once before the first block)
 
-1. Read `proposal.md`, `design.md`, the relevant `specs/<capability>/spec.md`, and any ADRs the change touches.
+1. Skim `proposal.md` and `design.md` for context (the **architect** reads them — and the specs and ADRs — in depth when it plans each block).
 2. **Working tree must be clean** (`git status`). If dirty, stop and ask.
 3. **Change must validate:** `openspec validate <slug> --strict`. If not, stop and ask.
 4. **Be on the change branch** `change/<slug>`. Create it from `main` if missing: `git switch -c change/<slug>`.
 
-#### Per group — the unit of work is one `## N.` group in `tasks.md`
+#### Implement — architect-planned blocks
 
-Walk groups in order from the first unticked `- [ ]` task. For each:
+The unit of work is a **block**: the **smallest reasonable, independently gate-passing** slice of remaining tasks — one task (e.g. `1.3`) or a small contiguous range (e.g. `1.3`–`1.5`). The **architect** chooses each block; you don't pick it yourself. Loop until every task in the change is ticked:
 
-1. **Brief the worker.** Hand it that group's tasks (`N.1`…`N.k`), the relevant spec excerpts, the binding design decisions / ADRs, and the gates below. Only that group — do not let it stray into later groups.
-2. **Worker implements the whole group.** Large groups may span multiple `worker` calls but remain **one commit**.
-3. **Audit.** Spawn `reviewer` on the group's diff (correctness, ADR compliance, OpenSpec scope, C# idiom, agentic-AI design quality, security).
-4. **Review loop.** Feed the reviewer's findings to the `worker`; worker fixes; `reviewer` re-audits. **Repeat until the reviewer signs off.**
+1. **Plan the block (architect).** Spawn the `architect`. It reads `tasks.md` (ticked state), `proposal.md`, `design.md`, the relevant specs, the binding ADRs, and `DEVLOG.md`, then returns **(a)** the block's task ids + deliverable name and **(b)** a self-contained worker brief (tasks, binding spec/ADR excerpts, design decisions, already-resolved `DEVLOG` decisions, scope boundaries, investigation pointers, contract/permission/persistence hazards, gates).
+   - The architect is spawned **fresh each block** — so the **`DEVLOG.md` is its cross-block memory**. Keep the DEVLOG current (step 7) or the architect plans blind. (Maintain `DEVLOG.md` via the devlog skill.)
+   - **If the architect flags a BLOCKER** (ambiguity, contradiction, unresolved Open Question, out-of-scope need, spec-looks-wrong, or a task that would contradict a binding ADR), go to *Stop and ask* — don't brief around it.
+2. **Brief the worker.** Hand the architect's brief to the `worker` verbatim (add the gates below if the architect didn't). The worker implements the **whole block** — splittable across multiple `worker` calls if needed, but it remains **one commit** at block end.
+3. **Audit.** Spawn `reviewer` on the **block diff** (correctness, ADR compliance, OpenSpec scope, C# idiom, agentic-AI design quality, security).
+4. **Review loop.** Feed the reviewer's findings to the `worker`; worker fixes; `reviewer` re-audits. **Repeat until the reviewer signs off.** (Doc-only spec/design realignments and the `DEVLOG.md` are the orchestrator's to edit — agents don't.)
 5. **Gates — all must pass before ticking any box:**
    - `make build` clean (no errors; `TreatWarningsAsErrors` clean)
-   - `make test` (or `dotnet test -c Release`) green — new tests for the group **and** all existing tests
+   - `make test` (or `env -u MEKO_API_KEY make test` to avoid the live-Meko smoke hang) green — new tests for the block **and** all existing tests
    - `openspec validate <slug> --strict`
 
    If a gate fails, it's back to step 4, not a commit.
-6. **Tick the boxes.** Mark every `- [x] N.M` for the group in `tasks.md`. Never rewrite `tasks.md` wholesale — only flip `[ ]→[x]`.
-7. **Commit — one conventional commit per group**, scoped to the component, with the change slug in the body (`Change: <slug>`).
-8. **Report and pause.** Tell the user what landed and ask before the next group — unless told to "apply all groups" / "apply without pausing".
+6. **Tick the boxes.** Mark every `- [x] N.M` in the block in `tasks.md`. Never rewrite `tasks.md` wholesale — only flip `[ ]→[x]`.
+7. **Update the DEVLOG.** Record the block's decisions/deviations so the next (fresh) architect can plan.
+8. **Commit — one conventional commit per block**, scoped to the component, with the change slug in the body (`Change: <slug>`). Use the real task ids the block covered. Then loop back to step 1 for the next block.
 
 #### Stop and ask — do not improvise
 
-Stop immediately and ask the user when: a spec/design is **ambiguous** or two specs **contradict**; doing the task properly needs changes **outside this change's scope**; a task is **blocked by an unresolved Open Question** in `design.md`; implementation reveals the **spec itself is wrong**; or a task **requires human-in-the-loop verification** automated gates can't settle (give a precise, copy-pasteable verification recipe and wait for confirmation before ticking it).
+Stop **immediately** and ask the user (do not improvise a fix) — whether surfaced by the **architect** while planning, the **worker** mid-implementation, or the **reviewer** — when: a spec/design is **ambiguous** or two specs **contradict**; doing the task properly needs changes **outside this change's scope**; a task is **blocked by an unresolved Open Question** in `design.md`; implementation reveals the **spec itself is wrong**; a task would require **contradicting a binding ADR** (the path is a superseding ADR the user must accept first); or a task **requires human-in-the-loop verification** automated gates can't settle (give a precise, copy-pasteable verification recipe and wait for confirmation before ticking it).
 
-**On stopping mid-group:** leave the WIP **uncommitted**, do **not** tick the group, do **not** revert. Report the **exact task (`N.M`)** that stopped you and why.
+**On stopping mid-block:** leave the WIP **uncommitted**, do **not** tick the block, do **not** revert. Report the **exact task (`N.M`)** that stopped you and why.
 
 #### Done
 
-When every task is ticked and the final review is clean: report groups completed, commits made, and the test summary; push the `change/<slug>` branch (and open a PR) when the user asks; then **propose `/opsx:archive`** and **wait for confirmation**. Do not archive automatically.
+When every task is ticked and the final review is clean: report blocks completed, commits made, and the test summary; push the `change/<slug>` branch (and open a PR) when the user asks; then **propose `/opsx:archive`** and **wait for confirmation**. Do not archive automatically.
 
 ### Archiving a change
 
