@@ -45,6 +45,6 @@ The repository SHALL provide one `.slnx` per area that has C# members (`core.sln
 
 #### Scenario: Swift package is excluded from the .NET solutions
 
-- **WHEN** `Everything.slnx` and `daemon/daemon.slnx` are inspected
+- **WHEN** `Everything.slnx` and the root `daemon.slnx` are inspected
 - **THEN** neither references `daemon/Daemon.App` (a Swift package)
 - **AND** `make daemon-app` builds it via `swift build -c release`

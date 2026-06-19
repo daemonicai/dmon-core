@@ -1,8 +1,2 @@
 <Solution>
-  <Folder Name="/daemon/">
-    <Project Path="daemon\Daemon.Calendar\Daemon.Calendar.csproj" />
-  </Folder>
-  <Folder Name="/test/">
-    <Project Path="test\Daemon.Calendar.Tests\Daemon.Calendar.Tests.csproj" />
-  </Folder>
 </Solution>
