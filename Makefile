@@ -1,4 +1,4 @@
-.PHONY: all build build-terminal build-core build-core-pack build-memory test pack smoke schema clean
+.PHONY: all build build-terminal build-core build-core-pack build-memory test pack smoke schema clean daemon-app
 
 CONFIG            ?= Release
 CORE_OUT          := build/dmoncore
@@ -58,3 +58,6 @@ schema:
 
 clean:
 	rm -rf build/
+
+daemon-app:
+	swift build -c release --package-path daemon/Daemon.App

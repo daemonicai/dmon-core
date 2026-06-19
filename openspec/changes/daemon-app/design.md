@@ -1,16 +1,19 @@
 ## Context
 
-ADR-025 named `daemon` as "keep separate (empty)" and left `dmonium` placement as Open Question B: "dmonium is a macOS frontend (`frontends/`, or its own app repo?); `dmon-swift` is a Swift frontend — does `frontends/` become polyglot (Swift outside `Everything.slnx`) or does Swift stay separate?" This change resolves that question by folding `daemon/` into the monorepo and landing `Daemon.App` (the macOS menu bar app — dmonium) in `daemon/Daemon.App/` as a Swift Package. `dmon-swift` (a likely client SDK for the Swift AR client) remains a separate open question and is not addressed here.
+ADR-025 named `daemon` as "keep separate (empty)" and left `dmonium` placement as Open Question B: "dmonium is a macOS frontend (`frontends/`, or its own app repo?); `dmon-swift` is a Swift frontend — does `frontends/` become polyglot (Swift outside `Everything.slnx`) or does Swift stay separate?" This change resolves that question via the accepted **ADR-028**, which folds `daemon/` into the monorepo (Daemon *composition*: `Daemon.cs` + `Daemon.Routing` + `Daemon.App`/dmonium) and adds a new **`services/`** bucket for standalone backing servers that pair with a `tools/` extension. `Daemon.App` (the macOS menu bar app — dmonium) lands in `daemon/Daemon.App/` as a Swift Package. `dmon-swift` (a likely client SDK for the Swift AR client) remains a separate open question and is not addressed here.
 
-The two other Phase changes (`terminal-client-factory`, `calendar-tool`) are prerequisites: the Phase 1 seams `IAbilityProvider`, `ITerminalClientFactory`, and `AbilityRegistry`, plus `Daemon.Calendar`, must exist before `Daemon.Routing` and `Daemon.cs` can compile. This change adds the `TriageRouter` policy itself (in `daemon/Daemon.Routing`) on top of those seams.
+The calendar capability is renamed **`dcal`** (ADR-028 D4), consistent with its shipped `DCAL_*` config: the iCal-sync server moves `daemon/Daemon.Calendar` → `services/Dcal`, the tool package `tools/Dmon.Tools.Calendar` → `tools/Dmon.Tools.Dcal` (verb `AddDcalAbilities()`), and the standing specs become `dcal-lookup`/`dcal-sync`.
+
+The two other Phase changes (`terminal-client-factory`, `calendar-tool`) are prerequisites: the Phase 1 seams `IAbilityProvider`, `ITerminalClientFactory`, and `AbilityRegistry`, plus the calendar tool/server (renamed to `dcal` here), must exist before `Daemon.Routing` and `Daemon.cs` can compile. This change adds the `TriageRouter` policy itself (in `daemon/Daemon.Routing`) on top of those seams.
 
 ## Goals / Non-Goals
 
 **Goals:**
-- Amend ADR-025 (new ADR-028 or a targeted amendment) to: fold `daemon/` into the monorepo; establish `daemon/Daemon.App` as the `dmonium` macOS app artifact; settle the Swift-in-frontends-or-daemon question.
+- ADR-028 (accepted): adds `daemon/` and a new `services/` bucket to the monorepo; establishes `daemon/Daemon.App` as the `dmonium` macOS app artifact; renames the calendar capability to `dcal`; settles the Swift-in-repo question.
+- New `services/` bucket: move + rename the iCal-sync server `daemon/Daemon.Calendar` → `services/Dcal`, and rename the tool `tools/Dmon.Tools.Calendar` → `tools/Dmon.Tools.Dcal` and the standing specs to `dcal-lookup`/`dcal-sync`.
 - `daemon/Daemon.App/` — Swift Package, SwiftUI macOS menu bar app (dmonium): Gateway process lifecycle, Tailscale monitoring, settings panel, login item.
-- `daemon/Daemon.cs` — C# composition root wiring `UseTriage`, `AddReasoner`, `AddEgress`, `AddCalendarAbilities`, `AddToolExtension<DmailExtension>`, and Meko memory.
-- `daemon/daemon.slnx` (created in Phase 2) incorporated into `Everything.slnx` for the C# projects; the Swift Package is outside `Everything.slnx` (not .NET) but noted in the bucket's README.
+- `daemon/Daemon.cs` — C# composition root wiring `UseTriage`, `AddReasoner`, `AddEgress`, `AddDcalAbilities`, `AddToolExtension<DmailExtension>`, and Meko memory.
+- `daemon/daemon.slnx` (C# composition projects) and `services/services.slnx` (the Dcal server) incorporated into `Everything.slnx`; the Swift Package is outside `Everything.slnx` (not .NET) but noted in the bucket's README.
 - CI: app-artifact job for `daemon/Daemon.App` producing a signed `.app`/`.dmg` (dmonium) as per ADR-025 D10 release matrix.
 
 **Non-Goals:**
@@ -24,9 +27,15 @@ The two other Phase changes (`terminal-client-factory`, `calendar-tool`) are pre
 
 ### D1: daemon/ folds into the monorepo; Daemon.App lands in daemon/, not frontends/
 
-ADR-025 D2 lists `dmonium` under `frontends/`. This design instead places `Daemon.App` in `daemon/Daemon.App/` to keep all Daemon-specific components (composition root, calendar server, menu bar app) in one cohesive bucket. The `dmonium` name from ADR-025 is preserved as the product name and `.app` bundle identifier (`ai.daemonic.dmonium`). The `frontends/` bucket retains host apps that are directly upstream of the dmon protocol surface (Terminal, Gateway, Desktop); the menu bar management app is not a protocol-surface host — it manages processes rather than acting as one.
+ADR-025 D2 lists `dmonium` under `frontends/`. This design instead places `Daemon.App` in `daemon/Daemon.App/` so the Daemon *composition* (composition root, triage-routing policy, menu bar app) lives in one cohesive bucket. The backing servers it consumes (the calendar/`dcal` server, the future Dmail server) do **not** live in `daemon/`; they live in `services/` (D1b). The `dmonium` name from ADR-025 is preserved as the product name and `.app` bundle identifier (`ai.daemonic.dmonium`). The `frontends/` bucket retains host apps that are directly upstream of the dmon protocol surface (Terminal, Gateway, Desktop); the menu bar management app is not a protocol-surface host — it manages processes rather than acting as one.
 
-An ADR amendment (ADR-028 or targeted ADR-025 amendment) records this departure from ADR-025 D2/D11 and resolves Open Question B.
+ADR-028 records this departure from ADR-025 D2/D11 and resolves Open Question B.
+
+### D1b: services/ bucket for backing servers; the dcal rename
+
+A standalone server that backs an agent capability whose agent-facing surface is a paired `tools/` extension is neither a `tools/` package, a protocol-surface host, nor part of the Daemon composition. ADR-028 D3 adds a **`services/`** bucket for these: `services/Dcal` (the iCal-sync HTTP server, moved and renamed from `daemon/Daemon.Calendar`) and the future `services/Dmail` (the Dmail server, grafted from its own repo by a later change). Services are app artifacts, independently versioned, not on ADR-024's protocol-lockstep train.
+
+The calendar capability is renamed `dcal` across server (`services/Dcal` / `Dcal.csproj`), tool (`tools/Dmon.Tools.Dcal`, verb `AddDcalAbilities()`, types `DcalExtension`/`DcalAbilityProvider`), and standing specs (`dcal-lookup`/`dcal-sync`). The model-facing tool names (`lookup_calendar`, `list_upcoming_events`) and the `DCAL_*` config prefix are unchanged — `dcal` already matches that prefix, so there is no config migration. Because the `calendar-tool` change is already merged/archived, this rename is carried out here, in `daemon-app`.
 
 ### D2: Swift Package lives in daemon/Daemon.App/, outside Everything.slnx
 
@@ -47,12 +56,15 @@ DmonHost.CreateBuilder()
             new ApiKeyCredential(geminiKey),
             new OpenAIClientOptions { Endpoint = new Uri(geminiOpenAiCompatUrl) })
         .GetChatClient("gemini-3.5-flash").AsIChatClient())
-    .AddCalendarAbilities()
-    .AddToolExtension<DmailExtension>()
-    .AddDmonMemory()          // Dmon.Memory.Meko long-term tier
-    .Build()
-    .Run();
+    .AddDcalAbilities()
+    .AddToolExtension<DmailExtension>();
+
+builder.Services.AddDmonMemory();   // short-term tier (Dmon.Memory); AddDmonMemory extends IServiceCollection, not the builder. Meko long-term is an optional add-on registration.
+
+await builder.Build().RunAsync();
 ```
+
+`AddDmonMemory()` lives in `Dmon.Memory` and extends `IServiceCollection`, so it is called on `builder.Services` (it does not chain on the fluent builder). It wires the short-term memory facade; the Meko long-term tier (`Dmon.Memory.Meko`) is an optional additional registration when its API key is present. The composition root is an ADR-019 file-based program (`daemon/Daemon.cs`). Per ADR-025 D4 (intra-repo references use `ProjectReference`, not `PackageReference`; `#:package` is for external consumers), it references **every first-party dependency via `#:project`** — `Dmon.Core`, `Daemon.Routing`, `Dmon.Tools.Dcal`, `Dmon.Tools.Dmail`, `Dmon.Memory`, and the three provider projects — with **no first-party `#:package`** (external SDKs arrive transitively). Mixing `#:project Daemon.Routing` with `#:package dmoncore` is not possible: `Daemon.Routing` source-references `Dmon.Core` (PackageId `dmoncore`) at a higher MinVer than the packed `0.2.*`, which NuGet rejects as a downgrade. It is built directly with `dotnet build daemon/Daemon.cs`, not via a `.slnx`.
 
 Model endpoints and the Gemini key are read from env vars / `.dmon/config.yaml` per ADR-005; the composition root does not hard-code credentials. The Daemon.App settings panel writes to `.dmon/config.yaml` so changes take effect on Gateway restart.
 
@@ -87,7 +99,7 @@ IChatClient target = route switch
 };
 ```
 
-`EgressThreshold` defaults to `0.8f`, configurable via `TriageOptions`. Privacy does not depend on which client is selected: `AbilityRegistry.ForScope(route.Scope)` builds the manifest, so even if egress were reached on a personal turn it would carry no personal tools. A `Tier.Reasoner` turn dispatches to the local reasoner *regardless of scope* — a world+reasoner turn runs locally with the world (web) manifest (the stubbed "WebSearch + 26B synthesis" path); scope still governs the manifest, tier governs the backend.
+`EgressThreshold` defaults to `0.8f`, configurable via `TriageOptions`. Privacy does not depend on which client is selected: `AbilityRegistry.ForScope(effectiveScope)` builds the manifest, so even if egress were reached on a personal turn it would carry no personal tools. **The switch arms are ordered, so egress takes precedence:** a `Tier.Reasoner` turn dispatches to the local reasoner **only when it does not meet the egress condition** — a world+impersonal+confident turn goes to egress even if its tier is `Reasoner`. A reasoner-tier turn that is *not* egress-eligible (personal scope, or not impersonal, or low confidence) runs locally on the reasoner with that turn's scope-gated manifest; scope still governs the manifest, tier governs the backend among the non-egress arms.
 
 #### R6: Egress is provider-agnostic — explicit AddEgress(IChatClient) (resolves former OQ-B)
 
@@ -95,7 +107,7 @@ The earlier proposal left open how egress is obtained (a `UseGemini(passive)` ov
 
 #### R7: Per-turn misclassification metric — Personal→World specifically
 
-`TriageRouter` increments `dmon.triage.misclassify.personal_to_world` (via `DaemonTelemetry`) on any turn where the raw classifier produced `"world"` but the confidence gate overrode it to `"personal"`. This is the leak-direction metric the brief requires; overall routing accuracy is a separate counter.
+`TriageRouter` increments `dmon.triage.misclassify.personal_to_world` (via a `Daemon.Routing`-owned `DaemonTelemetry` static class — its own `Meter`/`Counter<long>`; core's `DmonTelemetry` is unrelated and unchanged) on any turn where the raw classifier produced `"world"` but the confidence gate overrode it to `"personal"`. This is the leak-direction metric the brief requires; overall routing accuracy is a separate counter.
 
 #### R8: Streaming ack before the target's first token
 
@@ -130,7 +142,7 @@ The settings panel (SwiftUI `Settings` scene) manages: API keys (Gemini, Dmail, 
 
 ## Open Questions
 
-- **OQ-A (ADR number):** Should this be ADR-028 (new) or a targeted amendment to ADR-025? New ADR is cleaner (ADR-025 is already large); an amendment is lower ceremony. Decide before writing the ADR.
+- **OQ-A (ADR number):** *Resolved* — a new **ADR-028** (Accepted), not a targeted ADR-025 amendment. It also adds the `services/` bucket and the `dcal` rename (beyond the originally-scoped daemon bucket).
 - **OQ-B (Gateway re-adoption):** How does a restarted `Daemon.App` detect an already-running Gateway? Options: PID file in `~/.dmon/run/`, or poll `GET /health` on the Gateway port. PID file is simpler; implement during tasks.
 - **OQ-C (Daemon.cs model endpoints):** The composition root hard-codes `http://localhost:11434` and `http://localhost:8080/v1` as defaults. These should come from `~/.dmon/config.yaml` / env vars. The settings panel in Daemon.App needs corresponding fields. Confirm config key names during implementation.
 - **OQ-D (confidence threshold):** `EgressThreshold = 0.8f` is a placeholder doing double duty as both the egress gate and the personal-bias floor (R4/R5). The correct value depends on measured misclassification rates against the Daemon's real turn distribution. Keep it configurable via `TriageOptions`; document that tuning requires the R7 metric to be running. Decide during implementation whether the egress gate and the personal-bias floor should be one knob or two.
