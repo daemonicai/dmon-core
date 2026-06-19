@@ -45,16 +45,16 @@
 
 ## 7. GatewayManager — process lifecycle
 
-- [ ] 7.1 Implement `GatewayManager` (Swift `ObservableObject`) with `start()`, `stop()`, and `restart()` methods using `Foundation.Process`; pass `--agent daemon/Daemon.cs` to the Gateway binary
-- [ ] 7.2 Implement `terminationHandler` that reschedules `start()` with exponential back-off (2s initial, 2× each retry, 60s cap)
-- [ ] 7.3 Implement Gateway re-adoption on app launch: check for a PID file at `~/.dmon/run/gateway.pid`; if the process is alive, adopt it instead of spawning a new one; write PID file on spawn
-- [ ] 7.4 Resolve Gateway binary path: check the `DMON_GATEWAY_PATH` env var first; fall back to the .NET global tool path (`~/.dotnet/tools/Dmon.Gateway`); surface a settings field for manual override
+- [x] 7.1 Implement `GatewayManager` (Swift `ObservableObject`) with `start()`, `stop()`, and `restart()` methods using `Foundation.Process`; pass `--agent daemon/Daemon.cs` to the Gateway binary
+- [x] 7.2 Implement `terminationHandler` that reschedules `start()` with exponential back-off (2s initial, 2× each retry, 60s cap)
+- [x] 7.3 Implement Gateway re-adoption on app launch: check for a PID file at `~/.dmon/run/gateway.pid`; if the process is alive, adopt it instead of spawning a new one; write PID file on spawn
+- [x] 7.4 Resolve Gateway binary path: check the `DMON_GATEWAY_PATH` env var first; fall back to the .NET global tool path (`~/.dotnet/tools/Dmon.Gateway`); surface a settings field for manual override
 
 ## 8. TailscaleMonitor
 
-- [ ] 8.1 Implement `TailscaleMonitor` (Swift `ObservableObject`) that runs `tailscale status --json` via `Foundation.Process` every 30 seconds on a background `DispatchQueue`
-- [ ] 8.2 Parse the JSON output to determine: up (Self node present, BackendState == "Running"), degraded (running but no peers), down (error or binary not found)
-- [ ] 8.3 Publish `TailscaleStatus` enum (`up`, `degraded`, `down`) as an `@Published` property consumed by `MenuBarView`
+- [x] 8.1 Implement `TailscaleMonitor` (Swift `ObservableObject`) that runs `tailscale status --json` via `Foundation.Process` every 30 seconds on a background `DispatchQueue`
+- [x] 8.2 Parse the JSON output to determine: up (Self node present, BackendState == "Running"), degraded (running but no peers), down (error or binary not found)
+- [x] 8.3 Publish `TailscaleStatus` enum (`up`, `degraded`, `down`) as an `@Published` property consumed by `MenuBarView`
 
 ## 9. MenuBarView and status icon
 
