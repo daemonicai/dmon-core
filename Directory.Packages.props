@@ -41,6 +41,7 @@
     <PackageVersion Include="Dotnet.Script.Core" Version="2.0.0" />
     <PackageVersion Include="GeminiDotnet.Extensions.AI" Version="0.25.0" />
     <PackageVersion Include="HiraokaHyperTools.sqlite-vec" Version="0.1.9" />
+    <PackageVersion Include="Ical.Net" Version="5.0.0" />
     <PackageVersion Include="LLamaSharp" Version="0.27.0" />
     <PackageVersion Include="LLamaSharp.Backend.Cpu" Version="0.27.0" />
     <PackageVersion Include="Markdig" Version="1.*" />
