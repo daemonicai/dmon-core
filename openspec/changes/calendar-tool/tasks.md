@@ -42,12 +42,12 @@
 
 ## 8. Tests
 
-- [ ] 8.1 Add `test/Dmon.Tools.Calendar.Tests/` xUnit project; add to solution files
-- [ ] 8.2 Test `CalendarExtension` tool registration: `lookup_calendar` and `list_upcoming_events` present in `Tools`; `Evaluate(...)` returns `PermissionResult.Allow` for both
-- [ ] 8.3 Test `CalendarAbilityProvider`: `Scope == "personal"`; tools present in `AbilityRegistry.ForScope("personal")`; tools absent from `AbilityRegistry.ForScope("world")`
-- [ ] 8.4 Test `CalendarExtension` resilience: unreachable server returns a string error message (no exception); 404 from server returns "no event found" message
-- [ ] 8.5 Add `test/Daemon.Calendar.Tests/` xUnit project; add to solution files
-- [ ] 8.6 Test `CalendarDatabase.FindNext`: matching event returned; no match returns null; `after` filter excludes past events; returned fields match stored values exactly; `start_utc`/`end_utc` round-trip byte-for-byte in the canonical `yyyy-MM-ddTHH:mm:ssZ` format and the `after` lexical comparison is correct across that format
-- [ ] 8.7 Test `CalendarDatabase.ListUpcoming`: chronological order; respects `maxResults`; empty result on empty store
-- [ ] 8.8 Test `CalendarSyncService` sync logic with a fake iCal feed: events populated after sync; deleted events removed on re-sync; recurring events expanded within horizon; occurrences beyond horizon not stored
-- [ ] 8.9 Test dual-registration invariant (D6): after `AddCalendarAbilities()`, each tool appears exactly once in the global `IToolExtension` tool list **and** in `AbilityRegistry.ForScope("personal")`, and `IAbilityProvider` tools do not leak into the global `IToolExtension` list
+- [x] 8.1 Add `test/Dmon.Tools.Calendar.Tests/` xUnit project; add to solution files
+- [x] 8.2 Test `CalendarExtension` tool registration: `lookup_calendar` and `list_upcoming_events` present in `Tools`; `Evaluate(...)` returns `PermissionResult.Allow` for both
+- [x] 8.3 Test `CalendarAbilityProvider`: `Scope == "personal"`; tools present in `AbilityRegistry.ForScope("personal")`; tools absent from `AbilityRegistry.ForScope("world")`
+- [x] 8.4 Test `CalendarExtension` resilience: unreachable server returns a string error message (no exception); 404 from server returns "no event found" message
+- [x] 8.5 Add `test/Daemon.Calendar.Tests/` xUnit project; add to solution files
+- [x] 8.6 Test `CalendarDatabase.FindNext`: matching event returned; no match returns null; `after` filter excludes past events; returned fields match stored values exactly; `start_utc`/`end_utc` round-trip byte-for-byte in the canonical `yyyy-MM-ddTHH:mm:ssZ` format and the `after` lexical comparison is correct across that format
+- [x] 8.7 Test `CalendarDatabase.ListUpcoming`: chronological order; respects `maxResults`; empty result on empty store
+- [x] 8.8 Test `CalendarSyncService` sync logic with a fake iCal feed: events populated after sync; deleted events removed on re-sync; recurring events expanded within horizon; occurrences beyond horizon not stored
+- [x] 8.9 Test dual-registration invariant (D6): after `AddCalendarAbilities()`, each tool appears exactly once in the global `IToolExtension` tool list **and** in `AbilityRegistry.ForScope("personal")`, and `IAbilityProvider` tools do not leak into the global `IToolExtension` list
