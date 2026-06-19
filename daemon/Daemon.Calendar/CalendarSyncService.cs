@@ -49,6 +49,9 @@ internal sealed class CalendarSyncService : BackgroundService
             await SyncAsync(stoppingToken);
     }
 
+    public Task TriggerSyncAsync(CancellationToken cancellationToken = default)
+        => SyncAsync(cancellationToken);
+
     private async Task SyncAsync(CancellationToken cancellationToken)
     {
         try

@@ -34,11 +34,11 @@
 
 ## 7. Daemon.Calendar — HTTP API
 
-- [ ] 7.1 Wire `GET /api/events/next` → `CalendarDatabase.FindNext(term, after ?? <now>)` where `<now>` is `DateTime.UtcNow` formatted in the canonical `yyyy-MM-ddTHH:mm:ssZ` format (matching 6.2, **not** `"o"` — its sub-second precision would mis-sort against stored values) → return `CalendarEvent` or 404
-- [ ] 7.2 Wire `GET /api/events/upcoming` → `CalendarDatabase.ListUpcoming(maxResults, after ?? now)` → return `CalendarEvent[]`
-- [ ] 7.3 Wire `POST /api/sync` → trigger `CalendarSyncService` out-of-cycle sync → return 204
-- [ ] 7.4 Wire `GET /health` → return `{ lastSync, eventCount }` JSON
-- [ ] 7.5 Add optional `X-Api-Key` auth middleware: if `DCAL_API_KEY` env var is set, reject requests missing the matching header with 401; skip auth if env var is absent
+- [x] 7.1 Wire `GET /api/events/next` → `CalendarDatabase.FindNext(term, after ?? <now>)` where `<now>` is `DateTime.UtcNow` formatted in the canonical `yyyy-MM-ddTHH:mm:ssZ` format (matching 6.2, **not** `"o"` — its sub-second precision would mis-sort against stored values) → return `CalendarEvent` or 404
+- [x] 7.2 Wire `GET /api/events/upcoming` → `CalendarDatabase.ListUpcoming(maxResults, after ?? now)` → return `CalendarEvent[]`
+- [x] 7.3 Wire `POST /api/sync` → trigger `CalendarSyncService` out-of-cycle sync → return 204
+- [x] 7.4 Wire `GET /health` → return `{ lastSync, eventCount }` JSON
+- [x] 7.5 Add optional `X-Api-Key` auth middleware: if `DCAL_API_KEY` env var is set, reject requests missing the matching header with 401; skip auth if env var is absent
 
 ## 8. Tests
 
