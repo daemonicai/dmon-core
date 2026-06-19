@@ -28,9 +28,9 @@
 
 ## 6. Daemon.Calendar — iCal sync service
 
-- [ ] 6.1 Implement `CalendarSyncService : BackgroundService` — on `ExecuteAsync` start: perform immediate sync before the server accepts requests; then loop on a `PeriodicTimer` with interval from `DCAL_SYNC_INTERVAL_MINUTES` (default 15)
-- [ ] 6.2 Implement sync logic: download `DCAL_ICAL_URL` via `HttpClient`; parse with `Ical.Net`; expand recurring events up to `DCAL_RECURRENCE_HORIZON_DAYS` (default 90) days from now; call `CalendarDatabase.Clear()` then `CalendarDatabase.Upsert(occurrences)`; update `LastSync` timestamp. Persist `start_utc`/`end_utc` normalised to UTC in the **single canonical format** `yyyy-MM-ddTHH:mm:ssZ` (fixed precision) — identical to the `after` default in 7.1 — so the lexical `start_utc >= :after` comparison is correct
-- [ ] 6.3 Fail fast on missing `DCAL_ICAL_URL`: validate at startup in `Program.cs` before `app.Run()`, exit with a descriptive message if absent
+- [x] 6.1 Implement `CalendarSyncService : BackgroundService` — on `ExecuteAsync` start: perform immediate sync before the server accepts requests; then loop on a `PeriodicTimer` with interval from `DCAL_SYNC_INTERVAL_MINUTES` (default 15)
+- [x] 6.2 Implement sync logic: download `DCAL_ICAL_URL` via `HttpClient`; parse with `Ical.Net`; expand recurring events up to `DCAL_RECURRENCE_HORIZON_DAYS` (default 90) days from now; call `CalendarDatabase.Clear()` then `CalendarDatabase.Upsert(occurrences)`; update `LastSync` timestamp. Persist `start_utc`/`end_utc` normalised to UTC in the **single canonical format** `yyyy-MM-ddTHH:mm:ssZ` (fixed precision) — identical to the `after` default in 7.1 — so the lexical `start_utc >= :after` comparison is correct
+- [x] 6.3 Fail fast on missing `DCAL_ICAL_URL`: validate at startup in `Program.cs` before `app.Run()`, exit with a descriptive message if absent
 
 ## 7. Daemon.Calendar — HTTP API
 
