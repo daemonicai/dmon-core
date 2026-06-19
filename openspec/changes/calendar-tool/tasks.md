@@ -23,8 +23,8 @@
 
 ## 5. Daemon.Calendar — SQLite store
 
-- [ ] 5.1 Implement `CalendarDatabase` — creates the `events` table and `events_fts` FTS5 virtual table (schema from D3) on first use via `Microsoft.Data.Sqlite`; exposes `Upsert(IEnumerable<CalendarEvent>)`, `Clear()`, `FindNext(term, after)`, `ListUpcoming(maxResults, after)`, and `Count()`. `events_fts` is an external-content table (`content=events`) and is **not** auto-maintained: `Clear()` must also empty `events_fts`, and `Upsert(...)` must insert the corresponding `events_fts` rows (or wire FTS5 sync triggers) — otherwise `FindNext`'s `MATCH` returns nothing
-- [ ] 5.2 Verify `FindNext` uses `events_fts MATCH :term AND start_utc >= :after ORDER BY start_utc LIMIT 1` — the store does all matching; no event list is returned to the caller
+- [x] 5.1 Implement `CalendarDatabase` — creates the `events` table and `events_fts` FTS5 virtual table (schema from D3) on first use via `Microsoft.Data.Sqlite`; exposes `Upsert(IEnumerable<CalendarEvent>)`, `Clear()`, `FindNext(term, after)`, `ListUpcoming(maxResults, after)`, and `Count()`. `events_fts` is an external-content table (`content=events`) and is **not** auto-maintained: `Clear()` must also empty `events_fts`, and `Upsert(...)` must insert the corresponding `events_fts` rows (or wire FTS5 sync triggers) — otherwise `FindNext`'s `MATCH` returns nothing
+- [x] 5.2 Verify `FindNext` uses `events_fts MATCH :term AND start_utc >= :after ORDER BY start_utc LIMIT 1` — the store does all matching; no event list is returned to the caller
 
 ## 6. Daemon.Calendar — iCal sync service
 
