@@ -17,7 +17,7 @@
 
 - [ ] 3.1 The root `daemon.slnx` already exists; after 2.2 it no longer references the calendar server (moved to `services/`) — add `Daemon.Routing` to it in §4
 - [ ] 3.2 Ensure the root `daemon.slnx` / `services.slnx` and `Everything.slnx` include all C# projects in both buckets
-- [ ] 3.3 Add a `Makefile` target `daemon-app` that runs `swift build -c release` from `daemon/Daemon.App/`; confirm `make build` (C# only) is unaffected
+- [x] 3.3 Add a `Makefile` target `daemon-app` that runs `swift build -c release` from `daemon/Daemon.App/`; confirm `make build` (C# only) is unaffected
 - [ ] 3.4 Add a `Directory.Build.props` stub under `daemon/` that sets `<RootNamespace>Daemon</RootNamespace>` and `<AssemblyName>Daemon.$(MSBuildProjectName)</AssemblyName>` defaults for C# projects in the bucket, chain-importing the root
 
 ## 4. Daemon.Routing — triage router policy
@@ -39,9 +39,9 @@
 
 ## 6. Daemon.App Swift Package scaffold
 
-- [ ] 6.1 Create `daemon/Daemon.App/Package.swift` as a Swift Package targeting macOS 14; product: executable `DaemonApp`; no external Swift dependencies for this milestone
-- [ ] 6.2 Create `daemon/Daemon.App/Sources/DaemonApp/DaemonApp.swift` — `@main struct DaemonApp: App` with `MenuBarExtra` scene and `Settings` scene stubs
-- [ ] 6.3 Confirm `swift build -c release` from `daemon/Daemon.App/` produces a binary; confirm `make daemon-app` wraps it correctly
+- [x] 6.1 Create `daemon/Daemon.App/Package.swift` as a Swift Package targeting macOS 14; product: executable `DaemonApp`; no external Swift dependencies for this milestone
+- [x] 6.2 Create `daemon/Daemon.App/Sources/DaemonApp/DaemonApp.swift` — `@main struct DaemonApp: App` with `MenuBarExtra` scene and `Settings` scene stubs
+- [x] 6.3 Confirm `swift build -c release` from `daemon/Daemon.App/` produces a binary; confirm `make daemon-app` wraps it correctly
 
 ## 7. GatewayManager — process lifecycle
 

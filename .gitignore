@@ -86,5 +86,8 @@ graphify-out/
 # it is developer-local — committing it breaks CI restore (no .pack-out in CI).
 /nuget.config
 
+# SwiftPM build output
+daemon/Daemon.App/.build/
+
 # macOS
 .DS_Store

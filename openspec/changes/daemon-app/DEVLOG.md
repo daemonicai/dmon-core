@@ -60,3 +60,14 @@ Narrative companion to `tasks.md`. Newest entries at the bottom of each section.
 - Helper-file hygiene: a prior attempt's `daemon/nuget.config`, `daemon/Directory.Packages.props`, and `daemon/Daemon.Routing/Directory.Packages.props` were all REMOVED — the all-`#:project` approach needs none. Final footprint: just `daemon/Daemon.cs`.
 - `Daemon.cs` is NOT in any `.slnx` (ADR-019). Gates green: `dotnet build daemon/Daemon.cs -c Release` 0/0, `make build` 0/0, `env -u MEKO_API_KEY make test` all pass, `validate --strict` valid.
 - design.md D3 prose updated to document the all-`#:project` rule + the NU1605 reason.
+
+## Section 6 + task 3.3 — Daemon.App Swift scaffold + make daemon-app (DONE)
+
+- **6.1–6.3 + 3.3 complete; reviewer APPROVED (no blockers).** New `daemon/Daemon.App/` SwiftPM package: `Package.swift` (`swift-tools-version: 5.9`, `.macOS(.v14)`, executable product/target `DaemonApp`, no external deps) + `Sources/DaemonApp/DaemonApp.swift` (`@main struct DaemonApp: App` with `MenuBarExtra` + `Settings` STUB scenes only; a Quit button is the sole behaviour). Root `Makefile` gained a STANDALONE `daemon-app` target (`swift build -c release --package-path daemon/Daemon.App`) added to `.PHONY` but NOT to `build:`/`all:` — `make build` stays C#-only (verified it doesn't invoke swift). `.gitignore` ignores `daemon/Daemon.App/.build/`.
+- **Swift toolchain:** 6.3.2 installed (`/usr/bin/swift`, `xcodebuild` present). The package is OUTSIDE every `.slnx` (ADR-028 D5).
+- **KNOWN false positive (note for IDE users / §7–10 workers):** SourceKit-LSP flags `'main' attribute cannot be used in a module that contains top-level code` on `DaemonApp.swift`. It's a SourceKit heuristic bug for single-file executable targets — the real compiler builds fine (clean `rm -rf .build && swift build -c release` → "Build complete!"). The file is correctly named `DaemonApp.swift` (NOT `main.swift`), so `@main` is valid. Ignore the LSP diagnostic; trust `swift build`.
+- Gates green: clean `swift build -c release` 0/0, `make daemon-app` ok, `make build` clean (no swift), `env -u MEKO_API_KEY make test` 1013 passed, `validate --strict` valid.
+
+## Sections 7–10 — Swift menu bar app logic (next)
+
+- Remaining Swift: §7 GatewayManager (Foundation.Process lifecycle + back-off + PID re-adoption), §8 TailscaleMonitor (`tailscale status --json` poll), §9 MenuBarView + status icon, §10 SettingsView (config.yaml + Keychain + SMAppService login item). NO `make test` coverage — gate is `swift build`/`make daemon-app` + manual reasoning. Also still open: task 3.4 (`daemon/Directory.Build.props` — only if a daemon C# project needs `Daemon.*` assembly defaults; `Daemon.Routing` builds fine without it, so 3.4 may be N/A — the next architect should assess).
