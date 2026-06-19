@@ -6,6 +6,7 @@ internal sealed class TerminalRenderer
 {
     private readonly ITerminal _terminal;
     private string _modelName = string.Empty;
+    private string _coreVersion = string.Empty;
     private bool _thinking;
     private ILiveBlock? _liveBlock;
 
@@ -71,6 +72,67 @@ internal sealed class TerminalRenderer
         }
     }
 
+    /// <summary>
+    /// Emits the ASCII banner and tagline MOTD to scrollback at startup.
+    /// Call once before the first prompt is shown.
+    /// </summary>
+    public void PrintWelcome()
+    {
+        _terminal.Scrollback.Append(Line.FromText("""     _""", GreyStyle));
+        _terminal.Scrollback.Append(Line.FromText("""  __| |_ __ ___   ___  _ __""", GreyStyle));
+        _terminal.Scrollback.Append(Line.FromText(""" / _` | '_ ` _ \ / _ \| '_ \""", GreyStyle));
+        _terminal.Scrollback.Append(Line.FromText("""| (_| | | | | | | (_) | | | |""", GreyStyle));
+        _terminal.Scrollback.Append(Line.FromText(""" \__,_|_| |_| |_|\___/|_| |_|""", GreyStyle));
+        _terminal.Scrollback.Append(Line.FromText("a .NET-native coding agent", GreyStyle));
+    }
+
+    /// <summary>
+    /// Pins the <c>── dmon ──</c> rule above the editor via InputPreamble.
+    /// Call once at startup — persists across turns.
+    /// </summary>
+    public void SetPreamble()
+    {
+        (int columns, _) = _terminal.GetTerminalSize();
+        int width = Math.Max(columns, 1);
+
+        const string label = "dmon";
+        const string leftRun = "── ";
+        const string rightPad = " ";
+        int fixedChars = leftRun.Length + label.Length + rightPad.Length;
+        int rightRun = Math.Max(0, width - fixedChars);
+
+        Line preambleLine = new(new Segment[]
+        {
+            new(leftRun, GreyStyle),
+            new(label, GreyStyle),
+            new(rightPad + new string('─', rightRun), GreyStyle),
+        });
+        _terminal.InputPreamble.SetRows(preambleLine);
+    }
+
+    /// <summary>
+    /// Pins the <c>❯ </c> prompt prefix on the editor line via Input.SetPrompt.
+    /// Call once at startup — persists across turns and does NOT trigger InputChanged.
+    /// </summary>
+    public void SetPromptPrefix()
+    {
+        Line promptLine = new(new Segment[]
+        {
+            new("❯ ", BoldStyle),
+        });
+        _terminal.Input.SetPrompt(promptLine);
+    }
+
+    /// <summary>
+    /// Records the core version for use in the pinned readiness row.
+    /// Call at startup (and reload) before the frame is needed.
+    /// </summary>
+    public void SetReadiness(string coreVersion)
+    {
+        _coreVersion = coreVersion;
+        RefreshStatus();
+    }
+
     public void AddUserLine(string text)
     {
         Line line = new(new Segment[]
@@ -95,13 +157,24 @@ internal sealed class TerminalRenderer
 
     private void RefreshStatus()
     {
-        if (string.IsNullOrEmpty(_modelName))
+        if (string.IsNullOrEmpty(_coreVersion))
         {
             _terminal.Status.SetRows([]);
             return;
         }
 
-        string label = _thinking ? $"{_modelName} · thinking…" : _modelName;
-        _terminal.Status.SetRows(Line.FromText(label, GreyStyle));
+        // Row 1: full-width rule.
+        (int columns, _) = _terminal.GetTerminalSize();
+        int width = Math.Max(columns, 1);
+        Line ruleRow = Line.FromText(new string('─', width), GreyStyle);
+
+        // Row 2: readiness — version + model (when known) + state indicator.
+        string indicator = _thinking ? "Thinking…" : "Idle";
+        string readinessText = string.IsNullOrEmpty(_modelName)
+            ? $"[Ready] dmon core v{_coreVersion} · {indicator}"
+            : $"[Ready] dmon core v{_coreVersion} {_modelName} · {indicator}";
+        Line readinessRow = Line.FromText(readinessText, GreyStyle);
+
+        _terminal.Status.SetRows([ruleRow, readinessRow]);
     }
 }

@@ -44,10 +44,19 @@ await using ITerminal terminal = await Dcli.Terminal.StartAsync(
 // Long-lived across restarts — created once, shared by all sessions.
 InputStateLayer inputStateLayer = new();
 TerminalRenderer renderer = new(terminal);
-renderer.PrintSeparator("dmon");
+
+// Emit banner + tagline MOTD to scrollback (startup only).
+renderer.PrintWelcome();
+// Pin the ── dmon ── rule above the editor; persists across turns.
+renderer.SetPreamble();
+// Pin the ❯  prompt prefix on the editor line; does not trigger InputChanged.
+renderer.SetPromptPrefix();
 
 // Render the initial agentReady readiness that was consumed by the compatibility gate.
 AgentReadyEvent initialReady = coreSession.AgentReady;
+// Push version into the pinned status frame.
+renderer.SetReadiness(initialReady.CoreVersion);
+// Keep the [Ready] scrollback line (protocol version surfaced here, not in the frame).
 renderer.AddSystemLine(
     $"[Ready] dmon core v{initialReady.CoreVersion} (protocol {initialReady.ProtocolVersion})");
 
@@ -153,6 +162,9 @@ try
             client = BuildClient(coreSession);
 
             AgentReadyEvent reloadReady = coreSession.AgentReady;
+            // Refresh the pinned status frame with the new version.
+            renderer.SetReadiness(reloadReady.CoreVersion);
+            // Keep the [Reload] scrollback line (protocol version surfaced here, not in the frame).
             renderer.AddSystemLine(
                 $"[Reload] Core restarted. dmon core v{reloadReady.CoreVersion} (protocol {reloadReady.ProtocolVersion})");
 

@@ -154,35 +154,55 @@ public sealed class TerminalRendererTests
     // ── 5. Status update ─────────────────────────────────────────────────────
 
     [Fact]
-    public void SetStatus_Thinking_RecordsStatusWithModelAndIndicator()
+    public void SetStatus_BeforeVersionSet_ClearsStatus()
     {
+        // No SetReadiness call → _coreVersion is empty → status cleared.
         FakeTerminal fake = new();
         TerminalRenderer renderer = new(fake);
 
         renderer.SetStatus("claude-opus", thinking: true);
 
         StatusSet status = Assert.IsType<StatusSet>(Assert.Single(fake.Calls));
-        string text = string.Concat(status.Rows.SelectMany(l => l.Segments).Select(s => s.Text));
-        Assert.Contains("claude-opus", text);
-        Assert.Contains("thinking", text);
+        Assert.Empty(status.Rows);
     }
 
     [Fact]
-    public void SetStatus_NotThinking_RecordsStatusWithModelNameOnly()
+    public void SetStatus_Thinking_RecordsStatusWithModelAndIndicator()
     {
         FakeTerminal fake = new();
         TerminalRenderer renderer = new(fake);
+
+        renderer.SetReadiness("1.0.0");
+        fake.ClearCalls(); // discard the SetReadiness call; test SetStatus independently
+
+        renderer.SetStatus("claude-opus", thinking: true);
+
+        StatusSet status = Assert.IsType<StatusSet>(Assert.Single(fake.Calls));
+        string text = string.Concat(status.Rows.SelectMany(l => l.Segments).Select(s => s.Text));
+        Assert.Contains("claude-opus", text);
+        Assert.Contains("Thinking", text);
+    }
+
+    [Fact]
+    public void SetStatus_NotThinking_RecordsStatusWithIdleIndicator()
+    {
+        FakeTerminal fake = new();
+        TerminalRenderer renderer = new(fake);
+
+        renderer.SetReadiness("1.0.0");
+        fake.ClearCalls();
 
         renderer.SetStatus("claude-opus", thinking: false);
 
         StatusSet status = Assert.IsType<StatusSet>(Assert.Single(fake.Calls));
         string text = string.Concat(status.Rows.SelectMany(l => l.Segments).Select(s => s.Text));
         Assert.Contains("claude-opus", text);
-        Assert.DoesNotContain("thinking", text);
+        Assert.Contains("Idle", text);
+        Assert.DoesNotContain("Thinking", text);
     }
 
     [Fact]
-    public void SetStatus_EmptyModelName_ClearsStatus()
+    public void SetStatus_EmptyModelName_NoCoreVersion_ClearsStatus()
     {
         FakeTerminal fake = new();
         TerminalRenderer renderer = new(fake);
@@ -191,6 +211,130 @@ public sealed class TerminalRendererTests
 
         StatusSet status = Assert.IsType<StatusSet>(Assert.Single(fake.Calls));
         Assert.Empty(status.Rows);
+    }
+
+    [Fact]
+    public void SetStatus_TwoRows_RuleRowThenReadinessRow()
+    {
+        FakeTerminal fake = new() { Size = (80, 24) };
+        TerminalRenderer renderer = new(fake);
+
+        renderer.SetReadiness("1.2.3");
+        fake.ClearCalls();
+
+        renderer.SetStatus("my-model", thinking: false);
+
+        StatusSet status = Assert.IsType<StatusSet>(Assert.Single(fake.Calls));
+        Assert.Equal(2, status.Rows.Count);
+
+        // First row: full-width rule.
+        string ruleText = string.Concat(status.Rows[0].Segments.Select(s => s.Text));
+        Assert.All(ruleText.ToCharArray(), c => Assert.Equal('─', c));
+        Assert.Equal(80, ruleText.Length);
+
+        // Second row: readiness with version, model, and state.
+        string readinessText = string.Concat(status.Rows[1].Segments.Select(s => s.Text));
+        Assert.Contains("[Ready]", readinessText);
+        Assert.Contains("v1.2.3", readinessText);
+        Assert.Contains("my-model", readinessText);
+        Assert.Contains("Idle", readinessText);
+        Assert.DoesNotContain("protocol", readinessText);
+    }
+
+    [Fact]
+    public void SetStatus_ThinkingTrue_ReadinessRowContainsThinkingIndicator()
+    {
+        FakeTerminal fake = new() { Size = (80, 24) };
+        TerminalRenderer renderer = new(fake);
+
+        renderer.SetReadiness("2.0.0");
+        fake.ClearCalls();
+
+        renderer.SetStatus("gpt-4", thinking: true);
+
+        StatusSet status = Assert.IsType<StatusSet>(Assert.Single(fake.Calls));
+        string readinessText = string.Concat(status.Rows[1].Segments.Select(s => s.Text));
+        Assert.Contains("Thinking", readinessText);
+        Assert.DoesNotContain("Idle", readinessText);
+    }
+
+    [Fact]
+    public void SetReadiness_WithoutModel_ReadinessRowOmitsModel()
+    {
+        FakeTerminal fake = new() { Size = (80, 24) };
+        TerminalRenderer renderer = new(fake);
+
+        renderer.SetReadiness("0.9.0");
+
+        StatusSet status = Assert.IsType<StatusSet>(Assert.Single(fake.Calls));
+        Assert.Equal(2, status.Rows.Count);
+        string readinessText = string.Concat(status.Rows[1].Segments.Select(s => s.Text));
+        Assert.Contains("[Ready]", readinessText);
+        Assert.Contains("v0.9.0", readinessText);
+        // No model yet — must not appear.
+        Assert.DoesNotContain("claude", readinessText);
+    }
+
+    // ── 5b. Preamble and prompt prefix ────────────────────────────────────────
+
+    [Fact]
+    public void SetPreamble_SetsPreambleRowContainingDmonLabel()
+    {
+        FakeTerminal fake = new() { Size = (80, 24) };
+        TerminalRenderer renderer = new(fake);
+
+        renderer.SetPreamble();
+
+        InputPreambleSet preamble = Assert.IsType<InputPreambleSet>(Assert.Single(fake.Calls));
+        Dcli.Line preambleRow = Assert.Single(preamble.Rows);
+        string text = string.Concat(preambleRow.Segments.Select(s => s.Text));
+        Assert.Contains("dmon", text);
+        Assert.Contains("─", text);
+    }
+
+    [Fact]
+    public void SetPromptPrefix_SetsPromptWithChevronGlyph()
+    {
+        FakeTerminal fake = new();
+        TerminalRenderer renderer = new(fake);
+
+        renderer.SetPromptPrefix();
+
+        InputSetPromptLine call = Assert.IsType<InputSetPromptLine>(Assert.Single(fake.Calls));
+        string text = string.Concat(call.Line.Segments.Select(s => s.Text));
+        Assert.Contains("❯", text);
+    }
+
+    // ── 5c. Welcome banner ───────────────────────────────────────────────────
+
+    [Fact]
+    public void PrintWelcome_AppendsMultipleScrollbackLines()
+    {
+        FakeTerminal fake = new();
+        TerminalRenderer renderer = new(fake);
+
+        renderer.PrintWelcome();
+
+        IReadOnlyList<FakeCall> calls = fake.Calls;
+        // Must emit at least 2 lines: the banner + the tagline.
+        Assert.True(calls.Count >= 2);
+        Assert.All(calls, c => Assert.IsType<ScrollbackAppendLine>(c));
+    }
+
+    [Fact]
+    public void PrintWelcome_TaglineContainsDotNetNativeCodingAgent()
+    {
+        FakeTerminal fake = new();
+        TerminalRenderer renderer = new(fake);
+
+        renderer.PrintWelcome();
+
+        IEnumerable<string> texts = fake.Calls
+            .OfType<ScrollbackAppendLine>()
+            .Select(c => string.Concat(c.Line.Segments.Select(s => s.Text)));
+
+        // At least one line must be the tagline.
+        Assert.Contains(texts, t => t.Contains("coding agent"));
     }
 
     // ── 6. User echo ─────────────────────────────────────────────────────────
