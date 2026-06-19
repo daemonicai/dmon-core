@@ -91,3 +91,7 @@ daemon/Daemon.App/.build/
 
 # macOS
 .DS_Store
+
+# Editor / SwiftPM IDE state (auto-generated)
+.vscode/
+**/.swiftpm/

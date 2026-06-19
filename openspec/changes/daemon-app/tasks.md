@@ -58,9 +58,9 @@
 
 ## 9. MenuBarView and status icon
 
-- [ ] 9.1 Implement `MenuBarView` as a SwiftUI `View` for the `MenuBarExtra` content: show Gateway status, Tailscale status, last sync time (from `GET /health` on the Dcal server); buttons: Start/Stop Gateway, Sync Calendar Now, Open Settings
-- [ ] 9.2 Implement status icon: SF Symbol `brain` (or `circle.fill`) tinted green/amber/red based on combined Gateway + Tailscale status; use `MenuBarExtra(isInserted:)` to show/hide the indicator when the app is hidden
-- [ ] 9.3 Wire `GatewayManager` and `TailscaleMonitor` as `@StateObject` into the App and pass as `@EnvironmentObject` to views
+- [x] 9.1 Implement `MenuBarView` as a SwiftUI `View` for the `MenuBarExtra` content: show Gateway status, Tailscale status, last sync time (from `GET /health` on the Dcal server); buttons: Start/Stop Gateway, Sync Calendar Now, Open Settings
+- [x] 9.2 Implement status icon: SF Symbol `brain` (or `circle.fill`) tinted green/amber/red based on combined Gateway + Tailscale status; use `MenuBarExtra(isInserted:)` to show/hide the indicator when the app is hidden
+- [x] 9.3 Wire `GatewayManager` and `TailscaleMonitor` as `@StateObject` into the App and pass as `@EnvironmentObject` to views
 
 ## 10. Settings panel
 
