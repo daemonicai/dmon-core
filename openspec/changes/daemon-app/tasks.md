@@ -33,9 +33,9 @@
 
 ## 5. Daemon.cs composition root
 
-- [ ] 5.1 Create `daemon/Daemon.cs` as an ADR-019 file-based program referencing `Daemon.Routing` and `tools/Dmon.Tools.Dcal`; wire `UseTriage(e2bClient)`, `AddReasoner(reasonerClient)`, `AddEgress(egressClient)`, `AddDcalAbilities()`, `AddToolExtension<DmailExtension>()`, and `AddDmonMemory()`
-- [ ] 5.2 Read e2b endpoint from config/env (`DCAL_E2B_URL`, default `http://localhost:11434`), reasoner endpoint (`DCAL_REASONER_URL`, default `http://localhost:8080/v1`), and the egress client (Gemini over its OpenAI-compatible endpoint, key from `GEMINI_API_KEY`); no credentials or endpoints hardcoded as literals
-- [ ] 5.3 Verify `Daemon.cs` compiles cleanly against Phase 1 + `services/Dcal` + `tools/Dmon.Tools.Dcal` + `Daemon.Routing` (`dotnet build daemon/daemon.slnx -c Release`); this is a compile-time integration check
+- [x] 5.1 Create `daemon/Daemon.cs` as an ADR-019 file-based program referencing `Daemon.Routing` and `tools/Dmon.Tools.Dcal`; wire `UseTriage(e2bClient)`, `AddReasoner(reasonerClient)`, `AddEgress(egressClient)`, `AddDcalAbilities()`, `AddToolExtension<DmailExtension>()`, and `AddDmonMemory()`
+- [x] 5.2 Read e2b endpoint from config/env (`DCAL_E2B_URL`, default `http://localhost:11434`), reasoner endpoint (`DCAL_REASONER_URL`, default `http://localhost:8080/v1`), and the egress client (Gemini over its OpenAI-compatible endpoint, key from `GEMINI_API_KEY`); no credentials or endpoints hardcoded as literals
+- [x] 5.3 Verify `Daemon.cs` compiles cleanly against Phase 1 + `tools/Dmon.Tools.Dcal` + `Daemon.Routing` via `dotnet build daemon/Daemon.cs -c Release` (a file-based program is NOT a `.csproj` and is NOT added to any `.slnx`; build the file directly per ADR-019 — run `make build` first if the `0.2.*` package feed needs populating); this is a compile-time integration check
 
 ## 6. Daemon.App Swift Package scaffold
 

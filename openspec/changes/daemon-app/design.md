@@ -57,11 +57,14 @@ DmonHost.CreateBuilder()
             new OpenAIClientOptions { Endpoint = new Uri(geminiOpenAiCompatUrl) })
         .GetChatClient("gemini-3.5-flash").AsIChatClient())
     .AddDcalAbilities()
-    .AddToolExtension<DmailExtension>()
-    .AddDmonMemory()          // Dmon.Memory.Meko long-term tier
-    .Build()
-    .Run();
+    .AddToolExtension<DmailExtension>();
+
+builder.Services.AddDmonMemory();   // short-term tier (Dmon.Memory); AddDmonMemory extends IServiceCollection, not the builder. Meko long-term is an optional add-on registration.
+
+await builder.Build().RunAsync();
 ```
+
+`AddDmonMemory()` lives in `Dmon.Memory` and extends `IServiceCollection`, so it is called on `builder.Services` (it does not chain on the fluent builder). It wires the short-term memory facade; the Meko long-term tier (`Dmon.Memory.Meko`) is an optional additional registration when its API key is present. The composition root is an ADR-019 file-based program (`daemon/Daemon.cs`). Per ADR-025 D4 (intra-repo references use `ProjectReference`, not `PackageReference`; `#:package` is for external consumers), it references **every first-party dependency via `#:project`** — `Dmon.Core`, `Daemon.Routing`, `Dmon.Tools.Dcal`, `Dmon.Tools.Dmail`, `Dmon.Memory`, and the three provider projects — with **no first-party `#:package`** (external SDKs arrive transitively). Mixing `#:project Daemon.Routing` with `#:package dmoncore` is not possible: `Daemon.Routing` source-references `Dmon.Core` (PackageId `dmoncore`) at a higher MinVer than the packed `0.2.*`, which NuGet rejects as a downgrade. It is built directly with `dotnet build daemon/Daemon.cs`, not via a `.slnx`.
 
 Model endpoints and the Gemini key are read from env vars / `.dmon/config.yaml` per ADR-005; the composition root does not hard-code credentials. The Daemon.App settings panel writes to `.dmon/config.yaml` so changes take effect on Gateway restart.
 
