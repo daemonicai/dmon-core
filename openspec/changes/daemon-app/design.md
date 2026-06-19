@@ -104,7 +104,7 @@ The earlier proposal left open how egress is obtained (a `UseGemini(passive)` ov
 
 #### R7: Per-turn misclassification metric — Personal→World specifically
 
-`TriageRouter` increments `dmon.triage.misclassify.personal_to_world` (via `DaemonTelemetry`) on any turn where the raw classifier produced `"world"` but the confidence gate overrode it to `"personal"`. This is the leak-direction metric the brief requires; overall routing accuracy is a separate counter.
+`TriageRouter` increments `dmon.triage.misclassify.personal_to_world` (via a `Daemon.Routing`-owned `DaemonTelemetry` static class — its own `Meter`/`Counter<long>`; core's `DmonTelemetry` is unrelated and unchanged) on any turn where the raw classifier produced `"world"` but the confidence gate overrode it to `"personal"`. This is the leak-direction metric the brief requires; overall routing accuracy is a separate counter.
 
 #### R8: Streaming ack before the target's first token
 

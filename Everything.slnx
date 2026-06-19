@@ -31,6 +31,7 @@
     <Project Path="frontends\Dmon.Terminal\Dmon.Terminal.csproj" />
   </Folder>
   <Folder Name="/daemon/">
+    <Project Path="daemon\Daemon.Routing\Daemon.Routing.csproj" />
   </Folder>
   <Folder Name="/services/">
     <Project Path="services\Dcal\Dcal.csproj" />

@@ -1,2 +1,5 @@
 <Solution>
+  <Folder Name="/daemon/">
+    <Project Path="daemon\Daemon.Routing\Daemon.Routing.csproj" />
+  </Folder>
 </Solution>
