@@ -1,20 +1,20 @@
 ## 1. Dmon.Tools.Calendar package setup
 
-- [ ] 1.1 Create `tools/Dmon.Tools.Calendar/Dmon.Tools.Calendar.csproj` targeting net10.0 with `TreatWarningsAsErrors`, `Nullable enable`, `ImplicitUsings enable`, `IsPackable=true` (+ `PackageId`/`Description`/`PackageTags`, mirroring `Dmon.Tools.Dmail`); add `PackageReference` for `Microsoft.Extensions.AI`; add `ProjectReference` to **both** `Dmon.Abstractions` **and** `Dmon.Protocol` (the latter defines `PermissionResult`, returned by `Evaluate`)
-- [ ] 1.2 Add `Dmon.Tools.Calendar` to `./tools.slnx` (root-level) and `./Everything.slnx`; confirm `make build` still passes
+- [x] 1.1 Create `tools/Dmon.Tools.Calendar/Dmon.Tools.Calendar.csproj` targeting net10.0 with `TreatWarningsAsErrors`, `Nullable enable`, `ImplicitUsings enable`, `IsPackable=true` (+ `PackageId`/`Description`/`PackageTags`, mirroring `Dmon.Tools.Dmail`); add `PackageReference` for `Microsoft.Extensions.AI`; add `ProjectReference` to **both** `Dmon.Abstractions` **and** `Dmon.Protocol` (the latter defines `PermissionResult`, returned by `Evaluate`)
+- [x] 1.2 Add `Dmon.Tools.Calendar` to `./tools.slnx` (root-level) and `./Everything.slnx`; confirm `make build` still passes
 
 ## 2. Dmon.Tools.Calendar — contracts and HTTP client
 
-- [ ] 2.1 Define `record CalendarEvent(string Uid, string Title, string? Description, string? Location, string StartUtc, string EndUtc)` as the shared DTO
-- [ ] 2.2 Define `interface ICalendarStore` with `CalendarEvent? FindNext(string term, string? after)` and `IReadOnlyList<CalendarEvent> ListUpcoming(int maxResults, string? after)`
-- [ ] 2.3 Implement `internal sealed class CalendarClient` — thin `HttpClient` wrapper over `GET /api/events/next` and `GET /api/events/upcoming`; authenticates with `X-Api-Key` header; returns `null`/empty on 404; wraps `HttpRequestException` and `TaskCanceledException` into a result string (never throws to caller)
-- [ ] 2.4 Implement `CalendarClient` as `ICalendarStore` — `FindNext` calls `GET /api/events/next`, `ListUpcoming` calls `GET /api/events/upcoming`
+- [x] 2.1 Define `record CalendarEvent(string Uid, string Title, string? Description, string? Location, string StartUtc, string EndUtc)` as the shared DTO
+- [x] 2.2 Define `interface ICalendarStore` with `CalendarEvent? FindNext(string term, string? after)` and `IReadOnlyList<CalendarEvent> ListUpcoming(int maxResults, string? after)`
+- [x] 2.3 Implement `internal sealed class CalendarClient` — thin `HttpClient` wrapper over `GET /api/events/next` and `GET /api/events/upcoming`; authenticates with `X-Api-Key` header; returns `null`/empty on 404; wraps `HttpRequestException` and `TaskCanceledException` into a result string (never throws to caller)
+- [x] 2.4 Implement `CalendarClient` as `ICalendarStore` — `FindNext` calls `GET /api/events/next`, `ListUpcoming` calls `GET /api/events/upcoming`
 
 ## 3. Dmon.Tools.Calendar — extension and ability provider
 
-- [ ] 3.1 Implement `sealed class CalendarExtension : IToolExtension` — parameterless constructor reads `DCAL_BASE_URL` (default `http://localhost:5280`) and `DCAL_API_KEY` from env; explicit constructor accepts `(string baseUrl, string? apiKey, HttpClient? httpClient = null)`; builds `lookup_calendar` and `list_upcoming_events` `AIFunction`s over `CalendarClient` via `DmonAIFunctionFactory.Create()` (as `Dmon.Tools.Dmail` does); `PermissionResult Evaluate(...)` returns `PermissionResult.Allow` for both tools (the enum is `{ Allow, Prompt, Deny }` — there is no `Read` value)
-- [ ] 3.2 Implement `sealed class CalendarAbilityProvider : IAbilityProvider` — `Scope => "personal"`; `Tools` returns the same `AIFunction`s as `CalendarExtension` (construct a shared `CalendarClient` instance)
-- [ ] 3.3 Implement `AddCalendarAbilities<T>()` extension on `IToolRegistration` that registers both `CalendarExtension` as `IToolExtension` and `CalendarAbilityProvider` as `IAbilityProvider`
+- [x] 3.1 Implement `sealed class CalendarExtension : IToolExtension` — parameterless constructor reads `DCAL_BASE_URL` (default `http://localhost:5280`) and `DCAL_API_KEY` from env; explicit constructor accepts `(string baseUrl, string? apiKey, HttpClient? httpClient = null)`; builds `lookup_calendar` and `list_upcoming_events` `AIFunction`s over `CalendarClient` via `DmonAIFunctionFactory.Create()` (as `Dmon.Tools.Dmail` does); `PermissionResult Evaluate(...)` returns `PermissionResult.Allow` for both tools (the enum is `{ Allow, Prompt, Deny }` — there is no `Read` value)
+- [x] 3.2 Implement `sealed class CalendarAbilityProvider : IAbilityProvider` — `Scope => "personal"`; `Tools` returns the same `AIFunction`s as `CalendarExtension` (construct a shared `CalendarClient` instance)
+- [x] 3.3 Implement `AddCalendarAbilities<T>()` extension on `IToolRegistration` that registers both `CalendarExtension` as `IToolExtension` and `CalendarAbilityProvider` as `IAbilityProvider`
 
 ## 4. Daemon.Calendar server setup
 

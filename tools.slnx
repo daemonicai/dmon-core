@@ -1,6 +1,7 @@
 <Solution>
   <Folder Name="/tools/">
     <Project Path="tools\Dmon.Tools.Builtin\Dmon.Tools.Builtin.csproj" />
+    <Project Path="tools\Dmon.Tools.Calendar\Dmon.Tools.Calendar.csproj" />
     <Project Path="tools\Dmon.Tools.Dmail\Dmon.Tools.Dmail.csproj" />
     <Project Path="tools\Dmon.Tools.WebSearch\Dmon.Tools.WebSearch.csproj" />
   </Folder>
