@@ -18,8 +18,8 @@
 
 ## 4. Daemon.Calendar server setup
 
-- [ ] 4.1 Create `daemon/Daemon.Calendar/Daemon.Calendar.csproj` — ASP.NET Core minimal-API, net10.0; add `PackageReference` for `Ical.Net` and `Microsoft.Data.Sqlite`; `IsPackable=false`
-- [ ] 4.2 Create `./daemon.slnx` (root-level, mirroring the other per-bucket solutions `./tools.slnx`, `./core.slnx`, …) referencing `Daemon.Calendar`; add `./daemon.slnx` to `./Everything.slnx`; confirm `make build` passes
+- [x] 4.1 Create `daemon/Daemon.Calendar/Daemon.Calendar.csproj` — ASP.NET Core minimal-API, net10.0; add `PackageReference` for `Ical.Net` and `Microsoft.Data.Sqlite`; `IsPackable=false`
+- [x] 4.2 Create `./daemon.slnx` (root-level, mirroring the other per-bucket solutions `./tools.slnx`, `./core.slnx`, …) referencing `Daemon.Calendar`; add `./daemon.slnx` to `./Everything.slnx`; confirm `make build` passes
 
 ## 5. Daemon.Calendar — SQLite store
 

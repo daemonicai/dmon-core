@@ -30,6 +30,9 @@
     <Project Path="frontends\Dmon.Gateway\Dmon.Gateway.csproj" />
     <Project Path="frontends\Dmon.Terminal\Dmon.Terminal.csproj" />
   </Folder>
+  <Folder Name="/daemon/">
+    <Project Path="daemon\Daemon.Calendar\Daemon.Calendar.csproj" />
+  </Folder>
   <Folder Name="/spike/">
     <Project Path="spike\ScriptingSpike\ScriptingSpike.csproj" />
   </Folder>

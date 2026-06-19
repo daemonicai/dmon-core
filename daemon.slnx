@@ -1,0 +1,5 @@
+<Solution>
+  <Folder Name="/daemon/">
+    <Project Path="daemon\Daemon.Calendar\Daemon.Calendar.csproj" />
+  </Folder>
+</Solution>
