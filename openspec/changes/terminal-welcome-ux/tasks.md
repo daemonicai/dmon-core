@@ -8,9 +8,9 @@
 
 ## 2. Core version stamping (`agent-core`)
 
-- [ ] 2.1 In `core/Dmon.Core/Rpc/RpcHostedService.cs`, derive `coreVersion` from `Assembly.GetExecutingAssembly().GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion`, falling back to the numeric `GetName().Version?.ToString()` and then `"0.0.0"` so the value is never empty.
-- [ ] 2.2 Confirm MinVer stamps `AssemblyInformationalVersionAttribute` onto the `Dmon.Core` assembly at build (already wired as a `GlobalPackageReference`); add a csproj note only if the stamp does not reach the core assembly.
-- [ ] 2.3 Add a core-side test asserting `agentReady.coreVersion` equals the stamped informational version when present, and falls back to the numeric/`"0.0.0"` value when the attribute is absent (per the `agent-core` `agentReady.coreVersion` requirement scenarios).
+- [x] 2.1 In `core/Dmon.Core/Rpc/RpcHostedService.cs`, derive `coreVersion` from `Assembly.GetExecutingAssembly().GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion`, falling back to the numeric `GetName().Version?.ToString()` and then `"0.0.0"` so the value is never empty.
+- [x] 2.2 Confirm MinVer stamps `AssemblyInformationalVersionAttribute` onto the `Dmon.Core` assembly at build (already wired as a `GlobalPackageReference`); add a csproj note only if the stamp does not reach the core assembly.
+- [x] 2.3 Add a core-side test asserting `agentReady.coreVersion` equals the stamped informational version when present, and falls back to the numeric/`"0.0.0"` value when the attribute is absent (per the `agent-core` `agentReady.coreVersion` requirement scenarios).
 
 ## 3. Terminal symmetric-frame redesign (`terminal-host`)
 
