@@ -14,18 +14,18 @@
 
 ## 3. Terminal symmetric-frame redesign (`terminal-host`)
 
-- [ ] 3.1 In `TerminalRenderer`, add a startup `dmon` ASCII banner + tagline MOTD emitted to scrollback via `Scrollback.Append`, and remove the bare `PrintSeparator("dmon")` welcome use in `Program.cs`.
-- [ ] 3.2 Set the `── dmon ──` top rule once via `ITerminal.InputPreamble.SetRows` (above the editor), replacing the top separator currently pushed through `Status.SetRows`.
-- [ ] 3.3 Set the `❯ ` prompt prefix once at startup via `ITerminal.Input.SetPrompt`.
-- [ ] 3.4 Give `TerminalRenderer` a `_coreVersion` field set from `Program.cs` (where `coreSession.AgentReady.CoreVersion` is already available); recompose `RefreshStatus()` to emit, via `Status.SetRows`, a `────` rule row plus a `[Ready] dmon core v{version} {model}` readiness row carrying the active model and `Thinking…`/`Idle` indicator — dropping the protocol string from the pinned row.
-- [ ] 3.5 Update `ConsoleEventHandler` so status refreshes (`TurnStart`/`TurnEnd`/`ProviderSwitched`) keep the readiness row's version + model + state in sync.
-- [ ] 3.6 Decide and apply the fate of the startup/`[Reload]` scrollback `[Ready]`/`[Reload]` lines in `Program.cs` (keep for history with protocol info, or retire now that the frame carries readiness) — keep behaviour consistent between the two.
-- [ ] 3.7 Add the `InputPreamble` surface to `Fakes/FakeTerminal.cs` (record `SetRows`) and record `Input.SetPrompt` calls, so unit tests can assert the preamble rule, prompt glyph, and version-bearing status row.
-- [ ] 3.8 Update/extend unit tests (`ConsoleEventHandlerTests`, renderer unit tests) to assert: banner+tagline appended at startup; `── dmon ──` set via `InputPreamble`; `❯ ` set via `SetPrompt`; status row reads `[Ready] dmon core v{version} {model}` with state indicator and no protocol string.
-- [ ] 3.9 Update/extend `TerminalRendererHarnessTests` (HeadlessTerminal) to snapshot the symmetric frame (preamble rule above editor, prompt prefix, readiness row below).
+- [x] 3.1 In `TerminalRenderer`, add a startup `dmon` ASCII banner + tagline MOTD emitted to scrollback via `Scrollback.Append`, and remove the bare `PrintSeparator("dmon")` welcome use in `Program.cs`.
+- [x] 3.2 Set the `── dmon ──` top rule once via `ITerminal.InputPreamble.SetRows` (above the editor), replacing the top separator currently pushed through `Status.SetRows`.
+- [x] 3.3 Set the `❯ ` prompt prefix once at startup via `ITerminal.Input.SetPrompt`.
+- [x] 3.4 Give `TerminalRenderer` a `_coreVersion` field set from `Program.cs` (where `coreSession.AgentReady.CoreVersion` is already available); recompose `RefreshStatus()` to emit, via `Status.SetRows`, a `────` rule row plus a `[Ready] dmon core v{version} {model}` readiness row carrying the active model and `Thinking…`/`Idle` indicator — dropping the protocol string from the pinned row.
+- [x] 3.5 Update `ConsoleEventHandler` so status refreshes (`TurnStart`/`TurnEnd`/`ProviderSwitched`) keep the readiness row's version + model + state in sync.
+- [x] 3.6 Decide and apply the fate of the startup/`[Reload]` scrollback `[Ready]`/`[Reload]` lines in `Program.cs` (keep for history with protocol info, or retire now that the frame carries readiness) — keep behaviour consistent between the two.
+- [x] 3.7 Add the `InputPreamble` surface to `Fakes/FakeTerminal.cs` (record `SetRows`) and record `Input.SetPrompt` calls, so unit tests can assert the preamble rule, prompt glyph, and version-bearing status row.
+- [x] 3.8 Update/extend unit tests (`ConsoleEventHandlerTests`, renderer unit tests) to assert: banner+tagline appended at startup; `── dmon ──` set via `InputPreamble`; `❯ ` set via `SetPrompt`; status row reads `[Ready] dmon core v{version} {model}` with state indicator and no protocol string.
+- [x] 3.9 Update/extend `TerminalRendererHarnessTests` (HeadlessTerminal) to snapshot the symmetric frame (preamble rule above editor, prompt prefix, readiness row below).
 
 ## 4. Validation and gates
 
-- [ ] 4.1 `make build` clean (no warnings — `TreatWarningsAsErrors`).
-- [ ] 4.2 `make test` (or `env -u MEKO_API_KEY make test`) green — new and existing tests.
-- [ ] 4.3 `openspec validate terminal-welcome-ux --strict` passes.
+- [x] 4.1 `make build` clean (no warnings — `TreatWarningsAsErrors`).
+- [x] 4.2 `make test` (or `env -u MEKO_API_KEY make test`) green — new and existing tests.
+- [x] 4.3 `openspec validate terminal-welcome-ux --strict` passes.

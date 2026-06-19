@@ -26,7 +26,8 @@ public sealed class ConsoleEventHandlerTests
         List<Command> sentCommands,
         CancellationTokenSource cts,
         Action? requestReload = null,
-        InputStateLayer? inputLayer = null)
+        InputStateLayer? inputLayer = null,
+        string? coreVersion = null)
     {
         Func<Command, CancellationToken, Task> send = (cmd, _) =>
         {
@@ -35,6 +36,9 @@ public sealed class ConsoleEventHandlerTests
         };
 
         TerminalRenderer renderer = new(fake);
+        // Prime the readiness state so the status band renders when coreVersion is supplied.
+        if (coreVersion is not null)
+            renderer.SetReadiness(coreVersion);
         InputStateLayer input = inputLayer ?? new();
         return new ConsoleEventHandler(
             renderer,
@@ -498,7 +502,8 @@ public sealed class ConsoleEventHandlerTests
         FakeTerminal fake = new();
         List<Command> sentCommands = [];
         using CancellationTokenSource cts = new();
-        ConsoleEventHandler handler = BuildHandler(fake, sentCommands, cts);
+        // Supply a core version so the status band renders (guard keys on _coreVersion).
+        ConsoleEventHandler handler = BuildHandler(fake, sentCommands, cts, coreVersion: "1.0.0");
 
         // Establish model name so the renderer produces a non-empty status row.
         ProviderSwitchedEvent providerSwitched = new()
@@ -513,10 +518,10 @@ public sealed class ConsoleEventHandlerTests
 
         StatusSet? afterStart = fake.Calls.OfType<StatusSet>().LastOrDefault();
         Assert.NotNull(afterStart);
-        // Renderer renders "<model> · thinking…" — at least one row with text
+        // Status band is two rows: rule row + readiness row.
         Assert.NotEmpty(afterStart.Rows);
         string statusText = string.Concat(afterStart.Rows.SelectMany(r => r.Segments.Select(s => s.Text)));
-        Assert.Contains("thinking", statusText);
+        Assert.Contains("Thinking", statusText);
 
         // MessageDelta — text appended to live block
         JsonElement delta = JsonSerializer.SerializeToElement(new { type = "textDelta", delta = "hi" });
