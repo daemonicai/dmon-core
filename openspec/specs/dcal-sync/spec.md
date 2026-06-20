@@ -3,9 +3,7 @@
 ## Purpose
 
 The `dcal-sync` capability defines the `Dcal` server that backs the `dcal-lookup` tools. It subscribes to an iCal feed, parses and expands events with `Ical.Net`, persists them into a local SQLite store, and exposes an HTTP surface for sync control and health. Lookup tools query this store rather than the model reasoning over raw event lists.
-
 ## Requirements
-
 ### Requirement: Dcal syncs an iCal subscription URL into SQLite on startup
 `CalendarSyncService` SHALL perform an immediate sync when `Dcal` starts, downloading the iCal URL configured via `DCAL_ICAL_URL`, parsing all events with `Ical.Net`, and persisting them to the local SQLite database. The server SHALL NOT serve lookup requests until the initial sync completes.
 
@@ -29,15 +27,23 @@ The `dcal-sync` capability defines the `Dcal` server that backs the `dcal-lookup
 - **THEN** the deleted event is no longer returned by lookup queries
 
 ### Requirement: Dcal expands recurring events over a configurable horizon
-`CalendarSyncService` SHALL expand recurring event rules into individual occurrences up to `DCAL_RECURRENCE_HORIZON_DAYS` days in the future (default 90) using `Ical.Net`'s occurrence expansion. Each expanded occurrence is stored as a separate row with a unique synthetic UID.
+`CalendarSyncService` SHALL expand recurring event rules into individual occurrences over the window `[now, now + DCAL_RECURRENCE_HORIZON_DAYS)` (default horizon 90 days) using `Ical.Net`'s occurrence expansion, where **`now` is obtained from an injectable time source (`TimeProvider`)** — `TimeProvider.System` in production. Occurrences before `now` are excluded; each stored occurrence is a separate row with a unique synthetic UID. Sourcing `now` from `TimeProvider` makes the windowing deterministically testable (a fixed clock yields a fixed occurrence set).
 
 #### Scenario: Weekly recurring event has multiple rows
 - **WHEN** the iCal feed contains a weekly recurring event and sync completes
-- **THEN** the `events` table contains one row per occurrence within the recurrence horizon
+- **THEN** the `events` table contains one row per occurrence within `[now, now + DCAL_RECURRENCE_HORIZON_DAYS)`
 
 #### Scenario: Occurrences outside the horizon are not stored
 - **WHEN** a recurring event has an occurrence beyond `DCAL_RECURRENCE_HORIZON_DAYS`
 - **THEN** that occurrence is NOT present in the `events` table
+
+#### Scenario: Occurrences before now are not stored
+- **WHEN** a recurring (or single) event has an occurrence whose start is before `now`
+- **THEN** that occurrence is NOT present in the `events` table
+
+#### Scenario: A fixed clock yields a deterministic occurrence set
+- **WHEN** `CalendarSyncService` is constructed with a `TimeProvider` pinned to a fixed instant and sync completes
+- **THEN** the set of stored occurrences depends only on that fixed instant and the feed, not on wall-clock time
 
 ### Requirement: POST /api/sync triggers an immediate out-of-cycle sync
 The `POST /api/sync` endpoint SHALL initiate a sync immediately, independent of the background schedule, and return `204 No Content` once the sync is complete.
@@ -56,3 +62,4 @@ The `GET /health` endpoint SHALL return `200 OK` with a JSON body containing `la
 #### Scenario: Health check reports zero events before first sync
 - **WHEN** `GET /health` is called before the initial sync completes
 - **THEN** `eventCount` is 0 and `lastSync` is null
+
