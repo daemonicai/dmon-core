@@ -5,12 +5,22 @@ struct MenuBarView: View {
     @EnvironmentObject var gateway: GatewayManager
     @EnvironmentObject var tailscale: TailscaleMonitor
     @EnvironmentObject var health: DcalHealthMonitor
+    @EnvironmentObject var healthRegistry: HealthRegistry
 
     var body: some View {
-        // Status rows
-        Text(gateway.isRunning ? "Gateway: Running" : "Gateway: Stopped")
-        Text(tailscaleStatusLabel)
-        Text(lastSyncLabel)
+        // One status row per registered component, in stable registry order.
+        ForEach(Array(healthRegistry.components.enumerated()), id: \.offset) { _, component in
+            HStack(spacing: 6) {
+                Image(systemName: statusSymbol(component.status))
+                    .foregroundStyle(statusColor(component.status))
+                Text(component.name)
+                if let detail = component.detail {
+                    Text(detail)
+                        .foregroundStyle(.secondary)
+                        .font(.caption)
+                }
+            }
+        }
 
         Divider()
 
@@ -21,6 +31,11 @@ struct MenuBarView: View {
             } else {
                 gateway.start()
             }
+        }
+
+        // Bring Tailscale up (best-effort; outcome reflected via re-poll, not direct row mutation)
+        Button("Bring Tailscale up") {
+            Task { await tailscale.bringUp() }
         }
 
         // Sync Calendar Now
@@ -41,18 +56,23 @@ struct MenuBarView: View {
         }
     }
 
-    // MARK: - Display helpers
+    // MARK: - Status display helpers
 
-    private var tailscaleStatusLabel: String {
-        switch tailscale.status {
-        case .up:       return "Tailscale: Up"
-        case .degraded: return "Tailscale: Degraded"
-        case .down:     return "Tailscale: Down"
+    private func statusSymbol(_ status: HealthStatus) -> String {
+        switch status {
+        case .ok:       return "circle.fill"
+        case .degraded: return "exclamationmark.circle.fill"
+        case .down:     return "xmark.circle.fill"
+        case .unknown:  return "questionmark.circle.fill"
         }
     }
 
-    private var lastSyncLabel: String {
-        guard let sync = health.lastSync else { return "Never synced" }
-        return "Last sync: \(sync)"
+    private func statusColor(_ status: HealthStatus) -> Color {
+        switch status {
+        case .ok:       return .green
+        case .degraded: return .orange
+        case .down:     return .red
+        case .unknown:  return .gray
+        }
     }
 }

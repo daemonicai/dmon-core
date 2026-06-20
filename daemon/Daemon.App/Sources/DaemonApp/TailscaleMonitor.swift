@@ -17,7 +17,18 @@ final class TailscaleMonitor: ObservableObject {
 
     @Published private(set) var status: TailscaleStatus = .down
 
+    /// Health snapshot for the registry; derived from `status` via `tailscaleHealth(_:)`.
+    @Published private(set) var componentHealth: ComponentHealth =
+        ComponentHealth(name: "Tailscale", status: .down)
+
     private var pollTask: Task<Void, Never>?
+
+    init() {
+        // Keep componentHealth in sync with status.
+        $status
+            .map { ComponentHealth(name: "Tailscale", status: tailscaleHealth(status: $0)) }
+            .assign(to: &$componentHealth)
+    }
 
     // MARK: - Public API (8.1)
 
@@ -39,10 +50,39 @@ final class TailscaleMonitor: ObservableObject {
         pollTask = nil
     }
 
+    // MARK: - Bring Tailscale up (6.3)
+
+    /// Runs `tailscale up` best-effort (no auth/interactive flow), then triggers an
+    /// immediate status re-poll so the registry row reflects the outcome without
+    /// waiting for the next 30-second cycle.  Failures are swallowed — the row
+    /// stays down/degraded as the re-poll will show.
+    func bringUp() async {
+        // Run `tailscale up` and an immediate re-poll off the main actor — both
+        // use blocking Process/waitUntilExit calls (nonisolated statics).
+        let result = await Task.detached(priority: .userInitiated) { () -> TailscaleStatus in
+            guard let url = TailscaleMonitor.resolveTailscaleBinary() else {
+                return await TailscaleMonitor.poll()
+            }
+            let p = Process()
+            p.executableURL = url
+            p.arguments = ["up"]
+            p.standardOutput = Pipe() // suppress stdout
+            p.standardError = Pipe()  // suppress stderr
+            try? p.run()
+            p.waitUntilExit()
+
+            // Immediate re-poll so the registry row reflects the new state.
+            return await TailscaleMonitor.poll()
+        }.value
+
+        status = result
+    }
+
     // MARK: - Polling (8.2, 8.3)
 
     /// Runs on a background task; publishes result on the main actor (see call site).
-    private static func poll() async -> TailscaleStatus {
+    /// Nonisolated because it only does synchronous I/O — no actor-state access.
+    private nonisolated static func poll() async -> TailscaleStatus {
         guard let tailscaleURL = resolveTailscaleBinary() else {
             // Binary not found in PATH or common locations → degraded (spec requirement).
             return .degraded
@@ -91,7 +131,7 @@ final class TailscaleMonitor: ObservableObject {
     private struct SelfNode: Decodable {}
     private struct PeerNode: Decodable {}
 
-    private static func parseStatus(from data: Data) -> TailscaleStatus {
+    private nonisolated static func parseStatus(from data: Data) -> TailscaleStatus {
         guard let payload = try? JSONDecoder().decode(StatusPayload.self, from: data) else {
             return .down
         }
@@ -107,7 +147,7 @@ final class TailscaleMonitor: ObservableObject {
     // MARK: - Binary resolution
 
     /// Searches PATH then common install locations for the `tailscale` CLI.
-    private static func resolveTailscaleBinary() -> URL? {
+    private nonisolated static func resolveTailscaleBinary() -> URL? {
         // Try PATH-based resolution first via `which`.
         if let pathURL = resolveViaWhich("tailscale") {
             return pathURL
@@ -125,7 +165,7 @@ final class TailscaleMonitor: ObservableObject {
         return nil
     }
 
-    private static func resolveViaWhich(_ name: String) -> URL? {
+    private nonisolated static func resolveViaWhich(_ name: String) -> URL? {
         let whichPath = "/usr/bin/which"
         guard FileManager.default.isExecutableFile(atPath: whichPath) else { return nil }
 
