@@ -1,9 +1,9 @@
 ## 1. Daemon.cs config refactor (C#)
 
-- [ ] 1.1 Reorder `daemon/Daemon.cs` so `DmonHostBuilder builder = DmonHost.CreateBuilder(args)` is created before the `IChatClient`s, and read endpoints/key/model-IDs via `builder.Configuration.GetValue<string>(key, default)` (confirm `Microsoft.Extensions.Configuration.Binder` is available transitively; add the `using` if needed)
-- [ ] 1.2 Parameterize the three model IDs from config: `DMON_E2B_MODEL` (default `gemma4:e2b-it-qat`), `DMON_REASONER_MODEL` (default `gemma4-27b`), `DMON_EGRESS_MODEL` (default `gemini-2.5-flash`)
-- [ ] 1.3 Apply the `DMON_` rename for dmon-core's inference endpoints: `DCAL_E2B_URL`→`DMON_E2B_URL`, `DCAL_REASONER_URL`→`DMON_REASONER_URL`; leave `GEMINI_API_KEY`, `DMON_GATEWAY_PATH`, and all `DCAL_*`/`DMAIL_*` server vars unchanged
-- [ ] 1.4 Verify `make build` is clean (0 warnings) and `env -u MEKO_API_KEY make test` is green
+- [x] 1.1 Reorder `daemon/Daemon.cs` so `DmonHostBuilder builder = DmonHost.CreateBuilder(args)` is created before the `IChatClient`s, and read endpoints/key/model-IDs via `builder.Configuration.GetValue<string>(key, default)` (confirm `Microsoft.Extensions.Configuration.Binder` is available transitively; add the `using` if needed)
+- [x] 1.2 Parameterize the three model IDs from config: `DMON_E2B_MODEL` (default `gemma4:e2b-it-qat`), `DMON_REASONER_MODEL` (default `gemma4-27b`), `DMON_EGRESS_MODEL` (default `gemini-2.5-flash`)
+- [x] 1.3 Apply the `DMON_` rename for dmon-core's inference endpoints: `DCAL_E2B_URL`→`DMON_E2B_URL`, `DCAL_REASONER_URL`→`DMON_REASONER_URL`; leave `GEMINI_API_KEY`, `DMON_GATEWAY_PATH`, and all `DCAL_*`/`DMAIL_*` server vars unchanged
+- [x] 1.4 Verify `make build` is clean (0 warnings) and `env -u MEKO_API_KEY make test` is green
 
 ## 2. Reusable server process manager (Swift)
 

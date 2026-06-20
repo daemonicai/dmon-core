@@ -13,22 +13,28 @@
 using GeminiDotnet;
 using GeminiDotnet.Extensions.AI;
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using OllamaSharp;
 using Dmon.Hosting;
 using Dmon.Memory;
 using Dmon.Tools.Dmail;
 
-string e2bUrl    = Environment.GetEnvironmentVariable("DCAL_E2B_URL")      ?? "http://localhost:11434";
-string reasonerUrl = Environment.GetEnvironmentVariable("DCAL_REASONER_URL") ?? "http://localhost:8080/v1";
-string geminiKey = Environment.GetEnvironmentVariable("GEMINI_API_KEY")    ?? string.Empty;
+DmonHostBuilder builder = DmonHost.CreateBuilder(args);
+
+string e2bUrl      = builder.Configuration.GetValue<string>("DMON_E2B_URL",       "http://localhost:11434")!;
+string reasonerUrl = builder.Configuration.GetValue<string>("DMON_REASONER_URL",   "http://localhost:8080/v1")!;
+string geminiKey   = builder.Configuration.GetValue<string>("GEMINI_API_KEY",      string.Empty)!;
+string e2bModel    = builder.Configuration.GetValue<string>("DMON_E2B_MODEL",      "gemma4:e2b-it-qat")!;
+string reasonerModel = builder.Configuration.GetValue<string>("DMON_REASONER_MODEL", "gemma4-27b")!;
+string egressModel = builder.Configuration.GetValue<string>("DMON_EGRESS_MODEL",   "gemini-2.5-flash")!;
 
 // e2b backend: Ollama (used as both classifier and e2b-with-tools inside TriageRouterFactory).
-IChatClient e2b = new OllamaApiClient(new Uri(e2bUrl), "gemma4:e2b-it-qat");
+IChatClient e2b = new OllamaApiClient(new Uri(e2bUrl), e2bModel);
 
 // Reasoner backend: OpenAI-compatible local endpoint, no credential required.
 IChatClient reasoner = new OpenAI.Chat.ChatClient(
-        "gemma4-27b",
+        reasonerModel,
         new System.ClientModel.ApiKeyCredential("not-needed"),
         new OpenAI.OpenAIClientOptions { Endpoint = new Uri(reasonerUrl) })
     .AsIChatClient();
@@ -37,10 +43,8 @@ IChatClient reasoner = new OpenAI.Chat.ChatClient(
 IChatClient egress = new GeminiChatClient(new GeminiClientOptions
 {
     ApiKey  = geminiKey,
-    ModelId = "gemini-2.5-flash",
+    ModelId = egressModel,
 });
-
-DmonHostBuilder builder = DmonHost.CreateBuilder(args);
 builder.UseTriage(e2b);
 builder.AddReasoner(reasoner);
 builder.AddEgress(egress);
