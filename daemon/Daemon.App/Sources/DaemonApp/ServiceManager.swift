@@ -13,6 +13,11 @@ final class ServiceManager: ObservableObject {
     @Published private(set) var isRunning: Bool = false
     @Published private(set) var lastExitCode: Int32?
 
+    /// Honest process-health snapshot for the registry (ok / down / unknown).
+    /// An unconfigured server (no executable resolved, never launched) is `unknown`
+    /// — amber in the rollup — not `down`/red. See DEVLOG Decision: "not configured" mapping.
+    @Published private(set) var componentHealth: ComponentHealth
+
     // Settable override for the server binary path (group 7 wires this from Settings).
     var pathOverride: String? {
         didSet { manager.config.executableCandidates = Self.candidates(
@@ -38,6 +43,10 @@ final class ServiceManager: ObservableObject {
         self.envKey = envKey
         self.manager = ServerProcessManager(config: config, livenessProbe: livenessProbe)
 
+        // Initial value before any Combine event arrives.
+        let componentName = config.displayName
+        self.componentHealth = ComponentHealth(name: componentName, status: .unknown)
+
         // Mirror the manager's published properties so consumers of ServiceManager
         // observe changes through the standard ObservableObject mechanism.
         manager.$isRunning
@@ -46,6 +55,18 @@ final class ServiceManager: ObservableObject {
         manager.$lastExitCode
             .receive(on: RunLoop.main)
             .assign(to: &$lastExitCode)
+
+        // Derive componentHealth from isRunning + lastExitCode.
+        Publishers.CombineLatest(manager.$isRunning, manager.$lastExitCode)
+            .receive(on: RunLoop.main)
+            .map { running, exitCode in
+                ComponentHealth(
+                    name: componentName,
+                    status: processHealth(isRunning: running, lastExitCode: exitCode),
+                    detail: exitCode.map { "exit \($0)" }
+                )
+            }
+            .assign(to: &$componentHealth)
     }
 
     // MARK: - Public API

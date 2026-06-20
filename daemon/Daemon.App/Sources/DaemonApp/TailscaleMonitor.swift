@@ -17,7 +17,18 @@ final class TailscaleMonitor: ObservableObject {
 
     @Published private(set) var status: TailscaleStatus = .down
 
+    /// Health snapshot for the registry; derived from `status` via `tailscaleHealth(_:)`.
+    @Published private(set) var componentHealth: ComponentHealth =
+        ComponentHealth(name: "Tailscale", status: .down)
+
     private var pollTask: Task<Void, Never>?
+
+    init() {
+        // Keep componentHealth in sync with status.
+        $status
+            .map { ComponentHealth(name: "Tailscale", status: tailscaleHealth(status: $0)) }
+            .assign(to: &$componentHealth)
+    }
 
     // MARK: - Public API (8.1)
 

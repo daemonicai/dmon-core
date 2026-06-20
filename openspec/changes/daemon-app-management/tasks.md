@@ -19,9 +19,9 @@
 
 ## 4. Unified health model and registry (Swift)
 
-- [ ] 4.1 Add `ComponentHealth { name, status, detail? }` with `HealthStatus = ok | degraded | down | unknown`
-- [ ] 4.2 Add a `HealthRegistry: ObservableObject` that collects each component's `ComponentHealth` into an ordered list plus an aggregate rollup (gateway-stopped→red; any `down`→red; any `degraded`/`unknown`→amber; else green)
-- [ ] 4.3 Adapt `GatewayManager`, `TailscaleMonitor`, `DcalHealthMonitor`, and the new server managers to publish `ComponentHealth` into the registry
+- [x] 4.1 Add `ComponentHealth { name, status, detail? }` with `HealthStatus = ok | degraded | down | unknown`
+- [x] 4.2 Add a `HealthRegistry: ObservableObject` that collects each component's `ComponentHealth` into an ordered list plus an aggregate rollup (gateway-stopped→red; any `down`→red; any `degraded`/`unknown`→amber; else green)
+- [x] 4.3 Adapt `GatewayManager`, `TailscaleMonitor`, `DcalHealthMonitor`, and the new server managers to publish `ComponentHealth` into the registry
 
 ## 5. Dmail and model-runner endpoint health (Swift)
 

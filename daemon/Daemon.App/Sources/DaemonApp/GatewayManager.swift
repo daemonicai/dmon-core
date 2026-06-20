@@ -7,6 +7,12 @@ final class GatewayManager: ObservableObject {
     @Published private(set) var isRunning: Bool = false
     @Published private(set) var lastExitCode: Int32?
 
+    /// Honest process-health snapshot for the registry (ok / down / unknown).
+    /// The Gateway's SPECIAL ICON ROLE (stopped → red) is handled by the
+    /// rollup's `gatewayStopped` parameter, NOT by mapping this to `down`.
+    @Published private(set) var componentHealth: ComponentHealth =
+        ComponentHealth(name: "Gateway", status: .unknown)
+
     // Settable override for the Gateway binary path (§10 wires this from Settings).
     var gatewayPathOverride: String? {
         didSet { manager.config.executableCandidates = Self.gatewayCandidates(override: gatewayPathOverride) }
@@ -39,6 +45,18 @@ final class GatewayManager: ObservableObject {
         manager.$lastExitCode
             .receive(on: RunLoop.main)
             .assign(to: &$lastExitCode)
+
+        // Derive componentHealth from isRunning + lastExitCode.
+        Publishers.CombineLatest(manager.$isRunning, manager.$lastExitCode)
+            .receive(on: RunLoop.main)
+            .map { running, exitCode in
+                ComponentHealth(
+                    name: "Gateway",
+                    status: processHealth(isRunning: running, lastExitCode: exitCode),
+                    detail: exitCode.map { "exit \($0)" }
+                )
+            }
+            .assign(to: &$componentHealth)
     }
 
     // MARK: - Public API

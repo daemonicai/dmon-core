@@ -8,6 +8,7 @@ struct DaemonApp: App {
     @StateObject private var health = DcalHealthMonitor()
     @StateObject private var dcal = ServiceManager.makeDcal()
     @StateObject private var dmail = ServiceManager.makeDmail()
+    @StateObject private var healthRegistry = HealthRegistry()
 
     @State private var isInserted = true
 
@@ -31,6 +32,7 @@ struct DaemonApp: App {
                 .environmentObject(health)
                 .environmentObject(dcal)
                 .environmentObject(dmail)
+                .environmentObject(healthRegistry)
                 .task {
                     gateway.start()
                     tailscale.start()
@@ -47,6 +49,18 @@ struct DaemonApp: App {
                     // Gateway; see flag in hand-off to orchestrator.
                     dcal.start()
                     dmail.start()
+
+                    // Wire the health registry.
+                    // Stable display order: Gateway(0) Dcal(1) Dmail(2) Tailscale(3) Calendar Sync(4).
+                    healthRegistry.register(publisher: gateway.$componentHealth, order: 0)
+                    healthRegistry.register(publisher: dcal.$componentHealth, order: 1)
+                    healthRegistry.register(publisher: dmail.$componentHealth, order: 2)
+                    healthRegistry.register(publisher: tailscale.$componentHealth, order: 3)
+                    healthRegistry.register(publisher: health.$componentHealth, order: 4)
+                    // The Gateway's special icon role (stopped → red) is driven by a
+                    // dedicated flag, NOT by forcing its ComponentHealth to `down`.
+                    // Group 6 (task 6.2) will read rollupColor instead of iconColor.
+                    healthRegistry.observeGatewayStopped(gateway.$isRunning.map { !$0 })
                 }
         } label: {
             Image(systemName: "brain")

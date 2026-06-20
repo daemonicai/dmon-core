@@ -6,6 +6,16 @@ final class DcalHealthMonitor: ObservableObject {
     @Published private(set) var lastSync: String?
     @Published private(set) var eventCount: Int?
 
+    /// Calendar-sync health snapshot for the registry, distinct from the Dcal
+    /// *server process* component (which comes from the Dcal `ServiceManager`).
+    ///
+    /// Classification:
+    ///   never polled → unknown (initial; amber in rollup — not red)
+    ///   last fetch succeeded → ok
+    ///   last fetch failed (nil) → down
+    @Published private(set) var componentHealth: ComponentHealth =
+        ComponentHealth(name: "Calendar Sync", status: .unknown)
+
     private var pollTask: Task<Void, Never>?
 
     // MARK: - Environment
@@ -26,8 +36,7 @@ final class DcalHealthMonitor: ObservableObject {
             while !Task.isCancelled {
                 let result = await self?.fetchHealth()
                 await MainActor.run { [weak self] in
-                    self?.lastSync = result?.lastSync ?? nil
-                    self?.eventCount = result?.eventCount ?? nil
+                    self?.applyFetchResult(result ?? nil)
                 }
                 try? await Task.sleep(nanoseconds: 30_000_000_000) // 30s
             }
@@ -42,8 +51,7 @@ final class DcalHealthMonitor: ObservableObject {
     func syncNow() async {
         await postSync()
         let result = await fetchHealth()
-        lastSync = result?.lastSync ?? nil
-        eventCount = result?.eventCount ?? nil
+        applyFetchResult(result)
     }
 
     // MARK: - HTTP helpers
@@ -84,5 +92,18 @@ final class DcalHealthMonitor: ObservableObject {
         } catch {
             // Fail-soft: sync errors are non-fatal.
         }
+    }
+
+    // MARK: - State update
+
+    /// Updates all published properties from a fetch result.
+    /// Shared between the polling loop and `syncNow()`.
+    private func applyFetchResult(_ result: HealthResponse?) {
+        lastSync = result?.lastSync ?? nil
+        eventCount = result?.eventCount ?? nil
+        componentHealth = ComponentHealth(
+            name: "Calendar Sync",
+            status: result != nil ? .ok : .down
+        )
     }
 }
