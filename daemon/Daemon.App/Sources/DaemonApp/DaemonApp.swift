@@ -33,15 +33,13 @@ struct DaemonApp: App {
 
     @State private var isInserted = true
 
-    // MARK: - Combined-status icon color (authoritative decision table)
-    // Gateway stopped → red (takes precedence over Tailscale)
-    // Gateway running + Tailscale up → green
-    // Gateway running + Tailscale degraded or down → amber
-    private var iconColor: Color {
-        guard gateway.isRunning else { return .red }
-        switch tailscale.status {
-        case .up:               return .green
-        case .degraded, .down:  return .orange
+    // MARK: - Icon color from aggregate rollup
+
+    private func color(for rollup: RollupColor) -> Color {
+        switch rollup {
+        case .green: return .green
+        case .amber: return .orange
+        case .red:   return .red
         }
     }
 
@@ -91,12 +89,11 @@ struct DaemonApp: App {
                     healthRegistry.register(publisher: egressProbe.$componentHealth, order: 8)
                     // The Gateway's special icon role (stopped → red) is driven by a
                     // dedicated flag, NOT by forcing its ComponentHealth to `down`.
-                    // Group 6 (task 6.2) will read rollupColor instead of iconColor.
                     healthRegistry.observeGatewayStopped(gateway.$isRunning.map { !$0 })
                 }
         } label: {
             Image(systemName: "brain")
-                .foregroundStyle(iconColor)
+                .foregroundStyle(color(for: healthRegistry.rollupColor))
         }
 
         Settings {
