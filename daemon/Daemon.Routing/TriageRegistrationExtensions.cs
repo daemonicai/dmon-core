@@ -6,11 +6,11 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Dmon.Hosting;
 
-// Wrapper records disambiguate the three bare IChatClient backends in DI so
+// Wrapper records disambiguate the three backend delegates in DI so
 // TriageRouterFactory.Create can resolve the right one without keyed registration.
-internal sealed record E2bRawClient(IChatClient Client);
-internal sealed record ReasonerClient(IChatClient Client);
-internal sealed record EgressClient(IChatClient Client);
+internal sealed record FirstLineRawClientFactory(Func<IServiceProvider, ValueTask<IChatClient>> Factory);
+internal sealed record EscalationClientFactory(Func<IServiceProvider, ValueTask<IChatClient>> Factory);
+internal sealed record EgressClientFactory(Func<IServiceProvider, ValueTask<IChatClient>> Factory);
 
 /// <summary>
 /// Composition verbs that wire the triage router into the dmon builder.
@@ -18,99 +18,138 @@ internal sealed record EgressClient(IChatClient Client);
 public static class TriageRegistrationExtensions
 {
     /// <summary>
-    /// Registers the triage router factory and the e2b backend.
+    /// Registers the triage router factory and the first-line backend.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// <paramref name="e2bRaw"/> is used as both the classifier (no tools, structured output)
-    /// and — after wrapping with <c>FunctionInvokingChatClient</c> — as the e2b-with-tools
-    /// backend (R2). Both roles are built inside <see cref="TriageRouterFactory.Create"/>.
+    /// The delegate is used as both the classifier (no tools, structured output)
+    /// and — after wrapping with <c>FunctionInvokingChatClient</c> — as the first-line
+    /// backend. Both roles are resolved lazily on first use inside <see cref="TriageRouterFactory.Create"/>.
     /// </para>
     /// <para>
-    /// Call <see cref="AddReasoner"/> and <see cref="AddEgress"/> on the same builder
-    /// to supply the remaining backends. All three are resolved by
-    /// <see cref="TriageRouterFactory"/> when the host is built.
+    /// Call <see cref="AddEscalation"/> and <see cref="AddEgress"/> on the same builder
+    /// to supply the remaining backends. All three are resolved lazily when the router first uses them.
     /// </para>
     /// </remarks>
     /// <param name="b">The host builder.</param>
-    /// <param name="e2bRaw">
-    /// The pre-built e2b <see cref="IChatClient"/> (provider SDK client, no pipeline wrapping).
+    /// <param name="firstLineFactory">
+    /// A delegate that resolves the first-line (classifier + tool-handling) <see cref="IChatClient"/>.
+    /// Invoked at most once per router instance (lazy, thread-safe).
     /// </param>
     /// <param name="options">Optional triage options; defaults to <see cref="TriageOptions"/> defaults.</param>
     /// <returns><paramref name="b"/>, for fluent chaining.</returns>
     public static IDmonHostBuilder UseTriage(
         this IDmonHostBuilder b,
-        IChatClient e2bRaw,
+        Func<IServiceProvider, ValueTask<IChatClient>> firstLineFactory,
         TriageOptions? options = null)
     {
-        b.Services.AddSingleton(new E2bRawClient(e2bRaw));
+        b.Services.AddSingleton(new FirstLineRawClientFactory(firstLineFactory));
         b.Services.AddSingleton(options ?? new TriageOptions());
         b.Services.AddSingleton<ITerminalClientFactory, TriageRouterFactory>();
         return b;
     }
 
     /// <summary>
-    /// Registers the reasoner backend for the triage router.
+    /// Registers the triage router factory and the first-line backend (eager overload).
     /// </summary>
     /// <param name="b">The host builder.</param>
-    /// <param name="reasoner">The pre-built reasoner <see cref="IChatClient"/>.</param>
+    /// <param name="firstLineRaw">
+    /// The pre-built first-line <see cref="IChatClient"/> (provider SDK client, no pipeline wrapping).
+    /// Wrapped as a <c>ValueTask.FromResult</c> delegate internally.
+    /// </param>
+    /// <param name="options">Optional triage options; defaults to <see cref="TriageOptions"/> defaults.</param>
     /// <returns><paramref name="b"/>, for fluent chaining.</returns>
-    public static IDmonHostBuilder AddReasoner(
+    public static IDmonHostBuilder UseTriage(
         this IDmonHostBuilder b,
-        IChatClient reasoner)
+        IChatClient firstLineRaw,
+        TriageOptions? options = null)
+        => b.UseTriage(_ => ValueTask.FromResult(firstLineRaw), options);
+
+    /// <summary>
+    /// Registers the escalation backend for the triage router.
+    /// </summary>
+    /// <param name="b">The host builder.</param>
+    /// <param name="escalationFactory">
+    /// A delegate that resolves the escalation <see cref="IChatClient"/>.
+    /// Invoked at most once per router instance (lazy, thread-safe).
+    /// </param>
+    /// <returns><paramref name="b"/>, for fluent chaining.</returns>
+    public static IDmonHostBuilder AddEscalation(
+        this IDmonHostBuilder b,
+        Func<IServiceProvider, ValueTask<IChatClient>> escalationFactory)
     {
-        b.Services.AddSingleton(new ReasonerClient(reasoner));
+        b.Services.AddSingleton(new EscalationClientFactory(escalationFactory));
         return b;
     }
+
+    /// <summary>
+    /// Registers the escalation backend for the triage router (eager overload).
+    /// </summary>
+    /// <param name="b">The host builder.</param>
+    /// <param name="escalation">The pre-built escalation <see cref="IChatClient"/>.</param>
+    /// <returns><paramref name="b"/>, for fluent chaining.</returns>
+    public static IDmonHostBuilder AddEscalation(
+        this IDmonHostBuilder b,
+        IChatClient escalation)
+        => b.AddEscalation(_ => ValueTask.FromResult(escalation));
 
     /// <summary>
     /// Registers the egress backend for the triage router.
     /// </summary>
     /// <remarks>
     /// Egress is provider-agnostic: pass any <see cref="IChatClient"/> — the router
-    /// never references a provider package or performs a name-based lookup (R6).
+    /// never references a provider package or performs a name-based lookup.
     /// </remarks>
+    /// <param name="b">The host builder.</param>
+    /// <param name="egressFactory">
+    /// A delegate that resolves the egress <see cref="IChatClient"/>.
+    /// Invoked at most once per router instance (lazy, thread-safe).
+    /// </param>
+    /// <returns><paramref name="b"/>, for fluent chaining.</returns>
+    public static IDmonHostBuilder AddEgress(
+        this IDmonHostBuilder b,
+        Func<IServiceProvider, ValueTask<IChatClient>> egressFactory)
+    {
+        b.Services.AddSingleton(new EgressClientFactory(egressFactory));
+        return b;
+    }
+
+    /// <summary>
+    /// Registers the egress backend for the triage router (eager overload).
+    /// </summary>
     /// <param name="b">The host builder.</param>
     /// <param name="egress">The pre-built egress <see cref="IChatClient"/>.</param>
     /// <returns><paramref name="b"/>, for fluent chaining.</returns>
     public static IDmonHostBuilder AddEgress(
         this IDmonHostBuilder b,
         IChatClient egress)
-    {
-        b.Services.AddSingleton(new EgressClient(egress));
-        return b;
-    }
+        => b.AddEgress(_ => ValueTask.FromResult(egress));
 }
 
 /// <summary>
-/// Resolves the three backends and constructs a <see cref="TriageRouter"/> from DI.
+/// Captures the three backend delegates and constructs a <see cref="TriageRouter"/> from DI.
 /// Registered as <see cref="ITerminalClientFactory"/> by <see cref="TriageRegistrationExtensions.UseTriage"/>.
 /// </summary>
+/// <remarks>
+/// <see cref="Create"/> performs NO I/O — it only captures delegates and constructs the router.
+/// Backends are resolved lazily on first use inside the router (ADR-027 D1 / ADR-032 D3).
+/// </remarks>
 public sealed class TriageRouterFactory : ITerminalClientFactory
 {
     /// <inheritdoc />
     public IChatClient Create(IServiceProvider services)
     {
-        E2bRawClient e2bWrapper = services.GetRequiredService<E2bRawClient>();
-        ReasonerClient reasonerWrapper = services.GetRequiredService<ReasonerClient>();
-        EgressClient egressWrapper = services.GetRequiredService<EgressClient>();
+        FirstLineRawClientFactory firstLineWrapper = services.GetRequiredService<FirstLineRawClientFactory>();
+        EscalationClientFactory escalationWrapper = services.GetRequiredService<EscalationClientFactory>();
+        EgressClientFactory egressWrapper = services.GetRequiredService<EgressClientFactory>();
         AbilityRegistry abilities = services.GetRequiredService<AbilityRegistry>();
         TriageOptions options = services.GetRequiredService<TriageOptions>();
 
-        // R2: classifier = e2bRaw (no tools, structured output).
-        IChatClient classifier = e2bWrapper.Client;
-
-        // R2: e2bWithTools = e2bRaw wrapped with function invocation.
-        IChatClient e2bWithTools = e2bWrapper.Client
-            .AsBuilder()
-            .UseFunctionInvocation()
-            .Build();
-
         return new TriageRouter(
-            classifier,
-            e2bWithTools,
-            reasonerWrapper.Client,
-            egressWrapper.Client,
+            firstLineWrapper.Factory,
+            escalationWrapper.Factory,
+            egressWrapper.Factory,
+            services,
             abilities,
             options);
     }

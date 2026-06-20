@@ -6,59 +6,107 @@ namespace Daemon.Routing;
 
 /// <summary>
 /// A <see cref="DelegatingChatClient"/> that classifies each turn and dispatches to
-/// the appropriate backend (e2b-with-tools, reasoner, or egress) based on the
-/// classifier's <see cref="RouteDecision"/>.
+/// the appropriate backend (first-line, escalation, or egress) using the ADR-032
+/// handler-initiated escalation ladder.
 /// </summary>
 /// <remarks>
 /// <para>
-/// Per-turn dispatch order (R5):
+/// Per-turn dispatch order:
 /// <list type="bullet">
 /// <item><description>Egress — when raw scope is <c>"world"</c>, <c>Impersonal</c> is true, and <c>Confidence &gt; EgressThreshold</c>.</description></item>
-/// <item><description>Reasoner — when <c>Tier == Tier.Reasoner</c> (any scope, any confidence).</description></item>
-/// <item><description>E2b-with-tools — all other turns.</description></item>
+/// <item><description>First-line — all other turns; offered the scoped manifest plus the <c>think_harder</c> signal tool.</description></item>
+/// <item><description>Escalation — when first-line response includes a <c>think_harder</c> function call.</description></item>
 /// </list>
 /// </para>
 /// <para>
-/// Privacy invariant: when <c>Confidence &lt; EgressThreshold</c>, the effective scope is
-/// forced to <c>"personal"</c> before building the tool manifest and the
+/// Privacy invariant: when <c>Confidence &lt; EgressThreshold</c> and raw scope is <c>"world"</c>,
+/// the effective scope is forced to <c>"personal"</c> before building the tool manifest and the
 /// <c>dmon.triage.misclassify.personal_to_world</c> counter is incremented.
+/// </para>
+/// <para>
+/// Backends are resolved lazily on first use (one instance per backend per router lifetime,
+/// concurrency-safe via <see cref="Lazy{T}"/>). The router owns the resolved backends and
+/// disposes them on teardown.
 /// </para>
 /// </remarks>
 public sealed class TriageRouter : DelegatingChatClient
 {
-    private readonly IChatClient _classifier;
-    private readonly IChatClient _e2bWithTools;
-    private readonly IChatClient _reasoner;
-    private readonly IChatClient _egress;
+    private const string AckText = "[triage]";
+    private const string EscalationMarker = "[escalating]";
+    private const string ThinkHarderName = "think_harder";
+
+    private readonly Lazy<Task<IChatClient>> _lazyFirstLine;
+    private readonly Lazy<Task<IChatClient>> _lazyEscalation;
+    private readonly Lazy<Task<IChatClient>> _lazyEgress;
     private readonly AbilityRegistry _abilities;
     private readonly TriageOptions _options;
 
+    // The think_harder AIFunction: sets FunctionInvocationContext.Terminate and returns a sentinel.
+    // Offered to first-line only; never to escalation or egress.
+    private static readonly AIFunction ThinkHarder = AIFunctionFactory.Create(
+        () =>
+        {
+            FunctionInvocationContext? ctx = FunctionInvokingChatClient.CurrentContext;
+            if (ctx is not null)
+            {
+                ctx.Terminate = true;
+            }
+            return "escalating";
+        },
+        ThinkHarderName,
+        "Signal that this turn requires escalation to a more capable backend.");
+
     /// <summary>
-    /// Initialises the router with its four backend clients, the ability registry,
-    /// and the triage options.
+    /// Constructs the router with lazy backend delegates and ability registry.
+    /// No I/O is performed at construction time.
     /// </summary>
-    /// <param name="classifier">Raw e2b client used for structured-output classification (no tools).</param>
-    /// <param name="e2bWithTools">E2b client wrapped with function invocation for tool-bearing turns.</param>
-    /// <param name="reasoner">The slow, high-capability reasoner backend.</param>
-    /// <param name="egress">The provider-agnostic egress backend for impersonal world turns.</param>
+    /// <param name="firstLineFactory">Delegate that resolves the first-line client. Invoked at most once.</param>
+    /// <param name="escalationFactory">Delegate that resolves the escalation client. Invoked at most once.</param>
+    /// <param name="egressFactory">Delegate that resolves the egress client. Invoked at most once.</param>
+    /// <param name="services">Service provider passed to the factory delegates.</param>
     /// <param name="abilities">Per-turn scope-gated tool manifest.</param>
     /// <param name="options">Configurable knobs (e.g. <see cref="TriageOptions.EgressThreshold"/>).</param>
     public TriageRouter(
-        IChatClient classifier,
-        IChatClient e2bWithTools,
-        IChatClient reasoner,
+        Func<IServiceProvider, ValueTask<IChatClient>> firstLineFactory,
+        Func<IServiceProvider, ValueTask<IChatClient>> escalationFactory,
+        Func<IServiceProvider, ValueTask<IChatClient>> egressFactory,
+        IServiceProvider services,
+        AbilityRegistry abilities,
+        TriageOptions options)
+        // Use a no-op placeholder as the DelegatingChatClient inner; actual dispatch goes to lazily-resolved clients.
+        : base(new NopChatClient())
+    {
+        _lazyFirstLine = new Lazy<Task<IChatClient>>(
+            () => firstLineFactory(services).AsTask(),
+            LazyThreadSafetyMode.ExecutionAndPublication);
+        _lazyEscalation = new Lazy<Task<IChatClient>>(
+            () => escalationFactory(services).AsTask(),
+            LazyThreadSafetyMode.ExecutionAndPublication);
+        _lazyEgress = new Lazy<Task<IChatClient>>(
+            () => egressFactory(services).AsTask(),
+            LazyThreadSafetyMode.ExecutionAndPublication);
+        _abilities = abilities;
+        _options = options;
+    }
+
+    /// <summary>
+    /// Test constructor that accepts pre-resolved clients directly.
+    /// Backends are wrapped as already-completed tasks; no I/O occurs.
+    /// </summary>
+    internal TriageRouter(
+        IChatClient firstLine,
+        IChatClient escalation,
         IChatClient egress,
         AbilityRegistry abilities,
         TriageOptions options)
-        // Pass e2bWithTools as the inner so DelegatingChatClient.Dispose / metadata flow correctly.
-        : base(e2bWithTools)
+        : this(
+            _ => ValueTask.FromResult(firstLine),
+            _ => ValueTask.FromResult(escalation),
+            _ => ValueTask.FromResult(egress),
+            new NopServiceProvider(),
+            abilities,
+            options)
     {
-        _classifier = classifier;
-        _e2bWithTools = e2bWithTools;
-        _reasoner = reasoner;
-        _egress = egress;
-        _abilities = abilities;
-        _options = options;
     }
 
     /// <inheritdoc />
@@ -67,8 +115,37 @@ public sealed class TriageRouter : DelegatingChatClient
         ChatOptions? options = null,
         CancellationToken cancellationToken = default)
     {
-        (IChatClient target, ChatOptions scopedOptions) = await ClassifyAndRouteAsync(messages, options, cancellationToken);
-        return await target.GetResponseAsync(messages, scopedOptions, cancellationToken);
+        (RouteDecision raw, string effectiveScope) = await ClassifyAsync(messages, cancellationToken);
+
+        // Egress path: stream directly after ack (no escalation logic).
+        if (IsEgressEligible(raw))
+        {
+            IChatClient egress = await _lazyEgress.Value;
+            ChatOptions egressOptions = BuildOptions(options, effectiveScope, includeThinkHarder: false);
+            return await egress.GetResponseAsync(messages, egressOptions, cancellationToken);
+        }
+
+        // First-line path: offer think_harder in the manifest.
+        IChatClient firstLineRaw = await _lazyFirstLine.Value;
+        IChatClient firstLineWithFic = firstLineRaw
+            .AsBuilder()
+            .UseFunctionInvocation()
+            .Build();
+        ChatOptions firstLineOptions = BuildOptions(options, effectiveScope, includeThinkHarder: true);
+        ChatResponse firstLineResponse = await firstLineWithFic.GetResponseAsync(messages, firstLineOptions, cancellationToken);
+
+        // Detect escalation: did first-line call think_harder?
+        if (!TryFindThinkHarderCalls(firstLineResponse.Messages, out HashSet<string> thinkHarderCallIds))
+        {
+            // No escalation — return the first-line answer directly.
+            return firstLineResponse;
+        }
+
+        // Escalation path.
+        IList<ChatMessage> inheritedMessages = BuildInheritedMessages(messages, firstLineResponse.Messages, thinkHarderCallIds);
+        IChatClient escalation = await _lazyEscalation.Value;
+        ChatOptions escalationOptions = BuildOptions(options, effectiveScope, includeThinkHarder: false);
+        return await escalation.GetResponseAsync(inheritedMessages, escalationOptions, cancellationToken);
     }
 
     /// <inheritdoc />
@@ -77,41 +154,101 @@ public sealed class TriageRouter : DelegatingChatClient
         ChatOptions? options = null,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        (IChatClient target, ChatOptions scopedOptions) = await ClassifyAndRouteAsync(messages, options, cancellationToken);
+        // Yield the ack before any backend output. Does not name the final route.
+        yield return new ChatResponseUpdate(ChatRole.Assistant, AckText);
 
-        // Yield one synthetic ack before forwarding the target's stream (spec R8).
-        string ackText = BuildAckText(target);
-        yield return new ChatResponseUpdate(ChatRole.Assistant, ackText);
+        (RouteDecision raw, string effectiveScope) = await ClassifyAsync(messages, cancellationToken);
 
-        await foreach (ChatResponseUpdate update in target.GetStreamingResponseAsync(messages, scopedOptions, cancellationToken))
+        // Egress path: stream directly (no buffering needed).
+        if (IsEgressEligible(raw))
+        {
+            IChatClient egress = await _lazyEgress.Value;
+            ChatOptions egressOptions = BuildOptions(options, effectiveScope, includeThinkHarder: false);
+            await foreach (ChatResponseUpdate update in egress.GetStreamingResponseAsync(messages, egressOptions, cancellationToken))
+            {
+                yield return update;
+            }
+            yield break;
+        }
+
+        // First-line path: run as non-streaming to allow buffering for possible escalation.
+        // D5: first-line tokens are never streamed directly; only the committed backend streams.
+        IChatClient firstLineRaw = await _lazyFirstLine.Value;
+        IChatClient firstLineWithFic = firstLineRaw
+            .AsBuilder()
+            .UseFunctionInvocation()
+            .Build();
+        ChatOptions firstLineOptions = BuildOptions(options, effectiveScope, includeThinkHarder: true);
+        ChatResponse firstLineResponse = await firstLineWithFic.GetResponseAsync(messages, firstLineOptions, cancellationToken);
+
+        if (!TryFindThinkHarderCalls(firstLineResponse.Messages, out HashSet<string> thinkHarderCallIds))
+        {
+            // No escalation — replay the buffered first-line answer as streaming updates.
+            // The replay is text-only by design: V1 first-line turns produce text answers,
+            // so any non-text final content is intentionally not re-emitted on the streaming path.
+            foreach (ChatMessage msg in firstLineResponse.Messages)
+            {
+                foreach (AIContent content in msg.Contents)
+                {
+                    if (content is TextContent textContent)
+                    {
+                        yield return new ChatResponseUpdate(ChatRole.Assistant, textContent.Text);
+                    }
+                }
+            }
+            yield break;
+        }
+
+        // Escalation path: emit the marker, then stream from the escalation client.
+        yield return new ChatResponseUpdate(ChatRole.Assistant, EscalationMarker);
+
+        IList<ChatMessage> inheritedMessages = BuildInheritedMessages(messages, firstLineResponse.Messages, thinkHarderCallIds);
+        IChatClient escalation = await _lazyEscalation.Value;
+        ChatOptions escalationOptions = BuildOptions(options, effectiveScope, includeThinkHarder: false);
+        await foreach (ChatResponseUpdate update in escalation.GetStreamingResponseAsync(inheritedMessages, escalationOptions, cancellationToken))
         {
             yield return update;
         }
     }
 
-    // --- Shared private helpers ---
+    /// <inheritdoc />
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            // Dispose resolved backends only. Do not force-resolve un-started lazies.
+            // The inner NopChatClient is disposed by base.Dispose(disposing) — do not double-dispose it.
+            if (_lazyFirstLine.IsValueCreated && _lazyFirstLine.Value.IsCompletedSuccessfully)
+            {
+                _lazyFirstLine.Value.Result.Dispose();
+            }
+            if (_lazyEscalation.IsValueCreated && _lazyEscalation.Value.IsCompletedSuccessfully)
+            {
+                _lazyEscalation.Value.Result.Dispose();
+            }
+            if (_lazyEgress.IsValueCreated && _lazyEgress.Value.IsCompletedSuccessfully)
+            {
+                _lazyEgress.Value.Result.Dispose();
+            }
+        }
+        base.Dispose(disposing);
+    }
 
-    /// <summary>
-    /// Performs the classify pass, applies the privacy gate, builds the scoped manifest,
-    /// and returns the selected backend and the options copy to use.
-    /// Both response paths call this — the gate and counter logic are in one place.
-    /// </summary>
-    private async Task<(IChatClient Target, ChatOptions ScopedOptions)> ClassifyAndRouteAsync(
+    // --- Private helpers ---
+
+    private async Task<(RouteDecision Raw, string EffectiveScope)> ClassifyAsync(
         IEnumerable<ChatMessage> messages,
-        ChatOptions? options,
         CancellationToken cancellationToken)
     {
-        // R3: fresh classify pass per turn, no caching.
-        ChatResponse<RouteDecision> classifyResponse = await _classifier.GetResponseAsync<RouteDecision>(
+        IChatClient classifier = await _lazyFirstLine.Value;
+        ChatResponse<RouteDecision> classifyResponse = await classifier.GetResponseAsync<RouteDecision>(
             messages,
             cancellationToken: cancellationToken);
-        // A1: Result throws JsonException on unparseable JSON (never returns null in M.E.AI 10.5+).
-        // TryGetResult returns false without throwing — fail safe to confident-personal (R4).
+
         RouteDecision raw = classifyResponse.TryGetResult(out RouteDecision? parsed) && parsed is not null
             ? parsed
-            : new RouteDecision("personal", Tier.Direct, Impersonal: false, Confidence: 1f);
+            : new RouteDecision("personal", Impersonal: false, Confidence: 1f);
 
-        // R4/R7: privacy gate — override world→personal when confidence is below threshold.
         string effectiveScope = raw.Scope;
         if (raw.Confidence < _options.EgressThreshold &&
             string.Equals(raw.Scope, "world", StringComparison.OrdinalIgnoreCase))
@@ -120,28 +257,124 @@ public sealed class TriageRouter : DelegatingChatClient
             DaemonTelemetry.RecordPersonalToWorldMisclassification();
         }
 
-        // B1: Clone preserves all caller options (including derived-type state and
-        // provider-specific RawRepresentationFactory), creates a fresh Tools list,
-        // and guarantees the caller's instance is never mutated.
-        // The privacy invariant: Tools is always built from the EFFECTIVE (post-gate) scope.
-        ChatOptions scopedOptions = options?.Clone() ?? new ChatOptions();
-        scopedOptions.Tools = _abilities.ForScope(effectiveScope);
-
-        // R5: backend selection reads the RAW decision (not the effective scope).
-        IChatClient target = raw switch
-        {
-            { Scope: var s, Impersonal: true, Confidence: var c }
-                when string.Equals(s, "world", StringComparison.OrdinalIgnoreCase)
-                     && c > _options.EgressThreshold => _egress,
-            { Tier: Tier.Reasoner } => _reasoner,
-            _ => _e2bWithTools,
-        };
-
-        return (target, scopedOptions);
+        return (raw, effectiveScope);
     }
 
-    private string BuildAckText(IChatClient target) =>
-        target == _egress    ? "[triage: egress]" :
-        target == _reasoner  ? "[triage: reasoner]" :
-                               "[triage: e2b]";
+    private bool IsEgressEligible(RouteDecision raw) =>
+        raw.Impersonal &&
+        string.Equals(raw.Scope, "world", StringComparison.OrdinalIgnoreCase) &&
+        raw.Confidence > _options.EgressThreshold;
+
+    private ChatOptions BuildOptions(ChatOptions? caller, string effectiveScope, bool includeThinkHarder)
+    {
+        ChatOptions opts = caller?.Clone() ?? new ChatOptions();
+        IList<AITool> scopedTools = _abilities.ForScope(effectiveScope);
+        if (includeThinkHarder)
+        {
+            List<AITool> tools = new(scopedTools) { ThinkHarder };
+            opts.Tools = tools;
+        }
+        else
+        {
+            opts.Tools = scopedTools;
+        }
+        return opts;
+    }
+
+    /// <summary>
+    /// Scans <paramref name="responseMessages"/> for <c>think_harder</c>
+    /// <see cref="FunctionCallContent"/>s, collecting the <c>CallId</c> of every
+    /// such call into <paramref name="callIds"/>. Returns <see langword="true"/> if
+    /// at least one was found (escalation requested). Collecting the full set keeps
+    /// the strip correct even if the model violates the call-alone rule and emits
+    /// <c>think_harder</c> more than once with distinct call ids.
+    /// </summary>
+    private static bool TryFindThinkHarderCalls(IEnumerable<ChatMessage> responseMessages, out HashSet<string> callIds)
+    {
+        callIds = [];
+        bool found = false;
+        foreach (ChatMessage msg in responseMessages)
+        {
+            foreach (AIContent content in msg.Contents)
+            {
+                if (content is FunctionCallContent fcc && fcc.Name == ThinkHarderName)
+                {
+                    found = true;
+                    if (fcc.CallId is not null)
+                    {
+                        callIds.Add(fcc.CallId);
+                    }
+                }
+            }
+        }
+        return found;
+    }
+
+    /// <summary>
+    /// Builds the inherited message list for the escalation client:
+    /// original input messages + first-line response messages, with every
+    /// <c>think_harder</c> <see cref="FunctionCallContent"/> and every matching
+    /// <see cref="FunctionResultContent"/> removed (results matched by the set of
+    /// <c>think_harder</c> <c>CallId</c>s, so no result is left dangling even when
+    /// the model emits multiple <c>think_harder</c> calls).
+    /// </summary>
+    private static IList<ChatMessage> BuildInheritedMessages(
+        IEnumerable<ChatMessage> inputMessages,
+        IEnumerable<ChatMessage> firstLineMessages,
+        IReadOnlySet<string> thinkHarderCallIds)
+    {
+        List<ChatMessage> result = [];
+        result.AddRange(inputMessages);
+
+        foreach (ChatMessage msg in firstLineMessages)
+        {
+            // Filter out think_harder calls and their results from message contents.
+            List<AIContent> filteredContents = [];
+            foreach (AIContent content in msg.Contents)
+            {
+                bool skip = content is FunctionCallContent fcc && fcc.Name == ThinkHarderName
+                         || content is FunctionResultContent frc && frc.CallId is not null && thinkHarderCallIds.Contains(frc.CallId);
+                if (!skip)
+                {
+                    filteredContents.Add(content);
+                }
+            }
+            // Include the message only if it still has content after filtering.
+            if (filteredContents.Count > 0)
+            {
+                result.Add(new ChatMessage(msg.Role, filteredContents));
+            }
+        }
+
+        return result;
+    }
+
+    // Minimal no-op IChatClient used as DelegatingChatClient's required inner client.
+    // The router never delegates to it — all dispatch goes through the lazy backends.
+    private sealed class NopChatClient : IChatClient
+    {
+        public ChatClientMetadata Metadata => new("nop", null, null);
+
+        public Task<ChatResponse> GetResponseAsync(
+            IEnumerable<ChatMessage> messages,
+            ChatOptions? options = null,
+            CancellationToken cancellationToken = default)
+            => throw new InvalidOperationException("TriageRouter should never delegate to its inner NopChatClient.");
+
+        public IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
+            IEnumerable<ChatMessage> messages,
+            ChatOptions? options = null,
+            CancellationToken cancellationToken = default)
+            => throw new InvalidOperationException("TriageRouter should never delegate to its inner NopChatClient.");
+
+        public void Dispose() { }
+
+        public object? GetService(Type serviceType, object? serviceKey = null) => null;
+    }
+
+    // Minimal no-op IServiceProvider for use in the internal test constructor.
+    private sealed class NopServiceProvider : IServiceProvider
+    {
+        public object? GetService(Type serviceType) => null;
+    }
 }

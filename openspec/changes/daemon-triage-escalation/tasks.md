@@ -11,28 +11,28 @@
 
 ## 3. Router contracts and type renames
 
-- [ ] 3.1 `RouteContracts.cs`: delete the `Tier` enum; change `RouteDecision` to `{ string Scope, bool Impersonal, float Confidence }`. Keep `TriageOptions.EgressThreshold`.
-- [ ] 3.2 Rename `ReasonerClient` → `EscalationClient`; `AddReasoner` → `AddEscalation`. Rename the `e2b` vocabulary (`E2bRawClient`, `e2bWithTools`) to role-based names (first-line / local) across `daemon/Daemon.Routing`.
-- [ ] 3.3 Change the three verbs in `TriageRegistrationExtensions.cs` to take `Func<IServiceProvider, ValueTask<IChatClient>>` (`AddEgress` keeps an eager `IChatClient` overload that wraps as `sp => ValueTask.FromResult(client)`).
+- [x] 3.1 `RouteContracts.cs`: delete the `Tier` enum; change `RouteDecision` to `{ string Scope, bool Impersonal, float Confidence }`. Keep `TriageOptions.EgressThreshold`.
+- [x] 3.2 Rename `ReasonerClient` → `EscalationClient`; `AddReasoner` → `AddEscalation`. Rename the `e2b` vocabulary (`E2bRawClient`, `e2bWithTools`) to role-based names (first-line / local) across `daemon/Daemon.Routing`.
+- [x] 3.3 Change the three verbs in `TriageRegistrationExtensions.cs` to take `Func<IServiceProvider, ValueTask<IChatClient>>` (`AddEgress` keeps an eager `IChatClient` overload that wraps as `sp => ValueTask.FromResult(client)`).
 
 ## 4. Lazy backend resolution
 
-- [ ] 4.1 `TriageRouterFactory.Create` captures the delegates + `IServiceProvider` and constructs the `TriageRouter` synchronously (no I/O — ADR-027 D1).
-- [ ] 4.2 In `TriageRouter`, resolve each backend lazily on first use via `Lazy<Task<IChatClient>>` (concurrency-safe); classifier and first-line share the one first-line client (raw for classify, FIC-wrapped for handling).
-- [ ] 4.3 Tests: `Create` performs no I/O; backends resolved once and cached; concurrent first turns resolve a single instance per backend.
+- [x] 4.1 `TriageRouterFactory.Create` captures the delegates + `IServiceProvider` and constructs the `TriageRouter` synchronously (no I/O — ADR-027 D1).
+- [x] 4.2 In `TriageRouter`, resolve each backend lazily on first use via `Lazy<Task<IChatClient>>` (concurrency-safe); classifier and first-line share the one first-line client (raw for classify, FIC-wrapped for handling).
+- [x] 4.3 Tests: `Create` performs no I/O; backends resolved once and cached; concurrent first turns resolve a single instance per backend.
 
 ## 5. Escalation flow
 
-- [ ] 5.1 Define the `think_harder` `AIFunction`: delegate sets `FunctionInvokingChatClient.CurrentContext!.Terminate = true` and returns a sentinel; offered to the first-line manifest only, never to the escalation client.
-- [ ] 5.2 First-line dispatch: build the effective-scope manifest (post privacy-gate) plus `think_harder`; wrap the first-line client with `UseFunctionInvocation`; run it.
-- [ ] 5.3 Detect escalation: scan the first-line `response.Messages` for `FunctionCallContent.Name == "think_harder"`; if present, build the inherited message list (`input + response.Messages` minus the `think_harder` call+result pair) and dispatch to the escalation client (manifest without `think_harder`).
-- [ ] 5.4 Non-streaming `GetResponseAsync`: classify → egress / first-line → escalation; return the committed backend's response.
-- [ ] 5.5 Tests: think_harder terminates first-line and hands off; escalation manifest excludes think_harder; partial tool work carried forward; think_harder call+result stripped; first-line answer without escalation returned directly.
+- [x] 5.1 Define the `think_harder` `AIFunction`: delegate sets `FunctionInvokingChatClient.CurrentContext!.Terminate = true` and returns a sentinel; offered to the first-line manifest only, never to the escalation client.
+- [x] 5.2 First-line dispatch: build the effective-scope manifest (post privacy-gate) plus `think_harder`; wrap the first-line client with `UseFunctionInvocation`; run it.
+- [x] 5.3 Detect escalation: scan the first-line `response.Messages` for `FunctionCallContent.Name == "think_harder"`; if present, build the inherited message list (`input + response.Messages` minus the `think_harder` call+result pair) and dispatch to the escalation client (manifest without `think_harder`).
+- [x] 5.4 Non-streaming `GetResponseAsync`: classify → egress / first-line → escalation; return the committed backend's response.
+- [x] 5.5 Tests: think_harder terminates first-line and hands off; escalation manifest excludes think_harder; partial tool work carried forward; think_harder call+result stripped; first-line answer without escalation returned directly.
 
 ## 6. Streaming path
 
-- [ ] 6.1 `GetStreamingResponseAsync`: emit an ack (not naming the final route); buffer the first-line generation; if escalated, emit a distinct escalation marker then stream the escalation client; else stream the (buffered) first-line answer.
-- [ ] 6.2 Tests: ack precedes any backend output; no first-line draft tokens streamed when escalation occurs; escalation marker precedes the escalation stream.
+- [x] 6.1 `GetStreamingResponseAsync`: emit an ack (not naming the final route); buffer the first-line generation; if escalated, emit a distinct escalation marker then stream the escalation client; else stream the (buffered) first-line answer.
+- [x] 6.2 Tests: ack precedes any backend output; no first-line draft tokens streamed when escalation occurs; escalation marker precedes the escalation stream.
 
 ## 7. Privacy invariants retained (regression)
 
