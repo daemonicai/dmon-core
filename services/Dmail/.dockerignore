@@ -1,0 +1,17 @@
+# Build artifacts — must not clobber the container's restore output
+**/bin/
+**/obj/
+
+# Local dev / VCS noise
+.git/
+.gitignore
+.vs/
+.vscode/
+.idea/
+*.user
+
+# Test project isn't needed for the runtime image
+test/
+
+# Local secrets / env (never bake into an image)
+.env
