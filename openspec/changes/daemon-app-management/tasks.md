@@ -7,9 +7,9 @@
 
 ## 2. Reusable server process manager (Swift)
 
-- [ ] 2.1 Extract the Gateway lifecycle into a reusable `ServerProcessManager` (display name, executable-resolution candidates, launch args, PID-file path, env dict) covering launch, PID-file adopt, exponential back-off (2s→60s), intentional-stop guard, and terminate-on-quit
-- [ ] 2.2 Re-express `GatewayManager` in terms of `ServerProcessManager` configured with `--agent daemon/Daemon.cs`, preserving its current behavior and `DMON_GATEWAY_PATH` resolution
-- [ ] 2.3 Factor the PID-liveness check behind an injectable probe so it is unit-testable without spawning a process
+- [x] 2.1 Extract the Gateway lifecycle into a reusable `ServerProcessManager` (display name, executable-resolution candidates, launch args, PID-file path, env dict) covering launch, PID-file adopt, exponential back-off (2s→60s), intentional-stop guard, and terminate-on-quit
+- [x] 2.2 Re-express `GatewayManager` in terms of `ServerProcessManager` configured with `--agent daemon/Daemon.cs`, preserving its current behavior and `DMON_GATEWAY_PATH` resolution
+- [x] 2.3 Factor the PID-liveness check behind an injectable probe so it is unit-testable without spawning a process
 
 ## 3. Dcal and Dmail server supervision (Swift)
 
