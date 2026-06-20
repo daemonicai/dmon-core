@@ -45,10 +45,10 @@
 
 ## 8. Swift tests (XCTest)
 
-- [ ] 8.1 Add a `DaemonAppTests` test target to `daemon/Daemon.App/Package.swift`
-- [ ] 8.2 Test `ServerProcessManager` PID adoption against an injected liveness probe (live vs dead)
-- [ ] 8.3 Test health classification: Tailscale `up`/`degraded`/`down`, endpoint reachable/unreachable, and the `HealthRegistry` aggregate rollup
-- [ ] 8.4 Test `ConfigStore` flat-YAML read/write round-trip and the settings env-key mapping (incl. `DMON_` keys and secret-omission rules)
+- [x] 8.1 Add a `DaemonAppTests` test target to `daemon/Daemon.App/Package.swift`
+- [x] 8.2 Test `ServerProcessManager` PID adoption against an injected liveness probe (live vs dead)
+- [x] 8.3 Test health classification: Tailscale `up`/`degraded`/`down`, endpoint reachable/unreachable, and the `HealthRegistry` aggregate rollup
+- [x] 8.4 Test `ConfigStore` flat-YAML read/write round-trip and the settings env-key mapping (incl. `DMON_` keys and secret-omission rules)
 
 ## 9. Sync and gates
 

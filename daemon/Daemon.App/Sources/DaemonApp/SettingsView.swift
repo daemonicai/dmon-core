@@ -3,17 +3,20 @@ import Foundation
 
 // MARK: - Config file helpers (flat YAML, hand-rolled; no library dependency)
 
-private enum ConfigStore {
+// Internal (not private) so DaemonAppTests can reach it via @testable import.
+enum ConfigStore {
 
-    // ~/.dmon/config.yaml
+    // ~/.dmon/config.yaml — private; tests supply an override via the `at:` parameter.
     private static var configURL: URL {
         URL(fileURLWithPath: NSHomeDirectory())
             .appendingPathComponent(".dmon/config.yaml")
     }
 
     /// Parses `key: value` lines; skips comments and blank lines.
-    static func load() -> [String: String] {
-        guard let text = try? String(contentsOf: configURL, encoding: .utf8) else { return [:] }
+    /// - Parameter url: Override the config URL (tests pass a temp-dir path).
+    static func load(at url: URL? = nil) -> [String: String] {
+        let target = url ?? configURL
+        guard let text = try? String(contentsOf: target, encoding: .utf8) else { return [:] }
         var result: [String: String] = [:]
         for line in text.components(separatedBy: "\n") {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
@@ -31,11 +34,14 @@ private enum ConfigStore {
     /// Writes a flat-YAML file. Secret keys whose value is non-empty are written
     /// as `keychain` (the canonical token); on the unsigned-dev fallback path the
     /// real value is written so the core still receives it.
+    /// - Parameter url: Override the config URL (tests pass a temp-dir path).
     static func save(
         plaintext: [String: String],
         secrets: [String: String],        // key → real value (may be empty)
-        keychainAvailable: Bool
+        keychainAvailable: Bool,
+        at url: URL? = nil
     ) {
+        let target = url ?? configURL
         var lines: [String] = ["# Managed by Daemon.App settings panel."]
         for (key, value) in plaintext.sorted(by: { $0.key < $1.key }) {
             lines.append("\(key): \(value)")
@@ -54,11 +60,11 @@ private enum ConfigStore {
         }
         lines.append("")    // trailing newline
 
-        let dir = configURL.deletingLastPathComponent()
+        let dir = target.deletingLastPathComponent()
         // Mirror GatewayManager.writePIDFile: create ~/.dmon/ if absent.
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         let text = lines.joined(separator: "\n")
-        try? text.write(to: configURL, atomically: true, encoding: .utf8)
+        try? text.write(to: target, atomically: true, encoding: .utf8)
     }
 }
 

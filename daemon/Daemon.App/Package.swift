@@ -13,6 +13,11 @@ let package = Package(
         .executableTarget(
             name: "DaemonApp",
             path: "Sources/DaemonApp"
+        ),
+        .testTarget(
+            name: "DaemonAppTests",
+            dependencies: ["DaemonApp"],
+            path: "Tests/DaemonAppTests"
         )
     ]
 )
