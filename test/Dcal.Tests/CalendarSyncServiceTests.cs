@@ -2,6 +2,7 @@ using System.Net;
 using System.Text;
 using Dcal;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Time.Testing;
 
 namespace Dcal.Tests;
 
@@ -126,7 +127,8 @@ public sealed class CalendarSyncServiceTests : IDisposable
     {
         Environment.SetEnvironmentVariable("DCAL_RECURRENCE_HORIZON_DAYS", "2");
 
-        string today = DateTime.UtcNow.ToString("yyyyMMdd");
+        FakeTimeProvider clock = new(FixedNow);
+        string today = clock.GetUtcNow().ToString("yyyyMMdd");
         string ical = $"""
             BEGIN:VCALENDAR
             VERSION:2.0
@@ -141,7 +143,7 @@ public sealed class CalendarSyncServiceTests : IDisposable
             """;
 
         CalendarDatabase db = new(_dbPath);
-        CalendarSyncService svc = CreateService(db, ical);
+        CalendarSyncService svc = CreateService(db, ical, clock);
 
         await svc.TriggerSyncAsync(CancellationToken.None);
 
@@ -150,10 +152,20 @@ public sealed class CalendarSyncServiceTests : IDisposable
         Assert.True(count <= 3, $"Expected at most 3 occurrences for 2-day horizon, got {count}.");
     }
 
-    private static CalendarSyncService CreateService(CalendarDatabase db, string icalContent)
+    // A fixed clock at the start of the day the fixtures use, so the hard-coded
+    // event dates are always at-or-after "now" and the occurrence window is stable
+    // regardless of wall-clock time.
+    private static readonly DateTimeOffset FixedNow = new(2026, 6, 20, 0, 0, 0, TimeSpan.Zero);
+
+    private static CalendarSyncService CreateService(
+        CalendarDatabase db, string icalContent, TimeProvider? timeProvider = null)
     {
         FakeHttpClientFactory factory = new(icalContent);
-        return new CalendarSyncService(db, factory, NullLogger<CalendarSyncService>.Instance);
+        return new CalendarSyncService(
+            db,
+            factory,
+            NullLogger<CalendarSyncService>.Instance,
+            timeProvider ?? new FakeTimeProvider(FixedNow));
     }
 }
 

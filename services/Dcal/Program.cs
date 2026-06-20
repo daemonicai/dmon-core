@@ -9,6 +9,7 @@ _ = Environment.GetEnvironmentVariable("DCAL_ICAL_URL")
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddHttpClient();
+builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<CalendarDatabase>(_ => new CalendarDatabase("calendar.db"));
 // Two-step so the endpoint handlers can inject CalendarSyncService to read LastSync.
 builder.Services.AddSingleton<CalendarSyncService>();

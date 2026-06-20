@@ -11,6 +11,7 @@ internal sealed class CalendarSyncService : BackgroundService
     private readonly CalendarDatabase _db;
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly ILogger<CalendarSyncService> _logger;
+    private readonly TimeProvider _timeProvider;
     private readonly string _icalUrl;
     private readonly int _syncIntervalMinutes;
     private readonly int _recurrenceHorizonDays;
@@ -20,11 +21,13 @@ internal sealed class CalendarSyncService : BackgroundService
     public CalendarSyncService(
         CalendarDatabase db,
         IHttpClientFactory httpClientFactory,
-        ILogger<CalendarSyncService> logger)
+        ILogger<CalendarSyncService> logger,
+        TimeProvider timeProvider)
     {
         _db = db;
         _httpClientFactory = httpClientFactory;
         _logger = logger;
+        _timeProvider = timeProvider;
         _icalUrl = Environment.GetEnvironmentVariable("DCAL_ICAL_URL")
             ?? throw new InvalidOperationException(
                 "DCAL_ICAL_URL is required. Set it to the iCal subscription URL to sync from.");
@@ -66,8 +69,9 @@ internal sealed class CalendarSyncService : BackgroundService
                 return;
             }
 
-            CalDateTime nowCal = CalDateTime.UtcNow;
-            CalDateTime horizonCal = new(DateTime.UtcNow.AddDays(_recurrenceHorizonDays), CalDateTime.UtcTzId);
+            DateTime nowUtc = _timeProvider.GetUtcNow().UtcDateTime;
+            CalDateTime nowCal = new(nowUtc, CalDateTime.UtcTzId);
+            CalDateTime horizonCal = new(nowUtc.AddDays(_recurrenceHorizonDays), CalDateTime.UtcTzId);
 
             List<CalendarRow> rows = [];
 
@@ -104,7 +108,7 @@ internal sealed class CalendarSyncService : BackgroundService
 
             _db.Clear();
             _db.Upsert(rows);
-            LastSync = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ");
+            LastSync = nowUtc.ToString("yyyy-MM-ddTHH:mm:ssZ");
 
             _logger.LogInformation(
                 "Calendar sync complete: {Count} events through {Horizon:yyyy-MM-dd}",
