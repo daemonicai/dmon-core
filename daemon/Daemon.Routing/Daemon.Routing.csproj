@@ -9,8 +9,12 @@
     <AssemblyName>Daemon.Routing</AssemblyName>
     <RootNamespace>Daemon.Routing</RootNamespace>
     <IsPackable>false</IsPackable>
-    <Description>Triage router policy for the dmon daemon: classifies each turn and dispatches to e2b, reasoner, or egress backends via TriageRouter (DelegatingChatClient). Register with builder.UseTriage() / AddReasoner() / AddEgress() from Dmon.Hosting namespace.</Description>
+    <Description>Triage router policy for the dmon daemon: classifies each turn and dispatches to first-line, escalation, or egress backends via TriageRouter (DelegatingChatClient). Register with builder.UseTriage() / AddEscalation() / AddEgress() from Dmon.Hosting namespace.</Description>
   </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Daemon.Routing.Tests" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.AI" />
