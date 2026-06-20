@@ -424,6 +424,47 @@ public sealed class PrivacyGateToolManifestTests
         Assert.NotNull(tools);
         Assert.DoesNotContain(tools, t => t is AIFunction f && f.Name == "think_harder");
     }
+
+    [Fact]
+    public async Task PersonalTurn_FirstLineManifestContainsPersonalToolAndThinkHarder_NotWorldTool()
+    {
+        // 7.1 coverage gap: verify the FIRST-LINE backend actually receives a manifest that
+        // (a) contains the personal-scope ability, (b) contains think_harder, and
+        // (c) contains no world-scope ability.
+        //
+        // Uses ClassifyThenHandleFake to separate the classify call (ClassifierFake) from
+        // the first-line handle call (BackendSpy), so ReceivedOptions captures the manifest
+        // passed to the first-line handler rather than the classification query.
+        FakeAbilityProvider personalProvider = new("personal", PersonalTool());
+        FakeAbilityProvider worldProvider = new("world", WorldTool());
+
+        RouteDecision personalDecision = new("personal", Impersonal: false, Confidence: 0.95f);
+        BackendSpy firstLineHandlerSpy = new("first-line-handler");
+        BackendSpy escalationSpy = new("escalation");
+        BackendSpy egressSpy = new("egress");
+        AbilityRegistry abilities = new([personalProvider, worldProvider]);
+
+        ClassifyThenHandleFake combo = new(new ClassifierFake(personalDecision), firstLineHandlerSpy);
+        TriageRouter router = new(combo, escalationSpy, egressSpy, abilities, new TriageOptions());
+
+        await router.GetResponseAsync(RouterFactory.AMessage());
+
+        // First-line handler must have been invoked (not egress, not escalation).
+        Assert.Equal(1, firstLineHandlerSpy.CallCount);
+        Assert.Equal(0, egressSpy.CallCount);
+
+        IList<AITool>? tools = firstLineHandlerSpy.ReceivedOptions?.Tools;
+        Assert.NotNull(tools);
+
+        // (a) personal-scope ability present.
+        Assert.Contains(tools, t => t is AIFunction f && f.Name == "personal_tool");
+
+        // (b) think_harder signal present (first-line only).
+        Assert.Contains(tools, t => t is AIFunction f && f.Name == "think_harder");
+
+        // (c) world-scope ability absent — privacy invariant.
+        Assert.DoesNotContain(tools, t => t is AIFunction f && f.Name == "world_tool");
+    }
 }
 
 /// <summary>

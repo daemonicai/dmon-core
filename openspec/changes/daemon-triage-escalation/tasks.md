@@ -36,16 +36,16 @@
 
 ## 7. Privacy invariants retained (regression)
 
-- [ ] 7.1 Confirm/keep: effective-scope manifest from the post-gate scope; personal-bias override on low confidence; `dmon.triage.misclassify.personal_to_world` increment; no cross-turn caching. Add/keep tests asserting each still holds under the new flow (incl. world tools absent from personal manifests on every backend).
+- [x] 7.1 Confirm/keep: effective-scope manifest from the post-gate scope; personal-bias override on low confidence; `dmon.triage.misclassify.personal_to_world` increment; no cross-turn caching. Add/keep tests asserting each still holds under the new flow (incl. world tools absent from personal manifests on every backend).
 
 ## 8. Daemon composition + config rewire
 
-- [ ] 8.1 `Daemon.cs`: `builder.UseOmlx()`; `UseTriage(sp => sp.OmlxClient(firstLineModel))`; `AddEscalation(sp => sp.OmlxClient(escalationModel))`; `AddEgress(egress)`. Remove the reasoner wiring.
-- [ ] 8.2 Config: drop `DMON_E2B_URL`, `DMON_REASONER_URL`, `DMON_REASONER_MODEL`; add `DMON_FIRSTLINE_MODEL`, `DMON_ESCALATION_MODEL` (over `OMLX_BASE_URL`); `DMON_EGRESS_MODEL` default → `gemini-3.1-flash-lite`.
-- [ ] 8.3 `Daemon.cs` `#:project` refs: add `Dmon.Providers.Omlx`; remove `Dmon.Providers.OpenAI` (reasoner-only); remove `Dmon.Providers.Ollama` only if nothing else needs it after rewire (verify first).
+- [x] 8.1 `Daemon.cs`: `builder.UseOmlx()`; `UseTriage(sp => sp.OmlxClient(firstLineModel))`; `AddEscalation(sp => sp.OmlxClient(escalationModel))`; `AddEgress(egress)`. Remove the reasoner wiring.
+- [x] 8.2 Config: drop `DMON_E2B_URL`, `DMON_REASONER_URL`, `DMON_REASONER_MODEL`; add `DMON_FIRSTLINE_MODEL`, `DMON_ESCALATION_MODEL` (over `OMLX_BASE_URL`); `DMON_EGRESS_MODEL` default → `gemini-3.1-flash-lite`.
+- [x] 8.3 `Daemon.cs` `#:project` refs: add `Dmon.Providers.Omlx`; remove `Dmon.Providers.OpenAI` (reasoner-only); remove `Dmon.Providers.Ollama` only if nothing else needs it after rewire (verify first).
 
 ## 9. Spec sync and gates
 
-- [ ] 9.1 Run `openspec validate daemon-triage-escalation --strict`; fix any delta-format issues.
-- [ ] 9.2 `make build` clean (TreatWarningsAsErrors); `env -u MEKO_API_KEY make test` green (new + existing).
+- [x] 9.1 Run `openspec validate daemon-triage-escalation --strict`; fix any delta-format issues.
+- [x] 9.2 `make build` clean (TreatWarningsAsErrors); `env -u MEKO_API_KEY make test` green (new + existing).
 - [ ] 9.3 On archive, fold the delta specs into `openspec/specs/triage-routing` and `openspec/specs/omlx-provider` (kept for the archive step, not this change).

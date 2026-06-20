@@ -6,8 +6,7 @@
 #:project ../tools/Dmon.Tools.Dcal/Dmon.Tools.Dcal.csproj
 #:project ../tools/Dmon.Tools.Dmail/Dmon.Tools.Dmail.csproj
 #:project ../memory/Dmon.Memory/Dmon.Memory.csproj
-#:project ../providers/Dmon.Providers.Ollama/Dmon.Providers.Ollama.csproj
-#:project ../providers/Dmon.Providers.OpenAI/Dmon.Providers.OpenAI.csproj
+#:project ../providers/Dmon.Providers.Omlx/Dmon.Providers.Omlx.csproj
 #:project ../providers/Dmon.Providers.Gemini/Dmon.Providers.Gemini.csproj
 
 using GeminiDotnet;
@@ -15,39 +14,27 @@ using GeminiDotnet.Extensions.AI;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using OllamaSharp;
 using Dmon.Hosting;
 using Dmon.Memory;
 using Dmon.Tools.Dmail;
 
 DmonHostBuilder builder = DmonHost.CreateBuilder(args);
 
-string e2bUrl      = builder.Configuration.GetValue<string>("DMON_E2B_URL",       "http://localhost:11434")!;
-string reasonerUrl = builder.Configuration.GetValue<string>("DMON_REASONER_URL",   "http://localhost:8080/v1")!;
-string geminiKey   = builder.Configuration.GetValue<string>("GEMINI_API_KEY",      string.Empty)!;
-string e2bModel    = builder.Configuration.GetValue<string>("DMON_E2B_MODEL",      "gemma4:e2b-it-qat")!;
-string reasonerModel = builder.Configuration.GetValue<string>("DMON_REASONER_MODEL", "gemma4-27b")!;
-string egressModel = builder.Configuration.GetValue<string>("DMON_EGRESS_MODEL",   "gemini-2.5-flash")!;
+string geminiKey       = builder.Configuration.GetValue<string>("GEMINI_API_KEY",        string.Empty)!;
+string firstLineModel  = builder.Configuration.GetValue<string>("DMON_FIRSTLINE_MODEL",  "gemma-4-e4b-it-qat-OptiQ-4bit")!;
+string escalationModel = builder.Configuration.GetValue<string>("DMON_ESCALATION_MODEL", "gemma-4-26B-a4b-it-qat-OptiQ-4bit")!;
+string egressModel     = builder.Configuration.GetValue<string>("DMON_EGRESS_MODEL",     "gemini-3.1-flash-lite")!;
 
-// e2b backend: Ollama (used as both classifier and e2b-with-tools inside TriageRouterFactory).
-IChatClient e2b = new OllamaApiClient(new Uri(e2bUrl), e2bModel);
-
-// Reasoner backend: OpenAI-compatible local endpoint, no credential required.
-IChatClient reasoner = new OpenAI.Chat.ChatClient(
-        reasonerModel,
-        new System.ClientModel.ApiKeyCredential("not-needed"),
-        new OpenAI.OpenAIClientOptions { Endpoint = new Uri(reasonerUrl) })
-    .AsIChatClient();
-
-// Egress backend: Gemini via native GeminiDotnet client.
 IChatClient egress = new GeminiChatClient(new GeminiClientOptions
 {
     ApiKey  = geminiKey,
     ModelId = egressModel,
 });
-builder.UseTriage(e2b);
-builder.AddReasoner(reasoner);
-builder.AddEgress(egress);
+
+builder.UseOmlx();
+builder.UseTriage    (sp => sp.OmlxClient(firstLineModel));
+builder.AddEscalation(sp => sp.OmlxClient(escalationModel));
+builder.AddEgress    (egress);
 builder.AddDcalAbilities();
 builder.AddToolExtension(new DmailExtension());
 builder.Services.AddDmonMemory();
