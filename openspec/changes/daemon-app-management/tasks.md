@@ -25,10 +25,10 @@
 
 ## 5. Dmail and model-runner endpoint health (Swift)
 
-- [ ] 5.1 Add a Dmail health probe (mirror `DcalHealthMonitor` against `DMAIL_BASE_URL`/`DMAIL_API_KEY`) publishing the Dmail `ComponentHealth`
-- [ ] 5.2 Add a reusable `EndpointHealthProbe` that classifies each configured inference endpoint (`DMON_E2B_URL`, `DMON_REASONER_URL`, egress target) as `ok` on any HTTP response, `down` otherwise — no per-runner special-casing
-- [ ] 5.3 Register the configured endpoints as health components in the registry
-- [ ] 5.4 Keep status classification (Tailscale and endpoint) as pure functions over decoded inputs so they are unit-testable
+- [x] 5.1 Add a Dmail health probe (mirror `DcalHealthMonitor` against `DMAIL_BASE_URL`/`DMAIL_API_KEY`) publishing the Dmail `ComponentHealth`
+- [x] 5.2 Add a reusable `EndpointHealthProbe` that classifies each configured inference endpoint (`DMON_E2B_URL`, `DMON_REASONER_URL`, egress target) as `ok` on any HTTP response, `down` otherwise — no per-runner special-casing
+- [x] 5.3 Register the configured endpoints as health components in the registry
+- [x] 5.4 Keep status classification (Tailscale and endpoint) as pure functions over decoded inputs so they are unit-testable
 
 ## 6. Menu and icon aggregate; Tailscale bring-up (Swift)
 

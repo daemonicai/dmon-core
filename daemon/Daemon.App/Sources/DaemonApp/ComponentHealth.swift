@@ -45,3 +45,17 @@ func tailscaleHealth(status: TailscaleStatus) -> HealthStatus {
     case .down:     return .down
     }
 }
+
+/// Classifies a Dmail HTTP health poll result into a `HealthStatus`.
+/// Rule: 2xx response (didSucceed=true) → ok; anything else / unreachable → down.
+/// This is the opposite of the endpoint rule — a non-2xx Dmail response means down.
+func dmailHealth(didSucceed: Bool) -> HealthStatus {
+    didSucceed ? .ok : .down
+}
+
+/// Classifies a generic inference-endpoint reachability probe into a `HealthStatus`.
+/// Rule: any HTTP response (including 4xx/5xx) → ok; connection failure/timeout → down.
+/// "didRespond" means any `HTTPURLResponse` was received regardless of status code.
+func endpointHealth(didRespond: Bool) -> HealthStatus {
+    didRespond ? .ok : .down
+}

@@ -10,6 +10,27 @@ struct DaemonApp: App {
     @StateObject private var dmail = ServiceManager.makeDmail()
     @StateObject private var healthRegistry = HealthRegistry()
 
+    // MARK: - Endpoint health monitors (tasks 5.1–5.3)
+
+    @StateObject private var mailHealth = DmailHealthMonitor()
+
+    @StateObject private var e2bProbe = EndpointHealthProbe(
+        name: "E2B Endpoint",
+        url: URL(string: ProcessInfo.processInfo.environment["DMON_E2B_URL"] ?? "http://localhost:11434")
+    )
+
+    @StateObject private var reasonerProbe = EndpointHealthProbe(
+        name: "Reasoner Endpoint",
+        url: URL(string: ProcessInfo.processInfo.environment["DMON_REASONER_URL"] ?? "http://localhost:8080/v1")
+    )
+
+    // Egress (Gemini) base URL is fixed — no env var override (Daemon.cs has no endpoint
+    // override for GeminiChatClient either).
+    @StateObject private var egressProbe = EndpointHealthProbe(
+        name: "Egress Endpoint",
+        url: URL(string: "https://generativelanguage.googleapis.com")
+    )
+
     @State private var isInserted = true
 
     // MARK: - Combined-status icon color (authoritative decision table)
@@ -50,13 +71,24 @@ struct DaemonApp: App {
                     dcal.start()
                     dmail.start()
 
+                    // Endpoint health monitors (tasks 5.1–5.3).
+                    mailHealth.start()
+                    e2bProbe.start()
+                    reasonerProbe.start()
+                    egressProbe.start()
+
                     // Wire the health registry.
-                    // Stable display order: Gateway(0) Dcal(1) Dmail(2) Tailscale(3) Calendar Sync(4).
+                    // Stable display order: Gateway(0) Dcal(1) Dmail(2) Tailscale(3) Calendar Sync(4)
+                    //                       Mail(5) E2B Endpoint(6) Reasoner Endpoint(7) Egress Endpoint(8).
                     healthRegistry.register(publisher: gateway.$componentHealth, order: 0)
                     healthRegistry.register(publisher: dcal.$componentHealth, order: 1)
                     healthRegistry.register(publisher: dmail.$componentHealth, order: 2)
                     healthRegistry.register(publisher: tailscale.$componentHealth, order: 3)
                     healthRegistry.register(publisher: health.$componentHealth, order: 4)
+                    healthRegistry.register(publisher: mailHealth.$componentHealth, order: 5)
+                    healthRegistry.register(publisher: e2bProbe.$componentHealth, order: 6)
+                    healthRegistry.register(publisher: reasonerProbe.$componentHealth, order: 7)
+                    healthRegistry.register(publisher: egressProbe.$componentHealth, order: 8)
                     // The Gateway's special icon role (stopped → red) is driven by a
                     // dedicated flag, NOT by forcing its ComponentHealth to `down`.
                     // Group 6 (task 6.2) will read rollupColor instead of iconColor.
