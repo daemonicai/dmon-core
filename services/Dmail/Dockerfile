@@ -1,15 +1,20 @@
+# Build from the repository root:
+#   docker build -f services/Dmail/Dockerfile -t dmail .
+# (the build context is the repo root so the central-package-management props are available)
+
 # ---- SDK Build Stage ----
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 
-# Restore packages
-COPY src/Dmail/Dmail.csproj src/Dmail/
-RUN dotnet restore src/Dmail/Dmail.csproj
+# Restore packages. Central Package Management means the repo-root props +
+# nuget.config drive every version, so they must be present before restore.
+COPY Directory.Build.props Directory.Packages.props nuget.config ./
+COPY services/Dmail/Dmail.csproj services/Dmail/
+RUN dotnet restore services/Dmail/Dmail.csproj
 
-# Copy source and publish (preserve the src/ prefix so source sits beside the
-# restored csproj at /src/src/Dmail/, matching the publish path below)
-COPY src/ src/
-RUN dotnet publish src/Dmail/Dmail.csproj -c Release -o /app/publish --no-restore
+# Copy source and publish. MinVer is skipped: this is an unversioned app image.
+COPY services/Dmail/ services/Dmail/
+RUN dotnet publish services/Dmail/Dmail.csproj -c Release -o /app/publish --no-restore -p:MinVerSkip=true
 
 # ---- Runtime Stage ----
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
@@ -24,8 +29,8 @@ RUN apt-get update \
 COPY --from=build /app/publish .
 
 # Copy ONNX model and vocabulary file (both required by AddBertOnnxEmbeddingGenerator)
-COPY models/bge-micro-v2.onnx /app/models/bge-micro-v2.onnx
-COPY models/vocab.txt /app/models/vocab.txt
+COPY services/Dmail/models/bge-micro-v2.onnx /app/models/bge-micro-v2.onnx
+COPY services/Dmail/models/vocab.txt /app/models/vocab.txt
 
 # Create data directory
 RUN mkdir -p /data

@@ -1,8 +1,8 @@
-using Daemonic.Dmail.Services;
+using Dmail.Services;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 
-namespace Daemonic.Dmail.Tests;
+namespace Dmail.Tests;
 
 public class ApiKeyServiceTests
 {

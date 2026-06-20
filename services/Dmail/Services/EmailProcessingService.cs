@@ -1,7 +1,7 @@
 using System.Threading.Channels;
-using Daemonic.Dmail.Models;
+using Dmail.Models;
 
-namespace Daemonic.Dmail.Services;
+namespace Dmail.Services;
 
 public sealed class EmailProcessingService : BackgroundService
 {

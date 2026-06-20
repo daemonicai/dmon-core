@@ -1,9 +1,9 @@
-using Daemonic.Dmail.Data;
-using Daemonic.Dmail.Models;
-using Daemonic.Dmail.Services;
+using Dmail.Data;
+using Dmail.Models;
+using Dmail.Services;
 using Microsoft.Data.Sqlite;
 
-namespace Daemonic.Dmail.Tests;
+namespace Dmail.Tests;
 
 /// <summary>
 /// B2: external-content FTS5 (content='data_emails') is not auto-maintained by SQLite.

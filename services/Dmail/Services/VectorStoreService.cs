@@ -1,7 +1,7 @@
-using Daemonic.Dmail.Models;
+using Dmail.Models;
 using Microsoft.Extensions.VectorData;
 
-namespace Daemonic.Dmail.Services;
+namespace Dmail.Services;
 
 public sealed class VectorStoreService
 {

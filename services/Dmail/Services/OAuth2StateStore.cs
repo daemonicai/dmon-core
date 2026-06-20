@@ -1,6 +1,6 @@
 using System.Collections.Concurrent;
 
-namespace Daemonic.Dmail.Services;
+namespace Dmail.Services;
 
 /// <summary>
 /// In-memory store for OAuth2 PKCE state and code verifier.

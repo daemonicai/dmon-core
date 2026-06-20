@@ -1,4 +1,4 @@
-namespace Daemonic.Dmail.Tests;
+namespace Dmail.Tests;
 
 public class ReciprocalRankFusionTests
 {

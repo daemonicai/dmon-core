@@ -1,4 +1,4 @@
-namespace Daemonic.Dmail;
+namespace Dmail;
 
 public static class ApiKeyAuthExtensions
 {

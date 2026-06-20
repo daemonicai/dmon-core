@@ -1,8 +1,10 @@
 services:
   dmail:
+    # Build context is the repo root so central-package-management props resolve.
+    # Run from this directory: `docker compose up --build`.
     build:
-      context: .
-      dockerfile: Dockerfile
+      context: ../..
+      dockerfile: services/Dmail/Dockerfile
     ports:
       - "${DMAIL_PORT:-8080}:8080"
     volumes:

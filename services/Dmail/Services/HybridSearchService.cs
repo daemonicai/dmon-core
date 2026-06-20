@@ -1,9 +1,9 @@
-using Daemonic.Dmail.Data;
-using Daemonic.Dmail.Models;
+using Dmail.Data;
+using Dmail.Models;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.VectorData;
 
-namespace Daemonic.Dmail.Services;
+namespace Dmail.Services;
 
 public sealed class HybridSearchService
 {

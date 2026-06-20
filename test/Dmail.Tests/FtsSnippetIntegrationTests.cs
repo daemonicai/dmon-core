@@ -1,6 +1,6 @@
-using Daemonic.Dmail.Data;
-using Daemonic.Dmail.Models;
-using Daemonic.Dmail.Services;
+using Dmail.Data;
+using Dmail.Models;
+using Dmail.Services;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -9,7 +9,7 @@ using Microsoft.SemanticKernel.Connectors.SqliteVec;
 
 #pragma warning disable SKEXP0070
 
-namespace Daemonic.Dmail.Tests;
+namespace Dmail.Tests;
 
 /// <summary>
 /// 11.4: Integration tests for FTS5 snippet generation and semantic-only fallback preview.

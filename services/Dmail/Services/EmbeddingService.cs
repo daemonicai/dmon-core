@@ -1,6 +1,6 @@
 using Microsoft.Extensions.AI;
 
-namespace Daemonic.Dmail.Services;
+namespace Dmail.Services;
 
 public sealed class EmbeddingService
 {

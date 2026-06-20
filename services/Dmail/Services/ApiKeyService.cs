@@ -1,7 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 
-namespace Daemonic.Dmail.Services;
+namespace Dmail.Services;
 
 public sealed class ApiKeyService
 {

@@ -1,4 +1,4 @@
-namespace Daemonic.Dmail.Services;
+namespace Dmail.Services;
 
 /// <summary>
 /// Extracted RRF fusion logic for unit testability.

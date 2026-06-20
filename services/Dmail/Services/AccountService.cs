@@ -1,6 +1,6 @@
-using Daemonic.Dmail.Data;
+using Dmail.Data;
 
-namespace Daemonic.Dmail.Services;
+namespace Dmail.Services;
 
 public sealed class AccountService
 {

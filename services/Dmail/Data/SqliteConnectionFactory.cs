@@ -1,6 +1,6 @@
 using Microsoft.Data.Sqlite;
 
-namespace Daemonic.Dmail.Data;
+namespace Dmail.Data;
 
 public sealed class SqliteConnectionFactory : ISqliteConnectionFactory
 {

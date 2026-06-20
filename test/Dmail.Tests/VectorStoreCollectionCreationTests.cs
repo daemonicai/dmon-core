@@ -1,12 +1,12 @@
-using Daemonic.Dmail.Models;
-using Daemonic.Dmail.Services;
+using Dmail.Models;
+using Dmail.Services;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.VectorData;
 using Microsoft.SemanticKernel.Connectors.SqliteVec;
 
 #pragma warning disable SKEXP0070
 
-namespace Daemonic.Dmail.Tests;
+namespace Dmail.Tests;
 
 /// <summary>
 /// Regression test for the missing EnsureCollectionExistsAsync() call at startup.

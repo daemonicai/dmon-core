@@ -1,12 +1,12 @@
-using Daemonic.Dmail.Models;
-using Daemonic.Dmail.Services;
+using Dmail.Models;
+using Dmail.Services;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.VectorData;
 using Microsoft.SemanticKernel.Connectors.SqliteVec;
 
 #pragma warning disable SKEXP0070
 
-namespace Daemonic.Dmail.Tests;
+namespace Dmail.Tests;
 
 /// <summary>
 /// 11.5: Integration tests for vec0 vector search via SK SqliteVec connector.

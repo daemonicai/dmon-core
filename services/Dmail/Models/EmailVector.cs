@@ -1,6 +1,6 @@
 using Microsoft.Extensions.VectorData;
 
-namespace Daemonic.Dmail.Models;
+namespace Dmail.Models;
 
 public sealed class EmailVector
 {

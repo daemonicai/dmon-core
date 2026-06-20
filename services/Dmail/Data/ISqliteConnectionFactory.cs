@@ -1,6 +1,6 @@
 using Microsoft.Data.Sqlite;
 
-namespace Daemonic.Dmail.Data;
+namespace Dmail.Data;
 
 /// <summary>
 /// Opens short-lived, pooled <see cref="SqliteConnection"/> instances per operation.

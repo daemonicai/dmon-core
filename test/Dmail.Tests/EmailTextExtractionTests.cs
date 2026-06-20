@@ -1,6 +1,6 @@
-using Daemonic.Dmail.Services;
+using Dmail.Services;
 
-namespace Daemonic.Dmail.Tests;
+namespace Dmail.Tests;
 
 public class EmailTextExtractionTests
 {

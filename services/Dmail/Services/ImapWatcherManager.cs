@@ -1,9 +1,9 @@
 using System.Collections.Concurrent;
 using System.Threading.Channels;
-using Daemonic.Dmail.Data;
-using Daemonic.Dmail.Models;
+using Dmail.Data;
+using Dmail.Models;
 
-namespace Daemonic.Dmail.Services;
+namespace Dmail.Services;
 
 public sealed class ImapWatcherManager : BackgroundService
 {

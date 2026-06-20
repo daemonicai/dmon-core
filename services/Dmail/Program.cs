@@ -1,6 +1,6 @@
-using Daemonic.Dmail;
-using Daemonic.Dmail.Data;
-using Daemonic.Dmail.Services;
+using Dmail;
+using Dmail.Data;
+using Dmail.Services;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Data.Sqlite;
 using Microsoft.SemanticKernel.Connectors.SqliteVec;
@@ -60,7 +60,7 @@ builder.Services.AddDataProtection()
 
 // ---- Channels ----
 builder.Services.AddSingleton(
-    System.Threading.Channels.Channel.CreateBounded<Daemonic.Dmail.Models.Email>(
+    System.Threading.Channels.Channel.CreateBounded<Dmail.Models.Email>(
         new System.Threading.Channels.BoundedChannelOptions(100)
         {
             FullMode = System.Threading.Channels.BoundedChannelFullMode.Wait

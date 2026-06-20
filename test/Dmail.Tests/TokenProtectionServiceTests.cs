@@ -1,8 +1,8 @@
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.DependencyInjection;
-using Daemonic.Dmail.Services;
+using Dmail.Services;
 
-namespace Daemonic.Dmail.Tests;
+namespace Dmail.Tests;
 
 public class TokenProtectionServiceTests : IDisposable
 {

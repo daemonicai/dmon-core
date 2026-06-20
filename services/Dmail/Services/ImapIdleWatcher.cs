@@ -1,12 +1,12 @@
 using MailKit.Search;
 using System.Threading.Channels;
-using Daemonic.Dmail.Data;
-using Daemonic.Dmail.Models;
+using Dmail.Data;
+using Dmail.Models;
 using MailKit;
 using MailKit.Net.Imap;
 using MailKit.Security;
 
-namespace Daemonic.Dmail.Services;
+namespace Dmail.Services;
 
 public sealed class ImapIdleWatcher : BackgroundService
 {

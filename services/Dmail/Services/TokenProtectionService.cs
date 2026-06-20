@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.DataProtection;
 
-namespace Daemonic.Dmail.Services;
+namespace Dmail.Services;
 
 public sealed class TokenProtectionService
 {

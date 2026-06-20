@@ -1,4 +1,4 @@
-namespace Daemonic.Dmail.Data;
+namespace Dmail.Data;
 
 public sealed class DatabaseInitializer
 {

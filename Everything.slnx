@@ -35,6 +35,7 @@
   </Folder>
   <Folder Name="/services/">
     <Project Path="services\Dcal\Dcal.csproj" />
+    <Project Path="services\Dmail\Dmail.csproj" />
   </Folder>
   <Folder Name="/spike/">
     <Project Path="spike\ScriptingSpike\ScriptingSpike.csproj" />
@@ -56,6 +57,7 @@
     <Project Path="test\Dmon.Providers.Mtplx.Tests\Dmon.Providers.Mtplx.Tests.csproj" />
     <Project Path="test\Dmon.Tools.Dcal.Tests\Dmon.Tools.Dcal.Tests.csproj" />
     <Project Path="test\Dcal.Tests\Dcal.Tests.csproj" />
+    <Project Path="test\Dmail.Tests\Dmail.Tests.csproj" />
     <Project Path="test\Dmon.Tools.Dmail.Tests\Dmon.Tools.Dmail.Tests.csproj" />
     <Project Path="test\Dmon.Tools.WebSearch.Tests\Dmon.Tools.WebSearch.Tests.csproj" />
     <Project Path="test\Daemon.Routing.Tests\Daemon.Routing.Tests.csproj" />

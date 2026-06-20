@@ -1,4 +1,4 @@
-namespace Daemonic.Dmail.Models;
+namespace Dmail.Models;
 
 public sealed record Email
 {

@@ -2,7 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 
-namespace Daemonic.Dmail.Services;
+namespace Dmail.Services;
 
 public sealed class OAuth2Service
 {
