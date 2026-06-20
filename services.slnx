@@ -1,8 +1,10 @@
 <Solution>
   <Folder Name="/services/">
     <Project Path="services\Dcal\Dcal.csproj" />
+    <Project Path="services\Dmail\Dmail.csproj" />
   </Folder>
   <Folder Name="/test/">
     <Project Path="test\Dcal.Tests\Dcal.Tests.csproj" />
+    <Project Path="test\Dmail.Tests\Dmail.Tests.csproj" />
   </Folder>
 </Solution>
