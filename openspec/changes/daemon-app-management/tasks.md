@@ -39,9 +39,9 @@
 
 ## 7. Settings panel (Swift)
 
-- [ ] 7.1 Apply the `DMON_` env rename in `SettingsView` load/persist/help text: `DCAL_E2B_URL`→`DMON_E2B_URL`, `DCAL_REASONER_URL`→`DMON_REASONER_URL`, `DAEMON_EGRESS_THRESHOLD`→`DMON_EGRESS_THRESHOLD`
-- [ ] 7.2 Add fields for the three model IDs (`DMON_E2B_MODEL`/`DMON_REASONER_MODEL`/`DMON_EGRESS_MODEL`) and the two server paths (`DMON_DCAL_SERVER_PATH`/`DMON_DMAIL_SERVER_PATH`), persisted via the existing config.yaml + Keychain mechanism
-- [ ] 7.3 Confirm settings-apply continues to restart the Gateway (core-restart wire command remains out of scope)
+- [x] 7.1 Apply the `DMON_` env rename in `SettingsView` load/persist/help text: `DCAL_E2B_URL`→`DMON_E2B_URL`, `DCAL_REASONER_URL`→`DMON_REASONER_URL`, `DAEMON_EGRESS_THRESHOLD`→`DMON_EGRESS_THRESHOLD`
+- [x] 7.2 Add fields for the three model IDs (`DMON_E2B_MODEL`/`DMON_REASONER_MODEL`/`DMON_EGRESS_MODEL`) and the two server paths (`DMON_DCAL_SERVER_PATH`/`DMON_DMAIL_SERVER_PATH`), persisted via the existing config.yaml + Keychain mechanism
+- [x] 7.3 Confirm settings-apply continues to restart the Gateway (core-restart wire command remains out of scope)
 
 ## 8. Swift tests (XCTest)
 

@@ -70,14 +70,17 @@ struct SettingsView: View {
     @StateObject private var loginItems = LoginItemManager()
 
     // MARK: Inference fields
-    @State private var e2bURL:       String = ""
-    @State private var reasonerURL:  String = ""
-    @State private var geminiKey:    String = ""
+    @State private var e2bURL:        String = ""
+    @State private var reasonerURL:   String = ""
+    @State private var geminiKey:     String = ""
+    @State private var e2bModel:      String = "gemma4:e2b-it-qat"
+    @State private var reasonerModel: String = "gemma4-27b"
+    @State private var egressModel:   String = "gemini-2.5-flash"
 
     // MARK: Calendar fields
-    @State private var icalURL:          String = ""
-    @State private var dcalAPIKey:       String = ""
-    @State private var syncInterval:     String = "15"
+    @State private var icalURL:           String = ""
+    @State private var dcalAPIKey:        String = ""
+    @State private var syncInterval:      String = "15"
     @State private var recurrenceHorizon: String = "90"
 
     // MARK: Email fields
@@ -85,8 +88,10 @@ struct SettingsView: View {
     @State private var dmailAPIKey: String = ""
 
     // MARK: Advanced fields
-    @State private var egressThreshold: Double = 0.8
-    @State private var gatewayPath:     String = ""
+    @State private var egressThreshold:  Double = 0.8
+    @State private var gatewayPath:      String = ""
+    @State private var dcalServerPath:   String = ""
+    @State private var dmailServerPath:  String = ""
 
     // MARK: Save / alert state
     @State private var showRestartAlert = false
@@ -113,9 +118,15 @@ struct SettingsView: View {
             // MARK: - Inference
             Section("Inference") {
                 TextField("E2B endpoint URL", text: $e2bURL)
-                    .help("DCAL_E2B_URL — remote code-execution endpoint")
+                    .help("DMON_E2B_URL — remote code-execution endpoint")
+                TextField("E2B model ID", text: $e2bModel)
+                    .help("DMON_E2B_MODEL — model for the E2B / code-execution turn (default: gemma4:e2b-it-qat)")
                 TextField("Reasoner URL", text: $reasonerURL)
-                    .help("DCAL_REASONER_URL — local or remote reasoning model endpoint")
+                    .help("DMON_REASONER_URL — local or remote reasoning model endpoint")
+                TextField("Reasoner model ID", text: $reasonerModel)
+                    .help("DMON_REASONER_MODEL — model for the reasoner turn (default: gemma4-27b)")
+                TextField("Egress model ID", text: $egressModel)
+                    .help("DMON_EGRESS_MODEL — model for egress / final-answer turn (default: gemini-2.5-flash)")
                 SecureField("Gemini API key", text: $geminiKey)
                     .help("GEMINI_API_KEY — stored in Keychain (signed builds)")
             }
@@ -145,7 +156,7 @@ struct SettingsView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Confidence threshold: \(String(format: "%.2f", egressThreshold))")
                     Slider(value: $egressThreshold, in: 0...1, step: 0.05)
-                        .help("DAEMON_EGRESS_THRESHOLD — future core routing change; persisted for forward-compat")
+                        .help("DMON_EGRESS_THRESHOLD — not yet wired into the router; persisted for forward-compat")
                 }
                 TextField("Gateway binary path", text: $gatewayPath)
                     .help("DMON_GATEWAY_PATH — override resolved gateway binary")
@@ -153,6 +164,14 @@ struct SettingsView: View {
                     .onChange(of: loginItems.isEnabled) { _, newValue in
                         loginItems.setEnabled(newValue)
                     }
+            }
+
+            // MARK: - Servers
+            Section("Servers") {
+                TextField("Dcal server binary path", text: $dcalServerPath)
+                    .help("DMON_DCAL_SERVER_PATH — override resolved Dcal server binary; takes effect on next app launch")
+                TextField("Dmail server binary path", text: $dmailServerPath)
+                    .help("DMON_DMAIL_SERVER_PATH — override resolved Dmail server binary; takes effect on next app launch")
             }
 
             // MARK: - Save
@@ -184,22 +203,27 @@ struct SettingsView: View {
     private func loadFromStore() {
         let cfg = ConfigStore.load()
 
-        e2bURL       = cfg["DCAL_E2B_URL"]       ?? ""
-        reasonerURL  = cfg["DCAL_REASONER_URL"]  ?? ""
-        icalURL      = cfg["DCAL_ICAL_URL"]       ?? ""
-        syncInterval = cfg["DCAL_SYNC_INTERVAL_MINUTES"] ?? "15"
+        e2bURL        = cfg["DMON_E2B_URL"]       ?? ""
+        reasonerURL   = cfg["DMON_REASONER_URL"]  ?? ""
+        e2bModel      = cfg["DMON_E2B_MODEL"]      ?? "gemma4:e2b-it-qat"
+        reasonerModel = cfg["DMON_REASONER_MODEL"] ?? "gemma4-27b"
+        egressModel   = cfg["DMON_EGRESS_MODEL"]   ?? "gemini-2.5-flash"
+        icalURL       = cfg["DCAL_ICAL_URL"]       ?? ""
+        syncInterval  = cfg["DCAL_SYNC_INTERVAL_MINUTES"] ?? "15"
         recurrenceHorizon = cfg["DCAL_RECURRENCE_HORIZON_DAYS"] ?? "90"
-        dmailURL     = cfg["DMAIL_BASE_URL"]      ?? ""
-        gatewayPath  = cfg["DMON_GATEWAY_PATH"]   ?? ""
+        dmailURL      = cfg["DMAIL_BASE_URL"]      ?? ""
+        gatewayPath   = cfg["DMON_GATEWAY_PATH"]   ?? ""
+        dcalServerPath  = cfg["DMON_DCAL_SERVER_PATH"]  ?? ""
+        dmailServerPath = cfg["DMON_DMAIL_SERVER_PATH"] ?? ""
 
-        if let raw = cfg["DAEMON_EGRESS_THRESHOLD"], let d = Double(raw) {
+        if let raw = cfg["DMON_EGRESS_THRESHOLD"], let d = Double(raw) {
             egressThreshold = d
         }
 
         // For secret keys: read from Keychain; fall back to YAML value
         // (unsigned-dev path where real value was stored in YAML).
-        geminiKey  = readSecret("GEMINI_API_KEY",  yaml: cfg)
-        dcalAPIKey = readSecret("DCAL_API_KEY",    yaml: cfg)
+        geminiKey   = readSecret("GEMINI_API_KEY", yaml: cfg)
+        dcalAPIKey  = readSecret("DCAL_API_KEY",   yaml: cfg)
         dmailAPIKey = readSecret("DMAIL_API_KEY",  yaml: cfg)
     }
 
@@ -218,16 +242,21 @@ struct SettingsView: View {
 
     private func persistAndRestart() {
         let plaintext: [String: String] = [
-            "DCAL_E2B_URL":                 e2bURL,
-            "DCAL_REASONER_URL":            reasonerURL,
+            "DMON_E2B_URL":                 e2bURL,
+            "DMON_REASONER_URL":            reasonerURL,
+            "DMON_E2B_MODEL":               e2bModel,
+            "DMON_REASONER_MODEL":          reasonerModel,
+            "DMON_EGRESS_MODEL":            egressModel,
             "DCAL_BASE_URL":                "http://localhost:5280",  // default; not exposed in UI
             "DCAL_ICAL_URL":                icalURL,
             "DCAL_SYNC_INTERVAL_MINUTES":   syncInterval,
             "DCAL_RECURRENCE_HORIZON_DAYS": recurrenceHorizon,
             "DMAIL_BASE_URL":               dmailURL,
-            "DAEMON_EGRESS_THRESHOLD":      String(format: "%.2f", egressThreshold),
-            // Future core change: DAEMON_EGRESS_THRESHOLD is not yet wired into the router.
-            "DMON_GATEWAY_PATH":            gatewayPath
+            "DMON_EGRESS_THRESHOLD":        String(format: "%.2f", egressThreshold),
+            // DMON_EGRESS_THRESHOLD is not yet wired into the router; persisted for forward-compat.
+            "DMON_GATEWAY_PATH":            gatewayPath,
+            "DMON_DCAL_SERVER_PATH":        dcalServerPath,
+            "DMON_DMAIL_SERVER_PATH":       dmailServerPath
         ].filter { !$0.value.isEmpty }
 
         let secrets: [String: String] = [
