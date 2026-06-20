@@ -33,8 +33,43 @@ swift build -c release --package-path daemon/Daemon.App
 
 The executable lands at `daemon/Daemon.App/.build/release/DaemonApp`.
 
+## Test
+
+```sh
+swift test --package-path daemon/Daemon.App
+```
+
+The `DaemonAppTests` target unit-tests the pure logic seams (process-adoption
+liveness via an injected probe, health-status classification and the aggregate
+rollup, and the `ConfigStore` flat-YAML round-trip). Tests spawn no processes
+and make no network calls.
+
+## What the app does
+
+`dmonium` supervises the DAEMON stack from the menu bar:
+
+- **Process supervision** — launches/adopts and restarts (exponential back-off)
+  the **Gateway** (which builds+runs the `Daemon.cs` core), and the **Dcal** and
+  **Dmail** servers. Server binaries resolve from `DMON_GATEWAY_PATH` /
+  `DMON_DCAL_SERVER_PATH` / `DMON_DMAIL_SERVER_PATH`; an unresolved server is
+  reported "not configured" rather than spawned. All children are terminated on
+  quit.
+- **Unified health** — a typed `HealthRegistry` aggregates the Gateway, the
+  Dcal/Dmail servers, Tailscale, the calendar-sync poll, and the configured
+  model-runner endpoints (`DMON_E2B_URL`, `DMON_REASONER_URL`, egress). Each is a
+  menu row; the menu-bar icon reflects the rollup (red/amber/green). A best-effort
+  "Bring Tailscale up" action runs `tailscale up`.
+- **Settings** — writes `~/.dmon/config.yaml` (+ Keychain for secrets) and
+  restarts the Gateway. dmon-core's own keys use the `DMON_` prefix (endpoints,
+  the three `DMON_*_MODEL` IDs, `DMON_EGRESS_THRESHOLD`); the Dcal/Dmail servers
+  keep their own `DCAL_*`/`DMAIL_*` config and provider keys (`GEMINI_API_KEY`)
+  are unchanged.
+
 ## Layout
 
-- `Package.swift` — manifest; `DaemonApp` executable target, macOS 14+.
-- `Sources/DaemonApp/` — app sources (menu-bar UI, gateway manager, keychain,
-  Tailscale/Dcal health monitors, login-item management).
+- `Package.swift` — manifest; `DaemonApp` executable target + `DaemonAppTests`, macOS 14+.
+- `Sources/DaemonApp/` — app sources:
+  - UI/lifecycle: `DaemonApp.swift`, `MenuBarView.swift`, `SettingsView.swift`, `LoginItemManager.swift`, `Keychain.swift`.
+  - Process supervision: `ServerProcessManager.swift` (reusable), `GatewayManager.swift`, `ServiceManager.swift` (Dcal/Dmail).
+  - Health: `ComponentHealth.swift`, `HealthRegistry.swift`, `TailscaleMonitor.swift`, `DcalHealthMonitor.swift`, `DmailHealthMonitor.swift`, `EndpointHealthProbe.swift`.
+- `Tests/DaemonAppTests/` — `ServerProcessManagerTests`, `HealthClassificationTests`, `ConfigStoreTests`.

@@ -52,5 +52,5 @@
 
 ## 9. Sync and gates
 
-- [ ] 9.1 Update the `daemon/Daemon.App/README.md` layout/notes if the source set changed (new managers, health, tests)
-- [ ] 9.2 Run all gates: `make build` (0 warnings), `env -u MEKO_API_KEY make test`, `make daemon-app` (swift build clean), `swift test` (in `daemon/Daemon.App`), and `openspec validate daemon-app-management --strict`
+- [x] 9.1 Update the `daemon/Daemon.App/README.md` layout/notes if the source set changed (new managers, health, tests)
+- [x] 9.2 Run all gates: `make build` (0 warnings), `env -u MEKO_API_KEY make test`, `make daemon-app` (swift build clean), `swift test` (in `daemon/Daemon.App`), and `openspec validate daemon-app-management --strict`
