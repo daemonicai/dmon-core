@@ -3,6 +3,7 @@ import SwiftUI
 struct MenuBarView: View {
 
     @EnvironmentObject var gateway: GatewayManager
+    @EnvironmentObject var tailscale: TailscaleMonitor
     @EnvironmentObject var health: DcalHealthMonitor
     @EnvironmentObject var healthRegistry: HealthRegistry
 
@@ -30,6 +31,11 @@ struct MenuBarView: View {
             } else {
                 gateway.start()
             }
+        }
+
+        // Bring Tailscale up (best-effort; outcome reflected via re-poll, not direct row mutation)
+        Button("Bring Tailscale up") {
+            Task { await tailscale.bringUp() }
         }
 
         // Sync Calendar Now

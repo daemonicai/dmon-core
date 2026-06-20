@@ -34,8 +34,8 @@
 
 - [x] 6.1 Update `MenuBarView` to render one row per registered `ComponentHealth`
 - [x] 6.2 Drive the `DaemonApp` status-icon color from the `HealthRegistry` aggregate rollup
-- [ ] 6.3 Add a best-effort "Bring Tailscale up" menu action that runs `tailscale up` and reflects the outcome in the Tailscale row (no interactive auth flow)
-- [ ] 6.4 Add an `NSApplicationDelegateAdaptor` whose `applicationWillTerminate` calls `stop()` on the Gateway, Dcal, and Dmail managers — an explicit orderly terminate + PID-file cleanup on quit, making "terminate on quit" literal for all three managers (currently relies on OS process-group death only; PID files survive a quit)
+- [x] 6.3 Add a best-effort "Bring Tailscale up" menu action that runs `tailscale up` and reflects the outcome in the Tailscale row (no interactive auth flow)
+- [x] 6.4 Add an `NSApplicationDelegateAdaptor` whose `applicationWillTerminate` calls `stop()` on the Gateway, Dcal, and Dmail managers — an explicit orderly terminate + PID-file cleanup on quit, making "terminate on quit" literal for all three managers (currently relies on OS process-group death only; PID files survive a quit)
 
 ## 7. Settings panel (Swift)
 

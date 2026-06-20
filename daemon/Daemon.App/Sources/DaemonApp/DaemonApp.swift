@@ -1,7 +1,32 @@
 import SwiftUI
+import AppKit
+
+// MARK: - App delegate (6.4 — orderly terminate-on-quit)
+
+/// Terminates all supervised server processes and clears their PID files when the
+/// app quits.  Marked `@MainActor` so that holding references to `@MainActor`-isolated
+/// managers is safe without concurrency gymnastics, and because `applicationWillTerminate`
+/// is always called on the main thread.
+@MainActor
+final class AppDelegate: NSObject, NSApplicationDelegate {
+
+    var gateway: GatewayManager?
+    var dcal: ServiceManager?
+    var dmail: ServiceManager?
+
+    nonisolated func applicationWillTerminate(_ notification: Notification) {
+        MainActor.assumeIsolated {
+            gateway?.stop()
+            dcal?.stop()
+            dmail?.stop()
+        }
+    }
+}
 
 @main
 struct DaemonApp: App {
+
+    @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
     @StateObject private var gateway = GatewayManager()
     @StateObject private var tailscale = TailscaleMonitor()
@@ -59,15 +84,14 @@ struct DaemonApp: App {
                     // Start supervised servers. If no executable resolves (no env var
                     // and no path override), start() is a no-op (isRunning stays false).
                     // This is the designed "not configured" terminal state (design.md D2).
-                    //
-                    // NOTE: Terminate-on-quit is NOT explicitly wired for the Gateway or
-                    // these managers — there is no NSApplicationDelegateAdaptor calling
-                    // stop(). Child processes launched via Process inherit the parent's
-                    // process group and are killed by the OS when the app exits, but PID
-                    // files are not cleaned up. This is a pre-existing gap shared by the
-                    // Gateway; see flag in hand-off to orchestrator.
                     dcal.start()
                     dmail.start()
+
+                    // Wire the delegate so applicationWillTerminate calls stop() on all
+                    // three managers (terminates children + clears PID files).
+                    appDelegate.gateway = gateway
+                    appDelegate.dcal = dcal
+                    appDelegate.dmail = dmail
 
                     // Endpoint health monitors (tasks 5.1–5.3).
                     mailHealth.start()
