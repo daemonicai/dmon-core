@@ -26,7 +26,7 @@ The `terminal-client-factory` change (Phase 1) introduced `IAbilityProvider`, `A
 
 `Dmon.Tools.Calendar` is a thin HTTP client, mirroring `Dmon.Tools.Dmail` exactly:
 - `CalendarClient` wraps `HttpClient`, authenticates with `X-Api-Key`, serialises with `JsonSerializerDefaults.Web`.
-- `CalendarExtension : IToolExtension` builds `AIFunction`s over `CalendarClient` methods, exposes them via `Tools`, and implements `PermissionResult Evaluate(...)` — calendar metadata is `Read`-tier (no prompt); full event body is also `Read`-tier (all fields are already structured, no new disclosure beyond what the model asked for).
+- `CalendarExtension : IToolExtension` builds `AIFunction`s over `CalendarClient` methods (via `DmonAIFunctionFactory.Create()`, as `Dmon.Tools.Dmail` does), exposes them via `Tools`, and implements `PermissionResult Evaluate(...)`. `Evaluate` returns `PermissionResult.Allow` (the enum is `{ Allow, Prompt, Deny }` — there is no `Read` value; "no prompt" maps to `Allow`) for **both** tools: calendar metadata and the full event body are all already-structured fields with no disclosure beyond what the model asked for. This is a deliberate divergence from dmail, which returns `Prompt` for full-message retrieval (`get_email`); calendar event bodies are lower-sensitivity than email bodies, so both calendar tools are `Allow`.
 - Configured via `DCAL_BASE_URL` (default `http://localhost:5280`) and `DCAL_API_KEY` env vars.
 
 **Alternative considered:** Embed SQLite directly in `Dmon.Tools.Calendar` (in-process). Rejected: the server process owns the sync scheduler and is the correct place for background work. Keeping sync out of the tool extension also means the calendar stays up-to-date even when no agent session is active.
@@ -53,6 +53,10 @@ CREATE VIRTUAL TABLE events_fts USING fts5(
     content=events, content_rowid=rowid
 );
 ```
+
+**External-content FTS5 maintenance:** an `events_fts` table declared with `content=events` is *not* auto-populated by inserts into `events` — the contentless/external-content table must be filled explicitly (or via triggers). With the full-replace strategy (D4), `CalendarDatabase.Clear()` must also clear `events_fts` and `Upsert(...)` must insert the matching `events_fts` rows; otherwise `FindNext`'s `MATCH` returns nothing.
+
+**Canonical timestamp format:** `start_utc`/`end_utc` are stored as TEXT and compared lexically (`start_utc >= :after`). Lexical comparison is only correct if every stored value *and* the `after` default share one canonical UTC format. Both the sync writer (D4) and the `after` default (D7 / `GET /api/events/next`) MUST use the identical format — `DateTimeOffset`/`DateTime` normalised to UTC and formatted as `yyyy-MM-ddTHH:mm:ssZ` (fixed precision, zero offset). Mixed precision or local offsets silently mis-filter.
 
 `FindNext(term, after)` runs:
 ```sql
@@ -85,6 +89,8 @@ On each sync cycle, `Daemon.Calendar` downloads the iCal URL, parses all events 
 2. `CalendarAbilityProvider` as `IAbilityProvider` (scope `"personal"`) — makes the same tools available via `AbilityRegistry.ForScope("personal")` in triage-enabled agents.
 
 This means the same tools work correctly whether the caller uses a simple single-provider composition root or a full `TriageRouter` composition root. The two registrations are independent; the tools are not duplicated in the pipeline (the global `IToolExtension` path and the triage `IAbilityProvider` path are exclusive — triage replaces the global pipeline).
+
+**Load-bearing assumption:** the no-duplication property rests on triage *replacing* the global tool pipeline rather than augmenting it. `TriageRouter` itself lands in Phase 3 (`daemon/`), so this change cannot exercise the full triage path. What it *can* and does verify (group 8): registering both via `AddCalendarAbilities()` yields each tool exactly once in the global `IToolExtension` list **and** in `AbilityRegistry.ForScope("personal")`, with `IAbilityProvider` tools never leaking into the global list (the Phase 1 invariant). The runtime exclusivity under triage is re-verified when Phase 3 wires the router.
 
 ### D7: HTTP API surface for Daemon.Calendar
 

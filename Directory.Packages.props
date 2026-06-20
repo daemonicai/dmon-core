@@ -35,14 +35,16 @@
     <PackageVersion Include="Avalonia.Desktop" Version="12.0.4" />
     <PackageVersion Include="Avalonia.Themes.Fluent" Version="12.0.4" />
     <PackageVersion Include="coverlet.collector" Version="6.0.4" />
-    <PackageVersion Include="Dcli" Version="0.2.0-rc.4" />
+    <PackageVersion Include="Dcli" Version="0.3.0-rc.0" />
     <PackageVersion Include="DynamicData" Version="9.4.31" />
-    <PackageVersion Include="Dcli.Testing" Version="0.2.0-rc.4" />
+    <PackageVersion Include="Dcli.Testing" Version="0.3.0-rc.0" />
     <PackageVersion Include="Dotnet.Script.Core" Version="2.0.0" />
     <PackageVersion Include="GeminiDotnet.Extensions.AI" Version="0.25.0" />
     <PackageVersion Include="HiraokaHyperTools.sqlite-vec" Version="0.1.9" />
+    <PackageVersion Include="Ical.Net" Version="5.0.0" />
     <PackageVersion Include="LLamaSharp" Version="0.27.0" />
     <PackageVersion Include="LLamaSharp.Backend.Cpu" Version="0.27.0" />
+    <PackageVersion Include="MailKit" Version="4.17.0" />
     <PackageVersion Include="Markdig" Version="1.*" />
     <PackageVersion Include="Markdown.Avalonia" Version="12.0.0-a3" />
     <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="5.0.0-2.final" />
@@ -60,8 +62,11 @@
     <PackageVersion Include="Microsoft.Extensions.Options" Version="10.0.8" />
     <PackageVersion Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.8" />
     <PackageVersion Include="Microsoft.Extensions.TimeProvider.Testing" Version="10.6.0" />
+    <PackageVersion Include="Microsoft.Extensions.VectorData.Abstractions" Version="10.1.0" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
     <PackageVersion Include="Microsoft.Reactive.Testing" Version="6.0.1" />
+    <PackageVersion Include="Microsoft.SemanticKernel.Connectors.Onnx" Version="1.74.0-alpha" />
+    <PackageVersion Include="Microsoft.SemanticKernel.Connectors.SqliteVec" Version="1.74.0-preview" />
     <PackageVersion Include="ModelContextProtocol" Version="1.3.0" />
     <PackageVersion Include="NetEscapades.Configuration.Yaml" Version="3.1.0" />
     <PackageVersion Include="OllamaSharp" Version="5.4.25" />

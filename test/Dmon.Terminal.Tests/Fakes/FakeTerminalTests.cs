@@ -90,6 +90,78 @@ public sealed class FakeTerminalTests
         Assert.Equal(second, fake.CurrentStatus);
     }
 
+    // ── InputPreamble surface ─────────────────────────────────────────────────
+
+    [Fact]
+    public void InputPreamble_SetRows_Array_RecordsInputPreambleSet()
+    {
+        FakeTerminal fake = new();
+        Line row = Line.FromText("preamble content");
+
+        fake.InputPreamble.SetRows(row);
+
+        InputPreambleSet call = Assert.IsType<InputPreambleSet>(Assert.Single(fake.Calls));
+        Dcli.Line recorded = Assert.Single(call.Rows);
+        Assert.Equal(row, recorded);
+    }
+
+    [Fact]
+    public void InputPreamble_SetRows_List_RecordsInputPreambleSet()
+    {
+        FakeTerminal fake = new();
+        IReadOnlyList<Line> rows = [Line.FromText("row a"), Line.FromText("row b")];
+
+        fake.InputPreamble.SetRows(rows);
+
+        InputPreambleSet call = Assert.IsType<InputPreambleSet>(Assert.Single(fake.Calls));
+        Assert.Equal(2, call.Rows.Count);
+    }
+
+    [Fact]
+    public void CurrentPreamble_ReturnsLastSetRowsValue()
+    {
+        FakeTerminal fake = new();
+        IReadOnlyList<Line> first  = [Line.FromText("first preamble")];
+        IReadOnlyList<Line> second = [Line.FromText("second preamble")];
+
+        fake.InputPreamble.SetRows(first);
+        fake.InputPreamble.SetRows(second);
+
+        Assert.Equal(second, fake.CurrentPreamble);
+    }
+
+    [Fact]
+    public void CurrentPreamble_NoCallYet_ReturnsEmpty()
+    {
+        FakeTerminal fake = new();
+        Assert.Empty(fake.CurrentPreamble);
+    }
+
+    // ── Input.SetPrompt surface ───────────────────────────────────────────────
+
+    [Fact]
+    public void Input_SetPromptLine_RecordsInputSetPromptLine()
+    {
+        FakeTerminal fake = new();
+        Line prompt = Line.FromText("❯ ");
+
+        fake.Input.SetPrompt(prompt);
+
+        InputSetPromptLine call = Assert.IsType<InputSetPromptLine>(Assert.Single(fake.Calls));
+        Assert.Equal(prompt, call.Line);
+    }
+
+    [Fact]
+    public void Input_SetPromptText_RecordsInputSetPromptText()
+    {
+        FakeTerminal fake = new();
+
+        fake.Input.SetPrompt("❯ ");
+
+        InputSetPromptText call = Assert.IsType<InputSetPromptText>(Assert.Single(fake.Calls));
+        Assert.Equal("❯ ", call.Text);
+    }
+
     // ── dialog scripting ────────────────────────────────────────────────────
 
     [Fact]

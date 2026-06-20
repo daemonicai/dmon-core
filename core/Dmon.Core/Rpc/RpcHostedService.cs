@@ -35,7 +35,7 @@ public sealed class RpcHostedService : BackgroundService
         await _bootstrap.RunAsync(stoppingToken).ConfigureAwait(false);
         await _setupCheck.RunAsync(stoppingToken).ConfigureAwait(false);
 
-        string coreVersion = Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "0.0.0";
+        string coreVersion = ResolveCoreVersion(Assembly.GetExecutingAssembly());
 
         await _emitter.EmitAsync(new AgentReadyEvent
         {
@@ -54,6 +54,13 @@ public sealed class RpcHostedService : BackgroundService
         // Allow outstanding background tasks (turn.submit, wizard.start) to complete
         // before the hosted service tears down.
         await _dispatcher.DrainAsync().ConfigureAwait(false);
+    }
+
+    internal static string ResolveCoreVersion(Assembly assembly)
+    {
+        return assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
+            ?? assembly.GetName().Version?.ToString()
+            ?? "0.0.0";
     }
 
     // Yields trimmed, non-blank lines from input. Ends on stdin EOF (null) or cancellation.

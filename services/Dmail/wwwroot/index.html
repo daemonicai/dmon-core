@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dmail Dashboard</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <header>
+        <h1>Dmail</h1>
+        <span class="subtitle">Self-hosted Gmail vector search</span>
+    </header>
+
+    <main>
+        <section id="api-info" class="card">
+            <h2>API Info</h2>
+            <div class="kv">
+                <label>API Key:</label>
+                <code id="api-key">loading...</code>
+            </div>
+            <div class="kv">
+                <label>Search Endpoint:</label>
+                <code>POST /api/search</code>
+            </div>
+            <div class="kv">
+                <label>List Endpoint:</label>
+                <code>POST /api/emails/list</code>
+            </div>
+            <div class="kv">
+                <label>Get Endpoint:</label>
+                <code>GET /api/emails/{uid}</code>
+            </div>
+        </section>
+
+        <section id="setup-warning" class="card warning hidden">
+            <h2>⚠️ Google OAuth2 Not Configured</h2>
+            <p>Set the following environment variables to enable Gmail access:</p>
+            <ol>
+                <li>Go to <a href="https://console.cloud.google.com/apis/credentials" target="_blank">Google Cloud Console → Credentials</a></li>
+                <li>Create an OAuth 2.0 Client ID (Web application)</li>
+                <li>Add <code id="redirect-uri"></code> as an authorized redirect URI</li>
+                <li>Set environment variables:</li>
+            </ol>
+            <pre><code>DMAIL_GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
+DMAIL_GOOGLE_CLIENT_SECRET=your-client-secret</code></pre>
+        </section>
+
+        <section id="accounts" class="card">
+            <h2>Accounts</h2>
+            <div id="account-list">
+                <p class="empty">No accounts connected.</p>
+            </div>
+            <div class="actions">
+                <button id="add-account-btn">+ Add Gmail Account</button>
+            </div>
+        </section>
+
+        <section id="status" class="card">
+            <h2>System Status</h2>
+            <div id="status-content">
+                <p>Loading...</p>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <p>Dmail — self-contained Docker app</p>
+    </footer>
+
+    <script src="/js/dashboard.js"></script>
+</body>
+</html>

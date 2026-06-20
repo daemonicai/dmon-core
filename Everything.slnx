@@ -17,6 +17,7 @@
   </Folder>
   <Folder Name="/tools/">
     <Project Path="tools\Dmon.Tools.Builtin\Dmon.Tools.Builtin.csproj" />
+    <Project Path="tools\Dmon.Tools.Dcal\Dmon.Tools.Dcal.csproj" />
     <Project Path="tools\Dmon.Tools.Dmail\Dmon.Tools.Dmail.csproj" />
     <Project Path="tools\Dmon.Tools.WebSearch\Dmon.Tools.WebSearch.csproj" />
   </Folder>
@@ -28,6 +29,13 @@
     <Project Path="frontends\Dmon.Desktop\Dmon.Desktop.csproj" />
     <Project Path="frontends\Dmon.Gateway\Dmon.Gateway.csproj" />
     <Project Path="frontends\Dmon.Terminal\Dmon.Terminal.csproj" />
+  </Folder>
+  <Folder Name="/daemon/">
+    <Project Path="daemon\Daemon.Routing\Daemon.Routing.csproj" />
+  </Folder>
+  <Folder Name="/services/">
+    <Project Path="services\Dcal\Dcal.csproj" />
+    <Project Path="services\Dmail\Dmail.csproj" />
   </Folder>
   <Folder Name="/spike/">
     <Project Path="spike\ScriptingSpike\ScriptingSpike.csproj" />
@@ -47,7 +55,11 @@
     <Project Path="test\Dmon.Tools.Builtin.Tests\Dmon.Tools.Builtin.Tests.csproj" />
     <Project Path="test\Dmon.Providers.LlamaCpp.Tests\Dmon.Providers.LlamaCpp.Tests.csproj" />
     <Project Path="test\Dmon.Providers.Mtplx.Tests\Dmon.Providers.Mtplx.Tests.csproj" />
+    <Project Path="test\Dmon.Tools.Dcal.Tests\Dmon.Tools.Dcal.Tests.csproj" />
+    <Project Path="test\Dcal.Tests\Dcal.Tests.csproj" />
+    <Project Path="test\Dmail.Tests\Dmail.Tests.csproj" />
     <Project Path="test\Dmon.Tools.Dmail.Tests\Dmon.Tools.Dmail.Tests.csproj" />
     <Project Path="test\Dmon.Tools.WebSearch.Tests\Dmon.Tools.WebSearch.Tests.csproj" />
+    <Project Path="test\Daemon.Routing.Tests\Daemon.Routing.Tests.csproj" />
   </Folder>
 </Solution>

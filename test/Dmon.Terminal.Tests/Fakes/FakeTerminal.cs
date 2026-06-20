@@ -18,6 +18,9 @@ public sealed class FakeTerminal : Dcli.ITerminal
     private readonly List<FakeCall> _calls = [];
     public IReadOnlyList<FakeCall> Calls => _calls;
 
+    /// <summary>Clears the call log — useful in tests that want to isolate assertions to a specific operation.</summary>
+    public void ClearCalls() => _calls.Clear();
+
     // ── live-block tracking ─────────────────────────────────────────────────
 
     private readonly List<FakeLiveBlock> _liveBlocks = [];
@@ -36,6 +39,19 @@ public sealed class FakeTerminal : Dcli.ITerminal
             for (int i = _calls.Count - 1; i >= 0; i--)
             {
                 if (_calls[i] is StatusSet s) return s.Rows;
+            }
+            return [];
+        }
+    }
+
+    /// <summary>The rows from the last <see cref="InputPreambleSet"/> call, or empty if none recorded.</summary>
+    public IReadOnlyList<Dcli.Line> CurrentPreamble
+    {
+        get
+        {
+            for (int i = _calls.Count - 1; i >= 0; i--)
+            {
+                if (_calls[i] is InputPreambleSet p) return p.Rows;
             }
             return [];
         }
@@ -85,11 +101,13 @@ public sealed class FakeTerminal : Dcli.ITerminal
     public Dcli.IScrollback Scrollback => _scrollback;
     public Dcli.IInput Input => _input;
     public Dcli.IStatus Status => _status;
+    public Dcli.IInputPreamble InputPreamble => _inputPreamble;
     public Dcli.IAutocomplete Autocomplete => _autocomplete;
 
     private readonly FakeScrollback _scrollback;
     private readonly FakeInput _input;
     private readonly FakeStatus _status;
+    private readonly FakeInputPreamble _inputPreamble;
     private readonly FakeAutocomplete _autocomplete;
 
     public FakeTerminal()
@@ -97,6 +115,7 @@ public sealed class FakeTerminal : Dcli.ITerminal
         _scrollback = new FakeScrollback(this);
         _input = new FakeInput(this);
         _status = new FakeStatus(this);
+        _inputPreamble = new FakeInputPreamble(this);
         _autocomplete = new FakeAutocomplete();
     }
 
@@ -172,6 +191,14 @@ public sealed class FakeTerminal : Dcli.ITerminal
     {
         public void SetText(string text) => owner._calls.Add(new InputSetTextCall(text));
         public void Clear() => owner._calls.Add(new InputClearCall());
+        public void SetPrompt(Dcli.Line line) => owner._calls.Add(new InputSetPromptLine(line));
+        public void SetPrompt(string text) => owner._calls.Add(new InputSetPromptText(text));
+    }
+
+    private sealed class FakeInputPreamble(FakeTerminal owner) : Dcli.IInputPreamble
+    {
+        public void SetRows(params Dcli.Line[] rows) => SetRows((IReadOnlyList<Dcli.Line>)rows);
+        public void SetRows(IReadOnlyList<Dcli.Line> rows) => owner._calls.Add(new InputPreambleSet(rows));
     }
 
     private sealed class FakeStatus(FakeTerminal owner) : Dcli.IStatus

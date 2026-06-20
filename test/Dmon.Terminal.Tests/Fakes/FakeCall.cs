@@ -15,4 +15,7 @@ public sealed record ChoiceOpened(Dcli.ChoiceRequest Request) : FakeCall;
 public sealed record InputOpened(Dcli.InputRequest Request) : FakeCall;
 public sealed record InputSetTextCall(string Text) : FakeCall;
 public sealed record InputClearCall : FakeCall;
+public sealed record InputPreambleSet(IReadOnlyList<Dcli.Line> Rows) : FakeCall;
+public sealed record InputSetPromptLine(Dcli.Line Line) : FakeCall;
+public sealed record InputSetPromptText(string Text) : FakeCall;
 public sealed record Disposed : FakeCall;

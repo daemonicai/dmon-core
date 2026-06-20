@@ -2,6 +2,15 @@
 
 Defines the terminal (console) host: how it renders streaming output, accepts user input and slash commands, supervises the `Dmon.Core` process over JSONL/stdio, and applies configuration changes by restarting the core via `/reload`.
 ## Requirements
+### Requirement: Startup welcome banner and MOTD
+
+The terminal host SHALL, on startup, write an ASCII `dmon` banner and a tagline MOTD to scrollback via `ITerminal.Scrollback.Append`, replacing the prior bare `dmon` separator. The banner and tagline SHALL be emitted into scrollback (so they scroll away with history) rather than pinned in the fixed region, and SHALL appear before the first input prompt is presented.
+
+#### Scenario: Banner and tagline shown at startup
+
+- **WHEN** the terminal host starts a session
+- **THEN** an ASCII `dmon` banner and a tagline MOTD are appended to scrollback via `ITerminal.Scrollback.Append` before the first prompt is shown, and no bare `dmon` separator is used in their place
+
 ### Requirement: Streaming output renders in real time
 
 The terminal host SHALL display `messageDelta` tokens to the user as they arrive without buffering, by streaming them into a `dcli` live scrollback block (`Scrollback.BeginLive` → `AppendText` per token). The input prompt SHALL remain responsive (accepting keystrokes for display, with `InputSubmitted` events dropped while `IsLocked=true`) while a turn is active.
@@ -57,17 +66,22 @@ The terminal host SHALL re-render the completed turn with full Markdig markdown 
 
 ### Requirement: Input prompt with horizontal separators
 
-The terminal host SHALL present the input zone with the input editor between two horizontal separator rows, the top separator showing model + mode + state indicators (`Thinking…` or `Idle`). The separators and status SHALL be rendered as `dcli` fixed-region rows — the input via `ITerminal.Input` (cursor and editing owned by `dcli`), the separators and status via `ITerminal.Status.SetRows`.
+The terminal host SHALL present the input zone as a symmetric frame built from `dcli`'s three fixed-region bands: a `── dmon ──` rule pinned directly **above** the input editor via `ITerminal.InputPreamble.SetRows`; a `❯ ` prompt prefix on the editor's first row via `ITerminal.Input.SetPrompt`; and **below** the editor a horizontal `────` rule plus a readiness row `[Ready] dmon core v{version} {model}`, both set via `ITerminal.Status.SetRows`. The input editor's cursor and editing SHALL remain owned by `dcli` via `ITerminal.Input`. The readiness row SHALL show the active model name (not the protocol version) together with the `Thinking…`/`Idle` state indicator; `{version}` SHALL be the value reported in `agentReady.coreVersion`.
 
-#### Scenario: Prompt displayed when idle
+#### Scenario: Symmetric frame displayed when idle
 
 - **WHEN** no turn is active
-- **THEN** the fixed region shows a top status row containing the separator + status text, the `dcli` input editor with cursor, and a bottom status row containing a separator
+- **THEN** the input preamble shows a `── dmon ──` rule above the editor, the `dcli` input editor shows a `❯ ` prompt prefix with its cursor, and the status region below shows a `────` rule row and a `[Ready] dmon core v{version} {model}` readiness row
 
-#### Scenario: Status shown in top separator
+#### Scenario: Prompt glyph on the input line
 
-- **WHEN** the active model name is known
-- **THEN** the top status row includes the model name and `Thinking…` or `Idle` indicator, set via `Status.SetRows`
+- **WHEN** the input zone is rendered
+- **THEN** the editor's first row is prefixed with `❯ `, set once via `Input.SetPrompt`, and the prefix persists across turns without emitting an `InputChanged` event
+
+#### Scenario: Readiness row shows version and model
+
+- **WHEN** the active model name is known and the core version from `agentReady` has been received
+- **THEN** the bottom status row reads `[Ready] dmon core v{version} {model}` with the `Thinking…` or `Idle` indicator, set via `Status.SetRows`, and does not display the protocol version
 
 ### Requirement: Ctrl+C exits cleanly
 
@@ -201,8 +215,11 @@ The mapping of terminal-host concerns to `dcli` surfaces SHALL be:
 
 - Streaming token output → `ITerminal.Scrollback.BeginLive` + `AppendText` + `Commit`.
 - Settled markdown render → `ITerminal.Scrollback.Append(Line)` with lines produced by the markdown renderer.
+- Startup welcome banner + tagline MOTD → `ITerminal.Scrollback.Append(Line)`.
+- Top input-frame rule (`── dmon ──`) → `ITerminal.InputPreamble.SetRows`.
+- Input prompt prefix (`❯ `) → `ITerminal.Input.SetPrompt`.
 - Horizontal separator lines → `ITerminal.Scrollback.Append(Line)` with the rule glyph composed inline (until a future `Scrollback.AppendRule` surfaces in `dcli`).
-- Status indicator (model name, mode, working/idle state) → `ITerminal.Status.SetRows`.
+- Status / readiness row (model name, core version, working/idle state) → `ITerminal.Status.SetRows`.
 - Wizard step prompts (`SelectAdapter`, `SelectModel`, free-text auth) → `await ITerminal.SelectAsync` / `await ITerminal.InputAsync`.
 - Tool confirmation prompt → `await ITerminal.ChoiceAsync`.
 - User input → subscribe to `ITerminal.Events` for `InputSubmitted` and `InputChanged` events.
@@ -218,7 +235,7 @@ The terminal host SHALL be unit-testable by substituting `ITerminal` with either
 #### Scenario: Tier-A fake drives the renderer
 
 - **WHEN** a unit test substitutes a hand-rolled `ITerminal` fake for the live terminal
-- **THEN** every command the renderer issues (scrollback append, status set, dialog open) is recorded on the fake and assertable, without spinning a real terminal or a real render loop
+- **THEN** every command the renderer issues (scrollback append, status set, input-preamble set, prompt set, dialog open) is recorded on the fake and assertable, without spinning a real terminal or a real render loop
 
 #### Scenario: Headless harness drives integration tests
 
