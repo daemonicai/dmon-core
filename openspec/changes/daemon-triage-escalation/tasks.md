@@ -1,7 +1,7 @@
 ## 1. ADR amendment (must be accepted before contradicting ADR-027 D5)
 
-- [ ] 1.1 Write `docs/adrs/ADR-032-handler-initiated-escalation.md` (status Accepted; **Amends:** ADR-027): Decision 5 routing policy becomes handler-initiated escalation (first-line → `think_harder` → escalation) replacing upfront tier-dispatch; `AddReasoner`→`AddEscalation`; the three backend verbs take lazy `Func<IServiceProvider, ValueTask<IChatClient>>` delegates resolved on first turn. Explicitly state core seams D1–D4 are unchanged and that this **closes ADR-027 Open Question A** via the lazy-in-router pattern.
-- [ ] 1.2 Update the ADR table in `CLAUDE.md` with the ADR-032 row.
+- [x] 1.1 Write `docs/adrs/ADR-032-handler-initiated-escalation.md` (status Accepted; **Amends:** ADR-027): Decision 5 routing policy becomes handler-initiated escalation (first-line → `think_harder` → escalation) replacing upfront tier-dispatch; `AddReasoner`→`AddEscalation`; the three backend verbs take lazy `Func<IServiceProvider, ValueTask<IChatClient>>` delegates resolved on first turn. Explicitly state core seams D1–D4 are unchanged and that this **closes ADR-027 Open Question A** via the lazy-in-router pattern.
+- [x] 1.2 Update the ADR table in `CLAUDE.md` with the ADR-032 row.
 
 ## 2. oMLX as a lifecycle-managed provider
 
