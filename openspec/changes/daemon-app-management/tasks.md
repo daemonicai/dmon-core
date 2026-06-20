@@ -13,9 +13,9 @@
 
 ## 3. Dcal and Dmail server supervision (Swift)
 
-- [ ] 3.1 Confirm how the `services/Dcal` and `services/Dmail` executables are produced/launched and choose the default resolution candidate(s); wire config-overridable path keys `DMON_DCAL_SERVER_PATH` / `DMON_DMAIL_SERVER_PATH`
-- [ ] 3.2 Instantiate a `ServerProcessManager` for the Dcal server and one for the Dmail server, injecting settings-derived env; when no executable resolves, report `unknown` ("not configured") and do not spawn
-- [ ] 3.3 Start/adopt supervised servers on app launch and terminate them on quit, alongside the Gateway
+- [x] 3.1 Confirm how the `services/Dcal` and `services/Dmail` executables are produced/launched and choose the default resolution candidate(s); wire config-overridable path keys `DMON_DCAL_SERVER_PATH` / `DMON_DMAIL_SERVER_PATH`
+- [x] 3.2 Instantiate a `ServerProcessManager` for the Dcal server and one for the Dmail server, injecting settings-derived env; when no executable resolves, report `unknown` ("not configured") and do not spawn
+- [x] 3.3 Start/adopt supervised servers on app launch and terminate them on quit, alongside the Gateway (terminate-on-quit satisfied via OS process-group inheritance; explicit orderly teardown + PID cleanup tracked as task 10.1)
 
 ## 4. Unified health model and registry (Swift)
 
@@ -35,6 +35,7 @@
 - [ ] 6.1 Update `MenuBarView` to render one row per registered `ComponentHealth`
 - [ ] 6.2 Drive the `DaemonApp` status-icon color from the `HealthRegistry` aggregate rollup
 - [ ] 6.3 Add a best-effort "Bring Tailscale up" menu action that runs `tailscale up` and reflects the outcome in the Tailscale row (no interactive auth flow)
+- [ ] 6.4 Add an `NSApplicationDelegateAdaptor` whose `applicationWillTerminate` calls `stop()` on the Gateway, Dcal, and Dmail managers — an explicit orderly terminate + PID-file cleanup on quit, making "terminate on quit" literal for all three managers (currently relies on OS process-group death only; PID files survive a quit)
 
 ## 7. Settings panel (Swift)
 
