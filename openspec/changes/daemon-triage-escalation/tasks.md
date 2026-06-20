@@ -5,9 +5,9 @@
 
 ## 2. oMLX as a lifecycle-managed provider
 
-- [ ] 2.1 Add `providers/Dmon.Providers.Omlx/UseOmlxExtensions.cs`: `UseOmlx` verb(s) in the `Dmon.Hosting` namespace on `IProviderRegistration`, registering `OmlxProviderExtension`, **non-hijacking** (no forced active model), config via `OmlxConfig` (env/defaults) — mirror `UseMtplxExtensions`.
-- [ ] 2.2 Add an `OmlxClient(this IServiceProvider sp, string model)` helper returning `ValueTask<IChatClient>` that composes `EnsureRunningAsync()` + `OmlxProviderFactory.CreateAsync(modelCfg)` for a specific model id.
-- [ ] 2.3 Tests: `UseOmlx` registers the provider and is resolvable from DI; non-hijacking behavior; env config honored; two distinct per-model clients from one provider; bring-up paired with construction.
+- [x] 2.1 Add `providers/Dmon.Providers.Omlx/UseOmlxExtensions.cs`: `UseOmlx` verb(s) in the `Dmon.Hosting` namespace on `IProviderRegistration`, registering `OmlxProviderExtension`, **non-hijacking** (no forced active model), config via `OmlxConfig` (env/defaults) — mirror `UseMtplxExtensions`.
+- [x] 2.2 Add an `OmlxClient(this IServiceProvider sp, string model)` helper returning `ValueTask<IChatClient>` that composes `EnsureRunningAsync()` + `OmlxProviderFactory.CreateAsync(modelCfg)` for a specific model id.
+- [x] 2.3 Tests: `UseOmlx` registers the provider and is resolvable from DI; non-hijacking behavior; env config honored; two distinct per-model clients from one provider; bring-up paired with construction.
 
 ## 3. Router contracts and type renames
 

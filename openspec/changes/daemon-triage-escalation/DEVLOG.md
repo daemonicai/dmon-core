@@ -14,6 +14,8 @@ Narrative companion to `tasks.md`. Cross-block memory for the (fresh-each-block)
 - **Sample to mirror:** `providers/Dmon.Providers.Mtplx/UseMtplxExtensions.cs` for the `UseOmlx` verb (non-hijacking — don't force the active model).
 - **ADR numbering:** ADR-029 is reserved by the active `daemon-scheduler` change — do not use it. We took **032**.
 - **Test gotcha:** run tests as `env -u MEKO_API_KEY make test` (a set MEKO_API_KEY makes the Meko live-smoke test hang ~90s).
+- **oMLX backends are caller-owned `IDisposable`s** (block-2 reviewer note): `OmlxProviderFactory.CreateAsync` mints a fresh `HttpClient` per call wrapped in the returned `IChatClient`. So `sp.OmlxClient(model)` hands back something the caller must dispose. **The routing block (group 3–7) must dispose the cached router backends on `TriageRouter` teardown** (the `Lazy<Task<IChatClient>>` cache holds them). This is the established `IProviderFactory` contract — no new leak class — but the router is now the owner.
+- **`OmlxClient` / `UseOmlx` are ready to consume** (block 2): `sp.OmlxClient(model, ct)` (`ValueTask<IChatClient>`, `Dmon.Hosting` namespace) does `EnsureRunningAsync` + per-model `CreateAsync`; `UseOmlx()` is non-hijacking. `Daemon.cs` (task 8.1) calls `builder.UseOmlx()` then `UseTriage(sp => sp.OmlxClient(firstLineModel))` / `AddEscalation(sp => sp.OmlxClient(escalationModel))`. Helper `ProviderConfig.Auth` is inert (factory resolves key via `apiKey ?? _config.ApiKey`); `.First()` picks the single registered oMLX extension.
 
 ## Blocks
 
@@ -23,3 +25,9 @@ Narrative companion to `tasks.md`. Cross-block memory for the (fresh-each-block)
 - Reviewer: **Approve**, no blockers; two non-blocking nits (header vs table phrasing of "Amends"; "Builds on: ADR-007" — both defensible, left as-is).
 - Gates: `make build` clean (0 warn); `env -u MEKO_API_KEY make test` green (only pre-existing skips); `openspec validate --strict` valid.
 - Note for a future code block: when implementing change §2/§5, confirm the actual M.E.AI 10.5.2 surface names match `FunctionInvokingChatClient.CurrentContext` (accessor) + `FunctionInvocationContext.Terminate` (property).
+
+### Block 2 — tasks 2.1–2.3 — UseOmlx verb + OmlxClient helper + tests ✅
+- Added `providers/Dmon.Providers.Omlx/UseOmlxExtensions.cs` (`UseOmlx<T>()` env-sourced + `UseOmlx<T>(OmlxConfig)`, both non-hijacking — never call `UseModel`) and `OmlxClientExtensions.cs` (`OmlxClient(this IServiceProvider, string model, CancellationToken)`), both in `Dmon.Hosting`.
+- Added `test/Dmon.Providers.Omlx.Tests/UseOmlxTests.cs` (~10 tests; `FakeProviderRegistration` scaffold mirrors UseMtplxTests; bring-up via internal `isRunningProbe` ctor — no `open -a oMLX`). Added `Microsoft.Extensions.Configuration` + `.DependencyInjection` refs to the test csproj.
+- Reviewer: **Approve**, no blockers. Nits (all left): inert `ProviderConfig.Auth` (could add a clarifying comment); a couple of fully-qualified `IChatClient` in tests; the env-config test asserts via a constructed config rather than a real env-var round-trip (env path is pre-existing tested code).
+- Gates: `make build` 0-warn; `env -u MEKO_API_KEY make test` 0 failed (51/51 Omlx.Tests); `openspec validate --strict` valid.
