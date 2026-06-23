@@ -72,7 +72,8 @@ final class EndpointHealthProbe: ObservableObject {
                 await MainActor.run { [weak self] in
                     self?.componentHealth = ComponentHealth(
                         name: name,
-                        status: endpointHealth(didRespond: responded)
+                        status: endpointHealth(didRespond: responded),
+                        lastUpdated: Date()
                     )
                 }
                 try? await Task.sleep(nanoseconds: 30_000_000_000) // 30s

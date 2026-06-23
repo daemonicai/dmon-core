@@ -103,7 +103,8 @@ final class DcalHealthMonitor: ObservableObject {
         eventCount = result?.eventCount ?? nil
         componentHealth = ComponentHealth(
             name: "Calendar Sync",
-            status: result != nil ? .ok : .down
+            status: result != nil ? .ok : .down,
+            lastUpdated: Date()
         )
     }
 }

@@ -144,4 +144,28 @@ final class HealthClassificationTests: XCTestCase {
         )
         XCTAssertEqual(result, .red, "A .down component must produce .red even when .degraded is present")
     }
+
+    // MARK: - ComponentHealth.lastUpdated (task 1.1 / 1.2)
+
+    func testLastUpdated_seed_isNil() {
+        // Seed / initial value: lastUpdated omitted → nil ("never published" semantic).
+        let seed = component(.unknown)
+        XCTAssertNil(seed.lastUpdated, "Seed ComponentHealth must have nil lastUpdated")
+    }
+
+    func testLastUpdated_stamped_isNonNil() {
+        // A stamped snapshot (as produced at every publish site) must carry a non-nil date.
+        let stamped = ComponentHealth(name: "Test", status: .ok, lastUpdated: Date())
+        XCTAssertNotNil(stamped.lastUpdated, "Stamped ComponentHealth must have a non-nil lastUpdated")
+    }
+
+    func testLastUpdated_twoStamps_nonDecreasing() {
+        // Two successive stamps must be non-decreasing (wall clock does not go backwards).
+        let before = ComponentHealth(name: "Test", status: .ok, lastUpdated: Date())
+        let after  = ComponentHealth(name: "Test", status: .ok, lastUpdated: Date())
+        XCTAssertLessThanOrEqual(
+            before.lastUpdated!, after.lastUpdated!,
+            "Successive stamps must be non-decreasing"
+        )
+    }
 }

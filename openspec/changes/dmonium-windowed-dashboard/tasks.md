@@ -1,7 +1,7 @@
 ## 1. DaemonController owner + window-independent bootstrap
 
-- [ ] 1.1 Add `ComponentHealth.lastUpdated: Date?` (default `nil`); update the `init` and keep `name/status/detail` unchanged so existing rollup tests stay valid.
-- [ ] 1.2 Stamp `lastUpdated` at publish time in every publisher (`GatewayManager`, `TailscaleMonitor`, `DcalHealthMonitor`, `DmailHealthMonitor`, `EndpointHealthProbe`, `ServiceManager`).
+- [x] 1.1 Add `ComponentHealth.lastUpdated: Date?` (default `nil`); update the `init` and keep `name/status/detail` unchanged so existing rollup tests stay valid.
+- [x] 1.2 Stamp `lastUpdated` at publish time in every publisher (`GatewayManager`, `TailscaleMonitor`, `DcalHealthMonitor`, `DmailHealthMonitor`, `EndpointHealthProbe`, `ServiceManager`).
 - [ ] 1.3 Create `DaemonController` (`@MainActor final class … : ObservableObject`) that owns the managers + `HealthRegistry` and exposes `bootstrap()` (guarded by a private `hasBootstrapped` flag) and `shutdown()`. Move the manager `start()` calls, the nine `healthRegistry.register(...)` calls, `observeGatewayStopped`, and the monitor/probe `start()` calls into `bootstrap()`.
 - [ ] 1.4 Confirm `TailscaleMonitor`/`DcalHealthMonitor`/`DmailHealthMonitor` `start()` are re-entry-safe (`guard pollTask == nil` pattern, as `EndpointHealthProbe` already is); normalise any that are not.
 - [ ] 1.5 Replace the ~11 `@StateObject`s + the `.task { }` startup block in `DaemonApp.swift` with a single `@StateObject private var controller = DaemonController()`.
