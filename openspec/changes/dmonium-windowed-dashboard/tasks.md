@@ -2,15 +2,15 @@
 
 - [x] 1.1 Add `ComponentHealth.lastUpdated: Date?` (default `nil`); update the `init` and keep `name/status/detail` unchanged so existing rollup tests stay valid.
 - [x] 1.2 Stamp `lastUpdated` at publish time in every publisher (`GatewayManager`, `TailscaleMonitor`, `DcalHealthMonitor`, `DmailHealthMonitor`, `EndpointHealthProbe`, `ServiceManager`).
-- [ ] 1.3 Create `DaemonController` (`@MainActor final class … : ObservableObject`) that owns the managers + `HealthRegistry` and exposes `bootstrap()` (guarded by a private `hasBootstrapped` flag) and `shutdown()`. Move the manager `start()` calls, the nine `healthRegistry.register(...)` calls, `observeGatewayStopped`, and the monitor/probe `start()` calls into `bootstrap()`.
-- [ ] 1.4 Confirm `TailscaleMonitor`/`DcalHealthMonitor`/`DmailHealthMonitor` `start()` are re-entry-safe (`guard pollTask == nil` pattern, as `EndpointHealthProbe` already is); normalise any that are not.
-- [ ] 1.5 Replace the ~11 `@StateObject`s + the `.task { }` startup block in `DaemonApp.swift` with a single `@StateObject private var controller = DaemonController()`.
+- [x] 1.3 Create `DaemonController` (`@MainActor final class … : ObservableObject`) that owns the managers + `HealthRegistry` and exposes `bootstrap()` (guarded by a private `hasBootstrapped` flag) and `shutdown()`. Move the manager `start()` calls, the nine `healthRegistry.register(...)` calls, `observeGatewayStopped`, and the monitor/probe `start()` calls into `bootstrap()`.
+- [x] 1.4 Confirm `TailscaleMonitor`/`DcalHealthMonitor`/`DmailHealthMonitor` `start()` are re-entry-safe (`guard pollTask == nil` pattern, as `EndpointHealthProbe` already is); normalise any that are not.
+- [x] 1.5 Replace the ~11 `@StateObject`s + the `.task { }` startup block in `DaemonApp.swift` with a single `@StateObject private var controller = DaemonController()`.
 
 ## 2. Activation policy, close ≠ quit, lifecycle wiring
 
-- [ ] 2.1 In `AppDelegate.applicationDidFinishLaunching`, call `NSApp.setActivationPolicy(.regular)` and `controller.bootstrap()` (window-independent, once).
-- [ ] 2.2 Implement `applicationShouldTerminateAfterLastWindowClosed(_:) -> false` so closing the window keeps supervision running.
-- [ ] 2.3 Route `applicationWillTerminate` to `controller.shutdown()` (the existing Gateway/Dcal/Dmail teardown + PID-file clearing).
+- [x] 2.1 In `AppDelegate.applicationDidFinishLaunching`, call `NSApp.setActivationPolicy(.regular)` and `controller.bootstrap()` (window-independent, once).
+- [x] 2.2 Implement `applicationShouldTerminateAfterLastWindowClosed(_:) -> false` so closing the window keeps supervision running.
+- [x] 2.3 Route `applicationWillTerminate` to `controller.shutdown()` (the existing Gateway/Dcal/Dmail teardown + PID-file clearing).
 - [ ] 2.4 Verify reopen behaviour: closing then reopening the window (Dock click) re-binds the existing `controller` with no re-bootstrap and no duplicate health subscriptions.
 
 ## 3. Windowed dashboard surface
@@ -28,7 +28,7 @@
 
 ## 5. Tests
 
-- [ ] 5.1 `DaemonController.bootstrap()` idempotence: calling it twice starts processes/subscriptions once (no duplicate health subscriptions, no second process launch).
+- [x] 5.1 `DaemonController.bootstrap()` idempotence: calling it twice starts processes/subscriptions once (no duplicate health subscriptions, no second process launch).
 - [ ] 5.2 Rollup → presentation mapping: `rollupColor` cases map to the expected Dock/window/tray colour states (extend the existing rollup tests; keep them green).
 - [ ] 5.3 `ComponentHealth.lastUpdated` is stamped on publish for each publisher.
 - [ ] 5.4 Show-menu-bar-icon setting persists and defaults to off.
