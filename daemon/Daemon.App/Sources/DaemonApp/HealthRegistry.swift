@@ -16,7 +16,7 @@ enum RollupColor: Equatable {
 /// Each manager publishes its own `ComponentHealth`; the registry collects them
 /// and derives an aggregate `rollupColor` for use by the icon (group 6 / task 6.2).
 ///
-/// Registration order determines the stable display order in the menu (task 6.1):
+/// Registration order determines the stable display order in the status grid:
 ///   Gateway → Dcal → Dmail → Tailscale → Calendar Sync
 @MainActor
 final class HealthRegistry: ObservableObject {
@@ -27,13 +27,13 @@ final class HealthRegistry: ObservableObject {
     /// Aggregate icon colour derived via `rollup(gatewayStopped:components:)`.
     /// Updated whenever any component changes.
     ///
-    /// Group 6 (task 6.2) wires the menu-bar `Image` foregroundStyle to this.
+    /// The menu-bar icon's `foregroundStyle` is wired to this in `DaemonApp`.
     /// The `gatewayStopped` flag is fed separately to preserve the Gateway's
     /// honest per-component status while still forcing red when it is down.
     @Published private(set) var rollupColor: RollupColor = .red
 
     // Internal: tracks whether the Gateway is stopped (feeds rollup's special param).
-    // Set by the wiring in DaemonApp.task; kept separate from the component list.
+    // Set by the wiring in DaemonController.bootstrap(); kept separate from the component list.
     private var gatewayStopped: Bool = true
 
     private var cancellables: Set<AnyCancellable> = []
@@ -44,7 +44,7 @@ final class HealthRegistry: ObservableObject {
     /// `order` is a stable sort key so the display list remains in intentional order
     /// regardless of which subscriptions fire first.
     ///
-    /// Call once per component in `DaemonApp.task`.
+    /// Call once per component in `DaemonController.bootstrap()`.
     func register<P: Publisher>(
         publisher: P,
         order: Int
@@ -69,7 +69,7 @@ final class HealthRegistry: ObservableObject {
 
     /// Subscribe a `Bool` publisher (true = gateway is stopped) to keep the
     /// rollup's special first-check in sync without polluting the component list.
-    /// Call once in `DaemonApp.task` with `gateway.$isRunning.map { !$0 }`.
+    /// Call once in `DaemonController.bootstrap()` with `gateway.$isRunning.map { !$0 }`.
     func observeGatewayStopped<P: Publisher>(
         _ publisher: P
     ) where P.Output == Bool, P.Failure == Never {

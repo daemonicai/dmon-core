@@ -15,11 +15,11 @@
 
 ## 3. Windowed dashboard surface
 
-- [ ] 3.1 Replace the `MenuBarExtra`-primary scene with `WindowGroup { DashboardView().environmentObject(controller) }`; remove the separate `Settings` scene.
-- [ ] 3.2 Build `DashboardView` as a `NavigationSplitView` with sidebar sections Status / Services / Settings (structured to admit a future section without redesign).
-- [ ] 3.3 Status section: a health grid rendering one row per `HealthRegistry` component with status, detail, and a relative last-updated time.
-- [ ] 3.4 Services section: per-service start/stop/restart controls (Gateway, Dcal, Dmail) plus the existing Sync-Calendar and Bring-Tailscale-up actions.
-- [ ] 3.5 Settings section: move `SettingsView` content into the window section; rebind ⌘, to select it; keep Keychain/`config.yaml`/Gateway-restart-on-save semantics unchanged.
+- [x] 3.1 Replace the `MenuBarExtra`-primary scene with `WindowGroup { DashboardView().environmentObject(controller) }`; remove the separate `Settings` scene.
+- [x] 3.2 Build `DashboardView` as a `NavigationSplitView` with sidebar sections Status / Services / Settings (structured to admit a future section without redesign).
+- [x] 3.3 Status section: a health grid rendering one row per `HealthRegistry` component with status, detail, and a relative last-updated time.
+- [x] 3.4 Services section: per-service start/stop/restart controls (Gateway, Dcal, Dmail) plus the existing Sync-Calendar and Bring-Tailscale-up actions.
+- [x] 3.5 Settings section: move `SettingsView` content into the window section; rebind ⌘, to select it; keep Keychain/`config.yaml`/Gateway-restart-on-save semantics unchanged.
 
 ## 4. Dock-icon rollup tint + optional menu-bar surface
 

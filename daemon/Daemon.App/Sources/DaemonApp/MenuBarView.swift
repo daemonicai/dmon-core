@@ -6,6 +6,9 @@ struct MenuBarView: View {
     @EnvironmentObject var tailscale: TailscaleMonitor
     @EnvironmentObject var health: DcalHealthMonitor
     @EnvironmentObject var healthRegistry: HealthRegistry
+    @EnvironmentObject var controller: DaemonController
+
+    @Environment(\.openWindow) private var openWindow
 
     var body: some View {
         // One status row per registered component, in stable registry order.
@@ -45,34 +48,17 @@ struct MenuBarView: View {
             }
         }
 
-        // Open Settings
-        SettingsLink {
-            Text("Open Settings…")
+        // Open Settings — sets the shared selectedSection on the controller then
+        // opens/focuses the dashboard window. Uses the same code path as ⌘,.
+        Button("Open Settings…") {
+            controller.selectedSection = .settings
+            openWindow(id: "dashboard")
+            NSApp.activate(ignoringOtherApps: true)
         }
 
         // Quit
         Button("Quit") {
             NSApplication.shared.terminate(nil)
-        }
-    }
-
-    // MARK: - Status display helpers
-
-    private func statusSymbol(_ status: HealthStatus) -> String {
-        switch status {
-        case .ok:       return "circle.fill"
-        case .degraded: return "exclamationmark.circle.fill"
-        case .down:     return "xmark.circle.fill"
-        case .unknown:  return "questionmark.circle.fill"
-        }
-    }
-
-    private func statusColor(_ status: HealthStatus) -> Color {
-        switch status {
-        case .ok:       return .green
-        case .degraded: return .orange
-        case .down:     return .red
-        case .unknown:  return .gray
         }
     }
 }

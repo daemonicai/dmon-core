@@ -72,6 +72,29 @@ struct DaemonApp: App {
     }
 
     var body: some Scene {
+        // Primary scene: the dashboard window. Stable id so openWindow(id:) can
+        // reopen/focus it if the user closed it (close ≠ quit).
+        WindowGroup(id: "dashboard") {
+            DashboardView()
+                .environmentObject(controller)
+        }
+        .commands {
+            // Rebind ⌘, to select the Settings section in the dashboard window.
+            // The default `Settings` scene has been removed (D5); this replaces its
+            // ⌘, binding so the shortcut selects in-window rather than opening a
+            // separate window. Sets controller.selectedSection — the same shared
+            // published property that the menu-bar button and sidebar binding use.
+            CommandGroup(replacing: .appSettings) {
+                Button("Settings…") {
+                    controller.selectedSection = .settings
+                    NSApp.activate(ignoringOtherApps: true)
+                }
+                .keyboardShortcut(",", modifiers: .command)
+            }
+        }
+
+        // Optional tray icon. `isInserted` defaults to `true`; the @AppStorage
+        // default-off toggle is task 4.2 (not this block).
         MenuBarExtra(isInserted: $isInserted) {
             MenuBarView()
                 .environmentObject(controller.gateway)
@@ -80,15 +103,10 @@ struct DaemonApp: App {
                 .environmentObject(controller.dcal)
                 .environmentObject(controller.dmail)
                 .environmentObject(controller.healthRegistry)
+                .environmentObject(controller)
         } label: {
             Image(systemName: "brain")
                 .foregroundStyle(color(for: controller.healthRegistry.rollupColor))
-        }
-
-        Settings {
-            // Settings scenes do NOT inherit MenuBarExtra's environmentObject chain.
-            SettingsView()
-                .environmentObject(controller.gateway)
         }
     }
 }

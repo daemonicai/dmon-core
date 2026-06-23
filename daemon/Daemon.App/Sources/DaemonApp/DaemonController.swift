@@ -47,6 +47,13 @@ final class DaemonController: ObservableObject {
 
     let healthRegistry = HealthRegistry()
 
+    // MARK: - Dashboard selection
+
+    /// Current sidebar selection in the dashboard window.
+    /// Shared by `DashboardView`, the App-level `.commands` handler, and `MenuBarView`
+    /// so every entry point (sidebar click, ⌘,, menu-bar button) drives the same state.
+    @Published var selectedSection: DashboardSection = .status
+
     // MARK: - Idempotence guard
 
     /// True once `bootstrap()` has run to completion.  Subsequent calls are no-ops.
