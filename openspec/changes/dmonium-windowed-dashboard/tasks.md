@@ -33,9 +33,9 @@
 - [x] 5.2 Rollup → presentation mapping: `rollupColor` cases map to the expected Dock/window/tray colour states (extend the existing rollup tests; keep them green).
 - [x] 5.3 `ComponentHealth.lastUpdated` is stamped on publish for each publisher.
 - [x] 5.4 Show-menu-bar-icon setting persists and defaults to off.
-- [ ] 5.5 Full `DaemonAppTests` suite green (existing 31 + new).
+- [x] 5.5 Full `DaemonAppTests` suite green (existing 31 + new).
 
 ## 6. Docs & ADR
 
-- [ ] 6.1 Add the one-line ADR-028 framing amendment (dmonium is window-primary with a Dock icon and optional menu-bar glance; "no-dock host" framing superseded). No superseding ADR unless the reviewer judges otherwise (stop-and-ask → ADR-033).
-- [ ] 6.2 Update `daemon/README` to note dmonium is window-primary with an optional, default-off menu-bar icon.
+- [x] 6.1 Add the one-line ADR-028 framing amendment (dmonium is window-primary with a Dock icon and optional menu-bar glance; "no-dock host" framing superseded). No superseding ADR unless the reviewer judges otherwise (stop-and-ask → ADR-033).
+- [x] 6.2 Update `daemon/README` to note dmonium is window-primary with an optional, default-off menu-bar icon.

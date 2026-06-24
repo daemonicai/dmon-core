@@ -5,6 +5,8 @@
 **Amends:** ADR-025 (D2 bucket set — adds `daemon/` and `services/`; D10 release matrix — server/app artifacts build from `daemon/` and `services/`; D11 landing tiers — `daemon` folds in, the calendar server and the future Dmail server land in `services/`, `dmonium` moves from `frontends/` to `daemon/`; resolves ADR-025 Open Question B for `dmonium` and Swift placement)
 **Builds on:** ADR-027 (the `TriageRouter` is application policy in `daemon/Daemon.Routing`, not middleware), ADR-019 (file-based-program composition root), ADR-022 (composition root as a feature), ADR-024 (release-family triggers; protocol-keyed packages vs. independently-versioned app artifacts), ADR-023 (`tools/` extension packages), ADR-005 (config/credentials)
 
+> **Amendment (2026-06-24, change `dmonium-windowed-dashboard`) — framing only:** `dmonium` is now **window-primary** — a `WindowGroup` dashboard with a Dock icon and Cmd-Tab presence (`.regular` activation), plus an **optional, default-off** menu-bar glance. The "always-on, **no-dock host**" rationale (Context §1) and the "**menu bar app**" descriptive labels (Decision D1/D2) are superseded by this framing. **No numbered decision changes** (bucket placement, Swift-in-repo, the `dcal` rename, the release matrix all stand), so this is an in-place amendment, not a superseding ADR.
+
 ## Context
 
 ADR-025 consolidated the first-party .NET repos into one monorepo with buckets keyed to ADR-023 roles (`core/`, `providers/`, `tools/`, `middleware/`, `frontends/`, `samples/`, `libs/`). It listed `daemon` under **D11 "keep separate" (empty)**, placed `dmonium` under `frontends/` (D2), and parked both `dmonium`'s placement and the "does the repo go polyglot, or does Swift stay out?" question as **Open Question B**.

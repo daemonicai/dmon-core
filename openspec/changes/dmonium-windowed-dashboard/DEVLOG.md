@@ -91,3 +91,13 @@
 - **Gates (orchestrator-run):** `swift build -c release` clean/warning-clean; `swift test` 72/0; `openspec validate --strict` valid.
 - **Reviewer:** **Approve** — no blockers, no nits; explicit ruling that the access-widening is the right, minimal call. Forward-looking note (next architect): if a future block needs the full Dcal/Dmail poll/sync path under test, add an injectable fetch closure mirroring `EndpointReachabilityProbe`, which would let `applyFetchResult` revert to `private`.
 - **Queued finalizer:** 5.5 (full-suite tick) + 6.1 (ADR-028 one-line rationale amend, NOT superseding per D7) + 6.2 (`daemon/Daemon.App/README.md` window-primary note) as one block.
+
+## Group 6 — Docs & ADR + finalizer (DONE)
+
+### Block 5.5 + 6.1 + 6.2 — finalizer (orchestrator-authored docs + verification)
+
+- **5.5 (verification tick):** full `DaemonAppTests` suite green — `swift build -c release` clean/warning-clean, `swift test` **72/0**, `openspec validate --strict` valid. (Started this change at 31 tests; now 72.)
+- **6.1 (ADR-028 amendment):** added a single framing-only amendment note to `docs/adrs/ADR-028-daemon-bucket.md` (after the metadata block): dmonium is window-primary (`WindowGroup` + Dock + Cmd-Tab) with an optional default-off menu-bar glance; the "always-on, no-dock host" rationale (Context §1) and the "menu bar app" descriptive labels (D1/D2) are superseded. **NOT a superseding ADR** — no numbered decision (D1–D6: bucket placement, dmonium→daemon/, services/, dcal rename, Swift-in-repo, release matrix) changes. Matches design D7; confirmed non-superseding by two architects and the finalizer reviewer (who verified the cited "no-dock"/"menu bar" framing is rationale/labels only, not load-bearing in any numbered decision → ADR-033 not warranted).
+- **6.2 (README):** updated `daemon/Daemon.App/README.md` — intro now describes the window-primary dashboard (Dock + Cmd-Tab, optional default-off menu-bar icon, close≠quit); "What the app does" reframed off the menu bar (Dock icon carries the rollup; Status grid with last-poll time; Services start/stop/restart); Layout/Tests file lists refreshed to include `DaemonController`/`DashboardView`/`StatusHelpers` and the new test files. Reviewer verified the lists are an exact match to the 17 sources / 7 test files on disk.
+- **Reviewer:** **Approve** — no blockers. Nits (left, out of scope): pre-existing broken README link `ADR-028-personal-assistant-monorepo-topology.md` → actual `ADR-028-daemon-bucket.md`; `.DS_Store` excluded from the commit.
+- **CHANGE COMPLETE:** all tasks ticked (24/24, incl. the user-added 4.3). Standing-spec sync (daemon-host MODIFIED) belongs to `/opsx:archive`, not apply.
