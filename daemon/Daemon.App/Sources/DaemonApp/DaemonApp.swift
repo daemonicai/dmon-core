@@ -38,6 +38,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
+// MARK: - Menu-bar preference constants
+
+/// Single source of truth for the show-menu-bar-icon preference key and default.
+///
+/// Used by both the `@AppStorage` binding in `DaemonApp` and by `MenuBarPreferenceTests`
+/// so neither side hard-codes a magic string or duplicates the default value.
+enum MenuBarPreference {
+    static let key = "showMenuBarIcon"
+    static let defaultValue = false
+}
+
 @main
 struct DaemonApp: App {
 
@@ -59,7 +70,9 @@ struct DaemonApp: App {
         _controller = StateObject(wrappedValue: existingDelegate.controller)
     }
 
-    @State private var isInserted = true
+    // Persisted default-off tray-icon preference (D4, task 4.2).
+    // @AppStorage reads/writes UserDefaults.standard keyed by MenuBarPreference.key.
+    @AppStorage(MenuBarPreference.key) private var showTrayIcon = MenuBarPreference.defaultValue
 
     var body: some Scene {
         // Primary scene: the dashboard window. Stable id so openWindow(id:) can
@@ -83,9 +96,8 @@ struct DaemonApp: App {
             }
         }
 
-        // Optional tray icon. `isInserted` defaults to `true`; the @AppStorage
-        // default-off toggle is task 4.2 (not this block).
-        MenuBarExtra(isInserted: $isInserted) {
+        // Optional tray icon. Off by default; persisted via @AppStorage (D4, task 4.2).
+        MenuBarExtra(isInserted: $showTrayIcon) {
             MenuBarView()
                 .environmentObject(controller.gateway)
                 .environmentObject(controller.tailscale)

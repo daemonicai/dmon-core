@@ -57,3 +57,12 @@
 - **Gates (orchestrator-run):** `swift build -c release` clean/warning-clean; `swift test` **55/0**; `openspec validate --strict` valid.
 - **Reviewer:** **Approve with nits** (no blockers); both nits fixed (label→enum+tested; colour funcs routed through token). Re-confirmed clean.
 - **Stale SourceKit:** "Cannot find 'tintedAppIcon' in scope" reported by the IDE — confirmed false positive (SwiftPM, no .xcodeproj); real gates green.
+
+### Block 4.2 + 5.4 — Optional menu-bar icon, persisted + default-off (DONE)
+
+- **What:** Replaced the default-ON `@State private var isInserted = true` placeholder with a persisted, default-**off** `@AppStorage(MenuBarPreference.key) private var showTrayIcon = MenuBarPreference.defaultValue` driving the existing `MenuBarExtra(isInserted:)`. Added `enum MenuBarPreference { static let key = "showMenuBarIcon"; static let defaultValue = false }` as the single source of truth for both the binding and the tests. MenuBarView content, the `.environmentObject` chain, and the tinted `label:` left untouched (only the `isInserted` source swapped).
+- **@AppStorage-vs-config decision applied:** the toggle is a pure UI preference in `UserDefaults` via `@AppStorage`, NOT `~/.dmon/config.yaml` / Keychain (resolved in the prior block).
+- **Tests (5.4):** new `MenuBarPreferenceTests.swift`, 6 methods — default-false, key string, absence→false, write true/false round-trips, isolated-suite-does-not-pollute-standard. Tests assert the underlying `UserDefaults` contract (not `@AppStorage` headlessly, which isn't view-graph-testable) using isolated `UserDefaults(suiteName: UUID)` torn down in `defer` — never touches `.standard`. 55 → 61, all green.
+- **Gates (orchestrator-run earlier; reviewer re-confirmed):** `swift build -c release` clean/warning-clean; `swift test` 61/0; `openspec validate --strict` valid.
+- **Reviewer:** **Approve** (no blockers). Nits: test-name typo "Pollutes"→"Pollute"; one cleanup uses trailing call vs `defer` for parity — both cosmetic, deferred.
+- **OPEN SCOPE QUESTION (architect + reviewer both flagged):** no remaining task adds a *user-facing UI control* to flip `showMenuBarIcon` — as written the setting is only reachable via `defaults write`. Spec scenario says "the user enables the setting." Surfaced to the user for a scope decision (add a Settings-section toggle vs leave programmatic/follow-up) before the finalizer blocks.
