@@ -11,7 +11,7 @@
 - [x] 2.1 In `AppDelegate.applicationDidFinishLaunching`, call `NSApp.setActivationPolicy(.regular)` and `controller.bootstrap()` (window-independent, once).
 - [x] 2.2 Implement `applicationShouldTerminateAfterLastWindowClosed(_:) -> false` so closing the window keeps supervision running.
 - [x] 2.3 Route `applicationWillTerminate` to `controller.shutdown()` (the existing Gateway/Dcal/Dmail teardown + PID-file clearing).
-- [ ] 2.4 Verify reopen behaviour: closing then reopening the window (Dock click) re-binds the existing `controller` with no re-bootstrap and no duplicate health subscriptions.
+- [x] 2.4 Verify reopen behaviour: closing then reopening the window (Dock click) re-binds the existing `controller` with no re-bootstrap and no duplicate health subscriptions.
 
 ## 3. Windowed dashboard surface
 
@@ -23,13 +23,13 @@
 
 ## 4. Dock-icon rollup tint + optional menu-bar surface
 
-- [ ] 4.1 Drive the Dock icon (and the window status surface) from `HealthRegistry.rollupColor` (green/amber/red), preserving the at-a-glance signal.
+- [x] 4.1 Drive the Dock icon (and the window status surface) from `HealthRegistry.rollupColor` (green/amber/red), preserving the at-a-glance signal.
 - [ ] 4.2 Add a persisted "show menu-bar icon" setting (default **off**); add `MenuBarExtra(isInserted: $showTrayIcon)` reusing the existing `MenuBarView` content as the glance surface, reading the same `controller`.
 
 ## 5. Tests
 
 - [x] 5.1 `DaemonController.bootstrap()` idempotence: calling it twice starts processes/subscriptions once (no duplicate health subscriptions, no second process launch).
-- [ ] 5.2 Rollup → presentation mapping: `rollupColor` cases map to the expected Dock/window/tray colour states (extend the existing rollup tests; keep them green).
+- [x] 5.2 Rollup → presentation mapping: `rollupColor` cases map to the expected Dock/window/tray colour states (extend the existing rollup tests; keep them green).
 - [ ] 5.3 `ComponentHealth.lastUpdated` is stamped on publish for each publisher.
 - [ ] 5.4 Show-menu-bar-icon setting persists and defaults to off.
 - [ ] 5.5 Full `DaemonAppTests` suite green (existing 31 + new).

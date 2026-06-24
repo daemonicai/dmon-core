@@ -64,6 +64,33 @@ struct DashboardView: View {
         }
         .navigationTitle(controller.selectedSection.rawValue)
         .frame(minWidth: 680, minHeight: 440)
+        .toolbar {
+            ToolbarItem(placement: .automatic) {
+                RollupStatusIndicator(rollup: controller.healthRegistry.rollupColor)
+            }
+        }
+    }
+}
+
+// MARK: - RollupStatusIndicator
+
+/// Toolbar indicator that reflects the aggregate rollup colour.
+/// A pure read of `controller.healthRegistry.rollupColor` — no side effects, no
+/// bootstrap calls, no `.task`/`.onAppear` wiring (D1/D2 safe).
+private struct RollupStatusIndicator: View {
+    let rollup: RollupColor
+
+    var body: some View {
+        let presentation = rollupPresentation(rollup)
+        HStack(spacing: 4) {
+            Circle()
+                .fill(rollupColor(rollup))
+                .frame(width: 10, height: 10)
+            Text(presentation.label)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .accessibilityLabel(Text("System status: \(presentation.label)"))
     }
 }
 

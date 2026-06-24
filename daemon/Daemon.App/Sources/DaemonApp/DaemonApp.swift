@@ -61,16 +61,6 @@ struct DaemonApp: App {
 
     @State private var isInserted = true
 
-    // MARK: - Icon color from aggregate rollup
-
-    private func color(for rollup: RollupColor) -> Color {
-        switch rollup {
-        case .green: return .green
-        case .amber: return .orange
-        case .red:   return .red
-        }
-    }
-
     var body: some Scene {
         // Primary scene: the dashboard window. Stable id so openWindow(id:) can
         // reopen/focus it if the user closed it (close ≠ quit).
@@ -106,7 +96,7 @@ struct DaemonApp: App {
                 .environmentObject(controller)
         } label: {
             Image(systemName: "brain")
-                .foregroundStyle(color(for: controller.healthRegistry.rollupColor))
+                .foregroundStyle(rollupColor(controller.healthRegistry.rollupColor))
         }
     }
 }

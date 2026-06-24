@@ -1,5 +1,6 @@
-import Foundation
+import AppKit
 import Combine
+import Foundation
 
 // MARK: - DaemonController
 
@@ -59,6 +60,8 @@ final class DaemonController: ObservableObject {
     /// True once `bootstrap()` has run to completion.  Subsequent calls are no-ops.
     private(set) var hasBootstrapped = false
 
+    private var cancellables: Set<AnyCancellable> = []
+
     // MARK: - Bootstrap
 
     /// Start all managers, register the nine health publishers (stable orders 0–8),
@@ -101,6 +104,16 @@ final class DaemonController: ObservableObject {
         // The Gateway's special icon role (stopped → red) is driven by a dedicated flag,
         // NOT by forcing its ComponentHealth to `down`.
         healthRegistry.observeGatewayStopped(gateway.$isRunning.map { !$0 })
+
+        // Drive the Dock icon tint from rollupColor (D6 / task 4.1).
+        // Subscribed here — once, window-independently — so the tint updates even when
+        // the dashboard window is closed (headless login-item launch case).
+        healthRegistry.$rollupColor
+            .receive(on: RunLoop.main)
+            .sink { color in
+                NSApp.applicationIconImage = tintedAppIcon(rollupNSColor(color))
+            }
+            .store(in: &cancellables)
     }
 
     // MARK: - Shutdown
