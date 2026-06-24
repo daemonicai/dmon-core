@@ -75,3 +75,19 @@
 - **Gates (orchestrator-run):** `swift build -c release` clean/warning-clean; `swift test` 62/0; `openspec validate --strict` valid.
 - **Reviewer:** **Approve** — no blockers, no nits. Confirmed single-source-of-truth on the key, spec scenario "the user enables the setting" now UI-reachable, D5/D1/D2 honoured, test hygiene clean.
 - **Queued:** 5.3 (per-publisher lastUpdated tests — its own block; existing tests are struct-level only), then finalizer 5.5 + 6.1 + 6.2 (README at `daemon/Daemon.App/README.md`, not `daemon/`).
+
+## Group 5 — Tests (continued)
+
+### Block 5.3 — Per-publisher lastUpdated stamp tests (DONE)
+
+- **What:** New `PublisherLastUpdatedTests.swift` (10 tests) asserting each of the six publishers stamps `ComponentHealth.lastUpdated` on publish — closing the gap left by the struct-level-only 1.1–1.2 tests. Test-only block: stamping itself already landed in 67f0798; this only adds tests + a minimal access widening.
+- **Per-publisher coverage (6/6 real, deterministic, no process/network/sleep):**
+  - `TailscaleMonitor` — construction-time stamp: `$status.map` pipeline has NO `.receive(on:)`, so the `@Published` initial-value replay stamps synchronously inside `init()` (no `start()`, no `tailscale` process). **Construction-time stamp HELD** (the architect's verify-then-decide point; no fallback seam needed).
+  - `GatewayManager` / `ServiceManager` — declarative `CombineLatest(...).receive(on: RunLoop.main).map{… Date()}` is async; tested via XCTest expectation on `$componentHealth` dropping the nil seed, 2s failure-ceiling timeout (not a sleep). `ServiceManager` built via `.makeDcal()` factory. Never call `start()` (CombineLatest fires on init from seeded inputs, no process).
+  - `EndpointHealthProbe` — injected fake `probe: { _ in true/false }` (no I/O), `start()` → first stamped emission via expectation → `stop()` (cancels the 30s loop, no leak). Both ok/down paths stamped.
+  - `DcalHealthMonitor` / `DmailHealthMonitor` — imperative `applyFetchResult` stamp path; live path is network-only (URLSession to DCAL/DMAIL_BASE_URL), so tested via the handler directly.
+- **Access widening (the judgement call — reviewer-endorsed):** `DcalHealthMonitor.applyFetchResult` + `HealthResponse` and `DmailHealthMonitor.applyFetchResult` widened `private`→`internal` (module-only, reachable via `@testable import`; no `public` surface, no body change, no behaviour change). Chosen over inspection-only (4/6) because it gives genuine per-publisher coverage with the smallest diff; the alternative (an injectable HTTP transport seam) is a larger out-of-scope refactor. `componentHealth` stays `private(set)`; `pollTask`/`fetchHealth`/`postSync`/env accessors stay `private`.
+- **Tests:** 62 → 72, all green.
+- **Gates (orchestrator-run):** `swift build -c release` clean/warning-clean; `swift test` 72/0; `openspec validate --strict` valid.
+- **Reviewer:** **Approve** — no blockers, no nits; explicit ruling that the access-widening is the right, minimal call. Forward-looking note (next architect): if a future block needs the full Dcal/Dmail poll/sync path under test, add an injectable fetch closure mirroring `EndpointReachabilityProbe`, which would let `applyFetchResult` revert to `private`.
+- **Queued finalizer:** 5.5 (full-suite tick) + 6.1 (ADR-028 one-line rationale amend, NOT superseding per D7) + 6.2 (`daemon/Daemon.App/README.md` window-primary note) as one block.

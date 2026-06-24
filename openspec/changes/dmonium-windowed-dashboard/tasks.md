@@ -31,7 +31,7 @@
 
 - [x] 5.1 `DaemonController.bootstrap()` idempotence: calling it twice starts processes/subscriptions once (no duplicate health subscriptions, no second process launch).
 - [x] 5.2 Rollup → presentation mapping: `rollupColor` cases map to the expected Dock/window/tray colour states (extend the existing rollup tests; keep them green).
-- [ ] 5.3 `ComponentHealth.lastUpdated` is stamped on publish for each publisher.
+- [x] 5.3 `ComponentHealth.lastUpdated` is stamped on publish for each publisher.
 - [x] 5.4 Show-menu-bar-icon setting persists and defaults to off.
 - [ ] 5.5 Full `DaemonAppTests` suite green (existing 31 + new).
 
