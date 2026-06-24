@@ -75,6 +75,11 @@ struct SettingsView: View {
     @EnvironmentObject private var gateway: GatewayManager
     @StateObject private var loginItems = LoginItemManager()
 
+    // MARK: Menu-bar preference (D4, task 4.3)
+    // Reads/writes the same UserDefaults.standard key as DaemonApp.showTrayIcon so
+    // flipping this toggle drives MenuBarExtra(isInserted:) without any extra wiring.
+    @AppStorage(MenuBarPreference.key) private var showMenuBarIcon = MenuBarPreference.defaultValue
+
     // MARK: Inference fields
     @State private var e2bURL:        String = ""
     @State private var reasonerURL:   String = ""
@@ -178,6 +183,12 @@ struct SettingsView: View {
                     .help("DMON_DCAL_SERVER_PATH — override resolved Dcal server binary; takes effect on next app launch")
                 TextField("Dmail server binary path", text: $dmailServerPath)
                     .help("DMON_DMAIL_SERVER_PATH — override resolved Dmail server binary; takes effect on next app launch")
+            }
+
+            // MARK: - Menu Bar
+            Section("Menu Bar") {
+                Toggle("Show menu-bar icon", isOn: $showMenuBarIcon)
+                    .help("Display a status icon in the menu bar. Off by default.")
             }
 
             // MARK: - Save

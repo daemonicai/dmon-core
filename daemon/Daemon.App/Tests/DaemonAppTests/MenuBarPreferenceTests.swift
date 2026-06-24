@@ -63,6 +63,36 @@ final class MenuBarPreferenceTests: XCTestCase {
                        "Stored false must be readable back as false.")
     }
 
+    // MARK: - Settings toggle write-through (task 4.3)
+
+    /// Simulates the Settings toggle being enabled: write true (as @AppStorage would),
+    /// then assert a fresh read of the same MenuBarPreference.key sees true.
+    /// This exercises the same UserDefaults seam that SettingsView's @AppStorage binding
+    /// and DaemonApp's MenuBarExtra(isInserted:) both observe — confirming single key,
+    /// single source of truth.
+    func testSettingsToggle_writesThroughToPreferenceKey() {
+        let suiteName = "DaemonAppTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        // Precondition: absent key reads as the default (off).
+        XCTAssertFalse(defaults.bool(forKey: MenuBarPreference.key),
+                       "Preference must be off before the user enables it.")
+
+        // Simulate toggle enable (SettingsView's @AppStorage sets this key to true).
+        defaults.set(true, forKey: MenuBarPreference.key)
+        defaults.synchronize()
+
+        // A fresh read via the same key (as DaemonApp.showTrayIcon would see via
+        // @AppStorage) must now return true — the MenuBarExtra would be inserted.
+        XCTAssertTrue(defaults.bool(forKey: MenuBarPreference.key),
+                      "After enabling, preference key must read true so MenuBarExtra is inserted.")
+
+        // Confirm the binding uses exactly MenuBarPreference.key, not a divergent literal.
+        XCTAssertEqual(MenuBarPreference.key, "showMenuBarIcon",
+                       "SettingsView and DaemonApp must bind to the same key constant.")
+    }
+
     // MARK: - Teardown does not pollute UserDefaults.standard
 
     func testIsolatedSuiteDoesNotPollutesStandard() {

@@ -25,6 +25,7 @@
 
 - [x] 4.1 Drive the Dock icon (and the window status surface) from `HealthRegistry.rollupColor` (green/amber/red), preserving the at-a-glance signal.
 - [x] 4.2 Add a persisted "show menu-bar icon" setting (default **off**); add `MenuBarExtra(isInserted: $showTrayIcon)` reusing the existing `MenuBarView` content as the glance surface, reading the same `controller`.
+- [x] 4.3 Add a Settings-section `Toggle` bound to the `showMenuBarIcon` `@AppStorage` preference so the user can enable/disable the menu-bar icon from the UI (satisfies the daemon-host "the user enables the setting" scenario).
 
 ## 5. Tests
 
