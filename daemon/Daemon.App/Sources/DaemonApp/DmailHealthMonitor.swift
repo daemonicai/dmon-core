@@ -71,7 +71,7 @@ final class DmailHealthMonitor: ObservableObject {
 
     // MARK: - State update
 
-    private func applyFetchResult(_ succeeded: Bool) {
-        componentHealth = ComponentHealth(name: "Mail", status: dmailHealth(didSucceed: succeeded))
+    func applyFetchResult(_ succeeded: Bool) {
+        componentHealth = ComponentHealth(name: "Mail", status: dmailHealth(didSucceed: succeeded), lastUpdated: Date())
     }
 }

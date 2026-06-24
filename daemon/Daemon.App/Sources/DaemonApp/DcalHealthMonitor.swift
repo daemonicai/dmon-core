@@ -56,7 +56,7 @@ final class DcalHealthMonitor: ObservableObject {
 
     // MARK: - HTTP helpers
 
-    private struct HealthResponse: Decodable {
+    struct HealthResponse: Decodable {
         let lastSync: String?
         let eventCount: Int?
     }
@@ -98,12 +98,13 @@ final class DcalHealthMonitor: ObservableObject {
 
     /// Updates all published properties from a fetch result.
     /// Shared between the polling loop and `syncNow()`.
-    private func applyFetchResult(_ result: HealthResponse?) {
+    func applyFetchResult(_ result: HealthResponse?) {
         lastSync = result?.lastSync ?? nil
         eventCount = result?.eventCount ?? nil
         componentHealth = ComponentHealth(
             name: "Calendar Sync",
-            status: result != nil ? .ok : .down
+            status: result != nil ? .ok : .down,
+            lastUpdated: Date()
         )
     }
 }

@@ -1,26 +1,52 @@
 import SwiftUI
 import AppKit
 
-// MARK: - App delegate (6.4 — orderly terminate-on-quit)
+// MARK: - App delegate
 
-/// Terminates all supervised server processes and clears their PID files when the
-/// app quits.  Marked `@MainActor` so that holding references to `@MainActor`-isolated
-/// managers is safe without concurrency gymnastics, and because `applicationWillTerminate`
-/// is always called on the main thread.
+/// Owns the `DaemonController` and drives the application lifecycle.
+///
+/// `applicationDidFinishLaunching` calls `controller.bootstrap()` once, window-independently,
+/// so supervision starts even on a headless login-item launch.
+///
+/// `applicationShouldTerminateAfterLastWindowClosed` returns `false` so closing the
+/// dashboard window does not quit the app (close ≠ quit, D3).
+///
+/// `applicationWillTerminate` delegates to `controller.shutdown()` for orderly teardown.
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
 
-    var gateway: GatewayManager?
-    var dcal: ServiceManager?
-    var dmail: ServiceManager?
+    /// Single controller instance.  Created here so the `DaemonApp` struct can seed its
+    /// `@StateObject` from this reference (see `DaemonApp.init()`), ensuring one instance
+    /// is shared between the delegate lifecycle callbacks and the SwiftUI scene chain.
+    let controller = DaemonController()
+
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        // Keep the app in the Dock (regular policy); close ≠ quit.
+        NSApp.setActivationPolicy(.regular)
+        // Bootstrap supervision once, window-independently.
+        controller.bootstrap()
+    }
+
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+        false
+    }
 
     nonisolated func applicationWillTerminate(_ notification: Notification) {
         MainActor.assumeIsolated {
-            gateway?.stop()
-            dcal?.stop()
-            dmail?.stop()
+            controller.shutdown()
         }
     }
+}
+
+// MARK: - Menu-bar preference constants
+
+/// Single source of truth for the show-menu-bar-icon preference key and default.
+///
+/// Used by both the `@AppStorage` binding in `DaemonApp` and by `MenuBarPreferenceTests`
+/// so neither side hard-codes a magic string or duplicates the default value.
+enum MenuBarPreference {
+    static let key = "showMenuBarIcon"
+    static let defaultValue = false
 }
 
 @main
@@ -28,103 +54,61 @@ struct DaemonApp: App {
 
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
-    @StateObject private var gateway = GatewayManager()
-    @StateObject private var tailscale = TailscaleMonitor()
-    @StateObject private var health = DcalHealthMonitor()
-    @StateObject private var dcal = ServiceManager.makeDcal()
-    @StateObject private var dmail = ServiceManager.makeDmail()
-    @StateObject private var healthRegistry = HealthRegistry()
+    // Seed the StateObject from the delegate's controller so the same instance is
+    // observed by both the delegate lifecycle callbacks and the SwiftUI scene chain.
+    // bootstrap() is NOT called here — only from applicationDidFinishLaunching.
+    @StateObject private var controller: DaemonController
 
-    // MARK: - Endpoint health monitors (tasks 5.1–5.3)
-
-    @StateObject private var mailHealth = DmailHealthMonitor()
-
-    @StateObject private var e2bProbe = EndpointHealthProbe(
-        name: "E2B Endpoint",
-        url: URL(string: ProcessInfo.processInfo.environment["DMON_E2B_URL"] ?? "http://localhost:11434")
-    )
-
-    @StateObject private var reasonerProbe = EndpointHealthProbe(
-        name: "Reasoner Endpoint",
-        url: URL(string: ProcessInfo.processInfo.environment["DMON_REASONER_URL"] ?? "http://localhost:8080/v1")
-    )
-
-    // Egress (Gemini) base URL is fixed — no env var override (Daemon.cs has no endpoint
-    // override for GeminiChatClient either).
-    @StateObject private var egressProbe = EndpointHealthProbe(
-        name: "Egress Endpoint",
-        url: URL(string: "https://generativelanguage.googleapis.com")
-    )
-
-    @State private var isInserted = true
-
-    // MARK: - Icon color from aggregate rollup
-
-    private func color(for rollup: RollupColor) -> Color {
-        switch rollup {
-        case .green: return .green
-        case .amber: return .orange
-        case .red:   return .red
-        }
+    init() {
+        // @NSApplicationDelegateAdaptor stores its delegate as a @StateObject, so the
+        // AppDelegate instance already exists by the time App.init() runs (SwiftUI
+        // initialises all @StateObject property wrappers before calling init).
+        // Capture the delegate reference first to avoid the escaping-autoclosure-captures-
+        // mutating-self error that arises from passing _appDelegate.wrappedValue directly
+        // into the StateObject(wrappedValue:) autoclosure.
+        let existingDelegate = _appDelegate.wrappedValue
+        _controller = StateObject(wrappedValue: existingDelegate.controller)
     }
 
+    // Persisted default-off tray-icon preference (D4, task 4.2).
+    // @AppStorage reads/writes UserDefaults.standard keyed by MenuBarPreference.key.
+    @AppStorage(MenuBarPreference.key) private var showTrayIcon = MenuBarPreference.defaultValue
+
     var body: some Scene {
-        MenuBarExtra(isInserted: $isInserted) {
-            MenuBarView()
-                .environmentObject(gateway)
-                .environmentObject(tailscale)
-                .environmentObject(health)
-                .environmentObject(dcal)
-                .environmentObject(dmail)
-                .environmentObject(healthRegistry)
-                .task {
-                    gateway.start()
-                    tailscale.start()
-                    health.start()
-                    // Start supervised servers. If no executable resolves (no env var
-                    // and no path override), start() is a no-op (isRunning stays false).
-                    // This is the designed "not configured" terminal state (design.md D2).
-                    dcal.start()
-                    dmail.start()
-
-                    // Wire the delegate so applicationWillTerminate calls stop() on all
-                    // three managers (terminates children + clears PID files).
-                    appDelegate.gateway = gateway
-                    appDelegate.dcal = dcal
-                    appDelegate.dmail = dmail
-
-                    // Endpoint health monitors (tasks 5.1–5.3).
-                    mailHealth.start()
-                    e2bProbe.start()
-                    reasonerProbe.start()
-                    egressProbe.start()
-
-                    // Wire the health registry.
-                    // Stable display order: Gateway(0) Dcal(1) Dmail(2) Tailscale(3) Calendar Sync(4)
-                    //                       Mail(5) E2B Endpoint(6) Reasoner Endpoint(7) Egress Endpoint(8).
-                    healthRegistry.register(publisher: gateway.$componentHealth, order: 0)
-                    healthRegistry.register(publisher: dcal.$componentHealth, order: 1)
-                    healthRegistry.register(publisher: dmail.$componentHealth, order: 2)
-                    healthRegistry.register(publisher: tailscale.$componentHealth, order: 3)
-                    healthRegistry.register(publisher: health.$componentHealth, order: 4)
-                    healthRegistry.register(publisher: mailHealth.$componentHealth, order: 5)
-                    healthRegistry.register(publisher: e2bProbe.$componentHealth, order: 6)
-                    healthRegistry.register(publisher: reasonerProbe.$componentHealth, order: 7)
-                    healthRegistry.register(publisher: egressProbe.$componentHealth, order: 8)
-                    // The Gateway's special icon role (stopped → red) is driven by a
-                    // dedicated flag, NOT by forcing its ComponentHealth to `down`.
-                    healthRegistry.observeGatewayStopped(gateway.$isRunning.map { !$0 })
+        // Primary scene: the dashboard window. Stable id so openWindow(id:) can
+        // reopen/focus it if the user closed it (close ≠ quit).
+        WindowGroup(id: "dashboard") {
+            DashboardView()
+                .environmentObject(controller)
+        }
+        .commands {
+            // Rebind ⌘, to select the Settings section in the dashboard window.
+            // The default `Settings` scene has been removed (D5); this replaces its
+            // ⌘, binding so the shortcut selects in-window rather than opening a
+            // separate window. Sets controller.selectedSection — the same shared
+            // published property that the menu-bar button and sidebar binding use.
+            CommandGroup(replacing: .appSettings) {
+                Button("Settings…") {
+                    controller.selectedSection = .settings
+                    NSApp.activate(ignoringOtherApps: true)
                 }
-        } label: {
-            Image(systemName: "brain")
-                .foregroundStyle(color(for: healthRegistry.rollupColor))
+                .keyboardShortcut(",", modifiers: .command)
+            }
         }
 
-        Settings {
-            // Pass the same GatewayManager instance used by the menu bar;
-            // Settings scenes do NOT inherit MenuBarExtra's environmentObject chain.
-            SettingsView()
-                .environmentObject(gateway)
+        // Optional tray icon. Off by default; persisted via @AppStorage (D4, task 4.2).
+        MenuBarExtra(isInserted: $showTrayIcon) {
+            MenuBarView()
+                .environmentObject(controller.gateway)
+                .environmentObject(controller.tailscale)
+                .environmentObject(controller.calendarSync)
+                .environmentObject(controller.dcal)
+                .environmentObject(controller.dmail)
+                .environmentObject(controller.healthRegistry)
+                .environmentObject(controller)
+        } label: {
+            Image(systemName: "brain")
+                .foregroundStyle(rollupColor(controller.healthRegistry.rollupColor))
         }
     }
 }

@@ -19,11 +19,14 @@ struct ComponentHealth: Equatable {
     let status: HealthStatus
     /// Optional detail string for display (e.g. error description, exit code).
     let detail: String?
+    /// When this snapshot was produced from live state; nil means never published.
+    let lastUpdated: Date?
 
-    init(name: String, status: HealthStatus, detail: String? = nil) {
+    init(name: String, status: HealthStatus, detail: String? = nil, lastUpdated: Date? = nil) {
         self.name = name
         self.status = status
         self.detail = detail
+        self.lastUpdated = lastUpdated
     }
 }
 

@@ -53,7 +53,8 @@ final class GatewayManager: ObservableObject {
                 ComponentHealth(
                     name: "Gateway",
                     status: processHealth(isRunning: running, lastExitCode: exitCode),
-                    detail: exitCode.map { "exit \($0)" }
+                    detail: exitCode.map { "exit \($0)" },
+                    lastUpdated: Date()
                 )
             }
             .assign(to: &$componentHealth)

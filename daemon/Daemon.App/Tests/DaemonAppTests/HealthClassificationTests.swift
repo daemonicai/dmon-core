@@ -144,4 +144,120 @@ final class HealthClassificationTests: XCTestCase {
         )
         XCTAssertEqual(result, .red, "A .down component must produce .red even when .degraded is present")
     }
+
+    // MARK: - ComponentHealth.lastUpdated (task 1.1 / 1.2)
+
+    func testLastUpdated_seed_isNil() {
+        // Seed / initial value: lastUpdated omitted → nil ("never published" semantic).
+        let seed = component(.unknown)
+        XCTAssertNil(seed.lastUpdated, "Seed ComponentHealth must have nil lastUpdated")
+    }
+
+    func testLastUpdated_stamped_isNonNil() {
+        // A stamped snapshot (as produced at every publish site) must carry a non-nil date.
+        let stamped = ComponentHealth(name: "Test", status: .ok, lastUpdated: Date())
+        XCTAssertNotNil(stamped.lastUpdated, "Stamped ComponentHealth must have a non-nil lastUpdated")
+    }
+
+    func testLastUpdated_twoStamps_nonDecreasing() {
+        // Two successive stamps must be non-decreasing (wall clock does not go backwards).
+        let before = ComponentHealth(name: "Test", status: .ok, lastUpdated: Date())
+        let after  = ComponentHealth(name: "Test", status: .ok, lastUpdated: Date())
+        XCTAssertLessThanOrEqual(
+            before.lastUpdated!, after.lastUpdated!,
+            "Successive stamps must be non-decreasing"
+        )
+    }
+
+    // MARK: - Task 5.2: RollupColor → presentation mapping
+
+    // rollupPresentation is a non-isolated free function — no @MainActor annotation needed.
+
+    func testRollupPresentation_green_isHealthyGreen() {
+        XCTAssertEqual(rollupPresentation(.green), .healthyGreen)
+    }
+
+    func testRollupPresentation_amber_isWarningAmber() {
+        XCTAssertEqual(rollupPresentation(.amber), .warningAmber)
+    }
+
+    func testRollupPresentation_red_isCriticalRed() {
+        XCTAssertEqual(rollupPresentation(.red), .criticalRed)
+    }
+
+    // Scenario: all healthy → presentation token is healthyGreen.
+    // Mirrors the spec scenario "all healthy → green (Dock + window status surface green)".
+    @MainActor
+    func testRollupPresentation_scenario_allHealthy_isGreen() {
+        let rollup = HealthRegistry.rollup(
+            gatewayStopped: false,
+            components: [component(.ok), component(.ok)]
+        )
+        XCTAssertEqual(rollupPresentation(rollup), .healthyGreen)
+    }
+
+    // Scenario: Gateway stopped → presentation token is criticalRed.
+    @MainActor
+    func testRollupPresentation_scenario_gatewayStopped_isCriticalRed() {
+        let rollup = HealthRegistry.rollup(
+            gatewayStopped: true,
+            components: [component(.ok)]
+        )
+        XCTAssertEqual(rollupPresentation(rollup), .criticalRed)
+    }
+
+    // Scenario: a monitored dependency down → presentation token is criticalRed.
+    @MainActor
+    func testRollupPresentation_scenario_dependencyDown_isCriticalRed() {
+        let rollup = HealthRegistry.rollup(
+            gatewayStopped: false,
+            components: [component(.ok), component(.down)]
+        )
+        XCTAssertEqual(rollupPresentation(rollup), .criticalRed)
+    }
+
+    // Scenario: Tailscale degraded → presentation token is warningAmber.
+    @MainActor
+    func testRollupPresentation_scenario_tailscaleDegraded_isWarningAmber() {
+        let rollup = HealthRegistry.rollup(
+            gatewayStopped: false,
+            components: [component(.ok), component(.degraded)]
+        )
+        XCTAssertEqual(rollupPresentation(rollup), .warningAmber)
+    }
+
+    // Exhaustive: every RollupColor maps to a distinct RollupPresentation (no collision).
+    func testRollupPresentation_allCasesDistinct() {
+        let presentations = [
+            rollupPresentation(.green),
+            rollupPresentation(.amber),
+            rollupPresentation(.red),
+        ]
+        // All three must be distinct — a mis-mapped switch would collapse two to the same.
+        XCTAssertEqual(Set(presentations).count, 3, "Each RollupColor must map to a distinct RollupPresentation")
+    }
+
+    // MARK: - RollupPresentation.label (single source for display names)
+
+    func testRollupPresentation_label_healthyGreen() {
+        XCTAssertEqual(RollupPresentation.healthyGreen.label, "Healthy")
+    }
+
+    func testRollupPresentation_label_warningAmber() {
+        XCTAssertEqual(RollupPresentation.warningAmber.label, "Degraded")
+    }
+
+    func testRollupPresentation_label_criticalRed() {
+        XCTAssertEqual(RollupPresentation.criticalRed.label, "Critical")
+    }
+
+    // All labels are distinct (no copy-paste collapse).
+    func testRollupPresentation_labels_allDistinct() {
+        let labels = [
+            RollupPresentation.healthyGreen.label,
+            RollupPresentation.warningAmber.label,
+            RollupPresentation.criticalRed.label,
+        ]
+        XCTAssertEqual(Set(labels).count, 3, "Each RollupPresentation case must have a distinct label")
+    }
 }

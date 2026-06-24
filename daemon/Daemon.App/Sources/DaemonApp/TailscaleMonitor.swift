@@ -26,7 +26,7 @@ final class TailscaleMonitor: ObservableObject {
     init() {
         // Keep componentHealth in sync with status.
         $status
-            .map { ComponentHealth(name: "Tailscale", status: tailscaleHealth(status: $0)) }
+            .map { ComponentHealth(name: "Tailscale", status: tailscaleHealth(status: $0), lastUpdated: Date()) }
             .assign(to: &$componentHealth)
     }
 

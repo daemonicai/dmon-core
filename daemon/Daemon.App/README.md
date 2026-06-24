@@ -1,6 +1,12 @@
 # Daemon.App (`dmonium`)
 
-The `dmonium` macOS menu-bar app for the DAEMON personal-assistant surface.
+The `dmonium` macOS app for the DAEMON personal-assistant surface. It is
+**window-primary**: a `WindowGroup` dashboard (Status / Services / Settings) with
+a Dock icon and Cmd-Tab presence is the main surface; a menu-bar icon remains
+available as an **optional, default-off** glance affordance (toggle it in
+Settings). Closing the dashboard window does **not** quit the app — supervision
+keeps running and the window reopens from the Dock; only Quit tears down the
+supervised children.
 
 This is a **Swift Package Manager** package, **not** an Xcode project — there is
 no `.xcodeproj`/`.xcworkspace` checked in. It is built outside `Everything.slnx`
@@ -46,7 +52,7 @@ and make no network calls.
 
 ## What the app does
 
-`dmonium` supervises the DAEMON stack from the menu bar:
+`dmonium` supervises the DAEMON stack from a window-primary dashboard:
 
 - **Process supervision** — launches/adopts and restarts (exponential back-off)
   the **Gateway** (which builds+runs the `Daemon.cs` core), and the **Dcal** and
@@ -57,8 +63,10 @@ and make no network calls.
 - **Unified health** — a typed `HealthRegistry` aggregates the Gateway, the
   Dcal/Dmail servers, Tailscale, the calendar-sync poll, and the configured
   model-runner endpoints (`DMON_E2B_URL`, `DMON_REASONER_URL`, egress). Each is a
-  menu row; the menu-bar icon reflects the rollup (red/amber/green). A best-effort
-  "Bring Tailscale up" action runs `tailscale up`.
+  row in the dashboard's Status grid (with its last-poll time); the **Dock icon**
+  (and the optional menu-bar icon, when enabled) reflects the rollup
+  (red/amber/green). The Services section offers per-service start/stop/restart and
+  a best-effort "Bring Tailscale up" action (`tailscale up`).
 - **Settings** — writes `~/.dmon/config.yaml` (+ Keychain for secrets) and
   restarts the Gateway. dmon-core's own keys use the `DMON_` prefix (endpoints,
   the three `DMON_*_MODEL` IDs, `DMON_EGRESS_THRESHOLD`); the Dcal/Dmail servers
@@ -69,7 +77,7 @@ and make no network calls.
 
 - `Package.swift` — manifest; `DaemonApp` executable target + `DaemonAppTests`, macOS 14+.
 - `Sources/DaemonApp/` — app sources:
-  - UI/lifecycle: `DaemonApp.swift`, `MenuBarView.swift`, `SettingsView.swift`, `LoginItemManager.swift`, `Keychain.swift`.
+  - UI/lifecycle: `DaemonApp.swift` (scene set: `WindowGroup` + optional `MenuBarExtra`), `DaemonController.swift` (the single `@MainActor` owner of the managers + `HealthRegistry`, bootstrapped once from `applicationDidFinishLaunching`), `DashboardView.swift` (the `NavigationSplitView` dashboard), `StatusHelpers.swift` (status/rollup presentation helpers), `MenuBarView.swift`, `SettingsView.swift`, `LoginItemManager.swift`, `Keychain.swift`.
   - Process supervision: `ServerProcessManager.swift` (reusable), `GatewayManager.swift`, `ServiceManager.swift` (Dcal/Dmail).
   - Health: `ComponentHealth.swift`, `HealthRegistry.swift`, `TailscaleMonitor.swift`, `DcalHealthMonitor.swift`, `DmailHealthMonitor.swift`, `EndpointHealthProbe.swift`.
-- `Tests/DaemonAppTests/` — `ServerProcessManagerTests`, `HealthClassificationTests`, `ConfigStoreTests`.
+- `Tests/DaemonAppTests/` — `ServerProcessManagerTests`, `HealthClassificationTests`, `ConfigStoreTests`, `DaemonControllerTests` (bootstrap idempotence), `RelativeAgeTests`, `MenuBarPreferenceTests`, `PublisherLastUpdatedTests`.
