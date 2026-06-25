@@ -36,4 +36,22 @@ Mechanical rename of the host project. `git mv frontends/Dmon.Gateway → fronte
 
 **Open carry-forward (NOT a blocker, for a later block / orchestrator):** the real release pipeline (`scripts/pack-core.sh` / `.github/workflows/release.yml`) is an explicit allow-list and was deliberately NOT touched. If `ndmon` should ship via that pipeline it needs a later wiring decision — proposal/design treat nuget.org publish of the tool as a follow-on (out of scope here). 4.5 was satisfied by local-pack demonstration, not a pipeline edit.
 
-## Block 3 — Group 5 (`make network`) is the next natural block.
+## Block 3 — tasks 5.1–5.2 (DONE, committed)
+
+`make network` target added to the `Makefile` (only file changed). Shape mirrors `daemon-app`:
+```make
+network:
+	dotnet pack frontends/Dmon.Network/Dmon.Network.csproj -c $(CONFIG) -o "$(PACK_OUT)"
+	dotnet tool update --global --add-source "$(abspath $(PACK_OUT))" Dmon.Network --version 0.1.0 \
+		|| dotnet tool install --global --add-source "$(abspath $(PACK_OUT))" Dmon.Network --version 0.1.0
+```
+- **Decided (D3 open question closed): GLOBAL install** (not `--tool-path`), idempotent via `update || install`. On .NET 10 `dotnet tool update --global` install-or-updates a missing tool; the `|| install` is a belt-and-suspenders for older SDKs. Both runs exit 0; `~/.dotnet/tools/ndmon` resolves; `dotnet tool list --global` → `dmon.network 0.1.0 ndmon`.
+- Packs `Dmon.Network` DIRECTLY with `dotnet pack` (NOT via `pack-core.sh` — the protocol-keyed allow-list stays out of scope). Reuses existing `$(CONFIG)`/`$(PACK_OUT)` vars; `$(abspath …)` required for the `--add-source` feed.
+- `ndmon` is now installed globally on this dev machine — leave it (5.2/10.4 depend on it). This closes the original [[gateway-packaging-gap]]: dmonium's default Network path is produced OOTB.
+- Gates: build 0-warn, test 929 passed/2 skipped, validate --strict ✓.
+
+**Reviewer nits (non-blocking, carry-forward for the eventual release-pipeline change):** (1) `--version 0.1.0` is hard-coded in the Makefile → must hand-sync with the csproj `MinVerVersionOverride` on any bump; a version-free `dotnet tool update` from the feed would drop the coupling. (2) `.pack-out` accumulates nupkgs; the explicit `--version` pin neutralizes any ambiguity today. Both are first-cut acceptable (D1: "local install from pack output is the first cut").
+
+## Remaining: Group 6 (dmonium/Swift rebrand — needs swift build/test gates), Group 7 (ADRs), Group 8 (standing-spec prose), Group 9 (docs), Group 10 (grep gate + final validation + human-verify 10.4).
+- **Group 6 is the next natural block** — it's the only remaining block with the Swift toolchain gate (`swift build -c release --package-path daemon/Daemon.App` + `swift test`). It also finally renames the dmonium default path to `~/.dotnet/tools/ndmon` and `DMON_GATEWAY_PATH`→`DMON_NETWORK_PATH`, making the OOTB green-row deliverable real end-to-end.
+- **Reminder for whoever plans Group 10:** the grep gate (10.1) deliberately retains the `remote-session-gateway` capability id and archived changes; and the runtime config strings (`NetworkOptions.SectionName="Gateway"`, `GetSection("Gateway")`, `[dmon-gateway]` log prefix, `.dmon/gateway` key store) were INTENTIONALLY left by Blocks 1–3. Decide at Group 10 planning whether 10.1's "no stray `gateway`" gate requires renaming those runtime/config strings too, or whether they're explicitly exempt like the capability id. If they must change, that's additional scope beyond the current task wording — flag/stop-and-ask rather than silently expanding.

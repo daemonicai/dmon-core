@@ -1,4 +1,4 @@
-.PHONY: all build build-terminal build-core build-core-pack build-memory test pack smoke schema clean daemon-app
+.PHONY: all build build-terminal build-core build-core-pack build-memory test pack smoke schema clean daemon-app network
 
 CONFIG            ?= Release
 CORE_OUT          := build/dmoncore
@@ -61,3 +61,8 @@ clean:
 
 daemon-app:
 	swift build -c release --package-path daemon/Daemon.App
+
+network:
+	dotnet pack frontends/Dmon.Network/Dmon.Network.csproj -c $(CONFIG) -o "$(PACK_OUT)"
+	dotnet tool update --global --add-source "$(abspath $(PACK_OUT))" Dmon.Network --version 0.1.0 \
+		|| dotnet tool install --global --add-source "$(abspath $(PACK_OUT))" Dmon.Network --version 0.1.0

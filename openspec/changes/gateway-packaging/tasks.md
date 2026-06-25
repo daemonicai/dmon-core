@@ -24,8 +24,8 @@
 
 ## 5. `make network` target
 
-- [ ] 5.1 Add a `network` target to the `Makefile` (build → pack → install to the default dotnet-tools location), parallel to `make daemon-app`; idempotent (update if already installed).
-- [ ] 5.2 Confirm that after `make network` on a clean checkout, `~/.dotnet/tools/ndmon` resolves.
+- [x] 5.1 Add a `network` target to the `Makefile` (build → pack → install to the default dotnet-tools location), parallel to `make daemon-app`; idempotent (update if already installed).
+- [x] 5.2 Confirm that after `make network` on a clean checkout, `~/.dotnet/tools/ndmon` resolves.
 
 ## 6. Rebrand dmonium (`daemon/Daemon.App`)
 
