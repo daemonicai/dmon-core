@@ -99,6 +99,24 @@ Renamed the .NET host's runtime config-string surface (clean break). Worker swep
 - **10.4 is a HUMAN-VERIFY** (launch dmonium, confirm Network row green OOTB) — orchestrator hands the recipe to the user; cannot self-gate.
 - Group 9 + 10 can be ONE final block.
 
+## Block 7 (FINAL worker block) — tasks 9.1, 9.2, 10.1, 10.2, 10.3 (DONE, committed)
+
+Docs sweep + completeness grep gate + full gate sweep. 2 files.
+- **9.1:** `git mv docs/deploying-the-gateway.md → docs/deploying-the-network.md` + full sweep: title→"Deploying the dmon Network host"; `Dmon.Gateway`→`Dmon.Network`; config table `Gateway:*`→`Network:*` (all 7 keys) + appsettings `"Network"` block + `GATEWAY__SharedKey`→`NETWORK__SharedKey`; stale run path `src/Dmon.Gateway`→`frontends/Dmon.Network` + `ndmon`/`make network` install block; `~/.dmon/gateway`→`~/.dmon/network`; superseded ADR-013 link→ADR-022; `tag:gateway-server`→`tag:network-host`. No shipping inbound links needed fixing.
+- **9.2:** `daemon/Daemon.App/README.md` — `DMON_GATEWAY_PATH`→`DMON_NETWORK_PATH` + install note; "Gateway" component prose→"Network host"; `GatewayManager.swift`→`NetworkManager.swift` file-list entry. Test list already correct.
+- **10.1 grep gate (rename-completeness, the achievable form):** Pass-A (`Dmon.Gateway|DMON_GATEWAY_PATH|deploying-the-gateway`, exempt paths excluded) = ZERO; Pass-B (`gateway` in the two edited docs) = ZERO. Reviewer independently re-ran both → confirmed ZERO.
+- **10.3 full gates (orchestrator-run):** validate --strict ✓; make build 0-warn; make test 0 failures (Core 591/1, all suites); swift build complete; swift test "All tests passed" (72/72).
+- **Config-value correctness verified:** reviewer cross-checked the doc's `Network:*` keys against shipped `NetworkOptions.cs`/`NetworkBindPolicy.cs` — match.
+
+### Flags / follow-ups (out of scope for this change — NOT blockers):
+- **daemon-scheduler stale refs** (`openspec/changes/daemon-scheduler/{design,proposal,tasks}.md` reference `Dmon.Gateway`/`frontends/Dmon.Gateway`, 3 locations) — in the exempt active-change path, FLAGGED not edited. Reconcile when `daemon-scheduler` is applied (cross-change risk already noted in proposal Impact).
+- **deploy doc `SharedKey` doc-drift** (reviewer nit): `docs/deploying-the-network.md` documents `Network:SharedKey`/`NETWORK__SharedKey` (Step 4 + reference table), but the shipped `NetworkOptions` has NO `SharedKey` — auth is per-device keys (`DeviceKeyAuthenticator` + `devices.json`, ADR-018, which superseded shared-key in a prior merged change). This is PRE-EXISTING drift (`git show HEAD:docs/deploying-the-gateway.md` carried identical `Gateway:SharedKey` content) faithfully renamed by the sweep — re-validating the doc against the ADR-018 device-key model is OUTSIDE gateway-packaging's "rename, not content audit" charter. Recommend a separate follow-up change to rewrite Step 4 + the reference table around per-device keys.
+- **`docs/protocol/README.md`** (titled "dmon WebSocket Gateway", ~30 host-role uses) deliberately left as host-role vocabulary per ADR-033; a possible future rebrand, not in this change's spec deltas.
+
+## ⏳ Block 8 — 10.4 HUMAN-VERIFY (orchestrator → user): launch dmonium, confirm Network health row green OOTB with no DMON_NETWORK_PATH. Recipe handed to user. NOT yet ticked.
+
+---
+
 **[Earlier stop-and-ask framing — SUPERSEDED by the Option-B decision; kept for history:]**
 - The architect (Block 5 planning) verified `docs/deploying-the-gateway.md` documents the runtime config keys extensively: `Gateway:BindAddress`, `Gateway:SharedKey`, `Gateway:AllowNonLoopbackBind`, `GATEWAY__SharedKey`, the full `Gateway:*` config table, plus `~/.dmon/gateway`. Group 9.1's "sweep its content" CANNOT honestly rename those to `Network:*` UNLESS the runtime `NetworkOptions.SectionName="Gateway"` / `GetSection("Gateway")` / `appsettings.json "Gateway"` block / `.dmon/gateway` store are ALSO renamed — which is the runtime-config + on-disk behavioural change the proposal scoped OUT ("no change to the host's runtime behaviour").
 - So Group 9 is BLOCKED on a user decision: **(A)** keep the runtime config seam as-is (`SectionName="Gateway"`, `.dmon/gateway`) and have the docs continue to document the real `Gateway:` keys (doc sweep limited to host-name/`ndmon`/`make network`/`DMON_NETWORK_PATH`; the `Gateway:*` config table stays literally `Gateway:` because that's what the runtime reads); explicitly EXEMPT those strings from the 10.1 grep gate alongside the capability id. OR **(B)** expand scope: rename the runtime config section + on-disk store to `Network`/`.dmon/network` (a real behavioural change, needs its own go-ahead and possibly an ADR-033 amendment + appsettings + a SECTION rename in Dmon.Network code), then docs sweep fully and 10.1 is clean with no config exemption.

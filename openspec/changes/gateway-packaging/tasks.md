@@ -54,12 +54,12 @@
 
 ## 9. Docs
 
-- [ ] 9.1 `git mv docs/deploying-the-gateway.md docs/deploying-the-network.md` and sweep its content (host name, `ndmon`, `make network`, `DMON_NETWORK_PATH`, and the now-renamed `Network:` config section / `~/.dmon/network` store); fix inbound links.
-- [ ] 9.2 Update `daemon/Daemon.App/README.md`: the host is installed via `make network` / `dotnet tool install` (command `ndmon`), resolves at `~/.dotnet/tools/ndmon`, overridable with `DMON_NETWORK_PATH`; refresh any "Gateway" wording and the source/test file lists.
+- [x] 9.1 `git mv docs/deploying-the-gateway.md docs/deploying-the-network.md` and sweep its content (host name, `ndmon`, `make network`, `DMON_NETWORK_PATH`, and the now-renamed `Network:` config section / `~/.dmon/network` store); fix inbound links.
+- [x] 9.2 Update `daemon/Daemon.App/README.md`: the host is installed via `make network` / `dotnet tool install` (command `ndmon`), resolves at `~/.dotnet/tools/ndmon`, overridable with `DMON_NETWORK_PATH`; refresh any "Gateway" wording and the source/test file lists.
 
 ## 10. Completeness, validation, gates
 
-- [ ] 10.1 Grep gate: no stray `Dmon.Gateway` / `Gateway` / `gateway` / `DMON_GATEWAY_PATH` references remain outside the deliberately-retained capability id `remote-session-gateway` and the archived `openspec/changes/archive/**`. (Note: the active `daemon-scheduler` change's stale references are out of scope — flag, don't edit.)
-- [ ] 10.2 `openspec validate gateway-packaging --strict` passes.
-- [ ] 10.3 `make build` clean (no warnings; `TreatWarningsAsErrors`), `make test` green, and `swift build`/`swift test` for dmonium green.
+- [x] 10.1 Grep gate: no stray `Dmon.Gateway` / `Gateway` / `gateway` / `DMON_GATEWAY_PATH` references remain outside the deliberately-retained capability id `remote-session-gateway` and the archived `openspec/changes/archive/**`. (Note: the active `daemon-scheduler` change's stale references are out of scope — flag, don't edit.)
+- [x] 10.2 `openspec validate gateway-packaging --strict` passes.
+- [x] 10.3 `make build` clean (no warnings; `TreatWarningsAsErrors`), `make test` green, and `swift build`/`swift test` for dmonium green.
 - [ ] 10.4 Human-verify (recipe): with the tool installed via `make network` and no `DMON_NETWORK_PATH`, launch dmonium and confirm the **Network** health row goes green (process starts) out of the box.
