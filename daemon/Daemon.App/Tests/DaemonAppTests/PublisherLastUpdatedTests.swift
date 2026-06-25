@@ -10,9 +10,9 @@ import Combine
 // Test strategy per publisher:
 //   1. TailscaleMonitor  — synchronous construction-time stamp (no .receive(on:));
 //                          init $status.map replay fires before the property read.
-//   2. GatewayManager    — CombineLatest + .receive(on: RunLoop.main) → async;
+//   2. NetworkManager    — CombineLatest + .receive(on: RunLoop.main) → async;
 //                          wait on $componentHealth, skip nil-lastUpdated seed.
-//   3. ServiceManager    — identical shape to GatewayManager; use makeDcal().
+//   3. ServiceManager    — identical shape to NetworkManager; use makeDcal().
 //   4. DcalHealthMonitor — imperative applyFetchResult (widened to internal);
 //                          drive nil and non-nil paths; assert both stamp.
 //   5. DmailHealthMonitor — imperative applyFetchResult (widened to internal);
@@ -43,20 +43,20 @@ final class PublisherLastUpdatedTests: XCTestCase {
         XCTAssertEqual(monitor.componentHealth.status, .down)
     }
 
-    // MARK: - 2. GatewayManager
+    // MARK: - 2. NetworkManager
 
-    func testGatewayManager_stampsLastUpdatedOnPublish() {
+    func testNetworkManager_stampsLastUpdatedOnPublish() {
         // CombineLatest(isRunning, lastExitCode).receive(on: RunLoop.main) fires
         // once both seeded @Published values are available; this happens during
         // init WITHOUT calling start().  The timeout is a failure ceiling — NOT a sleep.
-        let gw = GatewayManager()
-        let exp = expectation(description: "GatewayManager stamps componentHealth.lastUpdated")
+        let nw = NetworkManager()
+        let exp = expectation(description: "NetworkManager stamps componentHealth.lastUpdated")
         var cancellable: AnyCancellable?
-        cancellable = gw.$componentHealth
+        cancellable = nw.$componentHealth
             .drop(while: { $0.lastUpdated == nil })
             .sink { health in
                 XCTAssertNotNil(health.lastUpdated,
-                    "GatewayManager componentHealth must carry a non-nil lastUpdated on first stamped publish")
+                    "NetworkManager componentHealth must carry a non-nil lastUpdated on first stamped publish")
                 exp.fulfill()
             }
         wait(for: [exp], timeout: 2.0)
@@ -67,7 +67,7 @@ final class PublisherLastUpdatedTests: XCTestCase {
 
     func testServiceManager_dcal_stampsLastUpdatedOnPublish() {
         // ServiceManager uses the identical CombineLatest + .receive(on: RunLoop.main)
-        // shape as GatewayManager — same test body, factory-built instance.
+        // shape as NetworkManager — same test body, factory-built instance.
         let svc = ServiceManager.makeDcal()
         let exp = expectation(description: "ServiceManager(Dcal) stamps componentHealth.lastUpdated")
         var cancellable: AnyCancellable?

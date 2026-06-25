@@ -29,11 +29,11 @@
 
 ## 6. Rebrand dmonium (`daemon/Daemon.App`)
 
-- [ ] 6.1 Rename `GatewayManager.swift`/`class GatewayManager` → `NetworkManager`; update `DaemonController` (`gateway`→`network`, `observeGatewayStopped`→`observeNetworkStopped`, the stable display-order comment, the special-icon-role wiring).
-- [ ] 6.2 Change the health component label `"Gateway"` → `"Network"` (the special stopped→red icon role follows the renamed component).
-- [ ] 6.3 Change the default resolved path `~/.dotnet/tools/Dmon.Gateway` → `~/.dotnet/tools/ndmon`.
-- [ ] 6.4 Rename the config/env key `DMON_GATEWAY_PATH` → `DMON_NETWORK_PATH` (clean break, no alias) in `GatewayManager`/`NetworkManager`, `SettingsView` (load/save map + the "Gateway binary path" field + help text).
-- [ ] 6.5 `swift build -c release --package-path daemon/Daemon.App` and `swift test` stay green.
+- [x] 6.1 Rename `GatewayManager.swift`/`class GatewayManager` → `NetworkManager`; update `DaemonController` (`gateway`→`network`, `observeGatewayStopped`→`observeNetworkStopped`, the stable display-order comment, the special-icon-role wiring).
+- [x] 6.2 Change the health component label `"Gateway"` → `"Network"` (the special stopped→red icon role follows the renamed component).
+- [x] 6.3 Change the default resolved path `~/.dotnet/tools/Dmon.Gateway` → `~/.dotnet/tools/ndmon`.
+- [x] 6.4 Rename the config/env key `DMON_GATEWAY_PATH` → `DMON_NETWORK_PATH` (clean break, no alias) in `GatewayManager`/`NetworkManager`, `SettingsView` (load/save map + the "Gateway binary path" field + help text).
+- [x] 6.5 `swift build -c release --package-path daemon/Daemon.App` and `swift test` stay green.
 
 ## 7. ADRs
 

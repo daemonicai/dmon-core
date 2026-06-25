@@ -61,7 +61,7 @@ enum ConfigStore {
         lines.append("")    // trailing newline
 
         let dir = target.deletingLastPathComponent()
-        // Mirror GatewayManager.writePIDFile: create ~/.dmon/ if absent.
+        // Mirror NetworkManager.writePIDFile: create ~/.dmon/ if absent.
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         let text = lines.joined(separator: "\n")
         try? text.write(to: target, atomically: true, encoding: .utf8)
@@ -72,7 +72,7 @@ enum ConfigStore {
 
 struct SettingsView: View {
 
-    @EnvironmentObject private var gateway: GatewayManager
+    @EnvironmentObject private var network: NetworkManager
     @StateObject private var loginItems = LoginItemManager()
 
     // MARK: Menu-bar preference (D4, task 4.3)
@@ -100,7 +100,7 @@ struct SettingsView: View {
 
     // MARK: Advanced fields
     @State private var egressThreshold:  Double = 0.8
-    @State private var gatewayPath:      String = ""
+    @State private var networkPath:       String = ""
     @State private var dcalServerPath:   String = ""
     @State private var dmailServerPath:  String = ""
 
@@ -169,8 +169,8 @@ struct SettingsView: View {
                     Slider(value: $egressThreshold, in: 0...1, step: 0.05)
                         .help("DMON_EGRESS_THRESHOLD — not yet wired into the router; persisted for forward-compat")
                 }
-                TextField("Gateway binary path", text: $gatewayPath)
-                    .help("DMON_GATEWAY_PATH — override resolved gateway binary")
+                TextField("Network binary path", text: $networkPath)
+                    .help("DMON_NETWORK_PATH — override resolved network binary")
                 Toggle("Launch at Login", isOn: $loginItems.isEnabled)
                     .onChange(of: loginItems.isEnabled) { _, newValue in
                         loginItems.setEnabled(newValue)
@@ -229,7 +229,7 @@ struct SettingsView: View {
         syncInterval  = cfg["DCAL_SYNC_INTERVAL_MINUTES"] ?? "15"
         recurrenceHorizon = cfg["DCAL_RECURRENCE_HORIZON_DAYS"] ?? "90"
         dmailURL      = cfg["DMAIL_BASE_URL"]      ?? ""
-        gatewayPath   = cfg["DMON_GATEWAY_PATH"]   ?? ""
+        networkPath   = cfg["DMON_NETWORK_PATH"]    ?? ""
         dcalServerPath  = cfg["DMON_DCAL_SERVER_PATH"]  ?? ""
         dmailServerPath = cfg["DMON_DMAIL_SERVER_PATH"] ?? ""
 
@@ -271,7 +271,7 @@ struct SettingsView: View {
             "DMAIL_BASE_URL":               dmailURL,
             "DMON_EGRESS_THRESHOLD":        String(format: "%.2f", egressThreshold),
             // DMON_EGRESS_THRESHOLD is not yet wired into the router; persisted for forward-compat.
-            "DMON_GATEWAY_PATH":            gatewayPath,
+            "DMON_NETWORK_PATH":            networkPath,
             "DMON_DCAL_SERVER_PATH":        dcalServerPath,
             "DMON_DMAIL_SERVER_PATH":       dmailServerPath
         ].filter { !$0.value.isEmpty }
@@ -306,9 +306,9 @@ struct SettingsView: View {
             env[account] = Keychain.read(account: account) ?? value
         }
 
-        // Wire overrides into GatewayManager and restart.
-        gateway.settingsEnvironment = env
-        gateway.gatewayPathOverride = gatewayPath.isEmpty ? nil : gatewayPath
-        gateway.restart()
+        // Wire overrides into NetworkManager and restart.
+        network.settingsEnvironment = env
+        network.networkPathOverride = networkPath.isEmpty ? nil : networkPath
+        network.restart()
     }
 }

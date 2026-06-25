@@ -99,7 +99,7 @@ struct DaemonApp: App {
         // Optional tray icon. Off by default; persisted via @AppStorage (D4, task 4.2).
         MenuBarExtra(isInserted: $showTrayIcon) {
             MenuBarView()
-                .environmentObject(controller.gateway)
+                .environmentObject(controller.network)
                 .environmentObject(controller.tailscale)
                 .environmentObject(controller.calendarSync)
                 .environmentObject(controller.dcal)

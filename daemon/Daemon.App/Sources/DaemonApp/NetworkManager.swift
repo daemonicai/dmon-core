@@ -2,20 +2,20 @@ import Foundation
 import Combine
 
 @MainActor
-final class GatewayManager: ObservableObject {
+final class NetworkManager: ObservableObject {
 
     @Published private(set) var isRunning: Bool = false
     @Published private(set) var lastExitCode: Int32?
 
     /// Honest process-health snapshot for the registry (ok / down / unknown).
-    /// The Gateway's SPECIAL ICON ROLE (stopped → red) is handled by the
-    /// rollup's `gatewayStopped` parameter, NOT by mapping this to `down`.
+    /// The Network's SPECIAL ICON ROLE (stopped → red) is handled by the
+    /// rollup's `networkStopped` parameter, NOT by mapping this to `down`.
     @Published private(set) var componentHealth: ComponentHealth =
-        ComponentHealth(name: "Gateway", status: .unknown)
+        ComponentHealth(name: "Network", status: .unknown)
 
-    // Settable override for the Gateway binary path (§10 wires this from Settings).
-    var gatewayPathOverride: String? {
-        didSet { manager.config.executableCandidates = Self.gatewayCandidates(override: gatewayPathOverride) }
+    // Settable override for the Network binary path (§10 wires this from Settings).
+    var networkPathOverride: String? {
+        didSet { manager.config.executableCandidates = Self.networkCandidates(override: networkPathOverride) }
     }
 
     // Settings-panel values surfaced to the core via env on (re)launch (§10.3).
@@ -27,17 +27,17 @@ final class GatewayManager: ObservableObject {
 
     init() {
         let pidFileURL = URL(fileURLWithPath: NSHomeDirectory())
-            .appendingPathComponent(".dmon/run/gateway.pid")
+            .appendingPathComponent(".dmon/run/network.pid")
 
         let config = ServerProcessConfig(
-            displayName: "Gateway",
-            executableCandidates: Self.gatewayCandidates(override: nil),
+            displayName: "Network",
+            executableCandidates: Self.networkCandidates(override: nil),
             arguments: ["--agent", "daemon/Daemon.cs"],
             pidFileURL: pidFileURL
         )
         manager = ServerProcessManager(config: config)
 
-        // Mirror the manager's published properties so consumers of GatewayManager
+        // Mirror the manager's published properties so consumers of NetworkManager
         // observe changes through the standard ObservableObject mechanism.
         manager.$isRunning
             .receive(on: RunLoop.main)
@@ -51,7 +51,7 @@ final class GatewayManager: ObservableObject {
             .receive(on: RunLoop.main)
             .map { running, exitCode in
                 ComponentHealth(
-                    name: "Gateway",
+                    name: "Network",
                     status: processHealth(isRunning: running, lastExitCode: exitCode),
                     detail: exitCode.map { "exit \($0)" },
                     lastUpdated: Date()
@@ -76,12 +76,12 @@ final class GatewayManager: ObservableObject {
 
     // MARK: - Private
 
-    // Priority: override → DMON_GATEWAY_PATH env → ~/.dotnet/tools/Dmon.Gateway
-    private static func gatewayCandidates(override: String?) -> [() -> String?] {
+    // Priority: override → DMON_NETWORK_PATH env → ~/.dotnet/tools/ndmon
+    private static func networkCandidates(override: String?) -> [() -> String?] {
         [
             { override },
-            { ProcessInfo.processInfo.environment["DMON_GATEWAY_PATH"] },
-            { (NSHomeDirectory() as NSString).appendingPathComponent(".dotnet/tools/Dmon.Gateway") }
+            { ProcessInfo.processInfo.environment["DMON_NETWORK_PATH"] },
+            { (NSHomeDirectory() as NSString).appendingPathComponent(".dotnet/tools/ndmon") }
         ]
     }
 }

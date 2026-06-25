@@ -52,14 +52,14 @@ struct DashboardView: View {
                     .environmentObject(controller.healthRegistry)
             case .services:
                 ServicesSectionView()
-                    .environmentObject(controller.gateway)
+                    .environmentObject(controller.network)
                     .environmentObject(controller.dcal)
                     .environmentObject(controller.dmail)
                     .environmentObject(controller.tailscale)
                     .environmentObject(controller.calendarSync)
             case .settings:
                 SettingsView()
-                    .environmentObject(controller.gateway)
+                    .environmentObject(controller.network)
             }
         }
         .navigationTitle(controller.selectedSection.rawValue)
@@ -165,7 +165,7 @@ private struct ComponentHealthRow: View {
 /// Per-service start / stop / restart controls plus global actions.
 struct ServicesSectionView: View {
 
-    @EnvironmentObject private var gateway: GatewayManager
+    @EnvironmentObject private var network: NetworkManager
     @EnvironmentObject private var dcal: ServiceManager
     @EnvironmentObject private var dmail: ServiceManager
     @EnvironmentObject private var tailscale: TailscaleMonitor
@@ -173,13 +173,13 @@ struct ServicesSectionView: View {
 
     var body: some View {
         Form {
-            Section("Gateway") {
-                ServiceControlRow(name: "Gateway", isRunning: gateway.isRunning) {
-                    gateway.start()
+            Section("Network") {
+                ServiceControlRow(name: "Network", isRunning: network.isRunning) {
+                    network.start()
                 } stop: {
-                    gateway.stop()
+                    network.stop()
                 } restart: {
-                    gateway.restart()
+                    network.restart()
                 }
             }
 

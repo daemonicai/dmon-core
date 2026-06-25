@@ -2,7 +2,7 @@ import Foundation
 import Combine
 
 // Generic thin wrapper around ServerProcessManager for auxiliary server processes
-// (Dcal, Dmail). Mirrors GatewayManager's pattern: ObservableObject that owns a
+// (Dcal, Dmail). Mirrors NetworkManager's pattern: ObservableObject that owns a
 // ServerProcessManager, exposes a path-override and a settingsEnvironment seam
 // for group-7 wiring, and mirrors the manager's published properties via Combine.
 //
@@ -26,7 +26,7 @@ final class ServiceManager: ObservableObject {
     }
 
     // Settings-panel values surfaced to the server via env on (re)launch (group 7).
-    // Mirror GatewayManager.settingsEnvironment: routes into additionalEnvironment.
+    // Mirror NetworkManager.settingsEnvironment: routes into additionalEnvironment.
     var settingsEnvironment: [String: String] = [:] {
         didSet { manager.additionalEnvironment = settingsEnvironment }
     }
