@@ -37,12 +37,12 @@
 
 ## 7. ADRs
 
-- [ ] 7.1 Write `docs/adrs/ADR-033-<slug>.md` ("Rename the gateway host to `Dmon.Network` / `ndmon`") recording the decision and rationale; status Accepted.
-- [ ] 7.2 Add one-line terminology amendment notes to ADR-012, ADR-017, ADR-018, and ADR-028 ("Gateway" → "Network host" / the renamed frontend), referencing ADR-033. No numbered decision is reversed. (If the reviewer judges any "Gateway" usage was load-bearing in a numbered decision → stop-and-ask.)
+- [x] 7.1 Write `docs/adrs/ADR-033-<slug>.md` ("Rename the gateway host to `Dmon.Network` / `ndmon`") recording the decision and rationale; status Accepted.
+- [x] 7.2 Add one-line terminology amendment notes to ADR-012, ADR-017, ADR-018, and ADR-028 ("Gateway" → "Network host" / the renamed frontend), referencing ADR-033. No numbered decision is reversed. (If the reviewer judges any "Gateway" usage was load-bearing in a numbered decision → stop-and-ask.)
 
 ## 8. Standing spec terminology
 
-- [ ] 8.1 Apply the `remote-session-gateway` delta (this change's `specs/remote-session-gateway/spec.md`): rename "Gateway session-create control frame" → "Network session-create control frame" and sweep "the gateway" → "the network host" terminology across the standing spec prose. Keep the capability id/folder `remote-session-gateway` (internal identifier).
+- [x] 8.1 Apply the `remote-session-gateway` delta (this change's `specs/remote-session-gateway/spec.md`): rename "Gateway session-create control frame" → "Network session-create control frame" and sweep "the gateway" → "the network host" terminology across the standing spec prose. Keep the capability id/folder `remote-session-gateway` (internal identifier).
 
 ## 9. Docs
 
