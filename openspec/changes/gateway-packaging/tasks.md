@@ -1,18 +1,18 @@
 ## 1. Rename the host project `Dmon.Gateway` → `Dmon.Network`
 
-- [ ] 1.1 `git mv frontends/Dmon.Gateway frontends/Dmon.Network` and `Dmon.Gateway.csproj` → `Dmon.Network.csproj`; set `RootNamespace`/`AssemblyName` to `Dmon.Network`.
-- [ ] 1.2 Replace `namespace Dmon.Gateway` → `namespace Dmon.Network` across all sources, and rename every `Gateway*` type to `Network*` (`GatewayOptions`→`NetworkOptions`, `IGatewayConnection`→`INetworkConnection`, `WebSocketGatewayConnection`→`WebSocketNetworkConnection`, `GatewayBindPolicy`→`NetworkBindPolicy`, `GatewayConnectionEndpoint`→`NetworkConnectionEndpoint`, `GatewayProfilePaths`/`GatewayDeviceKeyPaths`→`Network*`, etc.) plus all references.
-- [ ] 1.3 Keep `OutputType=Exe`, `TargetFramework=net10.0`, and the existing `ProjectReference`s to `core/Dmon.Runtime` and `core/Dmon.Core`.
+- [x] 1.1 `git mv frontends/Dmon.Gateway frontends/Dmon.Network` and `Dmon.Gateway.csproj` → `Dmon.Network.csproj`; set `RootNamespace`/`AssemblyName` to `Dmon.Network`.
+- [x] 1.2 Replace `namespace Dmon.Gateway` → `namespace Dmon.Network` across all sources, and rename every `Gateway*` type to `Network*` (`GatewayOptions`→`NetworkOptions`, `IGatewayConnection`→`INetworkConnection`, `WebSocketGatewayConnection`→`WebSocketNetworkConnection`, `GatewayBindPolicy`→`NetworkBindPolicy`, `GatewayConnectionEndpoint`→`NetworkConnectionEndpoint`, `GatewayProfilePaths`/`GatewayDeviceKeyPaths`→`Network*`, etc.) plus all references.
+- [x] 1.3 Keep `OutputType=Exe`, `TargetFramework=net10.0`, and the existing `ProjectReference`s to `core/Dmon.Runtime` and `core/Dmon.Core`.
 
 ## 2. Rename the test project `Dmon.Gateway.Tests` → `Dmon.Network.Tests`
 
-- [ ] 2.1 `git mv test/Dmon.Gateway.Tests test/Dmon.Network.Tests` and the csproj; update its `ProjectReference` to `frontends/Dmon.Network`.
-- [ ] 2.2 Update namespaces/usings and any `Dmon.Gateway` references in the ~20 test files to `Dmon.Network`; tests stay green.
+- [x] 2.1 `git mv test/Dmon.Gateway.Tests test/Dmon.Network.Tests` and the csproj; update its `ProjectReference` to `frontends/Dmon.Network`.
+- [x] 2.2 Update namespaces/usings and any `Dmon.Gateway` references in the ~20 test files to `Dmon.Network`; tests stay green.
 
 ## 3. Solutions and references
 
-- [ ] 3.1 Update `frontends.slnx` and `Everything.slnx` to the renamed project/test paths and names.
-- [ ] 3.2 Repath any remaining `ProjectReference`/path references to the old `Dmon.Gateway` locations.
+- [x] 3.1 Update `frontends.slnx` and `Everything.slnx` to the renamed project/test paths and names.
+- [x] 3.2 Repath any remaining `ProjectReference`/path references to the old `Dmon.Gateway` locations.
 
 ## 4. Make `Dmon.Network` an installable dotnet tool (the OOTB fix)
 
