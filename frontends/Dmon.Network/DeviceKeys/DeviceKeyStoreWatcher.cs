@@ -37,7 +37,7 @@ internal sealed class DeviceKeyStoreWatcher : IHostedService, IDisposable
     // Quiet window before a burst of FSW events triggers one Reload().
     private static readonly TimeSpan DebounceDelay = TimeSpan.FromMilliseconds(250);
 
-    internal DeviceKeyStoreWatcher(
+    public DeviceKeyStoreWatcher(
         DeviceKeySetProvider provider,
         DeviceConnectionIndex index,
         NetworkDeviceKeyPaths paths,

@@ -30,7 +30,7 @@ internal sealed class LastSeenWriter
     private readonly Dictionary<string, DateTimeOffset> _lastSeen = new(StringComparer.Ordinal);
     private readonly object _lock = new();
 
-    internal LastSeenWriter(
+    public LastSeenWriter(
         NetworkDeviceKeyPaths paths,
         IOptionsMonitor<NetworkOptions> options,
         TimeProvider timeProvider,

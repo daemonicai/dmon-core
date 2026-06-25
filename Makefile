@@ -64,5 +64,6 @@ daemon-app:
 
 network:
 	dotnet pack frontends/Dmon.Network/Dmon.Network.csproj -c $(CONFIG) -o "$(PACK_OUT)"
-	dotnet tool update --global --add-source "$(abspath $(PACK_OUT))" Dmon.Network --version 0.1.0 \
-		|| dotnet tool install --global --add-source "$(abspath $(PACK_OUT))" Dmon.Network --version 0.1.0
+	-dotnet tool uninstall --global Dmon.Network
+	rm -rf "$(HOME)/.nuget/packages/dmon.network"
+	dotnet tool install --global --add-source "$(abspath $(PACK_OUT))" Dmon.Network --version 0.1.0

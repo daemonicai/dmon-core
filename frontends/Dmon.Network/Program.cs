@@ -2,7 +2,6 @@ using Dmon.Network;
 using Dmon.Network.DeviceKeys;
 using Dmon.Network.Sessions;
 using Dmon.Runtime;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
@@ -69,42 +68,7 @@ else
     }
 }
 
-builder.Services.AddSingleton(deviceKeyPaths);
-builder.Services.AddSingleton(new DeviceKeySetProvider(startupKeySet));
-
-// --- Core infrastructure (D6 — reuse Dmon.Runtime bootstrap) ---
-builder.Services.AddSingleton<ICoreLauncher, CoreLauncher>();
-
-// --- Time provider (injectable for testability) ---
-builder.Services.AddSingleton(TimeProvider.System);
-
-// --- Device-key store hot-reload watcher ---
-builder.Services.AddHostedService<DeviceKeyStoreWatcher>();
-
-// --- Last-seen telemetry writer (network-host-owned; sole writer of lastseen.json) ---
-builder.Services.AddSingleton<LastSeenWriter>();
-
-// --- Session registry, reaper, WS endpoint handler, and device-connection index ---
-builder.Services.AddSingleton<SessionRegistry>();
-builder.Services.AddSingleton<DeviceConnectionIndex>();
-builder.Services.AddHostedService<SessionReaper>();
-builder.Services.AddSingleton<NetworkConnectionEndpoint>(sp =>
-{
-    NetworkOptions opts = sp.GetRequiredService<IOptionsMonitor<NetworkOptions>>().CurrentValue;
-    string? workspaceRoot = string.IsNullOrEmpty(opts.WorkspaceRoot)
-        ? null
-        : opts.WorkspaceRoot;
-    return new NetworkConnectionEndpoint(
-        sp.GetRequiredService<SessionRegistry>(),
-        sp.GetRequiredService<DeviceConnectionIndex>(),
-        sp.GetRequiredService<ICoreLauncher>(),
-        workspaceRoot,
-        sp.GetRequiredService<DeviceKeySetProvider>(),
-        sp.GetRequiredService<IOptionsMonitor<NetworkOptions>>(),
-        sp.GetRequiredService<TimeProvider>(),
-        sp.GetRequiredService<LastSeenWriter>(),
-        sp.GetRequiredService<ILogger<NetworkConnectionEndpoint>>());
-});
+builder.Services.AddNetworkHostServices(deviceKeyPaths, startupKeySet);
 
 WebApplication app = builder.Build();
 
