@@ -16,11 +16,11 @@
 
 ## 4. Make `Dmon.Network` an installable dotnet tool (the OOTB fix)
 
-- [ ] 4.1 In `Dmon.Network.csproj` add `PackAsTool=true`, `IsPackable=true`, `PackageId=Dmon.Network`, and `ToolCommandName=ndmon`.
-- [ ] 4.2 Add the package metadata a packable project needs (`PackageLicenseExpression` MPL-2.0 via the central `Directory.Build.props`; authors/repo URL inherited). Do NOT add a `dmoncore`/protocol NuGet dependency that would pull the tool onto the lockstep line.
-- [ ] 4.3 Give the tool an independent version property, explicitly NOT keyed to `ProtocolVersion.Current`.
-- [ ] 4.4 Update the build/release version-consistency + packability enforcement to exempt app-artifact dotnet tools (`Dmon.Network`) from the `Major.Minor == ProtocolVersion.Current` gate while still allowing it to pack. (Without this the pack fails CI.)
-- [ ] 4.5 Verify a solution-wide pack produces only the intended packages (protocol-keyed first-party set + the `Dmon.Network` tool); `Dmon.Runtime`/internal/test projects stay non-packable.
+- [x] 4.1 In `Dmon.Network.csproj` add `PackAsTool=true`, `IsPackable=true`, `PackageId=Dmon.Network`, and `ToolCommandName=ndmon`.
+- [x] 4.2 Add the package metadata a packable project needs (`PackageLicenseExpression` MPL-2.0 via the central `Directory.Build.props`; authors/repo URL inherited). Do NOT add a `dmoncore`/protocol NuGet dependency that would pull the tool onto the lockstep line.
+- [x] 4.3 Give the tool an independent version property, explicitly NOT keyed to `ProtocolVersion.Current`.
+- [x] 4.4 Update the build/release version-consistency + packability enforcement to exempt app-artifact dotnet tools (`Dmon.Network`) from the `Major.Minor == ProtocolVersion.Current` gate while still allowing it to pack. (Without this the pack fails CI.)
+- [x] 4.5 Verify a solution-wide pack produces only the intended packages (protocol-keyed first-party set + the `Dmon.Network` tool); `Dmon.Runtime`/internal/test projects stay non-packable.
 
 ## 5. `make network` target
 

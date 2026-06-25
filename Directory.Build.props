@@ -26,6 +26,10 @@
     <!-- Non-packable by default; distribution projects override this to true -->
     <IsPackable>false</IsPackable>
 
+    <!-- Protocol-keyed by default: all packable distribution packages must have Major.Minor == ProtocolVersion.Current.
+         App-artifact dotnet tools (e.g. Dmon.Network) set this to false per ADR-024 (independently versioned). -->
+    <IsProtocolKeyedPackage>true</IsProtocolKeyedPackage>
+
     <!-- SQLitePCLRaw.lib.e_sqlite3 2.1.11 (transitive via Microsoft.Data.Sqlite) carries
          GHSA-2m69-gcr7-jv3q (high). Suppressed repo-wide until Microsoft.Data.Sqlite ships
          a version that pulls in SQLitePCLRaw >= 2.1.12 where the advisory is fixed. -->
@@ -63,7 +67,7 @@
 
   <Target Name="CheckProtocolVersionSkew"
           AfterTargets="MinVer"
-          Condition="'$(IsPackable)' == 'true'">
+          Condition="'$(IsPackable)' == 'true' and '$(IsProtocolKeyedPackage)' != 'false'">
 
     <!-- Read the file lines into an item list -->
     <ReadLinesFromFile File="$(_ProtocolVersionFile)">

@@ -8,8 +8,20 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-    <!-- Network is an app host, not a distributable tool or library. -->
-    <IsPackable>false</IsPackable>
+    <!-- Network ships as a dotnet global tool (ndmon); independently versioned per ADR-024. -->
+    <IsPackable>true</IsPackable>
+    <PackAsTool>true</PackAsTool>
+    <PackageId>Dmon.Network</PackageId>
+    <ToolCommandName>ndmon</ToolCommandName>
+    <!-- App-artifact tool: exempt from protocol-keyed Major.Minor lockstep (ADR-024). -->
+    <IsProtocolKeyedPackage>false</IsProtocolKeyedPackage>
+    <!-- Independent version: override MinVer floor (repo-wide 0.2) so the tool version
+         is not tied to the protocol line. -->
+    <MinVerVersionOverride>0.1.0</MinVerVersionOverride>
+    <!-- Microsoft.NET.Sdk.Web + PackAsTool: transitive ProjectReferences each bring an
+         appsettings.json into the publish output, causing NETSDK1152. Suppressing the
+         duplicate-file error is the standard fix; it does not affect the running host. -->
+    <ErrorOnDuplicatePublishOutputFiles>false</ErrorOnDuplicatePublishOutputFiles>
     <!-- NuGet.Protocol advisory warning: informational only, does not affect correctness. -->
     <NoWarn>$(NoWarn);NU1901</NoWarn>
   </PropertyGroup>

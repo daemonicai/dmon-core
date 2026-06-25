@@ -20,3 +20,20 @@ Mechanical rename of the host project. `git mv frontends/Dmon.Gateway → fronte
 - Reviewer: clean pure rename, approved, no blockers.
 - Gates: build 0-warn, test all green (Dmon.Network.Tests 208/208), validate --strict ✓.
 - Cosmetic only: stale `Dmon.Gateway.*` files linger in git-ignored `obj/` until next `make clean`.
+
+## Block 2 — tasks 4.1–4.5 (DONE, committed)
+
+`Dmon.Network` is now a packable `PackAsTool` global tool, command `ndmon`, independently versioned and exempt from the protocol-version gate. Two files only:
+
+- **`Dmon.Network.csproj`:** `IsPackable=true`, `PackAsTool=true`, `PackageId=Dmon.Network`, `ToolCommandName=ndmon`, `IsProtocolKeyedPackage=false`, `MinVerVersionOverride=0.1.0`, `ErrorOnDuplicatePublishOutputFiles=false`.
+- **`Directory.Build.props`:** added `<IsProtocolKeyedPackage>true</IsProtocolKeyedPackage>` default (shared PropertyGroup) + tightened the `CheckProtocolVersionSkew` target condition to `'$(IsPackable)' == 'true' and '$(IsProtocolKeyedPackage)' != 'false'` (fail-closed `!= 'false'` form — a package missing the property stays gated).
+
+**Resolved decisions (for next architect):**
+- **Carve-out mechanism = `IsProtocolKeyedPackage` opt-out property** (defaults true; only `Dmon.Network` sets false). This is the reusable seam for any future app-artifact tool. Guard verified still-fires for protocol-keyed packages (`core/Dmon.Protocol` @0.9.0 → errors), does NOT fire for the tool (@0.1.0).
+- **4.2 license already satisfied centrally:** `Directory.Build.props` line ~15 has `<PackageLicenseExpression>MPL-2.0</PackageLicenseExpression>` + authors/repo/projectUrl; nuspec inherits them, no NU5125/NU5128. Worker correctly added nothing.
+- **Web SDK + PackAsTool:** `Microsoft.NET.Sdk.Web` causes NETSDK1152 (transitive `appsettings.json` dup). Resolved with `ErrorOnDuplicatePublishOutputFiles=false` (documented standard fix, behaviour-neutral) — SDK NOT changed (host needs ASP.NET Core stack). Tool layout valid: single `tools/net10.0/any/` entrypoint `Dmon.Network.dll`, command `ndmon`.
+- **Independent version = `0.1.0`** (deliberately ≠ protocol 0.2.x so the exemption is exercised); `MinVerVersionOverride` scoped to this csproj only, no leak.
+
+**Open carry-forward (NOT a blocker, for a later block / orchestrator):** the real release pipeline (`scripts/pack-core.sh` / `.github/workflows/release.yml`) is an explicit allow-list and was deliberately NOT touched. If `ndmon` should ship via that pipeline it needs a later wiring decision — proposal/design treat nuget.org publish of the tool as a follow-on (out of scope here). 4.5 was satisfied by local-pack demonstration, not a pipeline edit.
+
+## Block 3 — Group 5 (`make network`) is the next natural block.
