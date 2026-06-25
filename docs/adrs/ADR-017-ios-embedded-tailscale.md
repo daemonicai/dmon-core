@@ -4,6 +4,8 @@
 **Status:** Proposed
 **Amends:** ADR-012 (Decision 12, final bullet)
 
+> **Amendment (2026-06-25, change `gateway-packaging`) — terminology only:** the `Dmon.Gateway` host is renamed `Dmon.Network` (tool command `ndmon`); read "gateway"/"the gateway" as "the network host" throughout. No numbered decision changes — see ADR-033.
+
 ## Context
 
 ADR-012 made Tailscale the authentication and encryption boundary for the remote gateway: the `Dmon.Gateway` host binds loopback, `tailscale serve` fronts it on the tailnet with a Let's Encrypt cert for the server's MagicDNS name, and the iOS client connects to `wss://<host>.<tailnet>.ts.net`. That ADR's Decision 12 deliberately left the **client's** path onto the tailnet open: *"V1 expects the system Tailscale app … Embedding `libtailscale` / TailscaleKit for a self-contained app (no dependency on the Tailscale app) is a future option and changes nothing server-side."*

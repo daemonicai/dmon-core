@@ -14,7 +14,7 @@ enum HealthStatus: Equatable {
 
 /// Snapshot of one component's health, as published into `HealthRegistry`.
 struct ComponentHealth: Equatable {
-    /// Human-readable component name, e.g. "Gateway", "Dcal", "Tailscale".
+    /// Human-readable component name, e.g. "Network", "Dcal", "Tailscale".
     let name: String
     let status: HealthStatus
     /// Optional detail string for display (e.g. error description, exit code).

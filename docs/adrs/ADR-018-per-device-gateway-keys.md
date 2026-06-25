@@ -4,6 +4,8 @@
 **Status:** Accepted
 **Amends:** ADR-012 (Decisions 10 & 12; extends Decision 6's fencing trigger)
 
+> **Amendment (2026-06-25, change `gateway-packaging`) — terminology only:** the `Dmon.Gateway` host is renamed `Dmon.Network` (tool command `ndmon`); read "gateway"/"the gateway" as "the network host" throughout. No numbered decision changes — see ADR-033.
+
 ## Context
 
 ADR-012 made Tailscale the authentication and encryption boundary for the remote

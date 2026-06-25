@@ -84,54 +84,54 @@ final class HealthClassificationTests: XCTestCase {
     }
 
     @MainActor
-    func testRollup_gatewayStopped_alwaysRed() {
-        // Decision 3: gatewayStopped → red regardless of component states.
+    func testRollup_networkStopped_alwaysRed() {
+        // Decision 3: networkStopped → red regardless of component states.
         let result = HealthRegistry.rollup(
-            gatewayStopped: true,
+            networkStopped: true,
             components: [component(.ok), component(.ok)]
         )
         XCTAssertEqual(result, .red)
     }
 
     @MainActor
-    func testRollup_gatewayRunning_withDown_isRed() {
+    func testRollup_networkRunning_withDown_isRed() {
         let result = HealthRegistry.rollup(
-            gatewayStopped: false,
+            networkStopped: false,
             components: [component(.ok), component(.down)]
         )
         XCTAssertEqual(result, .red)
     }
 
     @MainActor
-    func testRollup_gatewayRunning_withDegraded_isAmber() {
+    func testRollup_networkRunning_withDegraded_isAmber() {
         let result = HealthRegistry.rollup(
-            gatewayStopped: false,
+            networkStopped: false,
             components: [component(.ok), component(.degraded)]
         )
         XCTAssertEqual(result, .amber)
     }
 
     @MainActor
-    func testRollup_gatewayRunning_withUnknown_isAmber() {
+    func testRollup_networkRunning_withUnknown_isAmber() {
         let result = HealthRegistry.rollup(
-            gatewayStopped: false,
+            networkStopped: false,
             components: [component(.ok), component(.unknown)]
         )
         XCTAssertEqual(result, .amber)
     }
 
     @MainActor
-    func testRollup_gatewayRunning_allOk_isGreen() {
+    func testRollup_networkRunning_allOk_isGreen() {
         let result = HealthRegistry.rollup(
-            gatewayStopped: false,
+            networkStopped: false,
             components: [component(.ok), component(.ok)]
         )
         XCTAssertEqual(result, .green)
     }
 
     @MainActor
-    func testRollup_empty_gatewayRunning_isGreen() {
-        let result = HealthRegistry.rollup(gatewayStopped: false, components: [])
+    func testRollup_empty_networkRunning_isGreen() {
+        let result = HealthRegistry.rollup(networkStopped: false, components: [])
         XCTAssertEqual(result, .green)
     }
 
@@ -139,7 +139,7 @@ final class HealthClassificationTests: XCTestCase {
     @MainActor
     func testRollup_downBeatsDegraded() {
         let result = HealthRegistry.rollup(
-            gatewayStopped: false,
+            networkStopped: false,
             components: [component(.degraded), component(.down), component(.ok)]
         )
         XCTAssertEqual(result, .red, "A .down component must produce .red even when .degraded is present")
@@ -190,17 +190,17 @@ final class HealthClassificationTests: XCTestCase {
     @MainActor
     func testRollupPresentation_scenario_allHealthy_isGreen() {
         let rollup = HealthRegistry.rollup(
-            gatewayStopped: false,
+            networkStopped: false,
             components: [component(.ok), component(.ok)]
         )
         XCTAssertEqual(rollupPresentation(rollup), .healthyGreen)
     }
 
-    // Scenario: Gateway stopped → presentation token is criticalRed.
+    // Scenario: Network stopped → presentation token is criticalRed.
     @MainActor
-    func testRollupPresentation_scenario_gatewayStopped_isCriticalRed() {
+    func testRollupPresentation_scenario_networkStopped_isCriticalRed() {
         let rollup = HealthRegistry.rollup(
-            gatewayStopped: true,
+            networkStopped: true,
             components: [component(.ok)]
         )
         XCTAssertEqual(rollupPresentation(rollup), .criticalRed)
@@ -210,7 +210,7 @@ final class HealthClassificationTests: XCTestCase {
     @MainActor
     func testRollupPresentation_scenario_dependencyDown_isCriticalRed() {
         let rollup = HealthRegistry.rollup(
-            gatewayStopped: false,
+            networkStopped: false,
             components: [component(.ok), component(.down)]
         )
         XCTAssertEqual(rollupPresentation(rollup), .criticalRed)
@@ -220,7 +220,7 @@ final class HealthClassificationTests: XCTestCase {
     @MainActor
     func testRollupPresentation_scenario_tailscaleDegraded_isWarningAmber() {
         let rollup = HealthRegistry.rollup(
-            gatewayStopped: false,
+            networkStopped: false,
             components: [component(.ok), component(.degraded)]
         )
         XCTAssertEqual(rollupPresentation(rollup), .warningAmber)

@@ -5,7 +5,7 @@ import XCTest
 
 // DaemonController is @MainActor; all test methods must run on the main actor.
 // In the test environment no executables are resolved (DMON_*_SERVER_PATH and the
-// gateway binary path are unset), so start() is a no-op and isRunning stays false.
+// network binary path are unset), so start() is a no-op and isRunning stays false.
 // No network I/O occurs; tests are synchronous after bootstrap().
 @MainActor
 final class DaemonControllerTests: XCTestCase {
@@ -42,18 +42,18 @@ final class DaemonControllerTests: XCTestCase {
         )
     }
 
-    func testBootstrap_secondCall_doesNotStartGatewayAgain() {
+    func testBootstrap_secondCall_doesNotStartNetworkAgain() {
         let controller = DaemonController()
         controller.bootstrap()
-        // GatewayManager.start() delegates to ServerProcessManager.start() which is
-        // adoption-guarded.  After bootstrap() the gateway is not running (no binary),
+        // NetworkManager.start() delegates to ServerProcessManager.start() which is
+        // adoption-guarded.  After bootstrap() the network is not running (no binary),
         // so isRunning is false.  Calling bootstrap() again must not change that.
-        let runningAfterFirst = controller.gateway.isRunning
+        let runningAfterFirst = controller.network.isRunning
         controller.bootstrap() // no-op
         XCTAssertEqual(
-            controller.gateway.isRunning,
+            controller.network.isRunning,
             runningAfterFirst,
-            "A second bootstrap() must not alter the gateway's running state"
+            "A second bootstrap() must not alter the network's running state"
         )
     }
 }

@@ -4,15 +4,15 @@
 TBD - created by archiving change remote-session-gateway. Update Purpose after archive.
 ## Requirements
 ### Requirement: WebSocket transport with near-verbatim forwarding
-The `Dmon.Gateway` host SHALL expose a WebSocket endpoint that forwards ADR-003 command and event JSON between the client and a `dmoncore` process as text frames without reshaping the command/event payloads. Client frames SHALL be written to the core's stdin and core stdout events SHALL be sent to the currently attached connection. The gateway SHALL reuse `Dmon.Runtime`'s `CoreProcessManager` (ADR-011) to discover, spawn, and manage the core process.
+The `Dmon.Network` host SHALL expose a WebSocket endpoint that forwards ADR-003 command and event JSON between the client and a `dmoncore` process as text frames without reshaping the command/event payloads. Client frames SHALL be written to the core's stdin and core stdout events SHALL be sent to the currently attached connection. The network host SHALL reuse `Dmon.Runtime`'s `CoreProcessManager` (ADR-011) to discover, spawn, and manage the core process.
 
 #### Scenario: Command forwarded to the core
 - **WHEN** a client sends an ADR-003 command frame over the WebSocket
-- **THEN** the gateway writes the unchanged command JSON to the owning session's core stdin
+- **THEN** the network host writes the unchanged command JSON to the owning session's core stdin
 
 #### Scenario: Event forwarded to the client
 - **WHEN** the core emits an ADR-003 event on stdout and a connection is attached
-- **THEN** the gateway sends the unchanged event JSON to that connection as a text frame
+- **THEN** the network host sends the unchanged event JSON to that connection as a text frame
 
 ### Requirement: Session handler outlives the connection
 A `SessionHandler` SHALL own exactly one `dmoncore` process for one `sessionId` and SHALL be held in an in-memory session registry keyed by `sessionId`. A WebSocket connection SHALL attach to a handler on connect and detach on disconnect; the handler SHALL persist across detach so a later reconnect re-attaches to the same running core. The stdio pump SHALL bind to the handler, not to any single connection.
@@ -23,28 +23,28 @@ A `SessionHandler` SHALL own exactly one `dmoncore` process for one `sessionId` 
 
 #### Scenario: Events buffered while detached
 - **WHEN** the core emits events while no connection is attached
-- **THEN** the gateway durably retains them for later replay rather than discarding them
+- **THEN** the network host durably retains them for later replay rather than discarding them
 
 ### Requirement: Connection-control sub-protocol
-The gateway SHALL define connection-control frames layered around the unchanged ADR-003 messages: `attach` (client→gateway: `sessionId`, `lastSeq`), `attached` (gateway→client: `generation`, `headSeq`), `ack` (gateway→client: command `id`), and `ping`/`pong` (both directions). The ADR-003 command/event wire shapes SHALL NOT be modified by this change.
+The network host SHALL define connection-control frames layered around the unchanged ADR-003 messages: `attach` (client→host: `sessionId`, `lastSeq`), `attached` (host→client: `generation`, `headSeq`), `ack` (host→client: command `id`), and `ping`/`pong` (both directions). The ADR-003 command/event wire shapes SHALL NOT be modified by this change.
 
 #### Scenario: Attach acknowledged with generation and head
 - **WHEN** a client sends an `attach` for an existing session
-- **THEN** the gateway replies `attached` carrying the new `generation` and the current `headSeq`
+- **THEN** the network host replies `attached` carrying the new `generation` and the current `headSeq`
 
 #### Scenario: ADR-003 shapes unchanged
 - **WHEN** command and event frames are inspected on the wire
 - **THEN** they are byte-compatible with the ADR-003 stdio shapes, and control frames are additive and distinguishable
 
 ### Requirement: Per-session event sequencing
-The gateway SHALL assign a monotonic per-session sequence number (`seq`) to every server→client event as it flows out, and SHALL retain the sequenced events in the live handler's in-memory `seq`-indexed buffer (ADR-014; the core's `messages.jsonl` is the conversational store, written only by the core, and is not the event-stream backing). The `headSeq` reported at attach SHALL reflect the highest assigned `seq` for the session.
+The network host SHALL assign a monotonic per-session sequence number (`seq`) to every server→client event as it flows out, and SHALL retain the sequenced events in the live handler's in-memory `seq`-indexed buffer (ADR-014; the core's `messages.jsonl` is the conversational store, written only by the core, and is not the event-stream backing). The `headSeq` reported at attach SHALL reflect the highest assigned `seq` for the session.
 
 #### Scenario: Monotonic sequence
 - **WHEN** the core emits a series of events for a session
 - **THEN** each is assigned a strictly increasing `seq`, with no gaps or reuse within the session
 
 ### Requirement: Replay on reattach
-On `attach`, the gateway SHALL deliver every event with `seq` greater than the client's `lastSeq` up to `headSeq`, then resume live delivery. The gateway SHALL subscribe to the live stream before replaying history from the handler's retained `seq`-indexed buffer (ADR-014) and dedupe by `seq`, so events arriving during replay are neither dropped nor duplicated.
+On `attach`, the network host SHALL deliver every event with `seq` greater than the client's `lastSeq` up to `headSeq`, then resume live delivery. The network host SHALL subscribe to the live stream before replaying history from the handler's retained `seq`-indexed buffer (ADR-014) and dedupe by `seq`, so events arriving during replay are neither dropped nor duplicated.
 
 #### Scenario: Missed events replayed in order
 - **WHEN** a client reattaches with `lastSeq = N` and the session's `headSeq = M` (M > N)
@@ -55,18 +55,18 @@ On `attach`, the gateway SHALL deliver every event with `seq` greater than the c
 - **THEN** the client receives that event exactly once
 
 ### Requirement: Command idempotency across reconnects
-The gateway SHALL acknowledge each received command by its ADR-003 `id`. A reattaching client MAY resend commands it has not seen acked; the gateway SHALL dedupe by `id` so a command delivered to the core before a drop is not executed twice.
+The network host SHALL acknowledge each received command by its ADR-003 `id`. A reattaching client MAY resend commands it has not seen acked; the network host SHALL dedupe by `id` so a command delivered to the core before a drop is not executed twice.
 
 #### Scenario: Resent command deduped
-- **WHEN** a client resends a command whose `id` the gateway has already accepted for that session
-- **THEN** the gateway does not deliver it to the core a second time and re-acks the `id`
+- **WHEN** a client resends a command whose `id` the network host has already accepted for that session
+- **THEN** the network host does not deliver it to the core a second time and re-acks the `id`
 
 ### Requirement: Stale-connection fencing and single active writer
-Each `attach` SHALL be issued a strictly increasing `generation` token. The gateway SHALL drop and close any connection whose generation is older than the handler's current generation. A new attach to a live handler SHALL evict (fence and close) the prior connection, so a session has a single active writer. Revocation of a device key SHALL additionally trigger this fencing: when a key transitions to revoked, the gateway SHALL close any currently-attached connection tagged with that `keyId`, across all sessions, reusing the same evict-and-close path.
+Each `attach` SHALL be issued a strictly increasing `generation` token. The network host SHALL drop and close any connection whose generation is older than the handler's current generation. A new attach to a live handler SHALL evict (fence and close) the prior connection, so a session has a single active writer. Revocation of a device key SHALL additionally trigger this fencing: when a key transitions to revoked, the network host SHALL close any currently-attached connection tagged with that `keyId`, across all sessions, reusing the same evict-and-close path.
 
 #### Scenario: Older generation fenced
 - **WHEN** a frame arrives on a connection whose generation is less than the handler's current generation
-- **THEN** the gateway ignores the frame and closes that connection
+- **THEN** the network host ignores the frame and closes that connection
 
 #### Scenario: New attach evicts the prior connection
 - **WHEN** a new `attach` succeeds for a session that already has an attached connection
@@ -74,28 +74,28 @@ Each `attach` SHALL be issued a strictly increasing `generation` token. The gate
 
 #### Scenario: Revocation fences live connections for that key
 - **WHEN** a device key is marked revoked while one or more live connections are tagged with its `keyId`
-- **THEN** the gateway closes every such connection, regardless of which session each is attached to
+- **THEN** the network host closes every such connection, regardless of which session each is attached to
 
 ### Requirement: Running-turn-aware detached lifetime
-On detected detach, the gateway SHALL start a grace timer. An idle detached handler (no turn in flight) SHALL be reaped after a configurable idle TTL. A detached handler with a turn in flight SHALL be retained until the turn completes, after which the idle TTL applies, bounded by a configurable absolute maximum. The number of concurrently live handlers SHALL be bounded by a configurable cap.
+On detected detach, the network host SHALL start a grace timer. An idle detached handler (no turn in flight) SHALL be reaped after a configurable idle TTL. A detached handler with a turn in flight SHALL be retained until the turn completes, after which the idle TTL applies, bounded by a configurable absolute maximum. The number of concurrently live handlers SHALL be bounded by a configurable cap.
 
 #### Scenario: Idle detached handler reaped
 - **WHEN** a handler has been detached with no turn in flight for longer than the idle TTL
-- **THEN** the gateway terminates its `dmoncore` process and removes it from the registry
+- **THEN** the network host terminates its `dmoncore` process and removes it from the registry
 
 #### Scenario: In-flight turn survives detach
 - **WHEN** a connection drops while a turn is running
 - **THEN** the handler is retained until the turn completes (bounded by the absolute maximum) rather than reaped at the idle TTL
 
 ### Requirement: Heartbeat liveness
-The gateway SHALL operate application-level `ping`/`pong` heartbeats on a configurable interval to keep the connection alive across carrier NAT idle-timeouts and to detect dead connections. The detached-lifetime grace timer SHALL begin on *detected* disconnect.
+The network host SHALL operate application-level `ping`/`pong` heartbeats on a configurable interval to keep the connection alive across carrier NAT idle-timeouts and to detect dead connections. The detached-lifetime grace timer SHALL begin on *detected* disconnect.
 
 #### Scenario: Dead connection detected and detached
 - **WHEN** heartbeats are not answered within the configured interval
-- **THEN** the gateway treats the connection as detached and starts the detached-lifetime grace timer
+- **THEN** the network host treats the connection as detached and starts the detached-lifetime grace timer
 
 ### Requirement: Permission prompts park while detached
-While a session is detached, a turn that reaches an ADR-006 permission gate SHALL park: the gateway SHALL neither auto-approve nor auto-deny the request. On reattach the parked request SHALL be delivered to the client; if the handler is reaped under its TTL before reattach, the parked request SHALL be abandoned with the turn.
+While a session is detached, a turn that reaches an ADR-006 permission gate SHALL park: the network host SHALL neither auto-approve nor auto-deny the request. On reattach the parked request SHALL be delivered to the client; if the handler is reaped under its TTL before reattach, the parked request SHALL be abandoned with the turn.
 
 #### Scenario: Prompt withheld while detached
 - **WHEN** a turn reaches a permission gate and no connection is attached
@@ -103,13 +103,13 @@ While a session is detached, a turn that reaches an ADR-006 permission gate SHAL
 
 #### Scenario: Parked prompt delivered on reattach
 - **WHEN** a client reattaches while a permission request is parked
-- **THEN** the gateway delivers that request to the client for resolution
+- **THEN** the network host delivers that request to the client for resolution
 
 ### Requirement: Tailscale-fronted authentication
-The gateway SHALL bind to loopback by default and SHALL NOT listen on a public network interface. Transport encryption, device identity, and per-device revocation SHALL be delegated to Tailscale (`tailscale serve` fronts the loopback gateway with a Let's Encrypt certificate for the MagicDNS name). The gateway MAY additionally require a device key presented as `Authorization: Bearer <token>` on the WebSocket upgrade, validated against a **per-device key set** of credential entries `{keyId, name, secretHash, createdAt, revokedAt?}`. The presented token SHALL be matched against the **active** (non-revoked) entries by hashing it (SHA-256) and comparing in constant time (`FixedTimeEquals`). On a match the upgrade SHALL be authorized and the resulting connection SHALL be tagged with the matched `keyId`. A missing token, a token matching no active entry, or a token matching only a revoked entry SHALL reject the upgrade with HTTP 401 before any socket is opened. When the active key set is **empty** the check SHALL be disabled and every upgrade authorized, identical to an unconfigured key today. Device keys are per-device, never per-session; a device key authenticates the *connection*, and `sessionId` SHALL remain a routing key and never an authentication credential.
+The network host SHALL bind to loopback by default and SHALL NOT listen on a public network interface. Transport encryption, device identity, and per-device revocation SHALL be delegated to Tailscale (`tailscale serve` fronts the loopback network host with a Let's Encrypt certificate for the MagicDNS name). The network host MAY additionally require a device key presented as `Authorization: Bearer <token>` on the WebSocket upgrade, validated against a **per-device key set** of credential entries `{keyId, name, secretHash, createdAt, revokedAt?}`. The presented token SHALL be matched against the **active** (non-revoked) entries by hashing it (SHA-256) and comparing in constant time (`FixedTimeEquals`). On a match the upgrade SHALL be authorized and the resulting connection SHALL be tagged with the matched `keyId`. A missing token, a token matching no active entry, or a token matching only a revoked entry SHALL reject the upgrade with HTTP 401 before any socket is opened. When the active key set is **empty** the check SHALL be disabled and every upgrade authorized, identical to an unconfigured key today. Device keys are per-device, never per-session; a device key authenticates the *connection*, and `sessionId` SHALL remain a routing key and never an authentication credential.
 
 #### Scenario: Loopback bind by default
-- **WHEN** the gateway starts with no explicit bind address
+- **WHEN** the network host starts with no explicit bind address
 - **THEN** it listens only on loopback
 
 #### Scenario: Empty key set disables the check
@@ -125,74 +125,74 @@ The gateway SHALL bind to loopback by default and SHALL NOT listen on a public n
 - **THEN** the upgrade is rejected with HTTP 401 and no WebSocket is established
 
 ### Requirement: File-backed device-key store with hot reload
-The gateway SHALL source its active device-key set from a local, root-owned, mode-`0600` `devices.json` under its state directory, which it treats as read-only (the operator app is the sole writer). The gateway SHALL watch that file and reload the active set when it changes, so pairing and revocation take effect without a gateway restart. When the file is malformed or transiently unreadable, the gateway SHALL retain the last known-good set in force and log the failure (fail closed to the previously-known-good credentials, never fail open to "disabled"). The gateway SHALL record per-`keyId` last-seen activity to a separate gateway-owned `lastseen.json` for operator attribution, written on attach and throttled to bound write amplification; the gateway is the sole writer of that file.
+The network host SHALL source its active device-key set from a local, root-owned, mode-`0600` `devices.json` under its state directory, which it treats as read-only (the operator app is the sole writer). The network host SHALL watch that file and reload the active set when it changes, so pairing and revocation take effect without a network host restart. When the file is malformed or transiently unreadable, the network host SHALL retain the last known-good set in force and log the failure (fail closed to the previously-known-good credentials, never fail open to "disabled"). The network host SHALL record per-`keyId` last-seen activity to a separate network-host-owned `lastseen.json` for operator attribution, written on attach and throttled to bound write amplification; the network host is the sole writer of that file.
 
 #### Scenario: Pairing takes effect without restart
-- **WHEN** a new credential entry is appended to `devices.json` while the gateway is running
-- **THEN** the gateway reloads and a subsequent upgrade bearing that entry's token is authorized, with no restart
+- **WHEN** a new credential entry is appended to `devices.json` while the network host is running
+- **THEN** the network host reloads and a subsequent upgrade bearing that entry's token is authorized, with no restart
 
 #### Scenario: Revocation takes effect without restart
-- **WHEN** an entry in `devices.json` gains a `revokedAt` value while the gateway is running
-- **THEN** the gateway reloads, subsequent upgrades bearing that token are rejected with HTTP 401, and any live connection tagged with that `keyId` is fenced
+- **WHEN** an entry in `devices.json` gains a `revokedAt` value while the network host is running
+- **THEN** the network host reloads, subsequent upgrades bearing that token are rejected with HTTP 401, and any live connection tagged with that `keyId` is fenced
 
 #### Scenario: Malformed store retains last known-good set
 - **WHEN** `devices.json` becomes malformed or unreadable after a valid load
-- **THEN** the gateway keeps the previously-loaded active set in force and logs the failure rather than disabling the check
+- **THEN** the network host keeps the previously-loaded active set in force and logs the failure rather than disabling the check
 
 #### Scenario: Last-seen recorded on attach
 - **WHEN** a connection tagged with a `keyId` attaches
-- **THEN** the gateway records a last-seen timestamp for that `keyId` in `lastseen.json`, subject to the configured throttle
+- **THEN** the network host records a last-seen timestamp for that `keyId` in `lastseen.json`, subject to the configured throttle
 
 ### Requirement: Profile-selecting session creation
-Session creation SHALL allocate a `sessionId`, select an **agent** — the name of a `.cs` composition root resolved under the gateway's configured workspace root (ADR-022 D14), never a client-supplied path — provision the per-session storage directory (ADR-004), and spawn the `SessionHandler`. A requested agent that does not resolve to a `.cs` composition root under the configured workspace root SHALL fail session creation with an actionable error.
+Session creation SHALL allocate a `sessionId`, select an **agent** — the name of a `.cs` composition root resolved under the network host's configured workspace root (ADR-022 D14), never a client-supplied path — provision the per-session storage directory (ADR-004), and spawn the `SessionHandler`. A requested agent that does not resolve to a `.cs` composition root under the configured workspace root SHALL fail session creation with an actionable error.
 
 #### Scenario: Session created under an agent
 - **WHEN** a client creates a session specifying an agent
-- **THEN** the gateway spawns a handler whose core runs that agent's `.cs` composition root and returns the new `sessionId`
+- **THEN** the network host spawns a handler whose core runs that agent's `.cs` composition root and returns the new `sessionId`
 
 #### Scenario: Unknown agent fails creation
 - **WHEN** session creation requests an agent that does not resolve to a `.cs` composition root under the configured workspace root
 - **THEN** creation fails with an actionable error and no handler is spawned
 
 ### Requirement: Single server instance for V1
-The session registry SHALL be in-process and `sessionId → SessionHandler` affinity SHALL be local to the single gateway instance. The gateway SHALL NOT attempt to migrate a live session to another instance or share the registry across instances in V1.
+The session registry SHALL be in-process and `sessionId → SessionHandler` affinity SHALL be local to the single network host instance. The network host SHALL NOT attempt to migrate a live session to another instance or share the registry across instances in V1.
 
 #### Scenario: Reattach requires the owning instance
 - **WHEN** a client reattaches with a `sessionId`
-- **THEN** the attach is served by the same gateway instance that holds that session's handler
+- **THEN** the attach is served by the same network host instance that holds that session's handler
 
-### Requirement: Gateway session-create control frame
-The gateway WebSocket surface SHALL accept a `create` control frame carrying an optional `agent`, in addition to the existing `attach` frame. On a successful create the gateway SHALL spawn a `dmoncore` process, drive it to create a session under the requested agent, register the resulting `SessionHandler`, and reply with a typed `created` frame carrying the new `sessionId` (ADR-015 — a typed, correlated result, not a generic response envelope). The `agent` value SHALL name a `.cs` composition root resolved under the gateway's configured workspace root and SHALL NOT be a client-supplied path. The client SHALL then `attach` to that `sessionId` through the existing attach flow. A create frame SHALL be valid as a first frame on a connection, alongside `attach`.
+### Requirement: Network session-create control frame
+The network host WebSocket surface SHALL accept a `create` control frame carrying an optional `agent`, in addition to the existing `attach` frame. On a successful create the network host SHALL spawn a `dmoncore` process, drive it to create a session under the requested agent, register the resulting `SessionHandler`, and reply with a typed `created` frame carrying the new `sessionId` (ADR-015 — a typed, correlated result, not a generic response envelope). The `agent` value SHALL name a `.cs` composition root resolved under the network host's configured workspace root and SHALL NOT be a client-supplied path. The client SHALL then `attach` to that `sessionId` through the existing attach flow. A create frame SHALL be valid as a first frame on a connection, alongside `attach`.
 
 #### Scenario: Create spawns an agent-bound session
 - **WHEN** a client sends `create {agent: "researcher"}` and `researcher` resolves to a `.cs` composition root under the configured workspace root
-- **THEN** the gateway spawns a core, creates a session whose record stores `agent` = `"researcher"`, registers the handler, and replies `created {sessionId}`
+- **THEN** the network host spawns a core, creates a session whose record stores `agent` = `"researcher"`, registers the handler, and replies `created {sessionId}`
 
 #### Scenario: Create without an agent
 - **WHEN** a client sends `create {}` with no agent
-- **THEN** the gateway spawns a core, creates a session with no stored agent (resolving to the default `.cs` composition root), registers the handler, and replies `created {sessionId}`
+- **THEN** the network host spawns a core, creates a session with no stored agent (resolving to the default `.cs` composition root), registers the handler, and replies `created {sessionId}`
 
 #### Scenario: Client attaches to the created session
 - **WHEN** the client has received `created {sessionId}`
 - **THEN** sending `attach {sessionId, lastSeq: 0}` attaches to the spawned handler through the existing attach flow
 
 ### Requirement: Pre-spawn profile validation rejects unknown profiles
-The gateway SHALL validate the requested **agent** against the agents resolvable under the configured workspace root **before** spawning any core process. A requested agent that does not resolve to a `.cs` composition root SHALL be rejected with a typed, actionable error naming the unknown agent, and SHALL NOT spawn a core, SHALL NOT register a handler, and SHALL NOT consume a slot against the concurrent-handler cap. The agent name SHALL be resolved under the configured workspace root only; a client-supplied path SHALL NOT be accepted. Validation at the gateway is an early-rejection convenience; the core's own first-turn resolution remains authoritative.
+The network host SHALL validate the requested **agent** against the agents resolvable under the configured workspace root **before** spawning any core process. A requested agent that does not resolve to a `.cs` composition root SHALL be rejected with a typed, actionable error naming the unknown agent, and SHALL NOT spawn a core, SHALL NOT register a handler, and SHALL NOT consume a slot against the concurrent-handler cap. The agent name SHALL be resolved under the configured workspace root only; a client-supplied path SHALL NOT be accepted. Validation at the network host is an early-rejection convenience; the core's own first-turn resolution remains authoritative.
 
 #### Scenario: Unknown agent rejected without spawning
 - **WHEN** a client sends `create {agent: "nope"}` and `nope` does not resolve to a `.cs` composition root under the configured workspace root
-- **THEN** the gateway replies with an actionable error naming `nope`, spawns no core, and registers no handler
+- **THEN** the network host replies with an actionable error naming `nope`, spawns no core, and registers no handler
 
 #### Scenario: No handler leaked on rejection
 - **WHEN** a create is rejected for an unknown agent
 - **THEN** the registry handler count is unchanged and no orphaned core process remains
 
 ### Requirement: Cap-enforced create registration
-The gateway SHALL register a newly created session's handler under the concurrent-handler cap (`MaxConcurrentHandlers`) using the cap-enforcing registration primitive. When the cap is already reached, create SHALL fail with a typed, actionable error and SHALL tear down any core it spawned for that create, leaving no orphaned process and no registry entry. Reattaching to an existing session SHALL NOT be subject to the cap.
+The network host SHALL register a newly created session's handler under the concurrent-handler cap (`MaxConcurrentHandlers`) using the cap-enforcing registration primitive. When the cap is already reached, create SHALL fail with a typed, actionable error and SHALL tear down any core it spawned for that create, leaving no orphaned process and no registry entry. Reattaching to an existing session SHALL NOT be subject to the cap.
 
 #### Scenario: Create rejected at the cap
 - **WHEN** the registry already holds `MaxConcurrentHandlers` handlers and a client sends a valid `create`
-- **THEN** the gateway replies with an actionable cap error, the spawned core (if any) is torn down, and no new handler is registered
+- **THEN** the network host replies with an actionable cap error, the spawned core (if any) is torn down, and no new handler is registered
 
 #### Scenario: Reattach is exempt from the cap
 - **WHEN** the cap is reached and a client `attach`es to an already-registered session
@@ -200,7 +200,7 @@ The gateway SHALL register a newly created session's handler under the concurren
 
 ### Requirement: Create-handshake results are excluded from the event stream
 
-During `create`, the gateway SHALL fully consume the `session.create` and `session.load`
+During `create`, the network host SHALL fully consume the `session.create` and `session.load`
 handshake result events (`session.createResult`, `session.loadResult`) before the session's
 `SessionHandler` begins assigning per-session sequence numbers (ADR-014). As a consequence,
 those handshake result events SHALL NOT be assigned a `seq`, SHALL NOT enter the handler's
@@ -210,7 +210,7 @@ or `session.loadResult`.
 
 #### Scenario: Handshake results never reach the seq stream
 
-- **WHEN** the gateway handles a `create` control frame, drives the `session.create` →
+- **WHEN** the network host handles a `create` control frame, drives the `session.create` →
   path-less `session.load` handshake to success, registers the resulting `SessionHandler`, and
   then forwards subsequent core events to an attached client
 - **THEN** no event carrying `seq` is a `session.createResult` or `session.loadResult`; the
@@ -219,7 +219,7 @@ or `session.loadResult`.
 
 #### Scenario: Create success reports the new session id
 
-- **WHEN** the gateway handles a `create` control frame and the core completes the handshake
-- **THEN** the gateway replies with a typed `created` frame carrying the `sessionId` returned by
+- **WHEN** the network host handles a `create` control frame and the core completes the handshake
+- **THEN** the network host replies with a typed `created` frame carrying the `sessionId` returned by
   the core, and the session's handler is registered and attachable under that `sessionId`
 

@@ -14,7 +14,7 @@ struct ServerProcessConfig {
     // PID file used for adopt-on-start and cleanup.
     let pidFileURL: URL
     // Base environment entries injected at launch (merged over inherited env).
-    // Mutable: callers may append keys before each start (e.g. GatewayManager
+    // Mutable: callers may append keys before each start (e.g. NetworkManager
     // sets settingsEnvironment here before delegating to start()).
     var baseEnvironment: [String: String] = [:]
 }
@@ -30,7 +30,7 @@ final class ServerProcessManager: ObservableObject {
     @Published private(set) var lastExitCode: Int32?
 
     var config: ServerProcessConfig
-    // Mutable so GatewayManager can point it at the current settingsEnvironment.
+    // Mutable so NetworkManager can point it at the current settingsEnvironment.
     var additionalEnvironment: [String: String] = [:]
 
     private var process: Process?

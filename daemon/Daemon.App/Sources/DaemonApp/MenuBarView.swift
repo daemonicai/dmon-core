@@ -2,7 +2,7 @@ import SwiftUI
 
 struct MenuBarView: View {
 
-    @EnvironmentObject var gateway: GatewayManager
+    @EnvironmentObject var network: NetworkManager
     @EnvironmentObject var tailscale: TailscaleMonitor
     @EnvironmentObject var health: DcalHealthMonitor
     @EnvironmentObject var healthRegistry: HealthRegistry
@@ -27,12 +27,12 @@ struct MenuBarView: View {
 
         Divider()
 
-        // Start/Stop Gateway
-        Button(gateway.isRunning ? "Stop Gateway" : "Start Gateway") {
-            if gateway.isRunning {
-                gateway.stop()
+        // Start/Stop Network
+        Button(network.isRunning ? "Stop Network" : "Start Network") {
+            if network.isRunning {
+                network.stop()
             } else {
-                gateway.start()
+                network.start()
             }
         }
 

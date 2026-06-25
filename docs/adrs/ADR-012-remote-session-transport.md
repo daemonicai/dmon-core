@@ -3,6 +3,8 @@
 **Date:** 2026-05-31
 **Status:** Accepted
 
+> **Amendment (2026-06-25, change `gateway-packaging`) — terminology only:** the `Dmon.Gateway` host is renamed `Dmon.Network` (tool command `ndmon`); read "gateway"/"the gateway" as "the network host" throughout. No numbered decision changes — see ADR-033.
+
 ## Context
 
 `dmoncore` speaks JSONL over stdio (ADR-003): the host writes commands `{"id","type",…}` to the core's stdin and reads events `{"id","event",…}` from its stdout. This is already a full-duplex, asynchronous, id-correlated message stream — stdin is an ordered, flow-controlled command channel; stdout is the event channel. Today the only consumer is a local host (`Dmon.Terminal`) that spawns the core as a child process via `Dmon.Runtime`'s `CoreProcessManager` (ADR-011).

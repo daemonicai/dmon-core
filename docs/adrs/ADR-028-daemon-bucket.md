@@ -7,6 +7,8 @@
 
 > **Amendment (2026-06-24, change `dmonium-windowed-dashboard`) — framing only:** `dmonium` is now **window-primary** — a `WindowGroup` dashboard with a Dock icon and Cmd-Tab presence (`.regular` activation), plus an **optional, default-off** menu-bar glance. The "always-on, **no-dock host**" rationale (Context §1) and the "**menu bar app**" descriptive labels (Decision D1/D2) are superseded by this framing. **No numbered decision changes** (bucket placement, Swift-in-repo, the `dcal` rename, the release matrix all stand), so this is an in-place amendment, not a superseding ADR.
 
+> **Amendment (2026-06-25, change `gateway-packaging`) — terminology only:** the `Dmon.Gateway` host is renamed `Dmon.Network` (tool command `ndmon`); read "gateway"/"the gateway" as "the network host" throughout. No numbered decision changes — see ADR-033.
+
 ## Context
 
 ADR-025 consolidated the first-party .NET repos into one monorepo with buckets keyed to ADR-023 roles (`core/`, `providers/`, `tools/`, `middleware/`, `frontends/`, `samples/`, `libs/`). It listed `daemon` under **D11 "keep separate" (empty)**, placed `dmonium` under `frontends/` (D2), and parked both `dmonium`'s placement and the "does the repo go polyglot, or does Swift stay out?" question as **Open Question B**.

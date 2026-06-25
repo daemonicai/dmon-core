@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>Dmon.Network</RootNamespace>
+    <AssemblyName>Dmon.Network</AssemblyName>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <!-- Network ships as a dotnet global tool (ndmon); independently versioned per ADR-024. -->
+    <IsPackable>true</IsPackable>
+    <PackAsTool>true</PackAsTool>
+    <PackageId>Dmon.Network</PackageId>
+    <ToolCommandName>ndmon</ToolCommandName>
+    <!-- App-artifact tool: exempt from protocol-keyed Major.Minor lockstep (ADR-024). -->
+    <IsProtocolKeyedPackage>false</IsProtocolKeyedPackage>
+    <!-- Independent version: override MinVer floor (repo-wide 0.2) so the tool version
+         is not tied to the protocol line. -->
+    <MinVerVersionOverride>0.1.0</MinVerVersionOverride>
+    <!-- Microsoft.NET.Sdk.Web + PackAsTool: transitive ProjectReferences each bring an
+         appsettings.json into the publish output, causing NETSDK1152. Suppressing the
+         duplicate-file error is the standard fix; it does not affect the running host. -->
+    <ErrorOnDuplicatePublishOutputFiles>false</ErrorOnDuplicatePublishOutputFiles>
+    <!-- NuGet.Protocol advisory warning: informational only, does not affect correctness. -->
+    <NoWarn>$(NoWarn);NU1901</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\core\Dmon.Runtime\Dmon.Runtime.csproj" />
+    <ProjectReference Include="..\..\core\Dmon.Core\Dmon.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Dmon.Network.Tests" />
+  </ItemGroup>
+
+</Project>

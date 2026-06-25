@@ -6,7 +6,7 @@ import Foundation
 
 /// Lifecycle owner for all supervised managers and health subscriptions.
 ///
-/// Owns the `GatewayManager`, two `ServiceManager`s, the four monitors / probes,
+/// Owns the `NetworkManager`, two `ServiceManager`s, the four monitors / probes,
 /// and the `HealthRegistry`.  A single `@StateObject` on the `DaemonApp` struct
 /// replaces the previous eleven scattered `@StateObject`s.
 ///
@@ -22,7 +22,7 @@ final class DaemonController: ObservableObject {
 
     // MARK: - Owned managers (internal so tests can inspect)
 
-    let gateway = GatewayManager()
+    let network = NetworkManager()
     let dcal    = ServiceManager.makeDcal()
     let dmail   = ServiceManager.makeDmail()
 
@@ -65,7 +65,7 @@ final class DaemonController: ObservableObject {
     // MARK: - Bootstrap
 
     /// Start all managers, register the nine health publishers (stable orders 0–8),
-    /// wire `observeGatewayStopped`, and start the monitors and probes.
+    /// wire `observeNetworkStopped`, and start the monitors and probes.
     ///
     /// Guarded by `hasBootstrapped` — calling more than once is a safe no-op.
     /// Called from `AppDelegate.applicationDidFinishLaunching` (window-independent).
@@ -76,7 +76,7 @@ final class DaemonController: ObservableObject {
         // Start supervised servers.  start() is adoption-guarded in ServerProcessManager
         // and poll-task-guarded in all monitors, so re-entry within a single call is safe.
         // If no executable resolves (no env var / no path override), start() is a no-op.
-        gateway.start()
+        network.start()
         tailscale.start()
         calendarSync.start()
         dcal.start()
@@ -89,9 +89,9 @@ final class DaemonController: ObservableObject {
         egressProbe.start()
 
         // Wire the health registry.
-        // Stable display order: Gateway(0) Dcal(1) Dmail(2) Tailscale(3) Calendar Sync(4)
+        // Stable display order: Network(0) Dcal(1) Dmail(2) Tailscale(3) Calendar Sync(4)
         //                       Mail(5) E2B Endpoint(6) Reasoner Endpoint(7) Egress Endpoint(8).
-        healthRegistry.register(publisher: gateway.$componentHealth, order: 0)
+        healthRegistry.register(publisher: network.$componentHealth, order: 0)
         healthRegistry.register(publisher: dcal.$componentHealth,    order: 1)
         healthRegistry.register(publisher: dmail.$componentHealth,   order: 2)
         healthRegistry.register(publisher: tailscale.$componentHealth,    order: 3)
@@ -101,9 +101,9 @@ final class DaemonController: ObservableObject {
         healthRegistry.register(publisher: reasonerProbe.$componentHealth, order: 7)
         healthRegistry.register(publisher: egressProbe.$componentHealth,  order: 8)
 
-        // The Gateway's special icon role (stopped → red) is driven by a dedicated flag,
+        // The Network's special icon role (stopped → red) is driven by a dedicated flag,
         // NOT by forcing its ComponentHealth to `down`.
-        healthRegistry.observeGatewayStopped(gateway.$isRunning.map { !$0 })
+        healthRegistry.observeNetworkStopped(network.$isRunning.map { !$0 })
 
         // Drive the Dock icon tint from rollupColor (D6 / task 4.1).
         // Subscribed here — once, window-independently — so the tint updates even when
@@ -121,7 +121,7 @@ final class DaemonController: ObservableObject {
     /// Orderly teardown — stops all supervised processes and clears their PID files.
     /// Called from `AppDelegate.applicationWillTerminate`.
     func shutdown() {
-        gateway.stop()
+        network.stop()
         dcal.stop()
         dmail.stop()
     }

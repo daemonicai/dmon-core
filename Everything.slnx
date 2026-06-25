@@ -27,7 +27,7 @@
   </Folder>
   <Folder Name="/frontends/">
     <Project Path="frontends\Dmon.Desktop\Dmon.Desktop.csproj" />
-    <Project Path="frontends\Dmon.Gateway\Dmon.Gateway.csproj" />
+    <Project Path="frontends\Dmon.Network\Dmon.Network.csproj" />
     <Project Path="frontends\Dmon.Terminal\Dmon.Terminal.csproj" />
   </Folder>
   <Folder Name="/daemon/">
@@ -45,7 +45,7 @@
     <Project Path="test\Dmon.Core.Tests\Dmon.Core.Tests.csproj" />
     <Project Path="test\Dmon.Extensions.Tests\Dmon.Extensions.Tests.csproj" />
     <Project Path="test\Dmon.Providers.Omlx.Tests\Dmon.Providers.Omlx.Tests.csproj" />
-    <Project Path="test\Dmon.Gateway.Tests\Dmon.Gateway.Tests.csproj" />
+    <Project Path="test\Dmon.Network.Tests\Dmon.Network.Tests.csproj" />
     <Project Path="test\Dmon.Memory.Tests\Dmon.Memory.Tests.csproj" />
     <Project Path="test\Dmon.Memory.Meko.Tests\Dmon.Memory.Meko.Tests.csproj" />
     <Project Path="test\Dmon.Protocol.Tests\Dmon.Protocol.Tests.csproj" />
