@@ -29,16 +29,16 @@ The `gateway-packaging` change addresses both: it packages the host as a dotnet 
 
    a. **Wire/contract strings.** The control-frame strings (`create`, `created`, `attach {sessionId, lastSeq}`, `session.createResult`, `session.loadResult`, `seq`/`headSeq`/`generation`), the `gw` discriminator, and the shared protocol namespace `Dmon.Protocol.Gateway` are part of the ADR-012/ADR-015 wire contract. They are **not renamed** by this ADR. Renaming them would be a wire-breaking change requiring a protocol-version bump per ADR-024.
 
-   b. **Runtime config-section and on-disk strings.** `NetworkOptions.SectionName = "Gateway"`, `GetSection("Gateway")`, the `[dmon-gateway]` log prefix, and the `~/.dmon/gateway` device-key store path are runtime/on-disk artefacts whose rename requires a config-migration story. Their rename is **explicitly deferred** to a later change and is not part of this naming decision.
+   b. **Runtime config-section and on-disk strings ARE renamed** as part of this change — `NetworkOptions.SectionName` `"Gateway"`→`"Network"`, the bound `appsettings.json` section, the `[dmon-gateway]`→`[dmon-network]` log prefix, and the `~/.dmon/gateway`→`~/.dmon/network` device-key store path — as a clean break with no config-migration story (no production deployments; users re-enrol devices and update any `Network:` config block).
 
-   These two boundary decisions are recorded here so a future reader can see exactly where the rename stops and why.
+   The wire boundary in 4(a) is recorded here so a future reader can see exactly where the rename stops (the wire contract) and why.
 
 ## Consequences
 
 - **dmonium's network-host health row is green out of the box** after `dotnet tool install -g Dmon.Network`. The default candidate `~/.dotnet/tools/ndmon` is deterministically produced by the tool install (no casing ambiguity, unlike `Dmon.Gateway`).
 - **A `make network` target** (analogous to `make build`) packages and installs `ndmon`.
 - **No protocol version bump required.** The wire contract is unchanged; existing iOS clients continue to function without a client release.
-- **Config migration is deferred.** Users with existing `DMON_GATEWAY_PATH` must update to `DMON_NETWORK_PATH`; the runtime `Gateway:` section name and `~/.dmon/gateway` store path are unchanged for now.
+- **Clean break, no migration.** Users with existing `DMON_GATEWAY_PATH` update to `DMON_NETWORK_PATH`; the runtime config section is now `Network:` and the device-key store moves to `~/.dmon/network` — any existing `~/.dmon/gateway` store and `Gateway:` config block are silently ignored (re-enrol / re-key). Acceptable per the no-production-deployments stance.
 - **ADR-012/017/018/028 bodies remain correct** for their architectural substance; only the host name in their prose is superseded by this ADR's terminology.
 
 ## Alternatives
@@ -50,7 +50,7 @@ The `gateway-packaging` change addresses both: it packages the host as a dotnet 
 
 ## Open Questions
 
-None material. The two deliberate non-renames (wire strings and runtime config section) are recorded in Decision 4 and are deferred to a later change.
+None material. The one deliberate non-rename (the wire/contract strings) is recorded in Decision 4(a); the runtime config section and on-disk store **are** renamed in this change (4(b)).
 
 ## Relationship to other ADRs
 

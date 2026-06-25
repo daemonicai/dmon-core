@@ -22,7 +22,7 @@ namespace Dmon.Network;
 ///        <see cref="SessionHandler.Attach"/>, reply <c>attached {generation, headSeq}</c>.
 ///   2b. On <c>create {agent?}</c>:
 ///      - Validate the requested agent (if named): resolve <c>.dmon/agents/&lt;name&gt;.cs</c>
-///        under the gateway workspace root; unknown agent → <c>createRejected {code="unknown_agent"}</c>,
+///        under the network host workspace root; unknown agent → <c>createRejected {code="unknown_agent"}</c>,
 ///        no core spawned. Agent name is resolved under the workspace root only — never a client-supplied path.
 ///      - Spawn a core via <see cref="CoreLauncher"/>; drive the create+load handshake over the
 ///        raw stdio pipes BEFORE constructing <see cref="SessionHandler"/> (so the handshake
@@ -36,7 +36,7 @@ namespace Dmon.Network;
 ///      - "gw":"ping" → reply "gw":"pong".
 ///      - "gw":"pong" → heartbeat reply — records last inbound activity timestamp.
 ///      - Any other "gw" value → ignore (unknown future control frame).
-///      - A concurrent heartbeat task sends gateway→client "gw":"ping" on
+///      - A concurrent heartbeat task sends host→client "gw":"ping" on
 ///        <see cref="NetworkOptions.HeartbeatIntervalSeconds"/>; if no frame arrives within
 ///        2× the interval the connection is treated as dead and the loop exits.
 ///   4. On socket close / error / cancellation → Detach the handler so the core survives.
@@ -286,12 +286,12 @@ public sealed class NetworkConnectionEndpoint
 
     /// <summary>
     /// Handles a <c>create</c> first frame: validates the requested agent (if named) against
-    /// the gateway's workspace root before spawning any core, then spawns a core, drives the
+    /// the network host's workspace root before spawning any core, then spawns a core, drives the
     /// session.create + session.load handshake over the raw stdio pipes (BEFORE constructing
     /// <see cref="SessionHandler"/> so the handshake result events are never seq-assigned),
     /// registers the handler, and replies <c>created {sessionId}</c>.
     ///
-    /// On unknown agent name the gateway replies <c>createRejected {code="unknown_agent"}</c>,
+    /// On unknown agent name the network host replies <c>createRejected {code="unknown_agent"}</c>,
     /// no core spawned, no handler registered, no slot consumed.
     /// On cap-reached <see cref="SessionRegistry.TryRegister"/> failure the just-spawned core
     /// is disposed (no orphaned process) and a typed <c>createRejected</c> reply is sent.
@@ -389,7 +389,7 @@ public sealed class NetworkConnectionEndpoint
                     {
                         Code = "cap_reached",
                         Message =
-                            $"The gateway has reached its concurrent-session limit " +
+                            $"The network host has reached its concurrent-session limit " +
                             $"({maxHandlers}). Disconnect an existing session and retry.",
                     },
                     cancellationToken).ConfigureAwait(false);
@@ -477,7 +477,7 @@ public sealed class NetworkConnectionEndpoint
         TimeSpan timeout,
         CancellationToken cancellationToken)
     {
-        // Use a stable gateway-generated id for both commands. The core correlates each result
+        // Use a stable host-generated id for both commands. The core correlates each result
         // event to its command via the "id" field; these ids are never client-visible.
         const string createCommandId = "gw-session-create";
         const string loadCommandId = "gw-session-load";

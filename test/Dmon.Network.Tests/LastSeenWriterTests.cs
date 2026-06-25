@@ -7,7 +7,7 @@ using System.Text.Json.Nodes;
 namespace Dmon.Network.Tests;
 
 /// <summary>
-/// Group 7 — gateway-owned last-seen telemetry writer (tasks 7.1–7.2).
+/// Group 7 — network-host-owned last-seen telemetry writer (tasks 7.1–7.2).
 ///
 /// All tests use a temp directory and <see cref="FakeTimeProvider"/> for deterministic throttle.
 /// Endpoint tests remain IO-free via the no-op default in <see cref="NetworkConnectionEndpoint.TestOptions"/>.

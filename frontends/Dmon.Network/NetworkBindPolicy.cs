@@ -3,7 +3,7 @@ using System.Net;
 namespace Dmon.Network;
 
 /// <summary>
-/// Validates the gateway bind address against the loopback-by-default policy (D5 / ADR-012).
+/// Validates the network host bind address against the loopback-by-default policy (D5 / ADR-012).
 ///
 /// Rules:
 ///   - Loopback (127.x.x.x, ::1, localhost) → always allowed.
@@ -29,17 +29,17 @@ internal static class NetworkBindPolicy
         if (string.IsNullOrWhiteSpace(bindAddress))
         {
             return (false,
-                "Gateway bind address is empty or missing. " +
-                "Set Gateway:BindAddress to a loopback URL such as 'http://127.0.0.1:5500'. " +
-                "Use 'tailscale serve' to expose the gateway over Tailscale.");
+                "Network host bind address is empty or missing. " +
+                "Set Network:BindAddress to a loopback URL such as 'http://127.0.0.1:5500'. " +
+                "Use 'tailscale serve' to expose the network host over Tailscale.");
         }
 
         if (!Uri.TryCreate(bindAddress, UriKind.Absolute, out Uri? uri))
         {
             return (false,
-                $"Gateway bind address '{bindAddress}' is not a valid URL. " +
-                "Set Gateway:BindAddress to a loopback URL such as 'http://127.0.0.1:5500'. " +
-                "Use 'tailscale serve' to expose the gateway over Tailscale.");
+                $"Network host bind address '{bindAddress}' is not a valid URL. " +
+                "Set Network:BindAddress to a loopback URL such as 'http://127.0.0.1:5500'. " +
+                "Use 'tailscale serve' to expose the network host over Tailscale.");
         }
 
         string host = uri.Host;
@@ -47,10 +47,10 @@ internal static class NetworkBindPolicy
         if (IsWildcard(host))
         {
             return (false,
-                $"Gateway bind address '{bindAddress}' uses a wildcard/all-interfaces host ('{host}'). " +
-                "Binding all interfaces exposes public NICs, which the gateway security policy forbids. " +
+                $"Network host bind address '{bindAddress}' uses a wildcard/all-interfaces host ('{host}'). " +
+                "Binding all interfaces exposes public NICs, which the network host security policy forbids. " +
                 "Bind to loopback ('http://127.0.0.1:5500') and use 'tailscale serve' to expose " +
-                "the gateway over your Tailscale network instead.");
+                "the network host over your Tailscale network instead.");
         }
 
         if (IsLoopback(host))
@@ -62,10 +62,10 @@ internal static class NetworkBindPolicy
         if (!allowNonLoopback)
         {
             return (false,
-                $"Gateway bind address '{bindAddress}' is not a loopback address. " +
+                $"Network host bind address '{bindAddress}' is not a loopback address. " +
                 "The intended exposure path is 'tailscale serve' fronting the loopback bind " +
                 "('http://127.0.0.1:5500'), not a direct non-loopback bind. " +
-                "Set Gateway:AllowNonLoopbackBind=true to override, or bind to loopback " +
+                "Set Network:AllowNonLoopbackBind=true to override, or bind to loopback " +
                 "and use 'tailscale serve' instead.");
         }
 

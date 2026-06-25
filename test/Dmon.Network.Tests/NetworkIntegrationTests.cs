@@ -15,7 +15,7 @@ using Microsoft.Extensions.Time.Testing;
 namespace Dmon.Network.Tests;
 
 /// <summary>
-/// Group 11: end-to-end integration tests that drive the gateway's public entry points —
+/// Group 11: end-to-end integration tests that drive the network host's public entry points —
 /// <see cref="NetworkConnectionEndpoint.RunForwardingLoopForTestAsync"/> and
 /// <see cref="NetworkConnectionEndpoint.HandleAsync"/> — through the real
 /// <see cref="SessionHandler"/> + <see cref="SessionRegistry"/> stack.
@@ -126,7 +126,7 @@ public sealed class NetworkIntegrationTests
     /// <summary>
     /// 11.2a — A command forwarded on connection 1 is deduped when the SAME <c>id</c> arrives
     /// on connection 2 (simulating a reattach resend). Core stdin sees it exactly once; the
-    /// gateway re-acks on the second connection.
+    /// network host re-acks on the second connection.
     ///
     /// This drives <see cref="NetworkConnectionEndpoint.RunForwardingLoopForTestAsync"/> across
     /// two real attach/forward cycles against the same <see cref="SessionHandler"/>.
@@ -167,7 +167,7 @@ public sealed class NetworkIntegrationTests
         // Core must NOT receive the duplicate.
         Assert.Equal(string.Empty, stdin.GetWritten());
 
-        // But the gateway re-acks on connection 2 (client may not have seen the first ack).
+        // But the network host re-acks on connection 2 (client may not have seen the first ack).
         Assert.Contains(conn2.Frames, f => f.Contains("\"ack\"") && f.Contains("req-dedup"));
     }
 

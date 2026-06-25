@@ -1,16 +1,16 @@
 namespace Dmon.Network;
 
 /// <summary>
-/// Configuration for the remote-session gateway.
-/// Bind via <c>IConfiguration.GetSection("Gateway").Bind(...)</c> or
-/// <c>services.Configure&lt;NetworkOptions&gt;(config.GetSection("Gateway"))</c>.
+/// Configuration for the remote-session network host.
+/// Bind via <c>IConfiguration.GetSection("Network").Bind(...)</c> or
+/// <c>services.Configure&lt;NetworkOptions&gt;(config.GetSection("Network"))</c>.
 /// </summary>
 public sealed class NetworkOptions
 {
     /// <summary>
     /// The configuration section name used when binding from <c>appsettings.json</c>.
     /// </summary>
-    public const string SectionName = "Gateway";
+    public const string SectionName = "Network";
 
     /// <summary>
     /// Kestrel listen address. Defaults to loopback on port 5500 (D5 — never a public NIC by default).
@@ -30,7 +30,7 @@ public sealed class NetworkOptions
     public int RunningTurnTtlMinutes { get; set; } = 60;
 
     /// <summary>
-    /// Interval between gateway→client heartbeat ping frames (seconds).
+    /// Interval between host→client heartbeat ping frames (seconds).
     /// Keeps connections alive across carrier-NAT idle timeouts and provides
     /// the liveness signal for missed-heartbeat disconnect detection.
     /// A missed-beat deadline of 2× the interval is used: if no frame arrives
@@ -61,7 +61,7 @@ public sealed class NetworkOptions
 
     /// <summary>
     /// Override for the device-key store directory.
-    /// When empty or not set, defaults to <c>~/.dmon/gateway/</c> (computed at startup).
+    /// When empty or not set, defaults to <c>~/.dmon/network/</c> (computed at startup).
     /// The directory must contain <c>devices.json</c> (and will contain <c>lastseen.json</c>).
     /// </summary>
     public string DeviceKeyStoreDirectory { get; set; } = string.Empty;

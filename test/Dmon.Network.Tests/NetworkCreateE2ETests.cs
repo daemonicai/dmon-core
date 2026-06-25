@@ -36,7 +36,7 @@ public sealed class NetworkCreateE2ETests
     /// 2.2 — Drives the real <see cref="NetworkConnectionEndpoint.HandleCreateAsync"/> via a
     /// scripted <see cref="FakeCoreLauncher"/>. Asserts that:
     /// <list type="bullet">
-    ///   <item>The gateway wrote a <c>session.create</c> then a path-less <c>session.load</c>
+    ///   <item>The network host wrote a <c>session.create</c> then a path-less <c>session.load</c>
     ///     command to the fake stdin (in that order).</item>
     ///   <item>The client WebSocket received a <c>created</c> frame carrying the expected session id.</item>
     ///   <item>The handler is registered in the registry (a subsequent <see cref="SessionRegistry.TryGet"/>
@@ -161,7 +161,7 @@ public sealed class NetworkCreateE2ETests
     /// <summary>
     /// 2.4a — When the fake core never feeds any handshake result lines and
     /// <c>CreateHandshakeTimeoutSeconds</c> is set to a small value (1s), the timeout fires,
-    /// the gateway sends <c>createRejected {code:"core_timeout"}</c>, and
+    /// the network host sends <c>createRejected {code:"core_timeout"}</c>, and
     /// <see cref="ICoreProcess.StopAsync"/> + <see cref="IDisposable.Dispose"/> are called
     /// on the fake core (no orphan).
     ///
@@ -212,7 +212,7 @@ public sealed class NetworkCreateE2ETests
 
     /// <summary>
     /// 2.4b — When the launcher throws during <c>StartProtocolCompatibleCoreAsync</c>, the
-    /// gateway closes the WebSocket with status 4500 ("session create failed").
+    /// network host closes the WebSocket with status 4500 ("session create failed").
     /// No core was spawned so teardown assertions do not apply.
     /// </summary>
     [Fact]
@@ -239,7 +239,7 @@ public sealed class NetworkCreateE2ETests
     /// <summary>
     /// 2.4b (variant) — When the core feeds a <c>commandError</c> correlated to the
     /// <c>gw-session-create</c> command, <see cref="NetworkConnectionEndpoint.DriveSessionHandshakeAsync"/>
-    /// throws <see cref="InvalidOperationException"/>, and the gateway closes the socket with 4500
+    /// throws <see cref="InvalidOperationException"/>, and the network host closes the socket with 4500
     /// and tears down the core (StopAsync + Dispose called).
     /// </summary>
     [Fact]
@@ -282,7 +282,7 @@ public sealed class NetworkCreateE2ETests
     /// <summary>
     /// 2.4c — When <c>MaxConcurrentHandlers</c> is 1 and the registry already holds one handler,
     /// driving a valid create succeeds through the handshake but <see cref="SessionRegistry.TryRegister"/>
-    /// returns <c>false</c>. The gateway sends <c>createRejected {code:"cap_reached"}</c>, the
+    /// returns <c>false</c>. The network host sends <c>createRejected {code:"cap_reached"}</c>, the
     /// new handler is NOT registered, and the freshly-spawned fake core is torn down (no orphan).
     /// </summary>
     [Fact]

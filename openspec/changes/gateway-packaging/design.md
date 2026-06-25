@@ -14,10 +14,10 @@ Reference surface measured: ~30 sources under `frontends/Dmon.Gateway/` (all `na
 - The host is installable in one command and resolves at `~/.dotnet/tools/ndmon`, so dmonium's Network row is green OOTB.
 - The host is fully renamed to `Dmon.Network` / `ndmon` with no "gateway" terminology remaining in first-class code, the dmonium UI, docs, or ADR prose.
 - Keep the host an independently-versioned app artifact (ADR-024), exempt from the protocol-keyed version gate.
-- Leave the host's runtime behaviour and the wire protocol unchanged.
+- Leave the wire protocol and remote-access semantics unchanged. (The runtime config-section name and on-disk key-store path are renamed `Gateway`→`Network` / `~/.dmon/gateway`→`~/.dmon/network` as a clean break.)
 
 **Non-Goals:**
-- No behavioural change to remote access (ADR-012 semantics intact) — terminology only.
+- No change to remote-access **semantics** or the wire protocol (ADR-012 intact). The runtime config-section name + on-disk key-store path **are** renamed (clean break) — this is the only runtime-observable change.
 - No nuget.org publish of the `ndmon` tool in this change (local `dotnet tool install` from pack output is the first cut).
 - No rename of the `remote-session-gateway` capability **id/folder** (internal openspec identifier; high cross-reference churn) — terminology inside the spec only.
 - No code-signing/notarisation; no bundling into the dmonium `.app`.

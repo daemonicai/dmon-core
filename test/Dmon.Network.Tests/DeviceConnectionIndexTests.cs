@@ -290,7 +290,7 @@ public sealed class DeviceConnectionIndexTests
 
     /// <summary>
     /// A <see cref="TextReader"/> whose <see cref="ReadLineAsync"/> blocks until a line is fed
-    /// or <see cref="End"/> is called. Identical seam used in other gateway test classes.
+    /// or <see cref="End"/> is called. Identical seam used in other network-host test classes.
     /// </summary>
     private sealed class FeedableReader : TextReader
     {

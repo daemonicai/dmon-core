@@ -24,7 +24,7 @@ Both land together because the packaging work and the rename touch the same proj
 - **ADRs:** a new **ADR-033** records the rename and amends the "Gateway" terminology in ADR-012 (remote-session-transport), ADR-017 (iOS embedded Tailscale), ADR-018 (per-device keys), and ADR-028 (frontends list). No prior ADR *decision* is reversed — only terminology — so this is a recording/terminology ADR, not a substantive supersession (reviewer confirms at apply; stop-and-ask if judged otherwise).
 - **Docs:** `docs/deploying-the-gateway.md` → `docs/deploying-the-network.md` (+ content sweep); `daemon/Daemon.App/README.md` note on installing via `make network` / `dotnet tool install ndmon`, the `~/.dotnet/tools/ndmon` default, and the `DMON_NETWORK_PATH` override.
 
-No change to the host's **runtime behaviour**, the wire protocol, or the remote-access semantics (ADR-012). This is packaging + naming.
+The wire protocol and the remote-access semantics (ADR-012) are unchanged. The runtime config-section name (`Gateway`→`Network`), the `[dmon-gateway]` log prefix, and the on-disk device-key store path (`~/.dmon/gateway`→`~/.dmon/network`) **are** renamed as part of this change (clean break, no migration — no prod deployments).
 
 ## Capabilities
 
@@ -47,5 +47,5 @@ _(none — the host already exists; this change makes it installable and renames
 - **dmonium:** `NetworkManager`, "Network" health row + label, `DMON_NETWORK_PATH`, default `~/.dotnet/tools/ndmon`. The row turns green OOTB once `ndmon` is installed.
 - **Specs / ADRs / docs:** `package-publishing` + `remote-session-gateway` deltas; new ADR-033 + terminology amendments to ADR-012/017/018/028; doc rename + sweep.
 - **Cross-change coordination risk:** the other active change `daemon-scheduler` references `Dmon.Gateway` textually in its (unapplied) artifacts; those will go stale and must be reconciled when `daemon-scheduler` is applied. Flagged, not edited here.
-- **No change** to dmon-core, the wire protocol, the host's runtime behaviour, or the first-party protocol-keyed NuGet release train.
+- **No change** to dmon-core, the wire protocol, or the first-party protocol-keyed NuGet release train. (The host's runtime config-section name and on-disk key-store path **are** renamed — see above; the wire/remote-access semantics are not.)
 - **Note:** this change bundles a packaging fix and a full rebrand per explicit direction; it is larger than a typical single change. It could be split (packaging first, rebrand second) if review burden warrants — recorded, not assumed.

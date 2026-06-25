@@ -6,7 +6,7 @@ namespace Dmon.Network.DeviceKeys;
 /// Immutable snapshot of the active (non-revoked) device credentials.
 /// This is the type swapped behind a single reference on hot reload (group 4).
 ///
-/// An empty set is a first-class state meaning auth is disabled — the gateway
+/// An empty set is a first-class state meaning auth is disabled — the network host
 /// authorizes every connection when <see cref="IsEmpty"/> is <see langword="true"/>.
 /// </summary>
 internal sealed class DeviceKeySet

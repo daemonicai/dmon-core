@@ -7,7 +7,7 @@ namespace Dmon.Network.Tests;
 /// Group 8: permission parking while detached.
 ///
 /// 8.1 — While detached, permission requests are held unresolved (neither auto-approved nor
-///        auto-denied). The gateway never synthesises a *.response or forwards anything to core
+///        auto-denied). The network host never synthesises a *.response or forwards anything to core
 ///        stdin in response to a detach event.
 /// 8.2 — On reattach, still-outstanding requests are re-surfaced to the client. An outstanding
 ///        request is abandoned (cleared) with the handler when the handler is reaped.

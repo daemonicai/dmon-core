@@ -7,8 +7,8 @@ using Microsoft.Extensions.Options;
 namespace Dmon.Network.DeviceKeys;
 
 /// <summary>
-/// Gateway-owned writer for <c>lastseen.json</c>. Records the UTC timestamp of the most recent
-/// successful attach per device key. The gateway is the sole writer; <c>dmonium</c> only reads.
+/// Network-host-owned writer for <c>lastseen.json</c>. Records the UTC timestamp of the most recent
+/// successful attach per device key. The network host is the sole writer; <c>dmonium</c> only reads.
 ///
 /// Telemetry constraints (binding design decisions):
 ///   - The recorded timestamp doubles as the throttle gate: one map, no separate dict.

@@ -71,8 +71,35 @@ ADR-033 + terminology amendments + standing-spec prose. 6 files (5 modified + ne
 - **Reviewer nit fixed by orchestrator** (doc-only realignment): line 29 `client→gateway:`/`gateway→client:` were host-role prose (not wire literals) → swept to `client→host`/`host→client`. Now the ONLY `gateway` residues in the standing spec are the capability-id heading (L1) + Purpose boilerplate (L4), both deliberately retained.
 - Gates: validate --strict ✓; build/test regression-only (no compiled code), green.
 
-## Remaining: Group 9 (docs) + Group 10 (grep gate + final validation + human-verify 10.4).
-**⛔ STOP-AND-ASK PENDING (must resolve with the USER before Group 9 worker starts) — the runtime config-string decision:**
+## ✅ USER DECISION (2026-06-25): Option B — FULL clean break on runtime config strings.
+The user chose to ALSO rename the .NET runtime config seam (not keep it). So the deliberately-deferred strings from Blocks 1–4 now get renamed in a NEW code block before Group 9:
+- config section `Gateway`→`Network`: `NetworkOptions.SectionName="Gateway"`→`"Network"`, every `GetSection("Gateway")`→`GetSection("Network")`, the `appsettings.json` `"Gateway"` block → `"Network"`.
+- log prefix `[dmon-gateway]`→`[dmon-network]`.
+- on-disk device-key store `~/.dmon/gateway`→`~/.dmon/network` (clean break, no migration per no-prod-deployments).
+- ADR-033 must be AMENDED: its Decision 4(b) currently records these as "deferred/retained" — flip it to "renamed as part of this change" (the wire/contract non-rename 4(a) STILL stands).
+- proposal.md / design.md Non-Goals that said "no runtime behaviour change" / "no rename of runtime config" must be realigned to reflect the expanded scope.
+- After this block: Group 9 docs sweep FULLY to `Network:*`; Group 10 grep gate is clean with NO runtime-config exemption (only the permanent-identifier exemptions remain: ADR filenames, `remote-session-gateway` capability id, `Dmon.Protocol.Gateway` namespace + `gw` discriminator, archived changes).
+- ⚠ HAZARD: this changes the config-section name the host reads + the on-disk key-store path. Any test fixtures / appsettings / sample configs that set `"Gateway":` or point at `.dmon/gateway` must move in lockstep or auth/bind tests break. The `remote-session-gateway` capability id and the `Dmon.Protocol.Gateway` wire namespace are NOT config strings — leave them.
+
+## Block 6 — tasks 11.1–11.5 (Option B runtime config rename — DONE, committed)
+
+Renamed the .NET host's runtime config-string surface (clean break). Worker swept BROADER than the architect's minimal enumeration (reviewer-approved as in-scope for Option B's full clean break):
+- `NetworkOptions.SectionName "Gateway"→"Network"` + appsettings.json `"Gateway"`→`"Network"` block (lockstep CONFIRMED — const and appsettings agree; `Program.cs` reads `GetSection(NetworkOptions.SectionName)`).
+- `[dmon-gateway]`→`[dmon-network]` log prefix; `.dmon/gateway`→`.dmon/network` store path; `gatewayOptions`→`networkOptions` local.
+- **`NetworkBindPolicy.cs` 5 user-visible error messages** incl. config-key refs `Gateway:BindAddress`→`Network:BindAddress`, `Gateway:AllowNonLoopbackBind`→`Network:AllowNonLoopbackBind` (CORRECTNESS: these keys live under the now-`Network` section — telling users `Gateway:*` would be wrong).
+- **`NetworkConnectionEndpoint.cs` runtime message** "The gateway has reached…"→"The network host has reached…" + matching test assertion in `NetworkCreateFlowTests.cs` (legitimate full-string-equality assertion tracking the changed message, NOT a weakened test).
+- DeviceKeys/* + test comment prose swept.
+- **Wire contract FROZEN (ADR-033 4a):** `Dmon.Protocol.Gateway` namespace/imports, `gw` discriminator, control-frame codes (`unknown_agent`/`core_timeout`/`cap_reached`) byte-identical. Only the `gw` heartbeat doc-prose narration changed (`gateway→client`→`host→client`), discriminator literal preserved.
+- Orchestrator artifact realignments (same working tree, committed together): ADR-033 Decision 4(b)+Consequences+Alternatives+OpenQuestions flipped from "deferred" to "renamed in this change"; proposal.md L27/L50 + design.md Goals/Non-Goals softened ("runtime config + on-disk path ARE renamed; wire/semantics unchanged"). tasks.md gained Group 11.
+- Gates: build 0-warn, test all green (Network 208/208), validate --strict. `git grep gateway` over tracked Dmon.Network src+tests = ONLY `Dmon.Protocol.Gateway` wire imports.
+
+## Remaining: Group 9 (docs) → Group 10 (grep gate + final validation + human-verify 10.4).
+- **Config-string entanglement now RESOLVED** — Group 9 docs sweep FULLY to `Network:*` / `~/.dmon/network` (the runtime now matches). Group 10's 10.1 grep gate is clean with NO runtime-config exemption.
+- **10.1 permanent-identifier exemption set** (reviewer-confirmed, these legitimately retain "gateway"): the `remote-session-gateway` capability id (spec folder/heading/Purpose); the `Dmon.Protocol.Gateway` wire namespace + `gw` discriminator; ADR filenames `ADR-012-*`/`ADR-017-*`/`ADR-018-per-device-gateway-keys.md`; `openspec/changes/archive/**`; the active `daemon-scheduler` change's stale refs (flag, don't edit). Also git-ignored `obj/`/`bin/` build artifacts (stale `Dmon.Gateway.*`, regenerated on clean rebuild).
+- **10.4 is a HUMAN-VERIFY** (launch dmonium, confirm Network row green OOTB) — orchestrator hands the recipe to the user; cannot self-gate.
+- Group 9 + 10 can be ONE final block.
+
+**[Earlier stop-and-ask framing — SUPERSEDED by the Option-B decision; kept for history:]**
 - The architect (Block 5 planning) verified `docs/deploying-the-gateway.md` documents the runtime config keys extensively: `Gateway:BindAddress`, `Gateway:SharedKey`, `Gateway:AllowNonLoopbackBind`, `GATEWAY__SharedKey`, the full `Gateway:*` config table, plus `~/.dmon/gateway`. Group 9.1's "sweep its content" CANNOT honestly rename those to `Network:*` UNLESS the runtime `NetworkOptions.SectionName="Gateway"` / `GetSection("Gateway")` / `appsettings.json "Gateway"` block / `.dmon/gateway` store are ALSO renamed — which is the runtime-config + on-disk behavioural change the proposal scoped OUT ("no change to the host's runtime behaviour").
 - So Group 9 is BLOCKED on a user decision: **(A)** keep the runtime config seam as-is (`SectionName="Gateway"`, `.dmon/gateway`) and have the docs continue to document the real `Gateway:` keys (doc sweep limited to host-name/`ndmon`/`make network`/`DMON_NETWORK_PATH`; the `Gateway:*` config table stays literally `Gateway:` because that's what the runtime reads); explicitly EXEMPT those strings from the 10.1 grep gate alongside the capability id. OR **(B)** expand scope: rename the runtime config section + on-disk store to `Network`/`.dmon/network` (a real behavioural change, needs its own go-ahead and possibly an ADR-033 amendment + appsettings + a SECTION rename in Dmon.Network code), then docs sweep fully and 10.1 is clean with no config exemption.
 - **10.1 grep-gate exemption set (reviewer-confirmed permanent identifiers regardless of A/B):** ADR filenames `ADR-012-*`, `ADR-017-*`, `ADR-018-per-device-gateway-keys.md`; capability id/folder/heading/Purpose `remote-session-gateway` (spec L1/L4); the `Dmon.Protocol.Gateway` namespace + `gw` discriminator; archived `openspec/changes/archive/**`. Under option A, ADD the runtime config strings to this set.

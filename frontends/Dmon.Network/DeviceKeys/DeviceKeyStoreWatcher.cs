@@ -6,7 +6,7 @@ namespace Dmon.Network.DeviceKeys;
 
 /// <summary>
 /// Hosted service that watches <c>devices.json</c> for changes and hot-swaps
-/// <see cref="DeviceKeySetProvider.Current"/> without restarting the gateway.
+/// <see cref="DeviceKeySetProvider.Current"/> without restarting the network host.
 ///
 /// Fail-closed semantics (the security crux):
 ///   1. File present and parseable  → swap Current to the new set (including an
@@ -55,7 +55,7 @@ internal sealed class DeviceKeyStoreWatcher : IHostedService, IDisposable
             ?? throw new InvalidOperationException(
                 $"Cannot determine directory for device key store path '{_paths.DevicesPath}'.");
 
-        // Create the store directory if absent — benign; the gateway owns this directory.
+        // Create the store directory if absent — benign; the network host owns this directory.
         Directory.CreateDirectory(directory);
 
         _watcher = new FileSystemWatcher(directory)

@@ -16,7 +16,7 @@ namespace Dmon.Network.Tests;
 ///   2. ADR-003 frames (null discriminator) → handler.WriteToCoreAsync(rawText, ct).
 ///   3. Control frames (non-null discriminator) → handled locally, not forwarded.
 ///
-/// The deliberate non-canonical JSON (extra spaces, reversed key order) proves the gateway
+/// The deliberate non-canonical JSON (extra spaces, reversed key order) proves the network host
 /// never parses+reformats the payload.
 /// </summary>
 public sealed class ByteUnchangedForwardingTests
@@ -29,7 +29,7 @@ public sealed class ByteUnchangedForwardingTests
     public async Task Adr003Frame_IsForwardedByteUnchanged_ToCore()
     {
         // Deliberately non-canonical: extra whitespace, reversed key order.
-        // A gateway that deserializes and re-serializes would produce a different string.
+        // A network host that deserializes and re-serializes would produce a different string.
         const string nonCanonicalCommand =
             """{"prompt":  "hello world",  "id":"req-1","type":"run"}""";
 

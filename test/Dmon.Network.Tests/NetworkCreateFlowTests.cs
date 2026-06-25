@@ -12,7 +12,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 namespace Dmon.Network.Tests;
 
 /// <summary>
-/// Group 6: gateway create-flow tests.
+/// Group 6: network-host create-flow tests.
 ///
 /// 6.1 — Create with a known agent: handshake returns the session id, agent is forwarded
 ///        to core stdin, handler is registered, and <c>created {sessionId}</c> is sent to the client.
@@ -45,7 +45,7 @@ public sealed class NetworkCreateFlowTests
     // starts the seq-assigning stdout pump. A full HandleCreateAsync end-to-end test would need to
     // launch a real (or fake) OS process via an ICoreLauncher / CoreSession abstraction in
     // Dmon.Runtime so a scripted FeedableReader can stand in for the process's stdout. This
-    // abstraction is present and used in GatewayCreateE2ETests.
+    // abstraction is present and used in NetworkCreateE2ETests.
     // =========================================================================
 
     /// <summary>
@@ -69,9 +69,9 @@ public sealed class NetworkCreateFlowTests
         FeedableReader stdout = new();
         CapturingWriter stdin = new();
 
-        // Feed session.createResult correlated to the gateway's command id.
+        // Feed session.createResult correlated to the network host's command id.
         stdout.Feed(MakeCreateResult("gw-session-create", sessionId, agent));
-        // Feed session.loadResult correlated to the gateway's load command id.
+        // Feed session.loadResult correlated to the network host's load command id.
         stdout.Feed(MakeLoadResult("gw-session-load", sessionId));
 
         // Act.
@@ -163,7 +163,7 @@ public sealed class NetworkCreateFlowTests
     // =========================================================================
 
     /// <summary>
-    /// 6.2a — Requesting an unknown agent name: gateway replies with
+    /// 6.2a — Requesting an unknown agent name: network host replies with
     /// <c>createRejected {code="unknown_agent"}</c>, no handler is registered, no core spawned.
     ///
     /// Seam: <see cref="NetworkConnectionEndpoint.HandleCreateAsync"/> is called directly (internal)
@@ -340,7 +340,7 @@ public sealed class NetworkCreateFlowTests
         CreateRejectedFrame frame = new()
         {
             Code = "cap_reached",
-            Message = "The gateway has reached its concurrent-session limit (2). " +
+            Message = "The network host has reached its concurrent-session limit (2). " +
                       "Disconnect an existing session and retry.",
         };
 

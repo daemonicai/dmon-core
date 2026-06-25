@@ -5,7 +5,7 @@ namespace Dmon.Network;
 /// Registered as a singleton and computed once in <c>Program.cs</c>, mirroring
 /// <see cref="NetworkProfilePaths"/>.
 ///
-/// Default store directory: <c>~/.dmon/gateway/</c>.
+/// Default store directory: <c>~/.dmon/network/</c>.
 /// Override via <see cref="NetworkOptions.DeviceKeyStoreDirectory"/>.
 /// </summary>
 internal sealed record NetworkDeviceKeyPaths(

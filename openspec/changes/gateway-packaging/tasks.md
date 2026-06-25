@@ -44,9 +44,17 @@
 
 - [x] 8.1 Apply the `remote-session-gateway` delta (this change's `specs/remote-session-gateway/spec.md`): rename "Gateway session-create control frame" → "Network session-create control frame" and sweep "the gateway" → "the network host" terminology across the standing spec prose. Keep the capability id/folder `remote-session-gateway` (internal identifier).
 
+## 11. Runtime config-string clean break (Option B — user-approved scope expansion 2026-06-25)
+
+- [x] 11.1 Rename the config section the host reads: `NetworkOptions.SectionName = "Gateway"` → `"Network"` in `frontends/Dmon.Network/NetworkOptions.cs`; update the two `GetSection("Gateway")` doc-comment references. (The live `GetSection(NetworkOptions.SectionName)` call sites in `Program.cs` read the const — no edit.)
+- [x] 11.2 `frontends/Dmon.Network/appsettings.json`: rename the top-level `"Gateway"` config block to `"Network"` (keys unchanged).
+- [x] 11.3 Log prefix: `[dmon-gateway]` → `[dmon-network]` in `frontends/Dmon.Network/Program.cs` (all FATAL/WARNING lines).
+- [x] 11.4 On-disk device-key store path: `Path.Combine(..., ".dmon", "gateway")` → `".dmon", "network"` in `Program.cs`; update the `~/.dmon/gateway/` doc-comments in `NetworkOptions.cs` and `NetworkDeviceKeyPaths.cs` (clean break, no migration).
+- [x] 11.5 Sweep residual `gateway` prose in `frontends/Dmon.Network/**` doc-comments and `test/Dmon.Network.Tests/**` inline/XML comments (NOT the `Dmon.Protocol.Gateway` namespace imports). Build clean, `env -u MEKO_API_KEY make test` green (esp. auth/bind/device-key suites), `openspec validate gateway-packaging --strict`.
+
 ## 9. Docs
 
-- [ ] 9.1 `git mv docs/deploying-the-gateway.md docs/deploying-the-network.md` and sweep its content (host name, `ndmon`, `make network`, `DMON_NETWORK_PATH`); fix inbound links.
+- [ ] 9.1 `git mv docs/deploying-the-gateway.md docs/deploying-the-network.md` and sweep its content (host name, `ndmon`, `make network`, `DMON_NETWORK_PATH`, and the now-renamed `Network:` config section / `~/.dmon/network` store); fix inbound links.
 - [ ] 9.2 Update `daemon/Daemon.App/README.md`: the host is installed via `make network` / `dotnet tool install` (command `ndmon`), resolves at `~/.dotnet/tools/ndmon`, overridable with `DMON_NETWORK_PATH`; refresh any "Gateway" wording and the source/test file lists.
 
 ## 10. Completeness, validation, gates
