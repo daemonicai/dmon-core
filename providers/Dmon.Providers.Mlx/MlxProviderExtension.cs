@@ -259,8 +259,7 @@ public sealed class MlxProviderExtension : IProviderExtension, IDisposable, IAsy
         }
     }
 
-    public IProviderFactory CreateFactory() =>
-        throw new NotImplementedException("Implemented in mlx-local-runtime task 4.1 (MlxProviderFactory).");
+    public IProviderFactory CreateFactory() => new MlxProviderFactory(_options, _runtimeState);
 
     public Task StopAsync(CancellationToken cancellationToken = default)
     {

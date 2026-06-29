@@ -23,9 +23,9 @@
 
 ## 4. Provider: Dmon.Providers.Mlx — client & composition
 
-- [ ] 4.1 Implement the mlx `IChatClient` construction over a runtime's base URL with reasoning-aware defaults (generous `max_tokens`; `reasoning` field handled without corrupting `content`/`tool_calls`).
-- [ ] 4.2 Implement the mlx composition verbs registering both keyed runtimes (resolvable by key for warm/stop and client construction) and wiring first-line + escalation backends; remove the need for `UseOmlx`.
-- [ ] 4.3 Tests: client parses tool_calls with a reasoning field present; verbs register resolvable keyed runtimes.
+- [x] 4.1 Implement the mlx `IChatClient` construction over a runtime's base URL with reasoning-aware defaults (generous `max_tokens`; `reasoning` field handled without corrupting `content`/`tool_calls`).
+- [x] 4.2 Implement the mlx composition verbs registering both keyed runtimes (resolvable by key for warm/stop and client construction) and wiring first-line + escalation backends; remove the need for `UseOmlx`.
+- [x] 4.3 Tests: client parses tool_calls with a reasoning field present; verbs register resolvable keyed runtimes.
 
 ## 5. Provider lifecycle contract (StopAsync) across existing providers
 

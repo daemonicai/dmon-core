@@ -9,7 +9,8 @@ Cross-block memory for the architect (spawned fresh each block). Newest decision
 - **Group 3 partial (3.1–3.2 scaffold + applicability): DONE.** Reviewer-approved. See Group 3 section below.
 - **Group 3 partial (3.3/3.4/3.6/3.7 `EnsureRunningAsync` end-to-end): DONE.** Reviewer-approved. See Group 3 (EnsureRunningAsync) section below.
 - **Group 5 + 3.5/3.8 (`StopAsync` lifecycle): DONE.** Reviewer-approved. Group 3 (3.x) and Group 5 are now COMPLETE. See Group 5 section below.
-- Next: Group 4 (4.1 client construction → 4.2 composition verbs → 4.3 tests). After that: Group 6 (daemon `EscalationWarmingService`), Group 7 (daemon switch + Omlx removal), Group 8 (docs + final validation).
+- **Group 4 (4.1/4.2/4.3 client + composition verbs): DONE.** Reviewer-approved. The provider package is now COMPLETE. See Group 4 section below.
+- Next: Group 6 (daemon `EscalationWarmingService` — FIRST consumer of the keyed runtimes + `StopAsync`), then Group 7 (daemon switch `UseOmlx`→mlx verbs + Omlx removal), Group 8 (docs + final validation).
 
 ## Pinned facts (apply across all blocks)
 
@@ -20,6 +21,17 @@ Cross-block memory for the architect (spawned fresh each block). Newest decision
 - **gemma-4 emits a separate `reasoning` field**; `max_tokens` must be generous or the tool call is never reached.
 - **Escalation runtime uses a FIXED port** so ADR-032's cached escalation `IChatClient` reconnects after teardown→respawn.
 - **Test gate:** run `env -u MEKO_API_KEY make test` (avoids the live-Meko smoke hang). `make build` is `TreatWarningsAsErrors`.
+
+## Group 4 — Mlx client + composition verbs (4.1/4.2/4.3, DONE)
+
+- **`MlxProviderFactory : IProviderFactory`** (returned by `CreateFactory()`, replacing the throw at `MlxProviderExtension.cs:262`). `CreateAsync` builds `new ChatClient(modelId, ApiKeyCredential("none"), OpenAIClientOptions{Endpoint=baseUrl}).AsIChatClient()`, wrapped `openAiClient → MlxMaxTokensDefaulter → CapabilitiesDecorator` (outermost so `ChatClientCapabilities` resolves). `modelId = config.DefaultModelId ?? _options.ModelId`; `baseUrl = config.BaseUrl ?? (runtimeState.BaseUrl or http://{Host}:{Port}/v1)`. `SupportsToolCalling = runtimeState.ToolCallingVerified ?? false`. Internal `HttpMessageHandler` test seam ctor.
+- **`reasoning` field — DROPPED (resolves design.md Open Question).** The stock OpenAI client discards the unknown `reasoning` JSON field, so `content`/`tool_calls` parse with zero custom code. No interception, nothing surfaced into `TextContent` or the dmon parts/RPC types (ADR-016). Tested: a canned completion with BOTH `reasoning` AND `tool_calls` → `FunctionCallContent` intact, no `TextContent` carries the reasoning string.
+- **`MlxMaxTokensDefaulter : DelegatingChatClient`** (`private sealed`, internal) — in BOTH `GetResponseAsync` and `GetStreamingResponseAsync`: `options = options?.Clone() ?? new(); options.MaxOutputTokens ??= 8192;`. CLONES (never mutates caller), never overwrites a caller-supplied cap. Both paths tested (non-streaming + streaming via SSE stub) for default-injection AND caller-cap-passthrough.
+- **Keyed-runtime contract (THE crux for Group 6/7):** `MlxRuntimeKeys.Firstline = "firstline"` / `.Escalation = "escalation"` (public const contract). `AddMlxFirstline<T>`/`AddMlxEscalation<T>` (`namespace Dmon.Hosting;`, on `IProviderRegistration`) register `AddKeyedSingleton<MlxProviderExtension>(key, …)` — KEYED CONCRETE SINGLETONS, **NOT** registered as `IProviderExtension` (keeps the active-provider registry clean; they're ADR-027 router backends). Resolve via `sp.GetRequiredKeyedService<MlxProviderExtension>(key)`. Default to `MlxRuntimeOptions.Firstline()`/`.Escalation()`; overridable. Container owns disposal.
+- **`sp.MlxClient(key)` helper** (`MlxClientExtensions`, no `Async` suffix — deliberately mirrors `OmlxClient` for the fluent router-factory call site): resolve keyed ext → `await EnsureRunningAsync(ct)` (D6 self-heal/start contract — ensure-running BEFORE build) → `CreateFactory().CreateAsync` with `BaseUrl=null` (factory falls back to `runtimeState.BaseUrl`) + no-key auth. Rebuilds a fresh client per call (matches OmlxClient; the lazy-cache lives in the router per ADR-032).
+- **FOR GROUP 7 (daemon switch):** the daemon writes `builder.AddMlxFirstline(); builder.AddMlxEscalation(); builder.UseTriage(sp => sp.MlxClient(MlxRuntimeKeys.Firstline)); builder.AddEscalation(sp => sp.MlxClient(MlxRuntimeKeys.Escalation));` — replacing today's `UseOmlx()` + `UseTriage/AddEscalation(sp => sp.OmlxClient(...))` at `daemon/Daemon.cs:34-37`. `UseTriage`/`AddEscalation` take `Func<IServiceProvider, ValueTask<IChatClient>>` (`daemon/Daemon.Routing/TriageRegistrationExtensions.cs`) — `sp => sp.MlxClient(key)` satisfies it directly. The provider package does NOT reference `Daemon.Routing` (layering); the wiring is daemon-side.
+- **FOR GROUP 6 (warming):** resolve the escalation runtime's provider instance via `sp.GetRequiredKeyedService<MlxProviderExtension>(MlxRuntimeKeys.Escalation)` and call `EnsureRunningAsync`/`StopAsync` on it directly.
+- 71 Mlx tests; hermetic (in-memory stub HttpMessageHandler / SSE stub; composition tests only build a ServiceProvider — no EnsureRunningAsync, no socket/process).
 
 ## Group 5 + 3.5/3.8 — `StopAsync` lifecycle (5.1/3.5/5.2/3.8, DONE)
 
