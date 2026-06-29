@@ -6,7 +6,8 @@ Cross-block memory for the architect (spawned fresh each block). Newest decision
 
 - **Group 1 (ADR-034 gate): DONE.** ADR-034 written and **Accepted** by the user (2026-06-29). Implementation is unblocked.
 - **Group 2 (core `ISessionActivityListener` seam): DONE.** Reviewer-approved. See Group 2 section below.
-- Next: Group 3 (`Dmon.Providers.Mlx` — environment & lifecycle).
+- **Group 3 partial (3.1–3.2 scaffold + applicability): DONE.** Reviewer-approved. See Group 3 section below.
+- Next: Group 3 cont. (3.3 uv venv → 3.7 tool-probe). **Sequencing note: task 3.5 (`StopAsync` impl) depends on task 5.1 (add `StopAsync` default no-op to `IProviderExtension`) — do 5.1 first or fold it in when planning the block containing 3.5.**
 
 ## Pinned facts (apply across all blocks)
 
@@ -17,6 +18,16 @@ Cross-block memory for the architect (spawned fresh each block). Newest decision
 - **gemma-4 emits a separate `reasoning` field**; `max_tokens` must be generous or the tool call is never reached.
 - **Escalation runtime uses a FIXED port** so ADR-032's cached escalation `IChatClient` reconnects after teardown→respawn.
 - **Test gate:** run `env -u MEKO_API_KEY make test` (avoids the live-Meko smoke hang). `make build` is `TreatWarningsAsErrors`.
+
+## Group 3 — `Dmon.Providers.Mlx` (3.1–3.2 scaffold, DONE)
+
+- **Package:** `providers/Dmon.Providers.Mlx` (csproj mirrors `Dmon.Providers.Mtplx` — net10.0, TreatWarningsAsErrors, IsPackable=true, CPM no-Version, `InternalsVisibleTo Dmon.Providers.Mlx.Tests`, packaged README). Added to BOTH `Everything.slnx` and `providers.slnx`. Test project `test/Dmon.Providers.Mlx.Tests` (IsPackable=false).
+- **`MlxRuntimeOptions`** (BCL-only record): `Host` (default `127.0.0.1`), `Port`, `ModelId`, `ReadyTimeout`, `IdleWindow`. Static factories `Firstline()` (port **8800**, default `mlx-community/gemma-4-e4b-it-qat-OptiQ-4bit`, **nvfp4 guard throws `ArgumentException`**, case-insensitive) and `Escalation()` (port **8810**, default `mlx-community/gemma-4-26B-A4B-it-qat-nvfp4`, no guard). All overridable.
+- **`MlxProviderExtension`**: `ProviderName => "mlx"`. `IsApplicable()` = macOS → arm64 → uv-on-PATH, each with its own remediation message (uv message names `uv` + install cmd). ZERO process/network I/O (only `OperatingSystem.IsMacOS`, `RuntimeInformation.OSArchitecture`, PATH `File.Exists` via `FindUvOnPath`). Internal test-seam ctor exposes `isMacOsOverride`/`osArchitectureOverride`/`resolveUvPathOverride`.
+- **Stubs (filled by later blocks):** `IsRunningAsync`/`EnsureRunningAsync`/`ListModelsAsync`/`CreateFactory` throw `NotImplementedException("Implemented in mlx-local-runtime tasks 3.3–3.7.")`. `IProviderExtension` UNCHANGED — `StopAsync` NOT added (that's 5.1). The class is `IDisposable` (no-op `Dispose` now; later blocks close the server process there).
+- **Provider is PER-RUNTIME** (one instance = one model/port/process, like Mtplx). The two-keyed-runtime registration is task 4.2's composition concern — NOT built here.
+- 17 tests: full applicability matrix (incl. asserting the override seam is consulted = no real I/O) + options defaults/overrides/nvfp4-guard.
+- **For task 4.2 (composition verbs):** README's forward-looking `.AddMlxFirstline()`/`.AddMlxEscalation()` example was REMOVED because the verb names aren't fixed yet — 4.2 owns naming them.
 
 ## Group 2 — core `ISessionActivityListener` seam (2.1–2.4, DONE)
 

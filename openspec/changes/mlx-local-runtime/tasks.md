@@ -12,8 +12,8 @@
 
 ## 3. Provider: Dmon.Providers.Mlx — environment & lifecycle
 
-- [ ] 3.1 Scaffold `providers/Dmon.Providers.Mlx` (project, namespace, options) with keyed-runtime config (`firstline`/`escalation`: model id, fixed port, idle window) and defaults (E4B-OptiQ-4bit / 26B-A4B-nvfp4); reject nvfp4 as the first-line default.
-- [ ] 3.2 Implement `IsApplicable()` = arm64/macOS + `uv` on PATH (cheap, no I/O) with a remediation message.
+- [x] 3.1 Scaffold `providers/Dmon.Providers.Mlx` (project, namespace, options) with keyed-runtime config (`firstline`/`escalation`: model id, fixed port, idle window) and defaults (E4B-OptiQ-4bit / 26B-A4B-nvfp4); reject nvfp4 as the first-line default.
+- [x] 3.2 Implement `IsApplicable()` = arm64/macOS + `uv` on PATH (cheap, no I/O) with a remediation message.
 - [ ] 3.3 Implement uv-managed venv provisioning inside `EnsureRunningAsync()` (pinned interpreter + `mlx_lm >= 0.31.3`); fail fast if resolved `mlx_lm` is below the pin; no system-Python dependency.
 - [ ] 3.4 Implement attach-first `EnsureRunningAsync()` spawning `<venv>/bin/python -m mlx_lm.server --model <id> --port <fixed> --host 127.0.0.1`, retaining the real process handle.
 - [ ] 3.5 Implement `StopAsync()` killing an owned server process and releasing the port; no-op/leave-running for attached-only runtimes.

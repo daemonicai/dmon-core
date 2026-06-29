@@ -14,6 +14,7 @@
     <Project Path="providers\Dmon.Providers.Omlx\Dmon.Providers.Omlx.csproj" />
     <Project Path="providers\Dmon.Providers.LlamaCpp\Dmon.Providers.LlamaCpp.csproj" />
     <Project Path="providers\Dmon.Providers.Mtplx\Dmon.Providers.Mtplx.csproj" />
+    <Project Path="providers\Dmon.Providers.Mlx\Dmon.Providers.Mlx.csproj" />
   </Folder>
   <Folder Name="/tools/">
     <Project Path="tools\Dmon.Tools.Builtin\Dmon.Tools.Builtin.csproj" />
@@ -55,6 +56,7 @@
     <Project Path="test\Dmon.Tools.Builtin.Tests\Dmon.Tools.Builtin.Tests.csproj" />
     <Project Path="test\Dmon.Providers.LlamaCpp.Tests\Dmon.Providers.LlamaCpp.Tests.csproj" />
     <Project Path="test\Dmon.Providers.Mtplx.Tests\Dmon.Providers.Mtplx.Tests.csproj" />
+    <Project Path="test\Dmon.Providers.Mlx.Tests\Dmon.Providers.Mlx.Tests.csproj" />
     <Project Path="test\Dmon.Tools.Dcal.Tests\Dmon.Tools.Dcal.Tests.csproj" />
     <Project Path="test\Dcal.Tests\Dcal.Tests.csproj" />
     <Project Path="test\Dmail.Tests\Dmail.Tests.csproj" />

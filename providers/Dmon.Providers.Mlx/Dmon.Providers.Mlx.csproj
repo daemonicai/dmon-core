@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+
+    <AssemblyName>Dmon.Providers.Mlx</AssemblyName>
+    <RootNamespace>Dmon.Providers.Mlx</RootNamespace>
+    <IsPackable>true</IsPackable>
+    <PackageId>Dmon.Providers.Mlx</PackageId>
+    <MinVerTagPrefix>sdk-</MinVerTagPrefix>
+    <Description>Apple-Silicon MLX local-runtime provider for the dmon coding agent. Manages mlx_lm server processes via uv, exposes them as Microsoft.Extensions.AI IChatClient instances. Exposes UseMlx() in the Dmon.Hosting namespace.</Description>
+    <PackageTags>dmon;mlx;mlx-lm;apple-silicon;local-llm;provider;ai</PackageTags>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Dmon.Providers.Mlx.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\core\Dmon.Abstractions\Dmon.Abstractions.csproj" />
+  </ItemGroup>
+
+</Project>
