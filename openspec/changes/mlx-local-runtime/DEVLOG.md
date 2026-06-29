@@ -8,7 +8,8 @@ Cross-block memory for the architect (spawned fresh each block). Newest decision
 - **Group 2 (core `ISessionActivityListener` seam): DONE.** Reviewer-approved. See Group 2 section below.
 - **Group 3 partial (3.1–3.2 scaffold + applicability): DONE.** Reviewer-approved. See Group 3 section below.
 - **Group 3 partial (3.3/3.4/3.6/3.7 `EnsureRunningAsync` end-to-end): DONE.** Reviewer-approved. See Group 3 (EnsureRunningAsync) section below.
-- Next: a block pairing **5.1 + 3.5 (+ 5.2)** — add `StopAsync` default no-op to `IProviderExtension` (5.1), implement the provider's `StopAsync` (3.5), tests (5.2 + remaining 3.8). The `Dispose`/`KillServer`/`OwnsProcess` plumbing is already in place for 3.5 to reuse.
+- **Group 5 + 3.5/3.8 (`StopAsync` lifecycle): DONE.** Reviewer-approved. Group 3 (3.x) and Group 5 are now COMPLETE. See Group 5 section below.
+- Next: Group 4 (4.1 client construction → 4.2 composition verbs → 4.3 tests). After that: Group 6 (daemon `EscalationWarmingService`), Group 7 (daemon switch + Omlx removal), Group 8 (docs + final validation).
 
 ## Pinned facts (apply across all blocks)
 
@@ -19,6 +20,13 @@ Cross-block memory for the architect (spawned fresh each block). Newest decision
 - **gemma-4 emits a separate `reasoning` field**; `max_tokens` must be generous or the tool call is never reached.
 - **Escalation runtime uses a FIXED port** so ADR-032's cached escalation `IChatClient` reconnects after teardown→respawn.
 - **Test gate:** run `env -u MEKO_API_KEY make test` (avoids the live-Meko smoke hang). `make build` is `TreatWarningsAsErrors`.
+
+## Group 5 + 3.5/3.8 — `StopAsync` lifecycle (5.1/3.5/5.2/3.8, DONE)
+
+- **Contract (5.1):** `IProviderExtension.StopAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;` — the interface's FIRST default interface method (instance, not static), BCL-only signature. ADR-034 D1 honoured: **zero edits to any other provider (Omlx/Ollama/Mtplx/LlamaCpp) or test fake** — they all inherit the no-op DIM. No explicit-interface impl of `IProviderExtension` exists anywhere (the one `IProviderExtension.` grep hit in `SubAgentProviderRegistration.cs` is a comment), so nothing shadows the default.
+- **Provider (3.5):** `MlxProviderExtension.StopAsync` mirrors `Dispose()` exactly — `if (_runtimeState.OwnsProcess) KillServer();`. Owned → kill + release port; attached → genuine no-op (does NOT touch the external server). Does NOT mutate `OwnsProcess` (so a later `Dispose` stays safe); idempotent via `KillServer`'s `Interlocked.Exchange`. Sync kill wrapped as `Task.CompletedTask` (no `async`, no CS1998).
+- **Tests:** 5.2 (`ProviderExtensionStopAsyncDefaultTests`) calls `StopAsync` THROUGH the `IProviderExtension` reference on a fake that doesn't override it (the only way to reach a DIM), asserts no-op via a sentinel. 3.8 StopAsync slice (`StopAsyncTests`): owned→killed, attached→left-running (+ dummy cleaned up so no `sleep` orphan), idempotent; `[SkippableFact]`-gated, harmless `sleep`/`ping` dummies only.
+- **Reminder for Group 6:** the daemon `EscalationWarmingService` is the FIRST consumer of `StopAsync` (idle teardown). It calls `StopAsync` on the escalation runtime's provider instance. Nothing calls `StopAsync` yet — Group 6 wires the consumer.
 
 ## Group 3 — `Dmon.Providers.Mlx` EnsureRunningAsync (3.3/3.4/3.6/3.7, DONE)
 

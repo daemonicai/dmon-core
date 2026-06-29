@@ -817,6 +817,140 @@ file sealed class ProbeCaptureClient : IChatClient
 }
 
 // ---------------------------------------------------------------------------
+// 3.8 (partial) — StopAsync process-ownership invariant (SetServerProcess seam)
+// ---------------------------------------------------------------------------
+
+public sealed class StopAsyncTests
+{
+    [SkippableFact]
+    public async Task StopAsync_KillsOwnedProcess_WhenOwnsProcessTrue()
+    {
+        bool isUnix = RuntimeInformation.IsOSPlatform(OSPlatform.Linux)
+                   || RuntimeInformation.IsOSPlatform(OSPlatform.OSX);
+        bool isWindows = RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
+        Skip.IfNot(isUnix || isWindows, "Unsupported platform for this test.");
+
+        ProcessStartInfo dummyPsi = isUnix
+            ? new ProcessStartInfo("/bin/sleep", "30") { UseShellExecute = false }
+            : new ProcessStartInfo("ping.exe", "-n 30 127.0.0.1") { UseShellExecute = false, CreateNoWindow = true };
+
+        Process dummy = new() { StartInfo = dummyPsi };
+        dummy.Start();
+        int pid = dummy.Id;
+        Assert.False(dummy.HasExited, "Dummy process should be running before StopAsync.");
+
+        MlxRuntimeOptions opts = MlxRuntimeOptions.Firstline();
+        MlxRuntimeState state = new() { OwnsProcess = true };
+
+        MlxProviderExtension sut = new(
+            opts,
+            state,
+            isRunningProbe: _ => Task.FromResult(false),
+            provisionEnvDelegate: _ => Task.FromResult("0.31.3"));
+
+        sut.SetServerProcess(dummy);
+        await sut.StopAsync();
+        sut.Dispose();
+
+        await Task.Delay(300);
+        bool stillRunning = false;
+        try
+        {
+            using Process? found = Process.GetProcessById(pid);
+            stillRunning = !found.HasExited;
+        }
+        catch (ArgumentException)
+        {
+            // Process not found by ID — it has exited. This is the success case.
+        }
+
+        Assert.False(stillRunning, "StopAsync() must kill an owned server process.");
+    }
+
+    [SkippableFact]
+    public async Task StopAsync_DoesNotKillAttachedProcess_WhenOwnsProcessFalse()
+    {
+        bool isUnix = RuntimeInformation.IsOSPlatform(OSPlatform.Linux)
+                   || RuntimeInformation.IsOSPlatform(OSPlatform.OSX);
+        bool isWindows = RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
+        Skip.IfNot(isUnix || isWindows, "Unsupported platform for this test.");
+
+        ProcessStartInfo dummyPsi = isUnix
+            ? new ProcessStartInfo("/bin/sleep", "30") { UseShellExecute = false }
+            : new ProcessStartInfo("ping.exe", "-n 30 127.0.0.1") { UseShellExecute = false, CreateNoWindow = true };
+
+        Process dummy = new() { StartInfo = dummyPsi };
+        dummy.Start();
+        int pid = dummy.Id;
+
+        MlxRuntimeOptions opts = MlxRuntimeOptions.Firstline();
+        // OwnsProcess = false → attached server; StopAsync must NOT kill it.
+        MlxRuntimeState state = new() { OwnsProcess = false };
+
+        using MlxProviderExtension sut = new(
+            opts,
+            state,
+            isRunningProbe: _ => Task.FromResult(true),
+            provisionEnvDelegate: _ => Task.FromResult("0.31.3"));
+
+        sut.SetServerProcess(dummy);
+        await sut.StopAsync();
+
+        await Task.Delay(300);
+
+        bool stillRunning = false;
+        try
+        {
+            using Process? found = Process.GetProcessById(pid);
+            stillRunning = !found.HasExited;
+        }
+        catch (ArgumentException)
+        {
+            // Exited — unexpected for an attached process.
+        }
+
+        // Clean up the dummy process ourselves.
+        try { dummy.Kill(entireProcessTree: true); } catch { /* best-effort */ }
+
+        Assert.True(stillRunning, "StopAsync() must NOT kill an attached (not-owned) server process.");
+    }
+
+    [SkippableFact]
+    public async Task StopAsync_IsIdempotent()
+    {
+        bool isUnix = RuntimeInformation.IsOSPlatform(OSPlatform.Linux)
+                   || RuntimeInformation.IsOSPlatform(OSPlatform.OSX);
+        bool isWindows = RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
+        Skip.IfNot(isUnix || isWindows, "Unsupported platform for this test.");
+
+        ProcessStartInfo dummyPsi = isUnix
+            ? new ProcessStartInfo("/bin/sleep", "30") { UseShellExecute = false }
+            : new ProcessStartInfo("ping.exe", "-n 30 127.0.0.1") { UseShellExecute = false, CreateNoWindow = true };
+
+        Process dummy = new() { StartInfo = dummyPsi };
+        dummy.Start();
+
+        MlxRuntimeOptions opts = MlxRuntimeOptions.Firstline();
+        MlxRuntimeState state = new() { OwnsProcess = true };
+
+        using MlxProviderExtension sut = new(
+            opts,
+            state,
+            isRunningProbe: _ => Task.FromResult(false),
+            provisionEnvDelegate: _ => Task.FromResult("0.31.3"));
+
+        sut.SetServerProcess(dummy);
+
+        // First call kills the process.
+        await sut.StopAsync();
+
+        // Second call must not throw — KillServer is idempotent (Interlocked.Exchange guards).
+        Exception? ex = await Record.ExceptionAsync(() => sut.StopAsync());
+        Assert.Null(ex);
+    }
+}
+
+// ---------------------------------------------------------------------------
 // 3.8 (partial) — Dispose process-ownership invariant (SetServerProcess seam)
 // ---------------------------------------------------------------------------
 

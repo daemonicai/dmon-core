@@ -40,4 +40,10 @@ public interface IProviderExtension
     /// registered with <c>ProviderRegistry</c>.
     /// </summary>
     IProviderFactory CreateFactory();
+
+    /// <summary>
+    /// Stops a server this provider spawned and owns, releasing its port. The default
+    /// is a no-op so attach-only / start-only providers are unaffected (ADR-034 D1).
+    /// </summary>
+    Task StopAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
 }

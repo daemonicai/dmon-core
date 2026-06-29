@@ -262,6 +262,15 @@ public sealed class MlxProviderExtension : IProviderExtension, IDisposable, IAsy
     public IProviderFactory CreateFactory() =>
         throw new NotImplementedException("Implemented in mlx-local-runtime task 4.1 (MlxProviderFactory).");
 
+    public Task StopAsync(CancellationToken cancellationToken = default)
+    {
+        // Mirror the Dispose() ownership guard: only kill a process dmon started;
+        // leave an attached server running.
+        if (_runtimeState.OwnsProcess)
+            KillServer();
+        return Task.CompletedTask;
+    }
+
     public void Dispose()
     {
         if (_disposed)
