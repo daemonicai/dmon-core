@@ -26,6 +26,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- M.E.AI pinned to the abstractions version Anthropic 12.x targets; re-validate when bumping Anthropic. -->
+    <PackageReference Include="Microsoft.Extensions.AI.OpenAI" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\core\Dmon.Abstractions\Dmon.Abstractions.csproj" />
   </ItemGroup>
 

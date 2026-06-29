@@ -7,7 +7,8 @@ Cross-block memory for the architect (spawned fresh each block). Newest decision
 - **Group 1 (ADR-034 gate): DONE.** ADR-034 written and **Accepted** by the user (2026-06-29). Implementation is unblocked.
 - **Group 2 (core `ISessionActivityListener` seam): DONE.** Reviewer-approved. See Group 2 section below.
 - **Group 3 partial (3.1–3.2 scaffold + applicability): DONE.** Reviewer-approved. See Group 3 section below.
-- Next: Group 3 cont. (3.3 uv venv → 3.7 tool-probe). **Sequencing note: task 3.5 (`StopAsync` impl) depends on task 5.1 (add `StopAsync` default no-op to `IProviderExtension`) — do 5.1 first or fold it in when planning the block containing 3.5.**
+- **Group 3 partial (3.3/3.4/3.6/3.7 `EnsureRunningAsync` end-to-end): DONE.** Reviewer-approved. See Group 3 (EnsureRunningAsync) section below.
+- Next: a block pairing **5.1 + 3.5 (+ 5.2)** — add `StopAsync` default no-op to `IProviderExtension` (5.1), implement the provider's `StopAsync` (3.5), tests (5.2 + remaining 3.8). The `Dispose`/`KillServer`/`OwnsProcess` plumbing is already in place for 3.5 to reuse.
 
 ## Pinned facts (apply across all blocks)
 
@@ -18,6 +19,20 @@ Cross-block memory for the architect (spawned fresh each block). Newest decision
 - **gemma-4 emits a separate `reasoning` field**; `max_tokens` must be generous or the tool call is never reached.
 - **Escalation runtime uses a FIXED port** so ADR-032's cached escalation `IChatClient` reconnects after teardown→respawn.
 - **Test gate:** run `env -u MEKO_API_KEY make test` (avoids the live-Meko smoke hang). `make build` is `TreatWarningsAsErrors`.
+
+## Group 3 — `Dmon.Providers.Mlx` EnsureRunningAsync (3.3/3.4/3.6/3.7, DONE)
+
+- **Flow:** `EnsureRunningAsync` = provision venv → version-pin check → attach-first/spawn → poll readiness → one-time tool probe. Implemented in `MlxProviderExtension.cs`, replacing the 3.x throwing stubs. `CreateFactory()` STILL throws — message now points at **task 4.1** (production client/factory).
+- **Version pin:** `IsVersionBelowPin` uses `System.Version` (numeric compare, not string — `0.31.10 > 0.31.3`, `0.4.0 < 0.31.3` rank correctly); unparseable → fail-fast throw. **Pin check runs BEFORE any spawn** (tested: no spawn on pin failure). Pin = `mlx_lm >= 0.31.3`.
+- **Provisioning seam:** `_provisionEnvDelegate : Func<CancellationToken, Task<string>>` returns the resolved `mlx_lm` version (prod impl runs `uv venv` + `uv pip install` + resolves version; tests inject version strings). Venv shared across runtimes; idempotent.
+- **Spawn:** `BuildServerArguments(port)` → `-m mlx_lm.server --model <id> --port <_options.Port> --host <host>`; fixed port, no dynamic assignment; asserted without spawning. Real process handle retained.
+- **Attach-first:** `OwnsProcess=false` on attach (healthy server already on port, no spawn), `true` on spawn; idempotent repeat = probe-only no-op. Both tested.
+- **Readiness (`IsRunningAsync` / `CheckRunningViaCompletionAsync`):** minimal completion against `_options.ModelId`, `MaxOutputTokens=16`, success = no exception (tolerant of EMPTY content for gemma-4 reasoning). **NEVER `/v1/models`** (tested). Empty BaseUrl → no network attempt.
+- **Tool probe (`RunToolCallingProbeAsync`):** runs ONCE after readiness, `MaxOutputTokens=2048` (generous so gemma-4 reaches the tool call — else false-negative), records `ToolCallingVerified` on `MlxRuntimeState`.
+- **Teardown:** spawn/poll/probe wrapped in try/catch → `KillServer()` (`Interlocked.Exchange` + `Kill(entireProcessTree:true)`) before rethrow; `Dispose`/`DisposeAsync` kill ONLY when `OwnsProcess`. Tested via `SetServerProcess(dummy)` with a harmless `/bin/sleep 30` (`ping` on Windows), `[SkippableFact]`-gated (`xunit.skippablefact`).
+- **`MlxRuntimeState`** (dmon-owned, BCL-only): `BaseUrl`, `OwnsProcess`, `bool? ToolCallingVerified`. NO `ActiveModelId` (model id always explicit). M.E.AI/OpenAI types stay internal (csproj now refs `Microsoft.Extensions.AI.OpenAI`).
+- **Open Questions resolved:** readiness = completion (NOT `/health` — its load-state semantics unverified); full `reasoning`-field mapping deferred to 4.1 (OpenAI SDK ignores the unknown field so tool_calls/content still parse).
+- 40 Mlx tests pass; NO real `mlx_lm.server`/uv/network in tests (all via seams; the dispose `sleep` dummy is the only real process and it's harmless + cleaned up).
 
 ## Group 3 — `Dmon.Providers.Mlx` (3.1–3.2 scaffold, DONE)
 
