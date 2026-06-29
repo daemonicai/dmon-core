@@ -1,7 +1,7 @@
 ## 1. ADR-034 (gate — accept before any code)
 
-- [ ] 1.1 Write `docs/adrs/ADR-034-mlx-local-runtime.md` amending ADR-007 (add `StopAsync` to the provider lifecycle), ADR-006 (composition-declared backends carry standing spawn consent), and ADR-032 (escalation backend = fixed-port mlx runtime with activity-warming + idle-teardown); status Proposed.
-- [ ] 1.2 Obtain user acceptance of ADR-034 and set status Accepted. **Stop-and-ask gate: no implementation tasks proceed until accepted.**
+- [x] 1.1 Write `docs/adrs/ADR-034-mlx-local-runtime.md` amending ADR-007 (add `StopAsync` to the provider lifecycle), ADR-006 (composition-declared backends carry standing spawn consent), and ADR-032 (escalation backend = fixed-port mlx runtime with activity-warming + idle-teardown); status Proposed.
+- [x] 1.2 Obtain user acceptance of ADR-034 and set status Accepted. **Stop-and-ask gate: no implementation tasks proceed until accepted.**
 
 ## 2. Core: session-activity seam
 
