@@ -1,3 +1,4 @@
+using Dmon.Abstractions.Hosting;
 using Dmon.Core.Session;
 using Dmon.Protocol.Commands;
 using Dmon.Protocol.Conversation;
@@ -11,6 +12,7 @@ public sealed class SessionHandler : ISessionHandler
     private readonly ISessionStore _store;
     private readonly IEventEmitter _emitter;
     private readonly ILogger<SessionHandler> _logger;
+    private readonly IEnumerable<ISessionActivityListener> _listeners;
 
     private SessionMeta? _currentSession;
     private SessionLock? _sessionLock;
@@ -20,17 +22,20 @@ public sealed class SessionHandler : ISessionHandler
     public SessionHandler(
         ISessionStore store,
         IEventEmitter emitter,
-        ILogger<SessionHandler> logger)
+        ILogger<SessionHandler> logger,
+        IEnumerable<ISessionActivityListener>? listeners = null)
     {
         _store = store;
         _emitter = emitter;
         _logger = logger;
+        _listeners = listeners ?? [];
     }
 
     public async Task CreateAsync(SessionCreateCommand cmd, CancellationToken cancellationToken)
     {
         SessionMeta meta = await _store.CreateAsync(name: null, agent: cmd.Agent, cancellationToken).ConfigureAwait(false);
         _currentSession = meta;
+        NotifySessionActivated(meta.Id);
         await _emitter.EmitAsync(new SessionCreatedResultEvent
         {
             CommandId = cmd.Id,
@@ -152,6 +157,7 @@ public sealed class SessionHandler : ISessionHandler
 
         SessionMeta meta = await _store.LoadAsync(sessionId, cancellationToken).ConfigureAwait(false);
         _currentSession = meta;
+        NotifySessionActivated(meta.Id);
 
         await _emitter.EmitAsync(new SessionLoadedResultEvent
         {
@@ -234,5 +240,20 @@ public sealed class SessionHandler : ISessionHandler
             CommandId = cmd.Id,
             Messages  = records
         }, cancellationToken).ConfigureAwait(false);
+    }
+
+    private void NotifySessionActivated(string sessionId)
+    {
+        foreach (ISessionActivityListener listener in _listeners)
+        {
+            try
+            {
+                listener.OnSessionActivated(sessionId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "ISessionActivityListener.OnSessionActivated threw for session {SessionId}.", sessionId);
+            }
+        }
     }
 }

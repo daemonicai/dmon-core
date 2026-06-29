@@ -228,3 +228,16 @@ Rules:
 - If graphify-out/wiki/index.md exists, use it for broad navigation instead of raw source browsing.
 - Read graphify-out/GRAPH_REPORT.md only for broad architecture review or when query/path/explain do not surface enough context.
 - After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).
+
+## serena
+
+Use the **serena** MCP server where appropriate for operations on code in this repository. Serena provides language-server-backed, symbol-aware tooling that is more precise and token-efficient than raw file reads or text search for most code work.
+
+Prefer serena's tools when:
+
+- **Navigating code** — `find_symbol`, `get_symbols_overview`, `find_declaration`, and `find_implementations` to locate types/members without reading whole files.
+- **Tracing usage** — `find_referencing_symbols` to find callers and dependents before changing a symbol.
+- **Editing by symbol** — `replace_symbol_body`, `insert_before_symbol`, `insert_after_symbol`, and `rename_symbol` for structural edits that respect C# syntax.
+- **Checking correctness** — `get_diagnostics_for_file` after edits.
+
+Call `initial_instructions` before starting a serena-driven coding task. Plain `Read`/`Edit` remain fine for small, well-located changes and non-code files.

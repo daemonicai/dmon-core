@@ -16,6 +16,7 @@
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="xunit" />
     <PackageReference Include="xunit.runner.visualstudio" />
+    <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
   </ItemGroup>
 
   <ItemGroup>
@@ -26,6 +27,7 @@
     <ProjectReference Include="..\..\daemon\Daemon.Routing\Daemon.Routing.csproj" />
     <ProjectReference Include="..\..\core\Dmon.Core\Dmon.Core.csproj" />
     <ProjectReference Include="..\..\core\Dmon.Abstractions\Dmon.Abstractions.csproj" />
+    <ProjectReference Include="..\..\providers\Dmon.Providers.Mlx\Dmon.Providers.Mlx.csproj" />
   </ItemGroup>
 
 </Project>

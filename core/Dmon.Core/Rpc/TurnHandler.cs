@@ -39,6 +39,7 @@ public sealed class TurnHandler : ITurnHandler
     private readonly ILogger<TurnHandler> _logger;
     private readonly ITerminalClientFactory? _terminalClientFactory;
     private readonly IServiceProvider? _serviceProvider;
+    private readonly IEnumerable<ISessionActivityListener> _activityListeners;
 
     // Pending confirm/ui-input response channels keyed by request id.
     private readonly ConcurrentDictionary<string, TaskCompletionSource<bool>> _pendingConfirms = new();
@@ -76,7 +77,8 @@ public sealed class TurnHandler : ITurnHandler
         PermissionModeOptions? permissionModeOptions = null,
         ISessionStore? sessionStore = null,
         ITerminalClientFactory? terminalClientFactory = null,
-        IServiceProvider? serviceProvider = null)
+        IServiceProvider? serviceProvider = null,
+        IEnumerable<ISessionActivityListener>? activityListeners = null)
     {
         _providers = providers;
         _activeModelStore = activeModelStore;
@@ -95,6 +97,7 @@ public sealed class TurnHandler : ITurnHandler
         _logger = logger;
         _terminalClientFactory = terminalClientFactory;
         _serviceProvider = serviceProvider;
+        _activityListeners = activityListeners ?? [];
 
         if (terminalClientFactory is not null && serviceProvider is null)
             throw new ArgumentNullException(nameof(serviceProvider),
@@ -122,6 +125,8 @@ public sealed class TurnHandler : ITurnHandler
         _turnCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         try
         {
+            NotifyTurnStarted(_sessionHandler.CurrentSession?.Id);
+
             if (!_systemPromptInjected)
             {
                 // Provision assets/<session_id>/ under the workspace root when UseAssets was called.
@@ -221,6 +226,23 @@ public sealed class TurnHandler : ITurnHandler
                 Message = $"No pending ui.inputRequest with id '{cmd.Id}'.",
                 Recoverable = true
             }, cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    private void NotifyTurnStarted(string? sessionId)
+    {
+        if (sessionId is null)
+            return;
+        foreach (ISessionActivityListener listener in _activityListeners)
+        {
+            try
+            {
+                listener.OnTurnStarted(sessionId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "ISessionActivityListener.OnTurnStarted threw for session {SessionId}.", sessionId);
+            }
         }
     }
 

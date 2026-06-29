@@ -24,8 +24,10 @@ public interface IProviderExtension
     Task<bool> IsRunningAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Starts the server if not running. Only called after an ADR-006
-    /// confirmation prompt initiated by the daemon.
+    /// Starts the server if not running. Composition-declared backends carry standing
+    /// spawn consent (ADR-034 D2): the daemon may start, warm, and respawn them without a
+    /// per-call confirmation prompt. Interactive / ad-hoc provider use may still be gated
+    /// behind an ADR-006 confirmation prompt.
     /// </summary>
     Task EnsureRunningAsync(CancellationToken cancellationToken = default);
 
@@ -40,4 +42,10 @@ public interface IProviderExtension
     /// registered with <c>ProviderRegistry</c>.
     /// </summary>
     IProviderFactory CreateFactory();
+
+    /// <summary>
+    /// Stops a server this provider spawned and owns, releasing its port. The default
+    /// is a no-op so attach-only / start-only providers are unaffected (ADR-034 D1).
+    /// </summary>
+    Task StopAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
 }
