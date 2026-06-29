@@ -24,8 +24,10 @@ public interface IProviderExtension
     Task<bool> IsRunningAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Starts the server if not running. Only called after an ADR-006
-    /// confirmation prompt initiated by the daemon.
+    /// Starts the server if not running. Composition-declared backends carry standing
+    /// spawn consent (ADR-034 D2): the daemon may start, warm, and respawn them without a
+    /// per-call confirmation prompt. Interactive / ad-hoc provider use may still be gated
+    /// behind an ADR-006 confirmation prompt.
     /// </summary>
     Task EnsureRunningAsync(CancellationToken cancellationToken = default);
 

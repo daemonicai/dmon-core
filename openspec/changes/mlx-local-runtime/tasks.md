@@ -47,5 +47,5 @@
 
 ## 8. Docs & validation
 
-- [ ] 8.1 Update the daemon deploy/setup docs: `uv` prerequisite, the OptiQ-4bit/nvfp4 model pairing, first-run model download note.
-- [ ] 8.2 `make build` clean (TreatWarningsAsErrors), `env -u MEKO_API_KEY make test` green, `openspec validate mlx-local-runtime --strict` passes.
+- [x] 8.1 Update the daemon deploy/setup docs: `uv` prerequisite, the OptiQ-4bit/nvfp4 model pairing, first-run model download note.
+- [x] 8.2 `make build` clean (TreatWarningsAsErrors), `env -u MEKO_API_KEY make test` green, `openspec validate mlx-local-runtime --strict` passes.

@@ -27,6 +27,64 @@ on Tailscale alone.
 
 ---
 
+## Prerequisites — local model runtime
+
+The Daemon's routing uses two locally-resident MLX models managed by `Dmon.Providers.Mlx`. This
+provider applies **only on Apple-Silicon (arm64) macOS**; on other platforms `IsApplicable()`
+returns false and the daemon falls back to cloud providers declared in the composition root.
+
+### uv (required on the home server)
+
+The provider uses `uv` to manage a pinned Python interpreter and a virtual environment containing
+`mlx_lm ≥ 0.31.3`. Install `uv` and ensure it is on `PATH`; the provider builds and manages
+its own virtual environment automatically on first run. No additional Python setup is required.
+
+**Why `uv`, not the system Python?** The system Python is unreliable for `mlx_lm`; `uv` owns a
+pinned interpreter so the runtime does not depend on whatever Python happens to be installed.
+
+```bash
+# Official installer (recommended)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Or via Homebrew
+brew install uv
+```
+
+After installing, confirm `uv` is on `PATH`:
+
+```bash
+uv --version
+```
+
+### Model pairing
+
+Two models run as separate `mlx_lm.server` processes on fixed ports:
+
+| Role | Model | Port | Residency |
+|------|-------|------|-----------|
+| First-line | `mlx-community/gemma-4-e4b-it-qat-OptiQ-4bit` | 8800 | Permanent (always hot) |
+| Escalation | `mlx-community/gemma-4-26B-A4B-it-qat-nvfp4` | 8810 | Warmed on activity; released after idle window |
+
+**nvfp4 footgun:** do **not** use the nvfp4 quantisation for the first-line E4B model. At 4B
+scale, nvfp4 over-quantizes the model into unusable tool calling — outputs ramble and produce
+corrupted JSON. OptiQ-4bit is the correct quant for the E4B first-line slot. The 26B escalation
+model tolerates nvfp4.
+
+Each model runs as a stock `mlx_lm.server` process (one model per process). No custom Python
+server is required.
+
+### First-run model download
+
+Models are downloaded by `mlx_lm` from Hugging Face Hub **on first run**. The first launch
+requires network access; subsequent launches use the local HF cache. No custom download step
+ships with this change — rely on `mlx_lm`'s own first-run download behaviour.
+
+Both models resident simultaneously requires approximately **19 GB** of unified memory. The
+escalation model is released after its idle window (default ~10 minutes, configurable), so
+steady-state memory pressure on 36–48 GB machines is dominated by the small first-line model.
+
+---
+
 ## Step 1 — Run the network host on the home server
 
 The network host reads its configuration from `appsettings.json` or environment variables.

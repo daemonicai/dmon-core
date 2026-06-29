@@ -4,6 +4,9 @@ Cross-block memory for the architect (spawned fresh each block). Newest decision
 
 ## Status snapshot
 
+**ALL TASKS DONE (8/8 groups). Change implemented; final gates green (build clean, Daemon.cs compiles, 606+44+209 tests pass / 1 pre-existing skip, validate --strict valid, Omlx grep empty).** Awaiting: user push/PR + `/opsx:archive`. Two carry-overs for archive/verify (below).
+
+
 - **Group 1 (ADR-034 gate): DONE.** ADR-034 written and **Accepted** by the user (2026-06-29). Implementation is unblocked.
 - **Group 2 (core `ISessionActivityListener` seam): DONE.** Reviewer-approved. See Group 2 section below.
 - **Group 3 partial (3.1–3.2 scaffold + applicability): DONE.** Reviewer-approved. See Group 3 section below.
@@ -12,7 +15,10 @@ Cross-block memory for the architect (spawned fresh each block). Newest decision
 - **Group 4 (4.1/4.2/4.3 client + composition verbs): DONE.** Reviewer-approved. The provider package is now COMPLETE. See Group 4 section below.
 - **Group 6 partial (6.1/6.2/6.4 `EscalationWarmingService` + verb + tests): DONE.** Reviewer-approved. See Group 6 section below.
 - **Group 7 block (6.3 + 7.1 + 7.2 + 7.3 — daemon switch + Omlx removal): DONE.** Reviewer-approved (clean Approve, no nits). See Group 7 section below.
-- Next: **Group 8 (8.1 docs + 8.2 final validation)** — the LAST block. 8.1 = daemon deploy/setup docs (uv prerequisite, OptiQ-4bit/nvfp4 pairing, first-run model download). 8.2 = final gate run. **Also fold in the orchestrator doc-pass: the stale `IProviderExtension.EnsureRunningAsync` XML doc** ("Only called after an ADR-006 confirmation prompt" → now standing-consent per ADR-034 D2). **Archive-time TODO (NOT now):** delete standing `openspec/specs/omlx-provider`, and reconcile Omlx mentions in `openspec/specs/daemon-host` + `monorepo-layout`. **HUMAN-VERIFY TODO before "fully proven":** first real daemon launch needs real uv/mlx_lm (no automated gate covers it) — see Group 7 note.
+- **Group 8 (8.1 docs + 8.2 final gates): DONE.** Reviewer-approved. `docs/deploying-the-network.md` gained a "Prerequisites — local model runtime" section (uv install + rationale, model-pairing table 8800 OptiQ-4bit / 8810 nvfp4 + nvfp4-first-line footgun, first-run HF download + ~19 GB memory note); `IProviderExtension.EnsureRunningAsync` XML doc realigned to ADR-034 D2 standing consent. Final gates all green.
+- **CARRY-OVER 1 — Archive-time (for `/opsx:archive`, NOT during apply):** delete standing `openspec/specs/omlx-provider/`, and reconcile residual Omlx mentions in `openspec/specs/daemon-host/` + `openspec/specs/monorepo-layout/`. (Task 7.2 text: "delete the omlx-provider standing spec on archive.")
+- **CARRY-OVER 2 — Human-verify before "fully proven":** the first REAL daemon launch needs real `uv` + `mlx_lm` + the two gemma-4 models on an Apple-Silicon box — NO automated gate covers it (the DI-graph test only proves constructability). Recipe: install `uv`; `dotnet run daemon/Daemon.cs --no-build` after a build; confirm first-line spawns on :8800, a `think_harder` escalation spawns/warms :8810, and the escalation model is released ~10 min idle.
+- **Pre-existing drift (separate follow-up, NOT this change):** `daemon/BRIEF.md` + `daemon/Daemon.App/README.md` still reference the dropped `AddReasoner`/`DMON_REASONER_URL`/`gemma4:…` from the earlier daemon-triage-escalation change.
 
 ## Pinned facts (apply across all blocks)
 
