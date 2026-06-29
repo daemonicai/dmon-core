@@ -36,14 +36,14 @@
 
 - [x] 6.1 Implement `EscalationWarmingService : ISessionActivityListener` in the daemon: on activate/turn → fire-and-forget `EnsureRunningAsync(escalation)` + reset idle timer; never block the caller.
 - [x] 6.2 Implement the idle timer → `StopAsync(escalation)` after the configurable idle window (sane default ~10 min); activity cancels pending teardown.
-- [ ] 6.3 Register the service in `daemon/Daemon.cs`; ensure the escalation runtime uses a FIXED port so a cached client reconnects after respawn.
+- [x] 6.3 Register the service in `daemon/Daemon.cs`; ensure the escalation runtime uses a FIXED port so a cached client reconnects after respawn.
 - [x] 6.4 Tests: warm on activate + turn; idle teardown after window; activity cancels teardown; warming never blocks; escalation-before-warmup self-heals via the escalation path.
 
 ## 7. Daemon composition switch & Omlx removal
 
-- [ ] 7.1 Switch `daemon/Daemon.cs` from `UseOmlx` to the mlx verbs (first-line + escalation) with the verified model pairing.
-- [ ] 7.2 Remove `providers/Dmon.Providers.Omlx` (package + references + solution entries) and delete the `omlx-provider` standing spec on archive.
-- [ ] 7.3 Tests: daemon composition DI graph resolves (first-line/escalation backends + warming service) with no Omlx references remaining.
+- [x] 7.1 Switch `daemon/Daemon.cs` from `UseOmlx` to the mlx verbs (first-line + escalation) with the verified model pairing.
+- [x] 7.2 Remove `providers/Dmon.Providers.Omlx` (package + references + solution entries) and delete the `omlx-provider` standing spec on archive.
+- [x] 7.3 Tests: daemon composition DI graph resolves (first-line/escalation backends + warming service) with no Omlx references remaining.
 
 ## 8. Docs & validation
 

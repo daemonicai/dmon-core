@@ -11,7 +11,6 @@
     <Project Path="providers\Dmon.Providers.Gemini\Dmon.Providers.Gemini.csproj" />
     <Project Path="providers\Dmon.Providers.Ollama\Dmon.Providers.Ollama.csproj" />
     <Project Path="providers\Dmon.Providers.OpenAI\Dmon.Providers.OpenAI.csproj" />
-    <Project Path="providers\Dmon.Providers.Omlx\Dmon.Providers.Omlx.csproj" />
     <Project Path="providers\Dmon.Providers.LlamaCpp\Dmon.Providers.LlamaCpp.csproj" />
     <Project Path="providers\Dmon.Providers.Mtplx\Dmon.Providers.Mtplx.csproj" />
     <Project Path="providers\Dmon.Providers.Mlx\Dmon.Providers.Mlx.csproj" />
@@ -45,7 +44,6 @@
     <Project Path="test\Dmon.Desktop.Tests\Dmon.Desktop.Tests.csproj" />
     <Project Path="test\Dmon.Core.Tests\Dmon.Core.Tests.csproj" />
     <Project Path="test\Dmon.Extensions.Tests\Dmon.Extensions.Tests.csproj" />
-    <Project Path="test\Dmon.Providers.Omlx.Tests\Dmon.Providers.Omlx.Tests.csproj" />
     <Project Path="test\Dmon.Network.Tests\Dmon.Network.Tests.csproj" />
     <Project Path="test\Dmon.Memory.Tests\Dmon.Memory.Tests.csproj" />
     <Project Path="test\Dmon.Memory.Meko.Tests\Dmon.Memory.Meko.Tests.csproj" />
