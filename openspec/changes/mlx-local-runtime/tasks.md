@@ -34,10 +34,10 @@
 
 ## 6. Daemon: EscalationWarmingService
 
-- [ ] 6.1 Implement `EscalationWarmingService : ISessionActivityListener` in the daemon: on activate/turn → fire-and-forget `EnsureRunningAsync(escalation)` + reset idle timer; never block the caller.
-- [ ] 6.2 Implement the idle timer → `StopAsync(escalation)` after the configurable idle window (sane default ~10 min); activity cancels pending teardown.
+- [x] 6.1 Implement `EscalationWarmingService : ISessionActivityListener` in the daemon: on activate/turn → fire-and-forget `EnsureRunningAsync(escalation)` + reset idle timer; never block the caller.
+- [x] 6.2 Implement the idle timer → `StopAsync(escalation)` after the configurable idle window (sane default ~10 min); activity cancels pending teardown.
 - [ ] 6.3 Register the service in `daemon/Daemon.cs`; ensure the escalation runtime uses a FIXED port so a cached client reconnects after respawn.
-- [ ] 6.4 Tests: warm on activate + turn; idle teardown after window; activity cancels teardown; warming never blocks; escalation-before-warmup self-heals via the escalation path.
+- [x] 6.4 Tests: warm on activate + turn; idle teardown after window; activity cancels teardown; warming never blocks; escalation-before-warmup self-heals via the escalation path.
 
 ## 7. Daemon composition switch & Omlx removal
 

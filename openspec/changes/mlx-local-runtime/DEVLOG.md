@@ -10,7 +10,8 @@ Cross-block memory for the architect (spawned fresh each block). Newest decision
 - **Group 3 partial (3.3/3.4/3.6/3.7 `EnsureRunningAsync` end-to-end): DONE.** Reviewer-approved. See Group 3 (EnsureRunningAsync) section below.
 - **Group 5 + 3.5/3.8 (`StopAsync` lifecycle): DONE.** Reviewer-approved. Group 3 (3.x) and Group 5 are now COMPLETE. See Group 5 section below.
 - **Group 4 (4.1/4.2/4.3 client + composition verbs): DONE.** Reviewer-approved. The provider package is now COMPLETE. See Group 4 section below.
-- Next: Group 6 (daemon `EscalationWarmingService` — FIRST consumer of the keyed runtimes + `StopAsync`), then Group 7 (daemon switch `UseOmlx`→mlx verbs + Omlx removal), Group 8 (docs + final validation).
+- **Group 6 partial (6.1/6.2/6.4 `EscalationWarmingService` + verb + tests): DONE.** Reviewer-approved. **6.3 (Daemon.cs registration + fixed port) DEFERRED into the Group 7 block** (the atomic `UseOmlx`→mlx switch — registering warming in Daemon.cs needs `AddMlxEscalation()` + a provider ref while Omlx is still present = throwaway half-state). See Group 6 section below.
+- Next: **Group 7 block = 6.3 + 7.1 + 7.2 + 7.3** — atomic Daemon.cs switch (`UseOmlx`→`AddMlxFirstline`/`AddMlxEscalation` + `UseTriage`/`AddEscalation(sp => sp.MlxClient(key))` + `AddEscalationWarming(sp => sp.GetRequiredKeyedService<MlxProviderExtension>(MlxRuntimeKeys.Escalation))`) + remove `Dmon.Providers.Omlx` (package + spec + solution entries) + DI-graph test. Then Group 8 (docs + final validation).
 
 ## Pinned facts (apply across all blocks)
 
@@ -21,6 +22,18 @@ Cross-block memory for the architect (spawned fresh each block). Newest decision
 - **gemma-4 emits a separate `reasoning` field**; `max_tokens` must be generous or the tool call is never reached.
 - **Escalation runtime uses a FIXED port** so ADR-032's cached escalation `IChatClient` reconnects after teardown→respawn.
 - **Test gate:** run `env -u MEKO_API_KEY make test` (avoids the live-Meko smoke hang). `make build` is `TreatWarningsAsErrors`.
+
+## Group 6 — daemon `EscalationWarmingService` (6.1/6.2/6.4, DONE; 6.3 deferred to Group 7)
+
+- **Location:** `daemon/Daemon.Routing/EscalationWarmingService.cs` (`internal sealed`, `ISessionActivityListener` + `IDisposable`), `EscalationWarmingOptions.cs` (public BCL-only `record`, `IdleWindow` default **10 min**), `EscalationWarmingRegistrationExtensions.cs` (`namespace Dmon.Hosting;`, verb `AddEscalationWarming`).
+- **LAYERING (the crux — PROVIDER-AGNOSTIC):** `Daemon.Routing` references ONLY `Dmon.Abstractions` + `Dmon.Core` — **NO ProjectReference to any provider package**. The service depends solely on `IProviderExtension` (`EnsureRunningAsync` + the `StopAsync` default no-op). The mlx-concrete keyed resolve is supplied by the CALLER as `Func<IServiceProvider, IProviderExtension> escalationResolver` — resolved at the Daemon.cs site in Group 7 (`sp => sp.GetRequiredKeyedService<MlxProviderExtension>(MlxRuntimeKeys.Escalation)`).
+- **Verb** `AddEscalationWarming(IDmonHostBuilder, Func<IServiceProvider, IProviderExtension>, EscalationWarmingOptions?)` registers the service as a singleton built from the resolver AND forwards it as `ISessionActivityListener` (so core's `IEnumerable<ISessionActivityListener>` discovers it — no other core wiring needed). Mirrors `TriageRegistrationExtensions`.
+- **Idle timer:** injected `TimeProvider` → single-shot `ITimer`, reset via `Change(IdleWindow, Infinite)` on each activity; callback rechecks `now < deadline` against `Interlocked.Read(_lastActivityTicks)` (defeats a stale queued callback) then calls `StopAsync`. Deterministically tested via `FakeTimeProvider.Advance` (added `Microsoft.Extensions.TimeProvider.Testing` to the test csproj).
+- **Non-blocking fire-and-forget:** sync `void` `OnSessionActivated`/`OnTurnStarted` → `RecordActivity()` (reset timer) → `_ = WarmAsync()` detached → return immediately. `WarmAsync`/`TeardownAsync` wrap their whole body in try/catch with null-safe `_logger?.LogWarning` (catch INSIDE the detached task → no unobserved-faulted-task path). Call `EnsureRunningAsync`/`StopAsync` directly with `CancellationToken.None` — NO permission prompt (ADR-034 D2 standing consent).
+- **Thread-safety:** `_lastActivityTicks` via Interlocked, `_disposed` volatile, `ITimer.Change` thread-safe; concurrent multi-session resets are benign (push the deadline out). Dispose-after-callback race is benign in current .NET (`Change`-after-`Dispose` returns false, no throw) and D6 self-heal tolerates a teardown racing a late escalation — no use-after-dispose crash. Timer disposed in `Dispose`.
+- **Reviewer nits (non-blocking, left as-is):** (1) DI double-dispose via the `ISessionActivityListener` forwarding factory — harmless, `Dispose` is idempotent; (2) in-flight warm not cancelled on dispose — arguably correct (shared runtime); (3) the defensive re-arm branch isn't directly unit-tested (unreachable deterministically via FakeTimeProvider).
+- **STALE-DOC NOTE for Group 7/8 (orchestrator):** `IProviderExtension.EnsureRunningAsync`'s XML doc still says "Only called after an ADR-006 confirmation prompt" — now stale per ADR-034 D2 (standing consent for composition-declared backends). Candidate doc-only realignment when the interface is next touched.
+- 10 tests; hermetic (fake `IProviderExtension` + `FakeTimeProvider`, no real uv/mlx/network/process, no `Thread.Sleep`).
 
 ## Group 4 — Mlx client + composition verbs (4.1/4.2/4.3, DONE)
 
