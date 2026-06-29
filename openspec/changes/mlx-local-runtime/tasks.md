@@ -5,10 +5,10 @@
 
 ## 2. Core: session-activity seam
 
-- [ ] 2.1 Define `ISessionActivityListener` (`OnSessionActivated(sessionId)`, `OnTurnStarted(sessionId)`) in core and register DI discovery of zero-or-more listeners.
-- [ ] 2.2 Invoke `OnSessionActivated` from `SessionHandler` on create and load, with per-listener exception isolation (must not fail the session command); keep in-process (no RPC-wire event).
-- [ ] 2.3 Invoke `OnTurnStarted` from `TurnHandler` at turn start, with per-listener exception isolation (must not fail the turn).
-- [ ] 2.4 Tests: listeners discovered/invoked on activate + turn; zero registrations is a no-op; a throwing listener does not break session create/load or the turn.
+- [x] 2.1 Define `ISessionActivityListener` (`OnSessionActivated(sessionId)`, `OnTurnStarted(sessionId)`) in core and register DI discovery of zero-or-more listeners.
+- [x] 2.2 Invoke `OnSessionActivated` from `SessionHandler` on create and load, with per-listener exception isolation (must not fail the session command); keep in-process (no RPC-wire event).
+- [x] 2.3 Invoke `OnTurnStarted` from `TurnHandler` at turn start, with per-listener exception isolation (must not fail the turn).
+- [x] 2.4 Tests: listeners discovered/invoked on activate + turn; zero registrations is a no-op; a throwing listener does not break session create/load or the turn.
 
 ## 3. Provider: Dmon.Providers.Mlx — environment & lifecycle
 
