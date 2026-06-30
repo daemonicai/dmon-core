@@ -80,12 +80,12 @@ The repository SHALL centrally manage third-party package versions via a root `D
 
 ### Requirement: Package naming families
 
-First-party packageable projects SHALL follow the ADR-023 D3 naming families: providers as `Dmon.Providers.<Name>`, tools as `Dmon.Tools.<Name>`, memory backends as `Dmon.Memory.<Name>` (with the local short-term tier as the bare `Dmon.Memory`), and chat-pipeline middleware as `Dmon.Middleware.<Name>`. The Omlx provider SHALL be named `Dmon.Providers.Omlx` (assembly, namespace, and `PackageId`) and SHALL be packable.
+First-party packageable projects SHALL follow the ADR-023 D3 naming families: providers as `Dmon.Providers.<Name>`, tools as `Dmon.Tools.<Name>`, memory backends as `Dmon.Memory.<Name>` (with the local short-term tier as the bare `Dmon.Memory`), and chat-pipeline middleware as `Dmon.Middleware.<Name>`. The Mlx provider SHALL be named `Dmon.Providers.Mlx` (assembly, namespace, and `PackageId`) and SHALL be packable.
 
-#### Scenario: Omlx conforms to the provider family
+#### Scenario: Mlx conforms to the provider family
 
-- **WHEN** the Omlx provider project is inspected
-- **THEN** its `PackageId`, assembly name, and root namespace are `Dmon.Providers.Omlx`
+- **WHEN** the Mlx provider project is inspected
+- **THEN** its `PackageId`, assembly name, and root namespace are `Dmon.Providers.Mlx`
 - **AND** it resides under `providers/`
 - **AND** it is marked packable
 
