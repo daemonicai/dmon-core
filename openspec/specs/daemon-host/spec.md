@@ -153,7 +153,7 @@ On first launch, `Daemon.App` SHALL register itself as a login item via `SMAppSe
 ---
 
 ### Requirement: Configured model-runner endpoints are health-probed
-`Daemon.App` SHALL probe each configured inference endpoint (`DMON_E2B_URL`, `DMON_REASONER_URL`, and the egress target) for reachability and publish each as a `ComponentHealth`, treating any HTTP response as reachable. It SHALL NOT special-case individual runner implementations (Ollama, Omlx, MTPLX, Llama.cpp) nor enumerate models.
+`Daemon.App` SHALL probe each configured inference endpoint (`DMON_E2B_URL`, `DMON_REASONER_URL`, and the egress target) for reachability and publish each as a `ComponentHealth`, treating any HTTP response as reachable. It SHALL NOT special-case individual runner implementations (Ollama, Mlx, MTPLX, Llama.cpp) nor enumerate models.
 
 #### Scenario: Reachable endpoint reports ok
 - **WHEN** a configured inference endpoint returns any HTTP response
