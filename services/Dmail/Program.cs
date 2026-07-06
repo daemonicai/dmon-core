@@ -16,7 +16,11 @@ var keysDir = Path.Combine(dataDir, "keys");
 Directory.CreateDirectory(keysDir);
 var backfillMonths = builder.Configuration.GetValue<int>("DMAIL_BACKFILL_MONTHS", 1);
 
-builder.WebHost.UseUrls($"http://+:{port}");
+var bindAddress = builder.Configuration["DMAIL_BIND_ADDRESS"];
+var allowNonLoopback = builder.Configuration.GetValue<bool>("DMAIL_ALLOW_NONLOOPBACK", false);
+var resolvedBindAddress = BindAddressPolicy.Resolve(bindAddress, port, allowNonLoopback);
+
+builder.WebHost.UseUrls(resolvedBindAddress);
 
 // ---- SQLite Connection ----
 // Per-operation pooled connections (B3): Microsoft.Data.Sqlite pools by connection

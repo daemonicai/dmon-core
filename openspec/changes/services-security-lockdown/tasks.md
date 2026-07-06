@@ -1,9 +1,9 @@
 ## 1. Dmail — loopback-by-default bind (D1)
 
-- [ ] 1.1 Add a local bind-policy guard to `services/Dmail` (a `BindAddressPolicy` helper, ~30 lines) mirroring `Dmon.Network.NetworkBindPolicy.Validate`: loopback always allowed; wildcard (`0.0.0.0`/`::`/`*`/`+`) and other non-loopback allowed only when the opt-in is true; returns `(bool allowed, string? error)`. Add a code comment cross-referencing `frontends/Dmon.Network/NetworkBindPolicy.cs` as the source of truth.
-- [ ] 1.2 In `services/Dmail/Program.cs`, resolve the bind address: use `DMAIL_BIND_ADDRESS` if set, else `http://127.0.0.1:{DMAIL_PORT}`; read `DMAIL_ALLOW_NONLOOPBACK` (default false); validate via 1.1 and throw a fatal, actionable exception on rejection; pass the validated address to `UseUrls` (replacing `http://+:{port}`).
-- [ ] 1.3 Update `services/Dmail/Dockerfile` to set `ENV DMAIL_ALLOW_NONLOOPBACK=true` and `ENV DMAIL_BIND_ADDRESS=http://+:8080` (container namespace is the boundary); keep `EXPOSE 8080` and the existing `/health` `HEALTHCHECK`.
-- [ ] 1.4 Ensure `docker-compose.yml` / deploy docs publish the Dmail port to host loopback (`127.0.0.1:8080:8080`) rather than all host interfaces; add a short note in `docs/` on the loopback-default + opt-in model.
+- [x] 1.1 Add a local bind-policy guard to `services/Dmail` (a `BindAddressPolicy` helper, ~30 lines) mirroring `Dmon.Network.NetworkBindPolicy.Validate`: loopback always allowed; wildcard (`0.0.0.0`/`::`/`*`/`+`) and other non-loopback allowed only when the opt-in is true; returns `(bool allowed, string? error)`. Add a code comment cross-referencing `frontends/Dmon.Network/NetworkBindPolicy.cs` as the source of truth.
+- [x] 1.2 In `services/Dmail/Program.cs`, resolve the bind address: use `DMAIL_BIND_ADDRESS` if set, else `http://127.0.0.1:{DMAIL_PORT}`; read `DMAIL_ALLOW_NONLOOPBACK` (default false); validate via 1.1 and throw a fatal, actionable exception on rejection; pass the validated address to `UseUrls` (replacing `http://+:{port}`).
+- [x] 1.3 Update `services/Dmail/Dockerfile` to set `ENV DMAIL_ALLOW_NONLOOPBACK=true` and `ENV DMAIL_BIND_ADDRESS=http://+:8080` (container namespace is the boundary); keep `EXPOSE 8080` and the existing `/health` `HEALTHCHECK`.
+- [x] 1.4 Ensure `docker-compose.yml` / deploy docs publish the Dmail port to host loopback (`127.0.0.1:8080:8080`) rather than all host interfaces; add a short note in `docs/` on the loopback-default + opt-in model.
 
 ## 2. Dmail — persist auto-generated key, never log it (D3)
 
@@ -24,7 +24,7 @@
 
 ## 5. Tests
 
-- [ ] 5.1 `test/Dmail.Tests`: bind-policy cases — loopback default resolves to `127.0.0.1`; wildcard without opt-in throws at startup; wildcard with `DMAIL_ALLOW_NONLOOPBACK=true` is accepted.
+- [x] 5.1 `test/Dmail.Tests`: bind-policy cases — loopback default resolves to `127.0.0.1`; wildcard without opt-in throws at startup; wildcard with `DMAIL_ALLOW_NONLOOPBACK=true` is accepted.
 - [ ] 5.2 `test/Dmail.Tests`: auth cases — `/api/status`, `/api/accounts`, `/api/accounts/{email}/sync`, and an OAuth endpoint each return 401 without a key and succeed (or reach handler) with a valid key; `/health` returns 200 with no key and its body contains no `idle_connections`/account fields.
 - [ ] 5.3 `test/Dmail.Tests`: key-persistence cases — auto-generate writes a `0600` file and logs only the path (assert the key string is absent from captured logs); a second construction reuses the persisted key.
 - [ ] 5.4 `test/Dcal.Tests`: auth cases — with `DCAL_API_KEY` unset, `/api/events/upcoming` returns 401 without a key; `/health` is open; valid key admits; constant-time comparison in use (behavioural: wrong key → 401).

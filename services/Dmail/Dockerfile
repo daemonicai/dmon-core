@@ -38,6 +38,12 @@ RUN mkdir -p /data
 ENV DMAIL_DATA_DIR=/data
 ENV DMAIL_PORT=8080
 
+# The container's network namespace is the security boundary: binding all
+# interfaces inside the container is safe because only the mapped host port
+# (published to host loopback, see docker-compose.yml) is reachable from outside.
+ENV DMAIL_ALLOW_NONLOOPBACK=true
+ENV DMAIL_BIND_ADDRESS=http://+:8080
+
 EXPOSE 8080
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \

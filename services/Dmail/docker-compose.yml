@@ -6,7 +6,8 @@ services:
       context: ../..
       dockerfile: services/Dmail/Dockerfile
     ports:
-      - "${DMAIL_PORT:-8080}:8080"
+      # Published to host loopback only — see docs/deploying-dmail.md.
+      - "127.0.0.1:${DMAIL_PORT:-8080}:8080"
     volumes:
       - dmail_data:/data
     environment:
