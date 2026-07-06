@@ -30,28 +30,28 @@ final class ConfigStoreTests: XCTestCase {
 
     func testRoundTrip_plaintextKey_survives() {
         ConfigStore.save(
-            plaintext: ["DMON_E2B_URL": "http://x"],
+            plaintext: ["DMON_EGRESS_MODEL": "gemini-2.5-flash"],
             secrets: [:],
             keychainAvailable: true,
             at: configURL
         )
         let loaded = ConfigStore.load(at: configURL)
-        XCTAssertEqual(loaded["DMON_E2B_URL"], "http://x")
+        XCTAssertEqual(loaded["DMON_EGRESS_MODEL"], "gemini-2.5-flash")
     }
 
     // MARK: - Round-trip: URL value with multiple colons splits on first colon only
 
     func testRoundTrip_urlValue_firstColonSplitOnly() {
         ConfigStore.save(
-            plaintext: ["DMON_E2B_URL": "http://localhost:8080/v1"],
+            plaintext: ["DMAIL_BASE_URL": "http://localhost:5280/v1"],
             secrets: [:],
             keychainAvailable: true,
             at: configURL
         )
         let loaded = ConfigStore.load(at: configURL)
         XCTAssertEqual(
-            loaded["DMON_E2B_URL"],
-            "http://localhost:8080/v1",
+            loaded["DMAIL_BASE_URL"],
+            "http://localhost:5280/v1",
             "URL value with multiple colons must round-trip intact (first-colon split)"
         )
     }
@@ -61,15 +61,15 @@ final class ConfigStoreTests: XCTestCase {
     func testLoad_skipsCommentsAndBlanks() throws {
         let yaml = """
         # Managed by Daemon.App settings panel.
-        DMON_E2B_URL: http://x
+        DMON_EGRESS_MODEL: gemini-2.5-flash
 
         # another comment
-        DMON_E2B_MODEL: gemma4
+        DMON_NETWORK_PATH: /usr/local/bin/dmon-network
         """
         try yaml.write(to: configURL, atomically: true, encoding: .utf8)
         let loaded = ConfigStore.load(at: configURL)
-        XCTAssertEqual(loaded["DMON_E2B_URL"], "http://x")
-        XCTAssertEqual(loaded["DMON_E2B_MODEL"], "gemma4")
+        XCTAssertEqual(loaded["DMON_EGRESS_MODEL"], "gemini-2.5-flash")
+        XCTAssertEqual(loaded["DMON_NETWORK_PATH"], "/usr/local/bin/dmon-network")
         // Comment lines must not appear as keys.
         XCTAssertNil(loaded["# Managed by Daemon.App settings panel."])
         XCTAssertNil(loaded["# another comment"])
@@ -126,9 +126,10 @@ final class ConfigStoreTests: XCTestCase {
 
     func testRoundTrip_dmonKeys_survive() {
         let plaintext: [String: String] = [
-            "DMON_E2B_URL":      "http://e2b",
-            "DMON_REASONER_URL": "http://reasoner",
-            "DMON_E2B_MODEL":    "gemma4:e2b-it-qat",
+            "DMON_EGRESS_MODEL":     "gemini-2.5-flash",
+            "DMON_EGRESS_THRESHOLD": "0.80",
+            "DMON_NETWORK_PATH":     "/usr/local/bin/dmon-network",
+            "DMON_DCAL_SERVER_PATH": "/usr/local/bin/dcal",
         ]
         ConfigStore.save(
             plaintext: plaintext,

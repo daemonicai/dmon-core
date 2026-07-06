@@ -81,11 +81,7 @@ struct SettingsView: View {
     @AppStorage(MenuBarPreference.key) private var showMenuBarIcon = MenuBarPreference.defaultValue
 
     // MARK: Inference fields
-    @State private var e2bURL:        String = ""
-    @State private var reasonerURL:   String = ""
     @State private var geminiKey:     String = ""
-    @State private var e2bModel:      String = "gemma4:e2b-it-qat"
-    @State private var reasonerModel: String = "gemma4-27b"
     @State private var egressModel:   String = "gemini-2.5-flash"
 
     // MARK: Calendar fields
@@ -128,14 +124,6 @@ struct SettingsView: View {
 
             // MARK: - Inference
             Section("Inference") {
-                TextField("E2B endpoint URL", text: $e2bURL)
-                    .help("DMON_E2B_URL — remote code-execution endpoint")
-                TextField("E2B model ID", text: $e2bModel)
-                    .help("DMON_E2B_MODEL — model for the E2B / code-execution turn (default: gemma4:e2b-it-qat)")
-                TextField("Reasoner URL", text: $reasonerURL)
-                    .help("DMON_REASONER_URL — local or remote reasoning model endpoint")
-                TextField("Reasoner model ID", text: $reasonerModel)
-                    .help("DMON_REASONER_MODEL — model for the reasoner turn (default: gemma4-27b)")
                 TextField("Egress model ID", text: $egressModel)
                     .help("DMON_EGRESS_MODEL — model for egress / final-answer turn (default: gemini-2.5-flash)")
                 SecureField("Gemini API key", text: $geminiKey)
@@ -220,10 +208,6 @@ struct SettingsView: View {
     private func loadFromStore() {
         let cfg = ConfigStore.load()
 
-        e2bURL        = cfg["DMON_E2B_URL"]       ?? ""
-        reasonerURL   = cfg["DMON_REASONER_URL"]  ?? ""
-        e2bModel      = cfg["DMON_E2B_MODEL"]      ?? "gemma4:e2b-it-qat"
-        reasonerModel = cfg["DMON_REASONER_MODEL"] ?? "gemma4-27b"
         egressModel   = cfg["DMON_EGRESS_MODEL"]   ?? "gemini-2.5-flash"
         icalURL       = cfg["DCAL_ICAL_URL"]       ?? ""
         syncInterval  = cfg["DCAL_SYNC_INTERVAL_MINUTES"] ?? "15"
@@ -259,10 +243,6 @@ struct SettingsView: View {
 
     private func persistAndRestart() {
         let plaintext: [String: String] = [
-            "DMON_E2B_URL":                 e2bURL,
-            "DMON_REASONER_URL":            reasonerURL,
-            "DMON_E2B_MODEL":               e2bModel,
-            "DMON_REASONER_MODEL":          reasonerModel,
             "DMON_EGRESS_MODEL":            egressModel,
             "DCAL_BASE_URL":                "http://localhost:5280",  // default; not exposed in UI
             "DCAL_ICAL_URL":                icalURL,

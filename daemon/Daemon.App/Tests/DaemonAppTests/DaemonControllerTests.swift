@@ -24,7 +24,7 @@ final class DaemonControllerTests: XCTestCase {
         XCTAssertTrue(controller.hasBootstrapped)
     }
 
-    func testBootstrap_registersNineComponents_afterOneCall() {
+    func testBootstrap_registersSevenComponents_afterOneCall() {
         let controller = DaemonController()
         controller.bootstrap()
         // The registry is populated lazily on the first publisher emission, which may

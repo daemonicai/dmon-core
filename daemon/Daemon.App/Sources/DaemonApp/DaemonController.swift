@@ -32,14 +32,6 @@ final class DaemonController: ObservableObject {
     let mailMonitor   = DmailHealthMonitor()
 
     // Endpoint probes — URLs resolved once at construction (env is stable).
-    let e2bProbe = EndpointHealthProbe(
-        name: "E2B Endpoint",
-        url: URL(string: ProcessInfo.processInfo.environment["DMON_E2B_URL"] ?? "http://localhost:11434")
-    )
-    let reasonerProbe = EndpointHealthProbe(
-        name: "Reasoner Endpoint",
-        url: URL(string: ProcessInfo.processInfo.environment["DMON_REASONER_URL"] ?? "http://localhost:8080/v1")
-    )
     // Egress (Gemini) base URL is fixed — no env var override.
     let egressProbe = EndpointHealthProbe(
         name: "Egress Endpoint",
@@ -64,7 +56,7 @@ final class DaemonController: ObservableObject {
 
     // MARK: - Bootstrap
 
-    /// Start all managers, register the nine health publishers (stable orders 0–8),
+    /// Start all managers, register the seven health publishers (stable orders 0–6),
     /// wire `observeNetworkStopped`, and start the monitors and probes.
     ///
     /// Guarded by `hasBootstrapped` — calling more than once is a safe no-op.
@@ -84,22 +76,18 @@ final class DaemonController: ObservableObject {
 
         // Endpoint health monitors.
         mailMonitor.start()
-        e2bProbe.start()
-        reasonerProbe.start()
         egressProbe.start()
 
         // Wire the health registry.
         // Stable display order: Network(0) Dcal(1) Dmail(2) Tailscale(3) Calendar Sync(4)
-        //                       Mail(5) E2B Endpoint(6) Reasoner Endpoint(7) Egress Endpoint(8).
+        //                       Mail(5) Egress Endpoint(6).
         healthRegistry.register(publisher: network.$componentHealth, order: 0)
         healthRegistry.register(publisher: dcal.$componentHealth,    order: 1)
         healthRegistry.register(publisher: dmail.$componentHealth,   order: 2)
         healthRegistry.register(publisher: tailscale.$componentHealth,    order: 3)
         healthRegistry.register(publisher: calendarSync.$componentHealth, order: 4)
         healthRegistry.register(publisher: mailMonitor.$componentHealth,  order: 5)
-        healthRegistry.register(publisher: e2bProbe.$componentHealth,     order: 6)
-        healthRegistry.register(publisher: reasonerProbe.$componentHealth, order: 7)
-        healthRegistry.register(publisher: egressProbe.$componentHealth,  order: 8)
+        healthRegistry.register(publisher: egressProbe.$componentHealth,  order: 6)
 
         // The Network's special icon role (stopped → red) is driven by a dedicated flag,
         // NOT by forcing its ComponentHealth to `down`.

@@ -62,15 +62,16 @@ and make no network calls.
   `DMON_DMAIL_SERVER_PATH`; an unresolved server is reported "not configured" rather
   than spawned. All children are terminated on quit.
 - **Unified health** — a typed `HealthRegistry` aggregates the Network host, the
-  Dcal/Dmail servers, Tailscale, the calendar-sync poll, and the configured
-  model-runner endpoints (`DMON_E2B_URL`, `DMON_REASONER_URL`, egress). Each is a
-  row in the dashboard's Status grid (with its last-poll time); the **Dock icon**
-  (and the optional menu-bar icon, when enabled) reflects the rollup
-  (red/amber/green). The Services section offers per-service start/stop/restart and
-  a best-effort "Bring Tailscale up" action (`tailscale up`).
+  Dcal/Dmail servers, Tailscale, the calendar-sync poll, and the egress endpoint.
+  Each is a row in the dashboard's Status grid (with its last-poll time); the
+  **Dock icon** (and the optional menu-bar icon, when enabled) reflects the
+  rollup (red/amber/green). The Services section offers per-service
+  start/stop/restart and a best-effort "Bring Tailscale up" action (`tailscale
+  up`). dmonium does not probe local inference endpoints — the core's `mlx`
+  provider owns that lifecycle/readiness itself.
 - **Settings** — writes `~/.dmon/config.yaml` (+ Keychain for secrets) and
-  restarts the Network host. dmon-core's own keys use the `DMON_` prefix (endpoints,
-  the three `DMON_*_MODEL` IDs, `DMON_EGRESS_THRESHOLD`); the Dcal/Dmail servers
+  restarts the Network host. dmon-core's own keys use the `DMON_` prefix
+  (`DMON_EGRESS_MODEL`, `DMON_EGRESS_THRESHOLD`); the Dcal/Dmail servers
   keep their own `DCAL_*`/`DMAIL_*` config and provider keys (`GEMINI_API_KEY`)
   are unchanged.
 
