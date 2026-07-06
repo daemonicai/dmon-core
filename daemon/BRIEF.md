@@ -1,3 +1,14 @@
+> **⚠️ HISTORICAL / SUPERSEDED — not the shipped design.**
+> This brief describes the *original* tiered-inference proposal (an e2b/reasoner
+> upfront-dispatch `TriageRouter` with `AddReasoner`/Ollama-backed local models).
+> That design was superseded: routing is now handler-initiated escalation with no
+> "reasoner" concept (see **ADR-032**), and local inference is served by
+> `Dmon.Providers.Mlx` on fixed ports 8800 (first-line) / 8810 (escalation), with
+> no user-facing endpoint/model config (see **ADR-034**). For the current
+> behaviour, see the standing specs `triage-routing`, `daemon-composition-root`,
+> and `mlx-provider`. The body below is kept for historical context and is
+> otherwise unmodified.
+
 # BRIEF: dmon tiered-inference triage router
 
 ## Goal
