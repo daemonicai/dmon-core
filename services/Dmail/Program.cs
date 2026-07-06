@@ -90,6 +90,9 @@ await vectorStoreService.EnsureCollectionAsync();
 var embedding = app.Services.GetRequiredService<EmbeddingService>();
 await embedding.ValidateModelAsync();
 
+// Structural default-deny: every /api/* request requires a valid X-Api-Key (D2)
+app.UseApiKeyAuth();
+
 // Map endpoints
 app.MapHealthHandlers();
 app.MapSearchHandlers();

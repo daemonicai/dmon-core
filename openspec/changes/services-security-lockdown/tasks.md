@@ -12,9 +12,9 @@
 
 ## 3. Dmail — default-deny auth on all `/api/*` (D2)
 
-- [ ] 3.1 Make API-key enforcement structural for the `/api` prefix: apply the `RequireApiKey` filter to the whole `/api` route group (or a global filter keyed on `PathStartsWithSegments("/api")`), so new endpoints are protected by construction. Keep `GET /health` and static dashboard files outside it.
-- [ ] 3.2 Verify every existing `/api/*` mapping in `services/Dmail/EndpointExtensions.cs` is now covered (`/api/status`, `/api/accounts` GET, `/api/accounts/{email}` DELETE, `/api/accounts/{email}/sync` POST, `/api/auth/google/login`, `/api/auth/google/callback`, plus the already-protected search/list/get) and remove now-redundant per-endpoint `.RequireApiKey()` calls if the group filter subsumes them. Ensure a rejected request returns 401 before handler logic runs.
-- [ ] 3.3 Trim the `GET /health` body (D5): drop `idle_connections`; keep `status`/`model_loaded`/`database_ok` only. Confirm `/api/status` (authenticated) still carries the connection-count detail for operators.
+- [x] 3.1 Make API-key enforcement structural for the `/api` prefix: apply the `RequireApiKey` filter to the whole `/api` route group (or a global filter keyed on `PathStartsWithSegments("/api")`), so new endpoints are protected by construction. Keep `GET /health` and static dashboard files outside it.
+- [x] 3.2 Verify every existing `/api/*` mapping in `services/Dmail/EndpointExtensions.cs` is now covered (`/api/status`, `/api/accounts` GET, `/api/accounts/{email}` DELETE, `/api/accounts/{email}/sync` POST, `/api/auth/google/login`, `/api/auth/google/callback`, plus the already-protected search/list/get) and remove now-redundant per-endpoint `.RequireApiKey()` calls if the group filter subsumes them. Ensure a rejected request returns 401 before handler logic runs.
+- [x] 3.3 Trim the `GET /health` body (D5): drop `idle_connections`; keep `status`/`model_loaded`/`database_ok` only. Confirm `/api/status` (authenticated) still carries the connection-count detail for operators.
 
 ## 4. Dcal — default-deny auth + constant-time compare (D4)
 
@@ -25,7 +25,7 @@
 ## 5. Tests
 
 - [x] 5.1 `test/Dmail.Tests`: bind-policy cases — loopback default resolves to `127.0.0.1`; wildcard without opt-in throws at startup; wildcard with `DMAIL_ALLOW_NONLOOPBACK=true` is accepted.
-- [ ] 5.2 `test/Dmail.Tests`: auth cases — `/api/status`, `/api/accounts`, `/api/accounts/{email}/sync`, and an OAuth endpoint each return 401 without a key and succeed (or reach handler) with a valid key; `/health` returns 200 with no key and its body contains no `idle_connections`/account fields.
+- [x] 5.2 `test/Dmail.Tests`: auth cases — `/api/status`, `/api/accounts`, `/api/accounts/{email}/sync`, and an OAuth endpoint each return 401 without a key and succeed (or reach handler) with a valid key; `/health` returns 200 with no key and its body contains no `idle_connections`/account fields.
 - [x] 5.3 `test/Dmail.Tests`: key-persistence cases — auto-generate writes a `0600` file and logs only the path (assert the key string is absent from captured logs); a second construction reuses the persisted key.
 - [ ] 5.4 `test/Dcal.Tests`: auth cases — with `DCAL_API_KEY` unset, `/api/events/upcoming` returns 401 without a key; `/health` is open; valid key admits; constant-time comparison in use (behavioural: wrong key → 401).
 
