@@ -22,10 +22,23 @@ public sealed class ApiKeyService
         }
         else
         {
-            // Task 8.1: Auto-generate on first run
-            _apiKey = GenerateApiKey();
-            _logger.LogWarning("Auto-generated API key: {Key}", _apiKey);
-            _logger.LogWarning("Set DMAIL_API_KEY environment variable to use a fixed key");
+            var dataDir = config["DMAIL_DATA_DIR"] ?? "/data";
+            var path = Path.Combine(dataDir, "keys", "api-key");
+
+            if (File.Exists(path))
+            {
+                _apiKey = File.ReadAllText(path).Trim();
+            }
+            else
+            {
+                _apiKey = GenerateApiKey();
+                Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+                WriteKeyFile(path, _apiKey);
+
+                _logger.LogInformation(
+                    "Auto-generated API key written to {Path}. Set DMAIL_API_KEY to override.",
+                    path);
+            }
         }
     }
 
@@ -44,5 +57,25 @@ public sealed class ApiKeyService
     {
         var bytes = RandomNumberGenerator.GetBytes(32);
         return Convert.ToBase64String(bytes).Replace('+', '-').Replace('/', '_').TrimEnd('=');
+    }
+
+    private static void WriteKeyFile(string path, string key)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            var options = new FileStreamOptions
+            {
+                Mode = FileMode.CreateNew,
+                Access = FileAccess.Write,
+                UnixCreateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite,
+            };
+            using var stream = new FileStream(path, options);
+            using var writer = new StreamWriter(stream);
+            writer.Write(key);
+        }
+        else
+        {
+            File.WriteAllText(path, key);
+        }
     }
 }

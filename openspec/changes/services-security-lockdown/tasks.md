@@ -7,8 +7,8 @@
 
 ## 2. Dmail — persist auto-generated key, never log it (D3)
 
-- [ ] 2.1 In `services/Dmail/Services/ApiKeyService.cs`, when `DMAIL_API_KEY` is unset: resolve `DMAIL_DATA_DIR/keys/api-key`; if present, read and reuse; if absent, generate (existing `GenerateApiKey`), write with owner-only perms (`File.WriteAllText` + `File.SetUnixFileMode(path, UserRead | UserWrite)`), and reuse.
-- [ ] 2.2 Replace the two `LogWarning("Auto-generated API key: {Key}", ...)` / follow-up lines with a single log line that names the **path** only and instructs the operator to set `DMAIL_API_KEY`. Confirm the key value appears in no log statement anywhere in the project.
+- [x] 2.1 In `services/Dmail/Services/ApiKeyService.cs`, when `DMAIL_API_KEY` is unset: resolve `DMAIL_DATA_DIR/keys/api-key`; if present, read and reuse; if absent, generate (existing `GenerateApiKey`), write with owner-only perms (`File.WriteAllText` + `File.SetUnixFileMode(path, UserRead | UserWrite)`), and reuse.
+- [x] 2.2 Replace the two `LogWarning("Auto-generated API key: {Key}", ...)` / follow-up lines with a single log line that names the **path** only and instructs the operator to set `DMAIL_API_KEY`. Confirm the key value appears in no log statement anywhere in the project.
 
 ## 3. Dmail — default-deny auth on all `/api/*` (D2)
 
@@ -26,7 +26,7 @@
 
 - [x] 5.1 `test/Dmail.Tests`: bind-policy cases — loopback default resolves to `127.0.0.1`; wildcard without opt-in throws at startup; wildcard with `DMAIL_ALLOW_NONLOOPBACK=true` is accepted.
 - [ ] 5.2 `test/Dmail.Tests`: auth cases — `/api/status`, `/api/accounts`, `/api/accounts/{email}/sync`, and an OAuth endpoint each return 401 without a key and succeed (or reach handler) with a valid key; `/health` returns 200 with no key and its body contains no `idle_connections`/account fields.
-- [ ] 5.3 `test/Dmail.Tests`: key-persistence cases — auto-generate writes a `0600` file and logs only the path (assert the key string is absent from captured logs); a second construction reuses the persisted key.
+- [x] 5.3 `test/Dmail.Tests`: key-persistence cases — auto-generate writes a `0600` file and logs only the path (assert the key string is absent from captured logs); a second construction reuses the persisted key.
 - [ ] 5.4 `test/Dcal.Tests`: auth cases — with `DCAL_API_KEY` unset, `/api/events/upcoming` returns 401 without a key; `/health` is open; valid key admits; constant-time comparison in use (behavioural: wrong key → 401).
 
 ## 6. Validate & docs
