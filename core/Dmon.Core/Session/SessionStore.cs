@@ -304,7 +304,17 @@ public sealed class SessionStore : ISessionStore
 
         if (!applyCompaction)
         {
-            return lines.Select(l => (object)JsonSerializer.Deserialize<JsonElement>(l)).ToList();
+            List<object> unfiltered = [];
+
+            foreach (string l in lines)
+            {
+                if (TryDeserializeElement(l, out JsonElement element))
+                {
+                    unfiltered.Add(element);
+                }
+            }
+
+            return unfiltered;
         }
 
         // Find the last compaction marker by file position (line index). UUIDs are not lexicographically
@@ -336,7 +346,17 @@ public sealed class SessionStore : ISessionStore
 
         if (lastCompactionIndex < 0)
         {
-            return lines.Select(l => (object)JsonSerializer.Deserialize<JsonElement>(l)).ToList();
+            List<object> unfiltered = [];
+
+            foreach (string l in lines)
+            {
+                if (TryDeserializeElement(l, out JsonElement element))
+                {
+                    unfiltered.Add(element);
+                }
+            }
+
+            return unfiltered;
         }
 
         // Find the file position of the line whose entryId matches supersedesUpTo. Every line strictly
@@ -376,10 +396,33 @@ public sealed class SessionStore : ISessionStore
                 continue;
             }
 
-            result.Add(JsonSerializer.Deserialize<JsonElement>(lines[i]));
+            if (TryDeserializeElement(lines[i], out JsonElement element))
+            {
+                result.Add(element);
+            }
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// Deserializes <paramref name="line"/> as a <see cref="JsonElement"/>, returning <see langword="false"/>
+    /// (and skipping) on malformed JSON — mirroring <see cref="ReadRecordsAsync"/>'s per-line tolerance so a
+    /// truncated or corrupted trailing line does not fail the whole read.
+    /// </summary>
+    private static bool TryDeserializeElement(string line, out JsonElement element)
+    {
+        try
+        {
+            element = JsonSerializer.Deserialize<JsonElement>(line);
+            return true;
+        }
+        catch (JsonException)
+        {
+            // Malformed line — skip it.
+            element = default;
+            return false;
+        }
     }
 
     public async Task<string> AppendMessageAsync(
