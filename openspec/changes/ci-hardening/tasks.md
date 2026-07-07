@@ -6,8 +6,8 @@
 
 ## 2. Build hygiene
 
-- [ ] 2.1 Remove `spike/ScriptingSpike` from `Everything.slnx` and delete the `spike/ScriptingSpike/` directory (design D5).
-- [ ] 2.2 Delete tracked root clutter: `podcast-talking-points.md`, `terminal.md`.
+- [x] 2.1 Remove `spike/ScriptingSpike` from `Everything.slnx` and delete the `spike/ScriptingSpike/` directory (design D5).
+- [x] 2.2 Delete tracked root clutter: `podcast-talking-points.md`, `terminal.md`.
 - [ ] 2.3 Delete the orphaned `test/Dmon.Extensions.Tests/` project (verify first that its coverage is dead/duplicated — the component it was named for is gone; if any test still exercises live code, stop-and-ask rather than delete). Remove it from `Everything.slnx` if present.
 - [ ] 2.4 Confirm `make build` + `make test` remain green after the removals (no dangling solution references).
 
