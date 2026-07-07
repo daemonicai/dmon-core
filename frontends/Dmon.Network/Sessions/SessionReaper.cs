@@ -76,11 +76,11 @@ public sealed class SessionReaper : BackgroundService
 
         foreach ((string sessionId, SessionHandler handler) in snapshot)
         {
-            DateTimeOffset? detachedAt = handler.DetachedAt;
-            if (detachedAt is null)
+            DateTimeOffset? eligibleSince = handler.ReapEligibleSince;
+            if (eligibleSince is null)
                 continue; // Connected handler — never reaped here.
 
-            TimeSpan detachedFor = now - detachedAt.Value;
+            TimeSpan detachedFor = now - eligibleSince.Value;
             bool turnInFlight = handler.IsTurnInFlight;
 
             bool shouldReap = turnInFlight
