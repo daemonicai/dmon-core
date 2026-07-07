@@ -34,7 +34,7 @@ The repository SHALL organise first-party projects into top-level role buckets, 
 
 ### Requirement: Per-area solutions and a root superset
 
-The repository SHALL provide one `.slnx` per area that has C# members (`core.slnx`, `providers.slnx`, `tools.slnx`, `memory.slnx`, `frontends.slnx`, `daemon.slnx`, `services.slnx`) and a root `Everything.slnx` that includes every first-party and test .NET project. An area with no C# member projects SHALL NOT carry a `.slnx`. Swift packages (e.g. `daemon/Daemon.App`) are **not** .NET projects and SHALL NOT be referenced by any `.slnx`; they are built via their own toolchain (`make daemon-app`). The standalone `Dmon.slnx` SHALL NOT exist.
+The repository SHALL provide one `.slnx` per area that has C# members (`core.slnx`, `providers.slnx`, `tools.slnx`, `memory.slnx`, `frontends.slnx`, `daemon.slnx`, `services.slnx`) and a root `Everything.slnx` that includes every **shipped** first-party project and every test project. An area with no C# member projects SHALL NOT carry a `.slnx`. Throwaway, experimental, or spike projects (e.g. a resolved scripting spike) are neither shipped first-party projects nor tests: they SHALL NOT be members of `Everything.slnx` or any area `.slnx`, and SHALL NOT be tracked in the repository once the spike is resolved. Swift packages (e.g. `daemon/Daemon.App`) are **not** .NET projects and SHALL NOT be referenced by any `.slnx`; they are built via their own toolchain (`make daemon-app`). The standalone `Dmon.slnx` SHALL NOT exist.
 
 #### Scenario: Area solution builds in isolation
 
@@ -52,6 +52,12 @@ The repository SHALL provide one `.slnx` per area that has C# members (`core.sln
 - **WHEN** `Everything.slnx` and the root `daemon.slnx` are inspected
 - **THEN** neither references `daemon/Daemon.App` (a Swift package)
 - **AND** `make daemon-app` builds it via `swift build -c release`
+
+#### Scenario: No throwaway spike in the superset
+
+- **WHEN** `Everything.slnx` is inspected
+- **THEN** it contains no throwaway/experimental spike project (e.g. no `spike/ScriptingSpike`)
+- **AND** no such spike directory is tracked in the repository
 
 ### Requirement: Intra-repo references use ProjectReference
 
