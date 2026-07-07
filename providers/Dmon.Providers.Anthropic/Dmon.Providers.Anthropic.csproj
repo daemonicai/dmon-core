@@ -9,7 +9,7 @@
     <AssemblyName>Dmon.Providers.Anthropic</AssemblyName>
     <IsPackable>true</IsPackable>
     <PackageId>Dmon.Providers.Anthropic</PackageId>
-    <MinVerTagPrefix>sdk-</MinVerTagPrefix>
+    <MinVerTagPrefix>providers/anthropic-v</MinVerTagPrefix>
     <Description>Anthropic (Claude) provider factory for the dmon coding agent. Exposes UseAnthropic() in the Dmon.Hosting namespace.</Description>
   </PropertyGroup>
 

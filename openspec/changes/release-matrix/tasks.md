@@ -1,9 +1,9 @@
 ## 1. Package/project prerequisites
 
-- [ ] 1.1 Make `memory/Dmon.Memory/Dmon.Memory.csproj` packable: `IsPackable=true`, `PackageId=Dmon.Memory`, inheriting the shared package metadata other packages get from `Directory.Build.props` (ADR-035 D5).
-- [ ] 1.2 Verify the ADR-024 D7 skew-guard exists (`Directory.Build.props` errors any packable project whose `Major.Minor` ≠ `ProtocolVersion.Current`); add it if missing (design D7).
-- [ ] 1.3 Set `MinVerTagPrefix` for every NuGet-family package to its ADR-035 D7 prefix (`core/…-v`, `providers/<name>-v`, `tools/<name>-v`, `memory/<name>-v`, `frontends/dmon-v`, `frontends/ndmon-v`); ensure no prefix is a prefix of another (design D1). Prefer a per-area `Directory.Build.props` where it reduces repetition.
-- [ ] 1.4 Remove `make network`'s hardcoded `--version 0.1.0` so `ndmon` versions via MinVer (design D4).
+- [x] 1.1 Make `memory/Dmon.Memory/Dmon.Memory.csproj` packable: `IsPackable=true`, `PackageId=Dmon.Memory`, inheriting the shared package metadata other packages get from `Directory.Build.props` (ADR-035 D5).
+- [x] 1.2 Verify the ADR-024 D7 skew-guard exists (`Directory.Build.props` errors any packable project whose `Major.Minor` ≠ `ProtocolVersion.Current`); add it if missing (design D7).
+- [x] 1.3 Set `MinVerTagPrefix` for every NuGet-family package to its ADR-035 D7 prefix (`core/…-v`, `providers/<name>-v`, `tools/<name>-v`, `memory/<name>-v`, `frontends/dmon-v`, `frontends/ndmon-v`); ensure no prefix is a prefix of another (design D1). Prefer a per-area `Directory.Build.props` where it reduces repetition.
+- [x] 1.4 Remove `make network`'s hardcoded `--version 0.1.0` so `ndmon` versions via MinVer (design D4).
 
 ## 2. Shared area map
 

@@ -10,7 +10,7 @@
     <RootNamespace>Dmon.Providers.LlamaCpp</RootNamespace>
     <IsPackable>true</IsPackable>
     <PackageId>Dmon.Providers.LlamaCpp</PackageId>
-    <MinVerTagPrefix>sdk-</MinVerTagPrefix>
+    <MinVerTagPrefix>providers/llamacpp-v</MinVerTagPrefix>
     <Description>Managed local llama.cpp provider for the dmon coding agent. Spawns and owns a llama-server subprocess, exposes it as a Microsoft.Extensions.AI IChatClient, with probe-verified tool-calling. Exposes UseLlamaCpp() in the Dmon.Hosting namespace.</Description>
     <PackageTags>dmon;llama.cpp;llamacpp;local-llm;gguf;provider;ai</PackageTags>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>

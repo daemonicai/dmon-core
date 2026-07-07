@@ -10,7 +10,7 @@
     <RootNamespace>Dmon.Tools.Dcal</RootNamespace>
     <IsPackable>true</IsPackable>
     <PackageId>Dmon.Tools.Dcal</PackageId>
-    <MinVerTagPrefix>sdk-</MinVerTagPrefix>
+    <MinVerTagPrefix>tools/dcal-v</MinVerTagPrefix>
     <Description>Calendar tools (lookup_calendar, list_upcoming_events) for the dmon coding agent. Register with builder.AddDcalAbilities() from the Dmon.Hosting namespace.</Description>
     <PackageTags>dmon;calendar;tools;agent</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
