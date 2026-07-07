@@ -44,6 +44,19 @@ Running log of implementation decisions and deviations, per block. Newest block 
 - **INFRA LESSON (cost me an hour):** launching a full `make test` while a prior/worker full-suite run is still alive → multiple concurrent `dotnet test Everything.slnx` runs whose testhosts (WebApplicationFactory boots, shared temp state) collide and effectively hang (NOT a real deadlock — load was low). Fix: before a full-suite run, `pkill -f "Everything.slnx"`/vstest/testhost first; run ONE at a time; wrap long runs in a `sleep N && kill` watchdog so a stuck run can't burn an hour. Dcal.Tests alone runs in ~0.4s — prefer the targeted project run for iteration, full suite once for the gate.
 - Gates: build clean, full `make test` green (all projects Passed!, Dcal.Tests 27/27, Dmail.Tests 96/96, Dmon.Core.Tests 606/607 w/ 1 skip, 0 failures), validate --strict valid.
 
+## Block 5 — Final gates + security-doc reconciliation (tasks 6.1, 6.2) — DONE, committed. CHANGE COMPLETE.
+
+- **Docs-only block** — no source/test/spec changes. Reconciled the shipped security posture into the docs:
+  - `docs/deploying-dmail.md` — extended the block-1 bind note with Authentication (default-deny `/api`, `/health`+static open, 401 `{"error":"unauthorized"}`), API key persistence (`<DMAIL_DATA_DIR>/keys/api-key` 0600, path-only logged, reused; default `/data`), and OAuth (login/callback behind auth → needs authenticated admin client; Host-header hardening deferred).
+  - `services/Dmail/README.md` — **fixed a security-MISLEADING** "HTTP surface" section that labelled `/api/status`, `/api/accounts` GET/DELETE, `/api/accounts/{email}/sync`, and the OAuth endpoints as "unauthenticated"/"admin (unauthenticated)" — all now correctly shown as requiring `X-Api-Key` (only `/health` + `/` + `/js/...` static open). Also fixed the `DMAIL_API_KEY` config row ("logged once" → persisted-file reality).
+  - `services/Dmail/wwwroot/js/dashboard.js` — string/comment-only: `'Auto-generated (check server logs)'` → `'Auto-generated — see keys/api-key on the server'` (the key is never logged). No behaviour change.
+  - `docs/deploying-dcal.md` — NEW (no Dcal README existed): default-deny auth (all routes except `/health`), key persistence `<DCAL_DATA_DIR>/keys/api-key` 0600 path-only-logged, `DCAL_DATA_DIR` default `.`; honestly states Dcal has NO bind guard.
+- Standing specs (`openspec/specs/`) deliberately NOT touched — they sync at ARCHIVE time via /opsx:archive.
+- **Reviewer verdict:** approve/sign-off — every doc claim cross-checked against the shipped code (both ApiKeyService log lines, ApiKeyAuthExtensions 401 body, the 10-route EndpointExtensions map, both Program.cs). No false security claims, exact identifiers, residuals honest. No nits requiring change.
+- Gates: build clean, full `make test` green (verified twice independently — 20 test projects Passed!, 0 failures), validate --strict valid.
+
+## CHANGE COMPLETE — all 6 groups / 18 tasks ticked. 5 commits (proposal + 4 impl blocks). Ready for user push/PR, then propose /opsx:archive (standing-spec sync happens then: dmail-server + dcal-sync deltas → openspec/specs/).
+
 ## Block 1 — Dmail loopback-by-default bind (tasks 1.1–1.4, 5.1) — DONE, committed
 
 - Added `services/Dmail/BindAddressPolicy.cs` (`Validate` + `Resolve`, mirrors NetworkBindPolicy; manual `TryExtractHost` — see pinned facts for why not `Uri`). `Resolve(null,"8080",false) → http://127.0.0.1:8080`; wildcard without opt-in throws `InvalidOperationException`; wildcard with `DMAIL_ALLOW_NONLOOPBACK=true` accepted.

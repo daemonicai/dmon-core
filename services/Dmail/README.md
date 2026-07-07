@@ -15,7 +15,7 @@ All configuration is via environment variables:
 |----------|---------|---------|
 | `DMAIL_DATA_DIR` | `/data` | Directory for the SQLite database and Data-Protection key ring. |
 | `DMAIL_PORT` | `8080` | HTTP listen port. |
-| `DMAIL_API_KEY` | _(auto-generated)_ | Required on the agent endpoints as `X-Api-Key`. If unset, a key is generated on first run and logged once. |
+| `DMAIL_API_KEY` | _(auto-generated)_ | Required as `X-Api-Key` on every `/api/*` endpoint. If unset, a key is auto-generated on first run and written to `<DMAIL_DATA_DIR>/keys/api-key` (owner-only permissions), reused across restarts. Only the file path is logged at startup — never the key value. |
 | `DMAIL_BACKFILL_MONTHS` | `1` | How many months of history to backfill per account. |
 | `DMAIL_GOOGLE_CLIENT_ID` / `DMAIL_GOOGLE_CLIENT_SECRET` | _(none)_ | Google OAuth2 client credentials, required to link Gmail accounts. |
 
@@ -23,10 +23,15 @@ See [`.env.example`](./.env.example) for the Docker Compose form.
 
 ## HTTP surface
 
+Every endpoint under `/api` requires an `X-Api-Key` header (default-deny — see
+[`docs/deploying-dmail.md`](../../docs/deploying-dmail.md) for the auth model
+and key persistence). Missing or invalid keys get a `401` before the handler
+runs.
+
 - Agent endpoints (require `X-Api-Key`): `POST /api/search`, `POST /api/emails/list`, `GET /api/emails/{uid}`.
-- Account/admin (unauthenticated): `GET /api/status`, `GET /api/accounts`, `DELETE /api/accounts/{email}`, `POST /api/accounts/{email}/sync`.
-- OAuth2: `GET /api/auth/google/login`, `GET /api/auth/google/callback`.
-- `GET /health` (readiness), `GET /` (admin dashboard from `wwwroot/`).
+- Account/admin (require `X-Api-Key`): `GET /api/status`, `GET /api/accounts`, `DELETE /api/accounts/{email}`, `POST /api/accounts/{email}/sync`.
+- OAuth2 (require `X-Api-Key`): `GET /api/auth/google/login`, `GET /api/auth/google/callback`.
+- Open (no key required): `GET /health` (readiness), `GET /` and static assets under `/js/...` (admin dashboard from `wwwroot/`).
 
 ## Running
 

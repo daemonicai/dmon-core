@@ -31,5 +31,5 @@
 
 ## 6. Validate & docs
 
-- [ ] 6.1 `make build` clean (TreatWarningsAsErrors), `make test` green (`env -u MEKO_API_KEY` if needed), `openspec validate services-security-lockdown --strict`.
-- [ ] 6.2 Update `docs/` (deploy guidance) and any Dmail/Dcal README notes to document `DMAIL_ALLOW_NONLOOPBACK`, the loopback-default posture, default-deny auth, and the persisted-key file location. Note the residual OAuth-behind-auth admin flow and the deferred Host-header hardening for the OAuth callback.
+- [x] 6.1 `make build` clean (TreatWarningsAsErrors), `make test` green (`env -u MEKO_API_KEY` if needed), `openspec validate services-security-lockdown --strict`.
+- [x] 6.2 Update `docs/` (deploy guidance) and any Dmail/Dcal README notes to document `DMAIL_ALLOW_NONLOOPBACK`, the loopback-default posture, default-deny auth, and the persisted-key file location. Note the residual OAuth-behind-auth admin flow and the deferred Host-header hardening for the OAuth callback.

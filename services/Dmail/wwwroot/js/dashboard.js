@@ -161,8 +161,8 @@
     async function loadApiKey() {
         try {
             // The API key is auto-generated server-side.
-            // We show instructions for finding it (logged at startup)
-            document.getElementById('api-key').textContent = 'Auto-generated (check server logs)';
+            // It is never logged — only its file path is. Point at the persisted file.
+            document.getElementById('api-key').textContent = 'Auto-generated — see keys/api-key on the server';
             document.getElementById('redirect-uri').textContent =
                 window.location.origin + '/api/auth/google/callback';
         } catch (e) {
