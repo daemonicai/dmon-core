@@ -6,9 +6,9 @@
 
 ## 2. MLX provider: request-path self-heal (finding #2)
 
-- [ ] 2.1 Add an ensure-running delegating `IChatClient` in `Dmon.Providers.Mlx` that calls `EnsureRunningAsync` (attach-first, now gated) before delegating `GetResponseAsync`/`GetStreamingResponseAsync` to the inner OpenAI-compatible client.
-- [ ] 2.2 Wire `MlxClient(key)` (`MlxClientExtensions.cs`) to return that wrapper for both the first-line and escalation runtimes; keep the existing eager `EnsureRunningAsync` at build time (warm-at-build) intact.
-- [ ] 2.3 Add a test proving that after `StopAsync` (idle teardown) a subsequent request through the wrapper respawns the runtime (attach-first no-ops when already live; respawns when dead), asserting no dispatch to a dead endpoint.
+- [x] 2.1 Add an ensure-running delegating `IChatClient` in `Dmon.Providers.Mlx` that calls `EnsureRunningAsync` (attach-first, now gated) before delegating `GetResponseAsync`/`GetStreamingResponseAsync` to the inner OpenAI-compatible client.
+- [x] 2.2 Wire `MlxClient(key)` (`MlxClientExtensions.cs`) to return that wrapper for both the first-line and escalation runtimes; keep the existing eager `EnsureRunningAsync` at build time (warm-at-build) intact.
+- [x] 2.3 Add a test proving that after `StopAsync` (idle teardown) a subsequent request through the wrapper respawns the runtime (attach-first no-ops when already live; respawns when dead), asserting no dispatch to a dead endpoint.
 
 ## 3. TriageRouter: fault-recovering backend resolution (finding #1)
 
