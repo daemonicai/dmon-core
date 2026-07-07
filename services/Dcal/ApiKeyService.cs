@@ -1,9 +1,9 @@
 using System.Security.Cryptography;
 using System.Text;
 
-namespace Dmail.Services;
+namespace Dcal;
 
-public sealed class ApiKeyService
+internal sealed class ApiKeyService
 {
     private readonly string _apiKey;
     private readonly ILogger<ApiKeyService> _logger;
@@ -13,7 +13,7 @@ public sealed class ApiKeyService
     public ApiKeyService(IConfiguration config, ILogger<ApiKeyService> logger)
     {
         _logger = logger;
-        var configuredKey = config["DMAIL_API_KEY"];
+        var configuredKey = config["DCAL_API_KEY"];
 
         if (!string.IsNullOrEmpty(configuredKey))
         {
@@ -22,7 +22,10 @@ public sealed class ApiKeyService
         }
         else
         {
-            var dataDir = config["DMAIL_DATA_DIR"] ?? "/data";
+            // Dcal is bare-metal-first (no Dockerfile; calendar.db already lives in the
+            // working directory), unlike Dmail's Docker-first "/data" default — so the
+            // default here is "." to keep a bare `dotnet run` able to write the key file.
+            var dataDir = config["DCAL_DATA_DIR"] ?? ".";
             var path = Path.Combine(dataDir, "keys", "api-key");
 
             if (File.Exists(path))
@@ -36,7 +39,7 @@ public sealed class ApiKeyService
                 WriteKeyFile(path, _apiKey);
 
                 _logger.LogInformation(
-                    "Auto-generated API key written to {Path}. Set DMAIL_API_KEY to override.",
+                    "Auto-generated API key written to {Path}. Set DCAL_API_KEY to override.",
                     path);
             }
         }

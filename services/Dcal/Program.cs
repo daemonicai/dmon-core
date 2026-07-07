@@ -17,25 +17,24 @@ builder.Services.AddHostedService(sp => sp.GetRequiredService<CalendarSyncServic
 
 var app = builder.Build();
 
-// 7.5 — X-Api-Key auth middleware (before endpoints)
-string? apiKey = Environment.GetEnvironmentVariable("DCAL_API_KEY");
-if (!string.IsNullOrEmpty(apiKey))
+// 7.5 — X-Api-Key auth middleware (before endpoints), unconditionally installed:
+// default-deny for everything except /health, regardless of whether DCAL_API_KEY
+// was configured or auto-generated.
+var apiKeyService = new ApiKeyService(builder.Configuration, app.Services.GetRequiredService<ILogger<ApiKeyService>>());
+app.Use(async (context, next) =>
 {
-    app.Use(async (context, next) =>
+    if (context.Request.Path.StartsWithSegments("/health"))
     {
-        if (context.Request.Path.StartsWithSegments("/health"))
-        {
-            await next(context);
-            return;
-        }
-        if (!context.Request.Headers.TryGetValue("X-Api-Key", out var key) || key != apiKey)
-        {
-            context.Response.StatusCode = 401;
-            return;
-        }
         await next(context);
-    });
-}
+        return;
+    }
+    if (!context.Request.Headers.TryGetValue("X-Api-Key", out var key) || !apiKeyService.Validate(key))
+    {
+        context.Response.StatusCode = 401;
+        return;
+    }
+    await next(context);
+});
 
 // 7.1 — GET /api/events/next
 app.MapGet("/api/events/next", (CalendarSyncService sync, CalendarDatabase db, string? term, string? after) =>

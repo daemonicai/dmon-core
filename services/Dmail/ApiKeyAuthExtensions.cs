@@ -2,23 +2,29 @@ namespace Dmail;
 
 public static class ApiKeyAuthExtensions
 {
-    public static RouteHandlerBuilder RequireApiKey(this RouteHandlerBuilder builder)
+    public static IApplicationBuilder UseApiKeyAuth(this IApplicationBuilder app)
     {
-        builder.AddEndpointFilter(async (context, next) =>
+        return app.Use(InvokeAsync);
+    }
+
+    internal static async Task InvokeAsync(HttpContext context, Func<Task> next)
+    {
+        if (!context.Request.Path.StartsWithSegments("/api"))
         {
-            var apiKeyService = context.HttpContext.RequestServices
-                .GetRequiredService<Services.ApiKeyService>();
+            await next();
+            return;
+        }
 
-            var key = context.HttpContext.Request.Headers["X-Api-Key"].FirstOrDefault();
+        var apiKeyService = context.RequestServices.GetRequiredService<Services.ApiKeyService>();
+        var key = context.Request.Headers["X-Api-Key"].FirstOrDefault();
 
-            if (!apiKeyService.Validate(key))
-            {
-                return Results.Json(new { error = "unauthorized" }, statusCode: 401);
-            }
+        if (!apiKeyService.Validate(key))
+        {
+            context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+            await context.Response.WriteAsJsonAsync(new { error = "unauthorized" });
+            return;
+        }
 
-            return await next(context);
-        });
-
-        return builder;
+        await next();
     }
 }

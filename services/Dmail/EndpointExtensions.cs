@@ -9,10 +9,9 @@ public static class EndpointExtensions
 {
     public static void MapHealthHandlers(this WebApplication app)
     {
-        app.MapGet("/health", async (EmbeddingService embedding, ISqliteConnectionFactory connectionFactory, ImapWatcherManager watchers) =>
+        app.MapGet("/health", async (EmbeddingService embedding, ISqliteConnectionFactory connectionFactory) =>
         {
             var modelOk = embedding.IsModelReady;
-            var idleCount = watchers.ActiveWatcherCount;
 
             // Verify DB is accessible
             var dbOk = true;
@@ -30,8 +29,8 @@ public static class EndpointExtensions
 
             var healthy = modelOk && dbOk;
             return healthy
-                ? Results.Ok(new { status = "healthy", model_loaded = true, database_ok = true, idle_connections = idleCount })
-                : Results.Json(new { status = "degraded", model_loaded = modelOk, database_ok = dbOk, idle_connections = idleCount }, statusCode: 503);
+                ? Results.Ok(new HealthResponse("healthy", true, true))
+                : Results.Json(new HealthResponse("degraded", modelOk, dbOk), statusCode: 503);
         });
 
         app.MapGet("/api/status", async (ISqliteConnectionFactory connectionFactory, ImapWatcherManager watchers) =>
@@ -84,7 +83,7 @@ public static class EndpointExtensions
         {
             var response = await search.SearchAsync(request);
             return Results.Ok(response);
-        }).RequireApiKey();
+        });
     }
 
     // ---- Task 8.3: Email listing endpoint ----
@@ -159,7 +158,7 @@ public static class EndpointExtensions
             }
 
             return Results.Ok(new EmailListResponse { Results = results.ToArray(), TotalCount = (int)totalCount });
-        }).RequireApiKey();
+        });
 
         // ---- Task 8.4: Full email retrieval ----
 
@@ -184,7 +183,7 @@ public static class EndpointExtensions
                 date = reader.GetString(5),
                 labels = reader.IsDBNull(6) ? null : reader.GetString(6)
             });
-        }).RequireApiKey();
+        });
     }
 
     // ---- Task 8.5: List accounts ----
@@ -283,3 +282,8 @@ public static class EndpointExtensions
         });
     }
 }
+
+public sealed record HealthResponse(
+    [property: System.Text.Json.Serialization.JsonPropertyName("status")] string Status,
+    [property: System.Text.Json.Serialization.JsonPropertyName("model_loaded")] bool ModelLoaded,
+    [property: System.Text.Json.Serialization.JsonPropertyName("database_ok")] bool DatabaseOk);
