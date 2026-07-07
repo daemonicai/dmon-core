@@ -40,8 +40,13 @@ public static class MlxClientExtensions
             Auth = new ProviderAuthConfig { Type = "none" },
         };
 
-        return await ((MlxProviderFactory)ext.CreateFactory())
+        IChatClient inner = await ((MlxProviderFactory)ext.CreateFactory())
             .CreateAsync(modelCfg, apiKey: null, cancellationToken)
             .ConfigureAwait(false);
+
+        // Wrap outermost: every subsequent request re-checks EnsureRunningAsync (attach-first)
+        // so a runtime torn down for idle by the daemon scheduler self-heals on its own request
+        // path, rather than dispatching to a dead endpoint.
+        return new EnsureRunningChatClient(inner, ext);
     }
 }

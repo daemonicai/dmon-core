@@ -10,8 +10,11 @@ namespace Daemon.Routing;
 /// </summary>
 /// <remarks>
 /// Correctness does NOT depend on warming having completed. An escalation that arrives before
-/// warming finishes — or just after idle teardown — still succeeds because the escalation
-/// client itself calls <see cref="IProviderExtension.EnsureRunningAsync"/> (self-heal path).
+/// warming finishes — or just after idle teardown — still succeeds: the escalation backend's
+/// request path wraps every dispatch in a respawn that calls
+/// <see cref="IProviderExtension.EnsureRunningAsync"/> before it reaches the inner client
+/// (<c>Dmon.Providers.Mlx.EnsureRunningChatClient</c>), attaching to (or respawning) the runtime
+/// as needed. This is a real request-path self-heal, not merely a warming optimisation.
 /// </remarks>
 internal sealed class EscalationWarmingService : ISessionActivityListener, IDisposable
 {

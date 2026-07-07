@@ -25,8 +25,10 @@ namespace Daemon.Routing;
 /// </para>
 /// <para>
 /// Backends are resolved lazily on first use (one instance per backend per router lifetime,
-/// concurrency-safe via <see cref="Lazy{T}"/>). The router owns the resolved backends and
-/// disposes them on teardown.
+/// single-flight and concurrency-safe). A successful resolution is cached for the router's
+/// lifetime; a resolution that faults is <em>not</em> cached, so a subsequent turn needing that
+/// backend re-attempts resolution rather than re-throwing the stale fault. The router owns the
+/// successfully resolved backends and disposes them on teardown.
 /// </para>
 /// </remarks>
 public sealed class TriageRouter : DelegatingChatClient
@@ -35,9 +37,9 @@ public sealed class TriageRouter : DelegatingChatClient
     private const string EscalationMarker = "[escalating]";
     private const string ThinkHarderName = "think_harder";
 
-    private readonly Lazy<Task<IChatClient>> _lazyFirstLine;
-    private readonly Lazy<Task<IChatClient>> _lazyEscalation;
-    private readonly Lazy<Task<IChatClient>> _lazyEgress;
+    private readonly BackendResolver _firstLine;
+    private readonly BackendResolver _escalation;
+    private readonly BackendResolver _egress;
     private readonly AbilityRegistry _abilities;
     private readonly TriageOptions _options;
 
@@ -60,9 +62,9 @@ public sealed class TriageRouter : DelegatingChatClient
     /// Constructs the router with lazy backend delegates and ability registry.
     /// No I/O is performed at construction time.
     /// </summary>
-    /// <param name="firstLineFactory">Delegate that resolves the first-line client. Invoked at most once.</param>
-    /// <param name="escalationFactory">Delegate that resolves the escalation client. Invoked at most once.</param>
-    /// <param name="egressFactory">Delegate that resolves the egress client. Invoked at most once.</param>
+    /// <param name="firstLineFactory">Delegate that resolves the first-line client. Invoked lazily on first use; re-invoked on a later turn if a prior attempt faulted.</param>
+    /// <param name="escalationFactory">Delegate that resolves the escalation client. Invoked lazily on first use; re-invoked on a later turn if a prior attempt faulted.</param>
+    /// <param name="egressFactory">Delegate that resolves the egress client. Invoked lazily on first use; re-invoked on a later turn if a prior attempt faulted.</param>
     /// <param name="services">Service provider passed to the factory delegates.</param>
     /// <param name="abilities">Per-turn scope-gated tool manifest.</param>
     /// <param name="options">Configurable knobs (e.g. <see cref="TriageOptions.EgressThreshold"/>).</param>
@@ -73,18 +75,12 @@ public sealed class TriageRouter : DelegatingChatClient
         IServiceProvider services,
         AbilityRegistry abilities,
         TriageOptions options)
-        // Use a no-op placeholder as the DelegatingChatClient inner; actual dispatch goes to lazily-resolved clients.
+        // Use a no-op placeholder as the DelegatingChatClient inner; actual dispatch goes to resolved backends.
         : base(new NopChatClient())
     {
-        _lazyFirstLine = new Lazy<Task<IChatClient>>(
-            () => firstLineFactory(services).AsTask(),
-            LazyThreadSafetyMode.ExecutionAndPublication);
-        _lazyEscalation = new Lazy<Task<IChatClient>>(
-            () => escalationFactory(services).AsTask(),
-            LazyThreadSafetyMode.ExecutionAndPublication);
-        _lazyEgress = new Lazy<Task<IChatClient>>(
-            () => egressFactory(services).AsTask(),
-            LazyThreadSafetyMode.ExecutionAndPublication);
+        _firstLine = new BackendResolver(() => firstLineFactory(services));
+        _escalation = new BackendResolver(() => escalationFactory(services));
+        _egress = new BackendResolver(() => egressFactory(services));
         _abilities = abilities;
         _options = options;
     }
@@ -120,13 +116,13 @@ public sealed class TriageRouter : DelegatingChatClient
         // Egress path: stream directly after ack (no escalation logic).
         if (IsEgressEligible(raw))
         {
-            IChatClient egress = await _lazyEgress.Value;
+            IChatClient egress = await _egress.ResolveAsync(cancellationToken);
             ChatOptions egressOptions = BuildOptions(options, effectiveScope, includeThinkHarder: false);
             return await egress.GetResponseAsync(messages, egressOptions, cancellationToken);
         }
 
         // First-line path: offer think_harder in the manifest.
-        IChatClient firstLineRaw = await _lazyFirstLine.Value;
+        IChatClient firstLineRaw = await _firstLine.ResolveAsync(cancellationToken);
         IChatClient firstLineWithFic = firstLineRaw
             .AsBuilder()
             .UseFunctionInvocation()
@@ -143,7 +139,7 @@ public sealed class TriageRouter : DelegatingChatClient
 
         // Escalation path.
         IList<ChatMessage> inheritedMessages = BuildInheritedMessages(messages, firstLineResponse.Messages, thinkHarderCallIds);
-        IChatClient escalation = await _lazyEscalation.Value;
+        IChatClient escalation = await _escalation.ResolveAsync(cancellationToken);
         ChatOptions escalationOptions = BuildOptions(options, effectiveScope, includeThinkHarder: false);
         return await escalation.GetResponseAsync(inheritedMessages, escalationOptions, cancellationToken);
     }
@@ -162,7 +158,7 @@ public sealed class TriageRouter : DelegatingChatClient
         // Egress path: stream directly (no buffering needed).
         if (IsEgressEligible(raw))
         {
-            IChatClient egress = await _lazyEgress.Value;
+            IChatClient egress = await _egress.ResolveAsync(cancellationToken);
             ChatOptions egressOptions = BuildOptions(options, effectiveScope, includeThinkHarder: false);
             await foreach (ChatResponseUpdate update in egress.GetStreamingResponseAsync(messages, egressOptions, cancellationToken))
             {
@@ -173,7 +169,7 @@ public sealed class TriageRouter : DelegatingChatClient
 
         // First-line path: run as non-streaming to allow buffering for possible escalation.
         // D5: first-line tokens are never streamed directly; only the committed backend streams.
-        IChatClient firstLineRaw = await _lazyFirstLine.Value;
+        IChatClient firstLineRaw = await _firstLine.ResolveAsync(cancellationToken);
         IChatClient firstLineWithFic = firstLineRaw
             .AsBuilder()
             .UseFunctionInvocation()
@@ -203,7 +199,7 @@ public sealed class TriageRouter : DelegatingChatClient
         yield return new ChatResponseUpdate(ChatRole.Assistant, EscalationMarker);
 
         IList<ChatMessage> inheritedMessages = BuildInheritedMessages(messages, firstLineResponse.Messages, thinkHarderCallIds);
-        IChatClient escalation = await _lazyEscalation.Value;
+        IChatClient escalation = await _escalation.ResolveAsync(cancellationToken);
         ChatOptions escalationOptions = BuildOptions(options, effectiveScope, includeThinkHarder: false);
         await foreach (ChatResponseUpdate update in escalation.GetStreamingResponseAsync(inheritedMessages, escalationOptions, cancellationToken))
         {
@@ -216,20 +212,12 @@ public sealed class TriageRouter : DelegatingChatClient
     {
         if (disposing)
         {
-            // Dispose resolved backends only. Do not force-resolve un-started lazies.
-            // The inner NopChatClient is disposed by base.Dispose(disposing) — do not double-dispose it.
-            if (_lazyFirstLine.IsValueCreated && _lazyFirstLine.Value.IsCompletedSuccessfully)
-            {
-                _lazyFirstLine.Value.Result.Dispose();
-            }
-            if (_lazyEscalation.IsValueCreated && _lazyEscalation.Value.IsCompletedSuccessfully)
-            {
-                _lazyEscalation.Value.Result.Dispose();
-            }
-            if (_lazyEgress.IsValueCreated && _lazyEgress.Value.IsCompletedSuccessfully)
-            {
-                _lazyEgress.Value.Result.Dispose();
-            }
+            // Dispose successfully-resolved backends only. Do not force-resolve un-started or
+            // faulted resolvers. The inner NopChatClient is disposed by base.Dispose(disposing) —
+            // do not double-dispose it.
+            _firstLine.DisposeResolved();
+            _escalation.DisposeResolved();
+            _egress.DisposeResolved();
         }
         base.Dispose(disposing);
     }
@@ -240,7 +228,7 @@ public sealed class TriageRouter : DelegatingChatClient
         IEnumerable<ChatMessage> messages,
         CancellationToken cancellationToken)
     {
-        IChatClient classifier = await _lazyFirstLine.Value;
+        IChatClient classifier = await _firstLine.ResolveAsync(cancellationToken);
         ChatResponse<RouteDecision> classifyResponse = await classifier.GetResponseAsync<RouteDecision>(
             messages,
             cancellationToken: cancellationToken);
@@ -350,7 +338,7 @@ public sealed class TriageRouter : DelegatingChatClient
     }
 
     // Minimal no-op IChatClient used as DelegatingChatClient's required inner client.
-    // The router never delegates to it — all dispatch goes through the lazy backends.
+    // The router never delegates to it — all dispatch goes through the resolved backends.
     private sealed class NopChatClient : IChatClient
     {
         public ChatClientMetadata Metadata => new("nop", null, null);
@@ -376,5 +364,76 @@ public sealed class TriageRouter : DelegatingChatClient
     private sealed class NopServiceProvider : IServiceProvider
     {
         public object? GetService(Type serviceType) => null;
+    }
+
+    /// <summary>
+    /// Single-flight, cache-only-on-success resolver for one backend. A successfully-completed
+    /// resolution is cached for the resolver's lifetime and returned without contending on the
+    /// gate. A resolution that faults is discarded (not cached), so the next caller re-attempts
+    /// it rather than observing a stale exception forever. Concurrent callers that need to
+    /// resolve share a single in-flight attempt via a <see cref="SemaphoreSlim"/> gate sized 1.
+    /// </summary>
+    private sealed class BackendResolver
+    {
+        private readonly Func<ValueTask<IChatClient>> _factory;
+        private readonly SemaphoreSlim _gate = new(1, 1);
+        private volatile Task<IChatClient>? _cached;
+
+        public BackendResolver(Func<ValueTask<IChatClient>> factory)
+        {
+            _factory = factory;
+        }
+
+        public async Task<IChatClient> ResolveAsync(CancellationToken cancellationToken)
+        {
+            // Lock-free fast path: a healthy cached resolution never contends on the gate.
+            Task<IChatClient>? cached = _cached;
+            if (cached is { IsCompletedSuccessfully: true })
+            {
+                return cached.Result;
+            }
+
+            await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                // Re-check under the gate: another caller may have resolved (or re-resolved)
+                // while this one was waiting.
+                cached = _cached;
+                if (cached is { IsCompletedSuccessfully: true })
+                {
+                    return cached.Result;
+                }
+
+                Task<IChatClient> attempt = _factory().AsTask();
+                _cached = attempt;
+                try
+                {
+                    return await attempt.ConfigureAwait(false);
+                }
+                catch
+                {
+                    // Do not cache a faulted attempt — the next caller retries.
+                    _cached = null;
+                    throw;
+                }
+            }
+            finally
+            {
+                _gate.Release();
+            }
+        }
+
+        /// <summary>
+        /// Disposes the resolved backend if resolution completed successfully, and the gate.
+        /// Never force-resolves an unstarted or faulted resolution.
+        /// </summary>
+        public void DisposeResolved()
+        {
+            if (_cached is { IsCompletedSuccessfully: true } completed)
+            {
+                completed.Result.Dispose();
+            }
+            _gate.Dispose();
+        }
     }
 }

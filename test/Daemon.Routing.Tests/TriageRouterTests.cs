@@ -725,6 +725,47 @@ public sealed class FactoryLazyResolutionTests
 
         router.Dispose();
     }
+
+    [Fact]
+    public async Task FaultedResolution_IsNotCached_RecoversOnLaterTurn()
+    {
+        // 3.1/3.3: a transient first-use fault must not be permanently cached. The turn that
+        // hits the fault observes it; a later turn re-attempts resolution and dispatches once
+        // the factory starts succeeding.
+        RouteDecision egressDecision = new("world", Impersonal: true, Confidence: 0.95f);
+        BackendSpy egressSpy = new("egress");
+        int egressResolveCount = 0;
+
+        TriageRouter router = new(
+            _ => ValueTask.FromResult<IChatClient>(new ClassifierFake(egressDecision)),
+            _ => ValueTask.FromResult<IChatClient>(new BackendSpy("escalation")),
+            _ =>
+            {
+                egressResolveCount++;
+                if (egressResolveCount == 1)
+                {
+                    throw new InvalidOperationException("transient egress resolution fault");
+                }
+                return ValueTask.FromResult<IChatClient>(egressSpy);
+            },
+            new NopServiceProviderForTests(),
+            new AbilityRegistry([]),
+            new TriageOptions());
+
+        // First turn: egress resolution faults — the fault must propagate to the caller,
+        // not be swallowed or re-thrown as something else.
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => router.GetResponseAsync(RouterFactory.AMessage()));
+
+        // Second turn: resolution is retried (not permanently poisoned) and succeeds, dispatching
+        // the egress backend exactly once.
+        await router.GetResponseAsync(RouterFactory.AMessage());
+
+        Assert.Equal(2, egressResolveCount);
+        Assert.Equal(1, egressSpy.CallCount);
+
+        router.Dispose();
+    }
 }
 
 // Minimal IServiceProvider for use in tests that call the delegate ctor.

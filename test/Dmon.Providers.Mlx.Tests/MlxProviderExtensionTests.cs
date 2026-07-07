@@ -556,6 +556,149 @@ public sealed class EnsureRunningAsyncTests
 }
 
 // ---------------------------------------------------------------------------
+// 1.1-1.3 (mlx-escalation-resilience) — Concurrent-safe EnsureRunningAsync
+// ---------------------------------------------------------------------------
+
+public sealed class EnsureRunningAsyncConcurrencyTests
+{
+    [SkippableFact]
+    public async Task ConcurrentEnsureRunningAsync_ColdStart_SpawnsExactlyOnce_OthersAttach_NoOrphan()
+    {
+        bool isUnix = RuntimeInformation.IsOSPlatform(OSPlatform.Linux)
+                   || RuntimeInformation.IsOSPlatform(OSPlatform.OSX);
+        bool isWindows = RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
+        Skip.IfNot(isUnix || isWindows, "Unsupported platform for this test.");
+
+        int provisionCalls = 0;
+        int spawnCalls = 0;
+        int serverRunning = 0;
+        Process? spawnedDummy = null;
+        TaskCompletionSource spawnGate = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        MlxRuntimeState state = new();
+        MlxRuntimeOptions opts = MlxRuntimeOptions.Firstline() with
+        {
+            ReadyTimeout = TimeSpan.FromSeconds(5),
+        };
+
+        MlxProviderExtension? sutRef = null;
+
+        MlxProviderExtension sut = new(
+            opts,
+            state,
+            isRunningProbe: _ => Task.FromResult(Volatile.Read(ref serverRunning) != 0),
+            provisionEnvDelegate: async _ =>
+            {
+                // Single-flight venv provisioning: must be reached by exactly one racer.
+                Interlocked.Increment(ref provisionCalls);
+                await Task.Yield();
+                return "0.31.3";
+            },
+            startServerDelegate: async (_, _) =>
+            {
+                // Only the caller that observed "not running" reaches this delegate.
+                Interlocked.Increment(ref spawnCalls);
+
+                // Block until the test has confirmed other callers piled up on the gate,
+                // proving they waited rather than racing a second spawn onto the fixed port.
+                await spawnGate.Task.ConfigureAwait(false);
+
+                ProcessStartInfo dummyPsi = isUnix
+                    ? new ProcessStartInfo("/bin/sleep", "30") { UseShellExecute = false }
+                    : new ProcessStartInfo("ping.exe", "-n 30 127.0.0.1") { UseShellExecute = false, CreateNoWindow = true };
+                Process dummy = new() { StartInfo = dummyPsi };
+                dummy.Start();
+                spawnedDummy = dummy;
+                sutRef!.SetServerProcess(dummy);
+
+                Interlocked.Exchange(ref serverRunning, 1);
+            },
+            probeClientFactory: (_, _) => new ToolCallFakeChatClient(hasToolCall: true));
+        sutRef = sut;
+
+        Task first = sut.EnsureRunningAsync();
+        Task second = sut.EnsureRunningAsync();
+        Task third = sut.EnsureRunningAsync();
+
+        // Give the two queued callers time to block on the gate behind the in-progress spawn.
+        await Task.Delay(200);
+        spawnGate.SetResult();
+
+        await Task.WhenAll(first, second, third);
+
+        Assert.Equal(1, spawnCalls);
+        Assert.Equal(1, provisionCalls);
+        Assert.True(state.OwnsProcess,
+            "Ownership must survive queued callers re-checking liveness after the spawn completes.");
+        Assert.NotNull(spawnedDummy);
+        Assert.False(spawnedDummy!.HasExited, "The single spawned process should still be alive before teardown.");
+        int dummyPid = spawnedDummy.Id;
+
+        // The retained handle must reference the one live server — killable by StopAsync.
+        // Capture the pid before StopAsync/Dispose — KillServer disposes the Process object.
+        await sut.StopAsync();
+        sut.Dispose();
+
+        await Task.Delay(300);
+        bool stillRunning = false;
+        try
+        {
+            using Process? found = Process.GetProcessById(dummyPid);
+            stillRunning = !found.HasExited;
+        }
+        catch (ArgumentException)
+        {
+            // Process not found by ID — it has exited. This is the success case.
+        }
+
+        Assert.False(stillRunning, "StopAsync() must kill the single retained process — no orphan.");
+    }
+
+    [Fact]
+    public async Task ConcurrentEnsureRunningAsync_AllQueuedCallersComplete_WithoutThrowing()
+    {
+        // A broader single-flight smoke test with no real process — asserts that many
+        // concurrent callers on a cold runtime all complete successfully (no deadlock, no
+        // exception from the gate/attach path) and provisioning still runs exactly once.
+        int provisionCalls = 0;
+        int spawnCalls = 0;
+        int serverRunning = 0;
+
+        MlxRuntimeState state = new();
+        MlxRuntimeOptions opts = MlxRuntimeOptions.Firstline() with
+        {
+            ReadyTimeout = TimeSpan.FromSeconds(5),
+        };
+
+        using MlxProviderExtension sut = new(
+            opts,
+            state,
+            isRunningProbe: _ => Task.FromResult(Volatile.Read(ref serverRunning) != 0),
+            provisionEnvDelegate: async _ =>
+            {
+                Interlocked.Increment(ref provisionCalls);
+                await Task.Delay(50).ConfigureAwait(false);
+                return "0.31.3";
+            },
+            startServerDelegate: async (_, _) =>
+            {
+                Interlocked.Increment(ref spawnCalls);
+                await Task.Delay(50).ConfigureAwait(false);
+                Interlocked.Exchange(ref serverRunning, 1);
+            },
+            probeClientFactory: (_, _) => new ToolCallFakeChatClient(hasToolCall: true));
+
+        Task[] callers = Enumerable.Range(0, 8).Select(_ => sut.EnsureRunningAsync()).ToArray();
+
+        await Task.WhenAll(callers);
+
+        Assert.Equal(1, spawnCalls);
+        Assert.Equal(1, provisionCalls);
+        Assert.True(state.OwnsProcess);
+    }
+}
+
+// ---------------------------------------------------------------------------
 // 3.6 — Readiness via completion (never /v1/models)
 // ---------------------------------------------------------------------------
 
