@@ -486,7 +486,7 @@ public sealed class NetworkConnectionEndpoint
         // The two correlated reads below are sequential enumerations of transport.Events:
         // the first await foreach is fully disposed (via break) before the second begins,
         // so there is no concurrent-reader race on the cold IAsyncEnumerable.
-        CoreProcessRpcTransport transport = new(process);
+        using CoreProcessRpcTransport transport = new(process);
 
         // Send session.create and await the correlated result.
         Command createCmd = new SessionCreateCommand

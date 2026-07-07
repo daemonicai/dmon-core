@@ -11,11 +11,15 @@ namespace Dmon.Runtime;
 /// Reads events from <see cref="ICoreProcess.StandardOutput"/> and writes commands to
 /// <see cref="ICoreProcess.StandardInput"/>.
 /// </summary>
-public sealed class CoreProcessRpcTransport : IRpcTransport
+public sealed class CoreProcessRpcTransport : IRpcTransport, IDisposable
 {
     private readonly TextReader _reader;
     private readonly TextWriter _writer;
     private readonly Action<string>? _onParseError;
+
+    // Serializes concurrent SendAsync callers so frames from different callers are never
+    // interleaved on the wire (D1). Never guards _reader — the read path is a single pump.
+    private readonly SemaphoreSlim _writeGate = new(1, 1);
 
     /// <summary>
     /// Initialises a transport over an already-started <see cref="ICoreProcess"/>.
@@ -57,12 +61,29 @@ public sealed class CoreProcessRpcTransport : IRpcTransport
     public async Task SendAsync(Command command, CancellationToken cancellationToken)
     {
         // Serialize through the base Command type so the "type" discriminator is emitted.
+        // Serialization touches no shared state, so it happens outside the write gate (D2).
         string json = JsonSerializer.Serialize(command, WireSerializerOptions.Default);
-        await _writer.WriteAsync(json.AsMemory(), cancellationToken).ConfigureAwait(false);
-        // Exactly one LF, never CR.
-        await _writer.WriteAsync("\n".AsMemory(), cancellationToken).ConfigureAwait(false);
-        await _writer.FlushAsync(cancellationToken).ConfigureAwait(false);
+
+        await _writeGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            // Exactly one LF, never CR, written as a single atomic frame so concurrent
+            // callers can never interleave a partial frame onto the wire (D1).
+            await _writer.WriteAsync((json + "\n").AsMemory(), cancellationToken).ConfigureAwait(false);
+            await _writer.FlushAsync(cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            _writeGate.Release();
+        }
     }
+
+    /// <summary>
+    /// Releases the write-serialization semaphore only. The borrowed <see cref="_reader"/>
+    /// and <see cref="_writer"/> streams are never owned by this transport and are never
+    /// closed here (D3) — the owner of <see cref="ICoreProcess"/> or the test caller closes them.
+    /// </summary>
+    public void Dispose() => _writeGate.Dispose();
 
     /// <inheritdoc/>
     public IAsyncEnumerable<Event> Events => ReadEventsAsync(CancellationToken.None);
