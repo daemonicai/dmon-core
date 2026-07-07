@@ -1,11 +1,24 @@
 name: Release
+#
+# NuGet-family release pipeline (ADR-035, release-matrix change). Triggered by
+# a per-package tag `<area>/<name>-vX.Y.Z`. Tag -> project resolution reads
+# each project's own `<MinVerTagPrefix>` (set per ADR-035 D7) rather than a
+# second map: the shared area map at .github/area-map.yml is area-granular
+# (dorny/paths-filter config for ci.yml) and cannot mechanically derive a
+# `<name>` segment's exact .csproj (e.g. `anthropic` -> `Dmon.Providers.Anthropic`),
+# so it is not duplicated here (ADR-035 D6 -- exactly one area map; this is
+# per-package tag resolution, a different concern).
+#
+# The app-artifact job (app/<name>-v* -> GitHub Release) is a later change.
 
 on:
   push:
     tags:
-      - 'sdk-*'
-      - 'dmon-*'
-      - 'core-*'
+      - 'core/*-v*'
+      - 'providers/*-v*'
+      - 'tools/*-v*'
+      - 'memory/*-v*'
+      - 'frontends/*-v*'
 
 permissions:
   contents: read
@@ -44,32 +57,31 @@ jobs:
       - name: Run tests
         run: make test
 
-      - name: Determine release line and pack
-        id: pack
+      - name: Resolve tag to project and pack
         env:
           TAG: ${{ github.ref_name }}
         run: |
+          set -euo pipefail
           mkdir -p out
-          case "$TAG" in
-            sdk-*)
-              echo "line=sdk" >> "$GITHUB_OUTPUT"
-              dotnet pack core/Dmon.Protocol/Dmon.Protocol.csproj  -c Release -o out --no-build
-              dotnet pack core/Dmon.Abstractions/Dmon.Abstractions.csproj -c Release -o out --no-build
-              ;;
-            dmon-*)
-              echo "line=dmon" >> "$GITHUB_OUTPUT"
-              dotnet pack frontends/Dmon.Terminal/Dmon.Terminal.csproj -c Release -o out --no-build
-              ;;
-            core-*)
-              echo "line=core" >> "$GITHUB_OUTPUT"
-              # --no-build: make build already compiled the project; this step only packs the output.
-              dotnet pack core/Dmon.Core/Dmon.Core.csproj -c Release -o out --no-build
-              ;;
-            *)
-              echo "Unknown tag prefix: $TAG" >&2
-              exit 1
-              ;;
-          esac
+
+          # <area>/<name>-vX.Y.Z -> <area>/<name>-v (the project's MinVerTagPrefix).
+          PREFIX="${TAG%-v*}-v"
+          MATCHES=$(grep -rlF --include='*.csproj' -- "<MinVerTagPrefix>${PREFIX}</MinVerTagPrefix>" . || true)
+          COUNT=$(printf '%s\n' "$MATCHES" | grep -c . || true)
+          if [ "$COUNT" -ne 1 ]; then
+            echo "Tag '$TAG' (prefix '$PREFIX') resolved to $COUNT projects; expected exactly 1:" >&2
+            printf '%s\n' "$MATCHES" >&2
+            exit 1
+          fi
+          PROJ="$MATCHES"
+          echo "Resolved $TAG -> $PROJ"
+
+          # make build only compiles core/terminal/memory (see Makefile); providers,
+          # tools, and Dmon.Network are not built by it, so an explicit build is
+          # required before --no-build pack. Building here (not via `make build`)
+          # keeps the pack step from silently rebuilding the whole solution.
+          dotnet build "$PROJ" -c Release
+          dotnet pack "$PROJ" -c Release --no-build -o out
 
       - name: Push to nuget.org
         env:
@@ -79,7 +91,7 @@ jobs:
             --api-key "$NUGET_API_KEY" \
             --source https://api.nuget.org/v3/index.json \
             --skip-duplicate
-          # .snupkg symbol packages (sdk line only — dmoncore has IncludeSymbols=false).
+          # .snupkg symbol packages, where the packed project produces them.
           if compgen -G "out/*.snupkg" > /dev/null; then
             dotnet nuget push "out/*.snupkg" \
               --api-key "$NUGET_API_KEY" \

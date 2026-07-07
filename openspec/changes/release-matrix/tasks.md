@@ -7,13 +7,13 @@
 
 ## 2. Shared area map
 
-- [ ] 2.1 Ensure the area→paths map (ADR-035 D6) lives in exactly one shared location. If `ci-hardening` left it inline in `ci.yml`, extract it to a shared file; point both `ci.yml` and `release.yml` at it (design D6). If already shared, consume it here.
+- [x] 2.1 Ensure the area→paths map (ADR-035 D6) lives in exactly one shared location. If `ci-hardening` left it inline in `ci.yml`, extract it to a shared file; point both `ci.yml` and `release.yml` at it (design D6). If already shared, consume it here.
 
 ## 3. NuGet-family release job
 
-- [ ] 3.1 Rewrite `release.yml` trigger to per-package tags `*/**-v*` (retire `sdk-*`/`dmon-*`/`core-*`).
-- [ ] 3.2 Replace the `case "$TAG"` subset logic with map-driven selection: resolve the pushed `<area>/<name>-v…` tag to its project path(s) via the shared map, then `dotnet pack --no-build` + `dotnet nuget push --skip-duplicate` (keep the `.snupkg` symbol push, generalized to any package that produces symbols) (design D1/D3).
-- [ ] 3.3 Confirm every NuGet-family package (ADR-035 D7 table) is reachable by some tag prefix — no package left without a release path.
+- [x] 3.1 Rewrite `release.yml` trigger to per-package tags `*/**-v*` (retire `sdk-*`/`dmon-*`/`core-*`).
+- [x] 3.2 Replace the `case "$TAG"` subset logic with map-driven selection: resolve the pushed `<area>/<name>-v…` tag to its project path(s) via the shared map, then `dotnet pack --no-build` + `dotnet nuget push --skip-duplicate` (keep the `.snupkg` symbol push, generalized to any package that produces symbols) (design D1/D3).
+- [x] 3.3 Confirm every NuGet-family package (ADR-035 D7 table) is reachable by some tag prefix — no package left without a release path.
 
 ## 4. Cycle-wave
 
