@@ -12,9 +12,9 @@
 
 ## 3. TriageRouter: fault-recovering backend resolution (finding #1)
 
-- [ ] 3.1 Replace the poisoning `Lazy<Task<IChatClient>>` per-backend fields in `TriageRouter` with a fault-recovering resolver: cache a successfully-completed `Task<IChatClient>`; on a null-or-faulted cached task, start a fresh resolution under a `SemaphoreSlim(1,1)` (single-flight) and cache only on success. Resolution stays lazy and I/O-free at construction (ADR-027 D1 / ADR-032 D3).
-- [ ] 3.2 Update `Dispose` to dispose only a successfully-resolved client (a faulted/absent resolution has nothing to dispose) and the new gate(s); reconcile the stale `EscalationWarmingService` "self-heal path" comment (lines ~12–15) to describe the now-real request-path respawn.
-- [ ] 3.3 Extend `test/Daemon.Routing.Tests/TriageRouterTests.cs`: a backend whose factory faults on first use then succeeds recovers on a later turn (faulted attempt not cached forever); keep the existing resolve-once-on-success and concurrent-first-turns-resolve-once guarantees green.
+- [x] 3.1 Replace the poisoning `Lazy<Task<IChatClient>>` per-backend fields in `TriageRouter` with a fault-recovering resolver: cache a successfully-completed `Task<IChatClient>`; on a null-or-faulted cached task, start a fresh resolution under a `SemaphoreSlim(1,1)` (single-flight) and cache only on success. Resolution stays lazy and I/O-free at construction (ADR-027 D1 / ADR-032 D3).
+- [x] 3.2 Update `Dispose` to dispose only a successfully-resolved client (a faulted/absent resolution has nothing to dispose) and the new gate(s); reconcile the stale `EscalationWarmingService` "self-heal path" comment (lines ~12–15) to describe the now-real request-path respawn.
+- [x] 3.3 Extend `test/Daemon.Routing.Tests/TriageRouterTests.cs`: a backend whose factory faults on first use then succeeds recovers on a later turn (faulted attempt not cached forever); keep the existing resolve-once-on-success and concurrent-first-turns-resolve-once guarantees green.
 
 ## 4. Gates and spec alignment
 
