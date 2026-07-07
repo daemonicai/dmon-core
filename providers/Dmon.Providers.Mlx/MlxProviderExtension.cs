@@ -35,6 +35,10 @@ public sealed class MlxProviderExtension : IProviderExtension, IDisposable, IAsy
     private readonly Action<string>? _onWarning;
     private readonly Action<string>? _onServerLog;
 
+    // Serializes the check-then-spawn critical section in EnsureRunningAsync/StopAsync so
+    // concurrent callers on a fixed port spawn exactly one server (design.md D3).
+    private readonly SemaphoreSlim _gate = new(1, 1);
+
     private Process? _serverProcess;
     private bool _disposed;
 
@@ -169,54 +173,69 @@ public sealed class MlxProviderExtension : IProviderExtension, IDisposable, IAsy
             throw new InvalidOperationException(
                 "MLX ModelId is required. Use MlxRuntimeOptions.Firstline() or .Escalation() to get validated defaults.");
 
-        // Provision the uv-managed venv and resolve the installed mlx_lm version.
-        string resolvedVersion = _provisionEnvDelegate is not null
-            ? await _provisionEnvDelegate(cancellationToken).ConfigureAwait(false)
-            : await ProvisionEnvAsync(cancellationToken).ConfigureAwait(false);
-
-        // Fail fast if below the pin — versions < 0.31.3 silently drop tool calls
-        // (missing gemma-4 parser, issue #1096).
-        if (IsVersionBelowPin(resolvedVersion))
-            throw new InvalidOperationException(
-                $"Installed mlx_lm version '{resolvedVersion}' is below the required minimum " +
-                $"{MlxLmVersionPin}. Upgrade: uv pip install 'mlx_lm>={MlxLmVersionPin}'. " +
-                $"Version {MlxLmVersionPin} ships the gemma-4 tool parser; earlier versions drop tool calls silently.");
-
         // Seed BaseUrl before the liveness check so an already-running server is detected and reused.
+        // Idempotent write — safe to run before the gate is acquired.
         _runtimeState.BaseUrl = $"http://{_options.Host}:{_options.Port}/v1";
 
-        bool running = await IsRunningAsync(cancellationToken).ConfigureAwait(false);
-
-        if (running)
-        {
-            // Attach-first: server already answers — we do not own the process.
-            _runtimeState.OwnsProcess = false;
-            // B2: tool-calling probe — non-fatal; sets ToolCallingVerified before first CreateAsync.
-            await RunToolCallingProbeAsync(cancellationToken).ConfigureAwait(false);
-            return;
-        }
-
-        // Nothing listening: spawn <venv>/bin/python -m mlx_lm.server --model ... --port ... --host ...
-        _runtimeState.OwnsProcess = true;
-
-        // B1: any exception during spawn, readiness polling, or the tool-calling probe kills the
-        // server before rethrowing — no orphaned mlx_lm.server processes.
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            if (_startServerDelegate is not null)
-                await _startServerDelegate(_options.Port, cancellationToken).ConfigureAwait(false);
-            else
-                SpawnServer(_options.Port);
+            // Re-run the liveness check inside the gate: a caller that waited behind another
+            // caller's in-progress spawn attaches to the resulting server here instead of
+            // provisioning/spawning a second one on the fixed port.
+            bool running = await IsRunningAsync(cancellationToken).ConfigureAwait(false);
 
-            await PollUntilReadyAsync(cancellationToken).ConfigureAwait(false);
+            if (running)
+            {
+                // Attach-first. Do not clear ownership if this instance already owns the
+                // process from an earlier spawn (e.g. a queued concurrent caller, or an
+                // idempotent repeat call) — only an external server leaves OwnsProcess false.
+                // B2: tool-calling probe — non-fatal; sets ToolCallingVerified before first CreateAsync.
+                await RunToolCallingProbeAsync(cancellationToken).ConfigureAwait(false);
+                return;
+            }
 
-            // B2: tool-calling probe — non-fatal; sets ToolCallingVerified before first CreateAsync.
-            await RunToolCallingProbeAsync(cancellationToken).ConfigureAwait(false);
+            // Provision the uv-managed venv and resolve the installed mlx_lm version. Reached
+            // at most once per cold start — subsequent queued callers observe `running` above
+            // and return before provisioning.
+            string resolvedVersion = _provisionEnvDelegate is not null
+                ? await _provisionEnvDelegate(cancellationToken).ConfigureAwait(false)
+                : await ProvisionEnvAsync(cancellationToken).ConfigureAwait(false);
+
+            // Fail fast if below the pin — versions < 0.31.3 silently drop tool calls
+            // (missing gemma-4 parser, issue #1096).
+            if (IsVersionBelowPin(resolvedVersion))
+                throw new InvalidOperationException(
+                    $"Installed mlx_lm version '{resolvedVersion}' is below the required minimum " +
+                    $"{MlxLmVersionPin}. Upgrade: uv pip install 'mlx_lm>={MlxLmVersionPin}'. " +
+                    $"Version {MlxLmVersionPin} ships the gemma-4 tool parser; earlier versions drop tool calls silently.");
+
+            // Nothing listening: spawn <venv>/bin/python -m mlx_lm.server --model ... --port ... --host ...
+            _runtimeState.OwnsProcess = true;
+
+            // B1: any exception during spawn, readiness polling, or the tool-calling probe kills the
+            // server before rethrowing — no orphaned mlx_lm.server processes.
+            try
+            {
+                if (_startServerDelegate is not null)
+                    await _startServerDelegate(_options.Port, cancellationToken).ConfigureAwait(false);
+                else
+                    SpawnServer(_options.Port);
+
+                await PollUntilReadyAsync(cancellationToken).ConfigureAwait(false);
+
+                // B2: tool-calling probe — non-fatal; sets ToolCallingVerified before first CreateAsync.
+                await RunToolCallingProbeAsync(cancellationToken).ConfigureAwait(false);
+            }
+            catch
+            {
+                KillServer();
+                throw;
+            }
         }
-        catch
+        finally
         {
-            KillServer();
-            throw;
+            _gate.Release();
         }
     }
 
@@ -261,13 +280,41 @@ public sealed class MlxProviderExtension : IProviderExtension, IDisposable, IAsy
 
     public IProviderFactory CreateFactory() => new MlxProviderFactory(_options, _runtimeState);
 
-    public Task StopAsync(CancellationToken cancellationToken = default)
+    public async Task StopAsync(CancellationToken cancellationToken = default)
     {
-        // Mirror the Dispose() ownership guard: only kill a process dmon started;
-        // leave an attached server running.
-        if (_runtimeState.OwnsProcess)
-            KillServer();
-        return Task.CompletedTask;
+        if (_disposed)
+            return;
+
+        // Acquire the same gate as EnsureRunningAsync so an idle teardown cannot interleave
+        // with an in-progress spawn (no kill-mid-spawn orphan).
+        try
+        {
+            await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (ObjectDisposedException)
+        {
+            // Dispose() ran concurrently and already tore down the process; nothing to do.
+            return;
+        }
+
+        try
+        {
+            // Mirror the Dispose() ownership guard: only kill a process dmon started;
+            // leave an attached server running.
+            if (!_disposed && _runtimeState.OwnsProcess)
+                KillServer();
+        }
+        finally
+        {
+            try
+            {
+                _gate.Release();
+            }
+            catch (ObjectDisposedException)
+            {
+                // Dispose() ran concurrently; nothing further to release.
+            }
+        }
     }
 
     public void Dispose()
@@ -279,6 +326,10 @@ public sealed class MlxProviderExtension : IProviderExtension, IDisposable, IAsy
         // Only kill a process dmon started; leave an attached server running.
         if (_runtimeState.OwnsProcess)
             KillServer();
+
+        // KillServer's Interlocked.Exchange already makes the terminal kill race-safe against a
+        // concurrent StopAsync; we do not wait on _gate here — synchronous Dispose must not block.
+        _gate.Dispose();
 
         if (_ownsHttpClient)
             _httpClient.Dispose();
