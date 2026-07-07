@@ -1,0 +1,17 @@
+## 1. Serialize writes in the RPC transport
+
+- [x] 1.1 Investigate `core/Dmon.Runtime/CoreProcessRpcTransport.cs`: confirm `SendAsync` (~lines 57-65) writes the JSON body and the `\n` in two separate `await _writer.WriteAsync(...)` calls plus a separate `FlushAsync`, that the class is `sealed`, holds borrowed `TextReader _reader`/`TextWriter _writer` (does not own/close them), is not currently `IDisposable`, and has no existing lock. Confirm `RpcClient.SendAsync` (`RpcClient.cs:73-77`) is a pass-through that adds no serialization, and that the only other `IRpcTransport` impl is the test-only `FeedableTransport`. Cross-check the reference pattern `SessionHandler.WriteToCoreAsync` (`frontends/Dmon.Network/Sessions/SessionHandler.cs:356-368`).
+- [x] 1.2 Add a `private readonly SemaphoreSlim _writeGate = new(1, 1);` field. In `SendAsync`, serialize the command to JSON **outside** the gate (D2), then `await _writeGate.WaitAsync(cancellationToken).ConfigureAwait(false)`; inside a `try`/`finally` that releases the gate, emit the frame and its terminator as **one** concatenated write (`await _writer.WriteAsync((json + "\n").AsMemory(), cancellationToken).ConfigureAwait(false)`) then `await _writer.FlushAsync(cancellationToken).ConfigureAwait(false)`. Preserve the exact single-call byte output: JSON then exactly one `\n`, never `\r` (D1/D4).
+- [x] 1.3 Make `CoreProcessRpcTransport` implement `IDisposable`; `Dispose()` disposes only `_writeGate` and MUST NOT close `_reader`/`_writer` (borrowed streams — D3). Audit every construction site (`frontends/Dmon.Terminal/Program.cs:99-100`, gateway handshake `frontends/Dmon.Network/NetworkConnectionEndpoint.cs:489`, tests) to confirm adding `IDisposable` introduces no double-dispose and to wire `Dispose` where the transport has a clear owner. If a site cannot own disposal without an out-of-scope refactor, STOP and ask (D3).
+
+## 2. Regression test
+
+- [x] 2.1 In `test/Dmon.Runtime.Tests/RpcTransportTests.cs`, add a thread-safe capturing `TextWriter` (lock around the append; the existing `CapturingWriter` uses a non-thread-safe `StringBuilder`) and construct the transport via the internal `CoreProcessRpcTransport(TextReader, TextWriter, Action<string>?)` test constructor.
+- [x] 2.2 Add `SendAsync_ConcurrentCallers_FramesNotInterleaved` (or similar): fire N (e.g. 50) distinct `Command`s through `SendAsync` concurrently (`Task.WhenAll`), await all, then split the captured output on `\n` and assert every non-empty line deserializes with `WireSerializerOptions.Default` back into a valid `Command`, no line contains an embedded `\n`/partial frame, and the multiset of deserialized commands equals the set sent. This must fail (garbled/short lines) against the pre-fix code and pass after.
+- [x] 2.3 Confirm the existing framing tests stay green — `SendAsync_WritesJsonPlusLineFeed_ExactBytes` and `SendAsync_ExactlyOneLf_NoCrLf` (`RpcTransportTests.cs`) — i.e. the single-call byte output is unchanged.
+
+## 3. Gates and spec alignment
+
+- [x] 3.1 `make build` clean (TreatWarningsAsErrors on).
+- [x] 3.2 `env -u MEKO_API_KEY dotnet test test/Dmon.Runtime.Tests` green (new test + all existing), then a single full `env -u MEKO_API_KEY make test` green (pkill stale `Everything.slnx` testhost first if it hangs).
+- [x] 3.3 `openspec validate runtime-rpc-write-serialization --strict` passes; the `host-rpc-transport` MODIFIED delta (atomic-frame-write + concurrent-callers-do-not-interleave, with the added scenario) matches the implemented behavior.

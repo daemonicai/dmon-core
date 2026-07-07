@@ -235,6 +235,12 @@ public sealed class RpcClient : IRpcClient
                 ch.Writer.TryComplete();
             _subscribers.Clear();
         }
+
+        // RpcClient is the clear owner of the transport it was constructed with, so it
+        // releases the transport's write-serialization semaphore (if any) once the pump
+        // has stopped. IRpcTransport itself does not declare IDisposable.
+        if (_transport is IDisposable disposableTransport)
+            disposableTransport.Dispose();
     }
 
     // ---------------------------------------------------------------

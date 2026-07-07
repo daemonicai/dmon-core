@@ -46,6 +46,39 @@ public sealed class RpcTransportTests
         => new StringReader(string.Join("\n", lines));
 
     /// <summary>
+    /// A thread-safe capturing <see cref="TextWriter"/> for the concurrency regression test.
+    /// Unlike <see cref="CapturingWriter"/> (a plain, non-thread-safe <see cref="StringBuilder"/>
+    /// wrapper), every append here is guarded by a lock. The async write path additionally
+    /// yields before appending, forcing a real scheduling point so that pre-fix code — which
+    /// issues the JSON body and the trailing LF as two separate writes — actually interleaves
+    /// across concurrent callers instead of happening to run back-to-back on one thread.
+    /// </summary>
+    private sealed class ThreadSafeCapturingWriter : TextWriter
+    {
+        private readonly StringBuilder _sb = new();
+        private readonly object _lock = new();
+
+        public override Encoding Encoding => Encoding.UTF8;
+
+        public override async Task WriteAsync(ReadOnlyMemory<char> buffer, CancellationToken cancellationToken)
+        {
+            await Task.Yield();
+            lock (_lock)
+                _sb.Append(buffer.Span);
+        }
+
+        public override async Task FlushAsync(CancellationToken cancellationToken)
+        {
+            await Task.Yield();
+        }
+
+        public string Captured
+        {
+            get { lock (_lock) return _sb.ToString(); }
+        }
+    }
+
+    /// <summary>
     /// Serializes an event as the core would emit it — through the base <see cref="Event"/>
     /// type with <see cref="WireSerializerOptions.Default"/>.
     /// </summary>
@@ -113,6 +146,47 @@ public sealed class RpcTransportTests
         string json = writer.Captured.TrimEnd('\n');
         using JsonDocument doc = JsonDocument.Parse(json);
         Assert.Equal("turn.submit", doc.RootElement.GetProperty("type").GetString());
+    }
+
+    // ---------------------------------------------------------------
+    // Write-serialization regression (runtime-rpc-write-serialization 2.2)
+    // ---------------------------------------------------------------
+
+    [Fact]
+    public async Task SendAsync_ConcurrentCallers_FramesNotInterleaved()
+    {
+        const int callerCount = 50;
+        ThreadSafeCapturingWriter writer = new();
+        CoreProcessRpcTransport transport = new(MakeReader(), writer);
+
+        List<TurnSubmitCommand> commands = Enumerable.Range(0, callerCount)
+            .Select(i => new TurnSubmitCommand { Id = $"cmd-{i}", Message = $"message-{i}" })
+            .ToList();
+
+        await Task.WhenAll(commands.Select(c => transport.SendAsync(c, CancellationToken.None)));
+
+        string captured = writer.Captured;
+        Assert.DoesNotContain("\r", captured);
+
+        string[] lines = captured.Split('\n');
+        // Trailing split entry after the final LF is empty — every real frame ends in "\n".
+        Assert.Equal(string.Empty, lines[^1]);
+        string[] frames = lines[..^1];
+
+        Assert.Equal(callerCount, frames.Length);
+
+        List<string> receivedIds = [];
+        foreach (string frame in frames)
+        {
+            Command? deserialized = JsonSerializer.Deserialize<Command>(frame, WireSerializerOptions.Default);
+            Assert.NotNull(deserialized);
+            TurnSubmitCommand typed = Assert.IsType<TurnSubmitCommand>(deserialized);
+            receivedIds.Add(typed.Id);
+        }
+
+        List<string> expectedIds = [.. commands.Select(c => c.Id).Order()];
+        List<string> actualIds = [.. receivedIds.Order()];
+        Assert.Equal(expectedIds, actualIds);
     }
 
     // ---------------------------------------------------------------
