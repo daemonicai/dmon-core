@@ -6,13 +6,13 @@
 
 ## 2. Created-but-never-attached handlers become reapable (leak #2)
 
-- [ ] 2.1 Choose D2a vs D2b from `design.md` based on the task-1.1 audit of `DetachedAt` readers: **D2a** (arm `_detachedAt` at construction/registration, cleared on first `Attach`, reaper unchanged) if no reader depends on "was previously attached then detached"; otherwise **D2b** (a distinct never-attached clock the reaper honours). Record the choice and why in `DEVLOG.md`.
-- [ ] 2.2 Implement the chosen shape in `SessionHandler` (and `SessionReaper.cs`/`SessionRegistry.cs` only if D2b needs it) so a created-but-never-attached handler is reapable after the idle TTL and the clock is cleared on the first successful `Attach`. Reuse the existing idle TTL (no new timeout). A never-attached handler has no turn in flight, so idle-TTL governs.
-- [ ] 2.3 Confirm the reap path is unchanged: reaping a never-attached (or drain-failed) handler tears down the core process and `_seqLog` via the existing `StopAsync`/`DisposeAsync` teardown, identically to an idle-detached reap.
-- [ ] 2.4 Add a regression test: create/register a handler, never attach, advance the clock past the idle TTL, assert reap (core terminated, deregistered). Add a companion test that attaching before the TTL clears the reap clock and the handler survives. Keep all existing reaper/detach tests (`Idle detached handler reaped`, `In-flight turn survives`, cap, `DetachedAt_SetOnDetach_ClearedOnAttach`) green.
+- [x] 2.1 Choose D2a vs D2b from `design.md` based on the task-1.1 audit of `DetachedAt` readers: **D2a** (arm `_detachedAt` at construction/registration, cleared on first `Attach`, reaper unchanged) if no reader depends on "was previously attached then detached"; otherwise **D2b** (a distinct never-attached clock the reaper honours). Record the choice and why in `DEVLOG.md`.
+- [x] 2.2 Implement the chosen shape in `SessionHandler` (and `SessionReaper.cs`/`SessionRegistry.cs` only if D2b needs it) so a created-but-never-attached handler is reapable after the idle TTL and the clock is cleared on the first successful `Attach`. Reuse the existing idle TTL (no new timeout). A never-attached handler has no turn in flight, so idle-TTL governs.
+- [x] 2.3 Confirm the reap path is unchanged: reaping a never-attached (or drain-failed) handler tears down the core process and `_seqLog` via the existing `StopAsync`/`DisposeAsync` teardown, identically to an idle-detached reap.
+- [x] 2.4 Add a regression test: create/register a handler, never attach, advance the clock past the idle TTL, assert reap (core terminated, deregistered). Add a companion test that attaching before the TTL clears the reap clock and the handler survives. Keep all existing reaper/detach tests (`Idle detached handler reaped`, `In-flight turn survives`, cap, `DetachedAt_SetOnDetach_ClearedOnAttach`) green.
 
 ## 3. Gates and spec alignment
 
-- [ ] 3.1 `make build` clean (TreatWarningsAsErrors on).
-- [ ] 3.2 `env -u MEKO_API_KEY dotnet test test/Dmon.Network.Tests` green (new tests + all existing), then a single full `env -u MEKO_API_KEY make test` green (pkill stale `Everything.slnx` testhost first).
-- [ ] 3.3 `openspec validate gateway-session-reaping --strict` passes; the `remote-session-gateway` MODIFIED delta (every-detected-disconnect-arms + created-never-attached-reapable, with the added scenarios) matches the implemented behavior.
+- [x] 3.1 `make build` clean (TreatWarningsAsErrors on).
+- [x] 3.2 `env -u MEKO_API_KEY dotnet test test/Dmon.Network.Tests` green (new tests + all existing), then a single full `env -u MEKO_API_KEY make test` green (pkill stale `Everything.slnx` testhost first).
+- [x] 3.3 `openspec validate gateway-session-reaping --strict` passes; the `remote-session-gateway` MODIFIED delta (every-detected-disconnect-arms + created-never-attached-reapable, with the added scenarios) matches the implemented behavior.

@@ -89,6 +89,11 @@ public sealed class SessionHandler : IAsyncDisposable
     // Written under _lock; the reaper reads it to determine eligibility and compute elapsed time.
     private DateTimeOffset? _detachedAt;
 
+    // Set once at construction; never rewritten. Distinct from _detachedAt so a created-but-
+    // never-attached handler (leak #2) is reapable without disturbing DetachedAt's documented
+    // "set by Detach, cleared by Attach" contract. See ReapEligibleSince.
+    private readonly DateTimeOffset _createdAt;
+
     public string SessionId { get; }
 
     /// <summary>
@@ -146,6 +151,31 @@ public sealed class SessionHandler : IAsyncDisposable
         }
     }
 
+    /// <summary>
+    /// The timestamp the reaper should measure idle time from: <c>null</c> while a connection is
+    /// currently attached (never reap); otherwise <see cref="_detachedAt"/> if this handler has
+    /// ever been detached (or a drain failure armed it), falling back to <see cref="_createdAt"/>.
+    ///
+    /// The <c>_createdAt</c> fallback only fires when <c>_connection is null &amp;&amp;
+    /// _detachedAt is null</c> — a state reachable only by a handler that was created and
+    /// registered but never attached (leak #2), since any <see cref="Attach"/> sets
+    /// <c>_connection</c> and any subsequent <see cref="Detach"/> (or drain failure) arms
+    /// <c>_detachedAt</c> permanently thereafter. So this doubles as an implicit "cleared on
+    /// first Attach" never-attached clock without a separate flag.
+    /// </summary>
+    public DateTimeOffset? ReapEligibleSince
+    {
+        get
+        {
+            lock (_lock)
+            {
+                if (_connection is not null)
+                    return null;
+                return _detachedAt ?? _createdAt;
+            }
+        }
+    }
+
     /// <param name="sessionId">Stable identifier for this session.</param>
     /// <param name="coreSession">An already-started, protocol-gated core session.</param>
     /// <param name="connectionIndex">Cross-session index for keyId → live connections.</param>
@@ -166,6 +196,7 @@ public sealed class SessionHandler : IAsyncDisposable
         _connectionIndex = connectionIndex;
         _stdout = coreSession.Process.StandardOutput;
         _stdin = coreSession.Process.StandardInput;
+        _createdAt = _timeProvider.GetUtcNow();
         _pumpTask = RunPumpAsync(_pumpCts.Token);
     }
 
@@ -182,6 +213,7 @@ public sealed class SessionHandler : IAsyncDisposable
         _connectionIndex = options.ConnectionIndex;
         _stdout = options.Stdout;
         _stdin = options.Stdin;
+        _createdAt = _timeProvider.GetUtcNow();
         _pumpTask = RunPumpAsync(_pumpCts.Token);
     }
 

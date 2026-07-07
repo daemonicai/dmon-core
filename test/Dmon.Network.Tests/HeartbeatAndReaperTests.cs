@@ -254,6 +254,82 @@ public sealed class HeartbeatAndReaperTests
         Assert.Null(registry.TryGet("s1")); // removed from registry
     }
 
+    /// <summary>
+    /// 7.2d — A handler that is registered but never attached (leak #2, the "created" gap in
+    /// the create→attach protocol handshake) is reaped after the idle TTL, measured from
+    /// construction. Proves D2b: the never-attached reap clock is distinct from
+    /// <see cref="SessionHandler.DetachedAt"/>, which stays null throughout since no
+    /// connection was ever attached or detached.
+    /// </summary>
+    [Fact]
+    public async Task Reaper_CreatedButNeverAttached_ReapedAfterIdleTtl()
+    {
+        FakeTimeProvider time = new();
+        SessionRegistry registry = new();
+        IOptionsMonitor<NetworkOptions> options = new StaticOptionsMonitor(new NetworkOptions
+        {
+            IdleDetachedTtlMinutes = 15,
+            RunningTurnTtlMinutes = 60,
+        });
+
+        FeedableReader stdout = new();
+        StringWriter stdin = new();
+        SessionHandler handler = new("s1", new SessionHandlerTestOptions { Stdout = stdout, Stdin = stdin, TimeProvider = time });
+        registry.Register("s1", handler);
+
+        // Never call Attach — this is the leak #2 scenario.
+        Assert.Null(handler.DetachedAt); // D2b: the never-attached clock is NOT DetachedAt
+        Assert.False(handler.IsTurnInFlight);
+
+        SessionReaper reaper = new(registry, options, time,
+            NullLogger<SessionReaper>.Instance);
+
+        // Advance to just before the TTL — must NOT reap.
+        time.Advance(TimeSpan.FromMinutes(14));
+        await reaper.ScanAndReapAsync(CancellationToken.None);
+        Assert.NotNull(registry.TryGet("s1")); // still registered
+
+        // Advance past the TTL — must reap.
+        time.Advance(TimeSpan.FromMinutes(2)); // total = 16 min > 15 min TTL
+        await reaper.ScanAndReapAsync(CancellationToken.None);
+        Assert.Null(registry.TryGet("s1")); // removed from registry
+    }
+
+    /// <summary>
+    /// 7.2e — Attaching before the never-attached idle TTL would have elapsed clears the reap
+    /// clock (implicitly, via <see cref="SessionHandler.ReapEligibleSince"/> returning null while
+    /// attached), so the handler survives past what would otherwise have been its reap time.
+    /// </summary>
+    [Fact]
+    public async Task Reaper_AttachBeforeIdleTtl_ClearsReapClock_AndSurvives()
+    {
+        FakeTimeProvider time = new();
+        SessionRegistry registry = new();
+        IOptionsMonitor<NetworkOptions> options = new StaticOptionsMonitor(new NetworkOptions
+        {
+            IdleDetachedTtlMinutes = 15,
+            RunningTurnTtlMinutes = 60,
+        });
+
+        FeedableReader stdout = new();
+        StringWriter stdin = new();
+        await using SessionHandler handler = new("s1", new SessionHandlerTestOptions { Stdout = stdout, Stdin = stdin, TimeProvider = time });
+        registry.Register("s1", handler);
+
+        // Never attach for a while, then attach before the never-attached TTL would fire.
+        time.Advance(TimeSpan.FromMinutes(10)); // < 15 min TTL
+        RecordingConnection conn = new();
+        handler.Attach(conn, lastSeq: 0);
+
+        SessionReaper reaper = new(registry, options, time,
+            NullLogger<SessionReaper>.Instance);
+
+        // Advance past what would have been the created-clock TTL (10 + 10 = 20 min > 15 min).
+        time.Advance(TimeSpan.FromMinutes(10));
+        await reaper.ScanAndReapAsync(CancellationToken.None);
+        Assert.NotNull(registry.TryGet("s1")); // attached ⇒ ReapEligibleSince is null — survives
+    }
+
     // -------------------------------------------------------------------------
     // 7.3 — In-flight turn retention and absolute-max TTL
     // -------------------------------------------------------------------------
