@@ -1,6 +1,6 @@
 using Dmon.Abstractions.Extensions;
 
-namespace Dmon.Extensions.Tests;
+namespace Dmon.Abstractions.Tests;
 
 /// <summary>
 /// Verifies the default and custom-priority behaviour of <see cref="DmonMiddlewareAttribute"/>.

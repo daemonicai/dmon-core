@@ -1,7 +1,7 @@
 using Dmon.Abstractions.Extensions;
 using Microsoft.Extensions.AI;
 
-namespace Dmon.Extensions.Tests;
+namespace Dmon.Abstractions.Tests;
 
 public class IToolExtensionContractTests
 {

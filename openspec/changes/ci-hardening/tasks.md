@@ -8,8 +8,8 @@
 
 - [x] 2.1 Remove `spike/ScriptingSpike` from `Everything.slnx` and delete the `spike/ScriptingSpike/` directory (design D5).
 - [x] 2.2 Delete tracked root clutter: `podcast-talking-points.md`, `terminal.md`.
-- [ ] 2.3 Delete the orphaned `test/Dmon.Extensions.Tests/` project (verify first that its coverage is dead/duplicated — the component it was named for is gone; if any test still exercises live code, stop-and-ask rather than delete). Remove it from `Everything.slnx` if present.
-- [ ] 2.4 Confirm `make build` + `make test` remain green after the removals (no dangling solution references).
+- [x] 2.3 Verified the orphaned `test/Dmon.Extensions.Tests/` still holds live, unique coverage of `core/Dmon.Abstractions` types (`DmonAIFunctionFactory`, `DmonMiddlewareAttribute`, `IToolExtension`), so the stop-and-ask fired and — per user decision — it was **renamed/relocated** to `test/Dmon.Abstractions.Tests/` (dir, `.csproj`, namespace, `Everything.slnx` **and** `core.slnx` entries) rather than deleted, preserving all 26 tests.
+- [x] 2.4 Confirm `make build` + `make test` remain green after the removals (no dangling solution references).
 
 ## 3. CI workflow
 
