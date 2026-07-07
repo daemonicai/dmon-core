@@ -57,6 +57,13 @@ Running log of implementation decisions and deviations, per block. Newest block 
 
 ## CHANGE COMPLETE — all 6 groups / 18 tasks ticked. 5 commits (proposal + 4 impl blocks). Ready for user push/PR, then propose /opsx:archive (standing-spec sync happens then: dmail-server + dcal-sync deltas → openspec/specs/).
 
+## Post-PR CI fix (PR #75) — Dmail integration tests + Git LFS
+
+- **Symptom:** `Dmail.Tests.ApiKeyAuthIntegrationTests` (the 3 `WebApplicationFactory<Program>` boot tests from block 3) FAILED in CI with `OnnxRuntimeException [InvalidProtobuf] Failed to load model` at `Program.cs:45` (`AddBertOnnxEmbeddingGenerator`). Passed locally.
+- **Root cause:** these are the FIRST tests that boot the real Dmail `Program`, which eagerly loads the ONNX model at registration (`AddBertOnnxEmbeddingGenerator` calls `.Create(...)` → `InferenceSession` at startup, BEFORE the test's `ConfigureTestServices` stub can replace it — the stub only ever masked post-boot behaviour, never the load). `*.onnx` is Git-LFS-tracked; CI's `actions/checkout@v4` had NO `lfs: true`, so the model was a 133-byte pointer → protobuf parse fails. `Dmail.csproj` copies the model to output, so locally (real LFS file) it boots fine. This is exactly the audit's latent **L1** ("no `lfs: true` on checkout") — my change surfaced it by being the first app-booting test.
+- **Fix:** added `with: lfs: true` to the ci.yml checkout step. Minimal root-cause fix; also the correct posture (the app genuinely needs its model to boot; CI should test the real artifact). Only Dmail.Tests boots `Program` (Dcal's Program has no ONNX; `FtsSnippetIntegrationTests` uses a stub and never boots Program), so this is the complete fix. Considered but rejected: making Program.cs skip/redirect ONNX for tests (production backdoor, out of scope) — the app needs the model regardless.
+- Note: CI now pulls the 69MB LFS model per run. Acceptable; the alternative (lighten the integration tests so they don't boot the real app) would forfeit the pipeline-position proof they exist for.
+
 ## Block 1 — Dmail loopback-by-default bind (tasks 1.1–1.4, 5.1) — DONE, committed
 
 - Added `services/Dmail/BindAddressPolicy.cs` (`Validate` + `Resolve`, mirrors NetworkBindPolicy; manual `TryExtractHost` — see pinned facts for why not `Uri`). `Resolve(null,"8080",false) → http://127.0.0.1:8080`; wildcard without opt-in throws `InvalidOperationException`; wildcard with `DMAIL_ALLOW_NONLOOPBACK=true` accepted.
