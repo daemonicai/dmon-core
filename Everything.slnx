@@ -37,13 +37,10 @@
     <Project Path="services\Dcal\Dcal.csproj" />
     <Project Path="services\Dmail\Dmail.csproj" />
   </Folder>
-  <Folder Name="/spike/">
-    <Project Path="spike\ScriptingSpike\ScriptingSpike.csproj" />
-  </Folder>
   <Folder Name="/test/">
     <Project Path="test\Dmon.Desktop.Tests\Dmon.Desktop.Tests.csproj" />
     <Project Path="test\Dmon.Core.Tests\Dmon.Core.Tests.csproj" />
-    <Project Path="test\Dmon.Extensions.Tests\Dmon.Extensions.Tests.csproj" />
+    <Project Path="test\Dmon.Abstractions.Tests\Dmon.Abstractions.Tests.csproj" />
     <Project Path="test\Dmon.Network.Tests\Dmon.Network.Tests.csproj" />
     <Project Path="test\Dmon.Memory.Tests\Dmon.Memory.Tests.csproj" />
     <Project Path="test\Dmon.Memory.Meko.Tests\Dmon.Memory.Meko.Tests.csproj" />

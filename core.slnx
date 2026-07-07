@@ -8,7 +8,7 @@
   </Folder>
   <Folder Name="/test/">
     <Project Path="test\Dmon.Core.Tests\Dmon.Core.Tests.csproj" />
-    <Project Path="test\Dmon.Extensions.Tests\Dmon.Extensions.Tests.csproj" />
+    <Project Path="test\Dmon.Abstractions.Tests\Dmon.Abstractions.Tests.csproj" />
     <Project Path="test\Dmon.Protocol.Tests\Dmon.Protocol.Tests.csproj" />
     <Project Path="test\Dmon.Runtime.Tests\Dmon.Runtime.Tests.csproj" />
   </Folder>

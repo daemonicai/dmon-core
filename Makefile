@@ -1,4 +1,4 @@
-.PHONY: all build build-terminal build-core build-core-pack build-memory test pack smoke schema clean daemon-app network
+.PHONY: all build build-terminal build-core build-core-pack build-memory test test-live pack smoke schema clean daemon-app daemon-app-test network
 
 CONFIG            ?= Release
 CORE_OUT          := build/dmoncore
@@ -38,7 +38,10 @@ build-memory:
 	dotnet build memory/Dmon.Memory/Dmon.Memory.csproj -c $(CONFIG)
 
 test: build-core
-	dotnet test Everything.slnx -c $(CONFIG)
+	dotnet test Everything.slnx -c $(CONFIG) --filter "Category!=Live"
+
+test-live: build-core
+	dotnet test Everything.slnx -c $(CONFIG) --filter "Category=Live"
 
 # Pack dmoncore + the contract trio (and the sample extension) to a local
 # NuGet feed so a Dmon.cs composition root resolves `#:package dmoncore@<protocol>.*`
@@ -61,6 +64,9 @@ clean:
 
 daemon-app:
 	swift build -c release --package-path daemon/Daemon.App
+
+daemon-app-test:
+	swift test --package-path daemon/Daemon.App
 
 network:
 	dotnet pack frontends/Dmon.Network/Dmon.Network.csproj -c $(CONFIG) -o "$(PACK_OUT)"

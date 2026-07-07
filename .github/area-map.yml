@@ -1,0 +1,56 @@
+# Shared area -> paths map (ADR-035 D6). Single source of truth consumed by:
+#   - .github/workflows/ci.yml       (path-filtered build/test matrix -- ci-hardening)
+#   - .github/workflows/release.yml  (tag -> project resolution -- release-matrix, not yet implemented)
+#
+# Format: dorny/paths-filter filter config (https://github.com/dorny/paths-filter).
+# Each top-level key is a filter name. A change under any of its globs sets that
+# filter's output to "true" and adds the name to the `changes` JSON-array output.
+#
+# Rule (ADR-025 D9 "core => all"; ci-hardening design D1/D2): a change matching
+# `core`, `root-config`, or `test` widens the affected build/test set to the
+# whole `Everything.slnx` rather than a single leaf area -- widen, never narrow.
+# The remaining keys correspond 1:1 with the leaf `*.slnx` files at the repo
+# root (core.slnx is intentionally excluded as a leaf -- it always widens).
+#
+# `daemon/Daemon.App/**` (the Swift app) is intentionally NOT mapped here: it
+# carries no .NET ProjectReference into this graph and is scoped by its own
+# macOS CI job with an independent path filter.
+
+root-config:
+  - 'Directory.*.props'
+  - '*.slnx'
+  - '.github/**'
+  - 'Makefile'
+  - 'nuget.config'
+  - 'default-core/**'
+
+test:
+  - 'test/**'
+
+core:
+  - 'core/**'
+
+providers:
+  - 'providers/**'
+
+tools:
+  - 'tools/**'
+
+memory:
+  - 'memory/**'
+
+frontends:
+  - 'frontends/**'
+
+daemon:
+  - 'daemon/Daemon.Routing/**'
+  - 'daemon/Daemon.cs'
+
+services:
+  - 'services/**'
+
+# `samples/**` and `scripts/**` are intentionally NOT mapped: they feed
+# `make smoke`, not `make build`/`make test`, and are not a member of any
+# `*.slnx` covered by a build/test leg (verified: no *.slnx references
+# samples/ or scripts/). A samples/scripts-only change is expected to run
+# zero .NET CI legs.

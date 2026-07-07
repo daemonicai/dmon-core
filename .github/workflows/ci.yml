@@ -1,19 +1,73 @@
 name: CI
 
+# Manual trigger matrix (documented evidence for task 4.2 -- the `changes` job
+# below implements this rule; `dorny/paths-filter` config lives in
+# .github/area-map.yml, shared with the future release-matrix workflow):
+#
+#   Changed paths                                   -> areas output
+#   ------------------------------------------------------------------------
+#   providers/Dmon.Providers.Gemini/**               -> ["providers"]
+#   tools/Dmon.Tools.Dcal/** + services/Dcal/**      -> ["tools","services"]
+#   core/Dmon.Abstractions/**                        -> ["Everything"]  (core => all)
+#   Directory.Build.props                            -> ["Everything"]  (root config)
+#   test/Dmon.Core.Tests/**                          -> ["Everything"]  (test widens)
+#   docs/notes/whatever.md only                       -> []              (no .NET leg runs)
+#   daemon/Daemon.App/Sources/**                      -> [] for this job (Swift is orthogonal;
+#                                                          see the separate daemon-app job)
+#   daemon/Daemon.cs                                  -> ["daemon"]      (composition root, ADR-028)
+#   default-core/Directory.Packages.props             -> ["Everything"]  (root config widens)
 on:
   pull_request:
+  push:
+    branches: [main]
 
 permissions:
   contents: read
+  pull-requests: read
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  test:
-    name: make test
+  changes:
+    name: Compute affected areas
     runs-on: ubuntu-latest
+    outputs:
+      areas: ${{ steps.areas.outputs.areas }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Filter changed paths
+        id: filter
+        uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706 # v4.0.2
+        with:
+          base: ${{ github.ref }}
+          filters: .github/area-map.yml
+
+      - name: Compute affected areas (core => all, widen never narrow)
+        id: areas
+        run: |
+          if [[ "${{ steps.filter.outputs.core }}" == "true" || \
+                "${{ steps.filter.outputs.root-config }}" == "true" || \
+                "${{ steps.filter.outputs.test }}" == "true" ]]; then
+            echo 'areas=["Everything"]' >> "$GITHUB_OUTPUT"
+          else
+            echo 'areas=${{ steps.filter.outputs.changes }}' >> "$GITHUB_OUTPUT"
+          fi
+
+  build-test:
+    name: build/test (${{ matrix.area }})
+    needs: changes
+    if: ${{ needs.changes.outputs.areas != '[]' }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        area: ${{ fromJSON(needs.changes.outputs.areas) }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -33,8 +87,75 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-nuget-
 
-      - name: Build
-        run: make build
+      - name: Build and test (Everything)
+        if: matrix.area == 'Everything'
+        run: |
+          make build
+          env -u MEKO_API_KEY make test
 
-      - name: Run tests
-        run: make test
+      - name: Build (${{ matrix.area }})
+        if: matrix.area != 'Everything'
+        run: dotnet build "${{ matrix.area }}.slnx" -c Release
+
+      - name: Test (${{ matrix.area }})
+        if: matrix.area != 'Everything'
+        run: dotnet test "${{ matrix.area }}.slnx" -c Release --filter "Category!=Live"
+
+  daemon-app-changes:
+    name: Compute Daemon.App trigger
+    runs-on: ubuntu-latest
+    outputs:
+      run: ${{ steps.filter.outputs.app }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Filter changed paths
+        id: filter
+        uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706 # v4.0.2
+        with:
+          base: ${{ github.ref }}
+          filters: |
+            app:
+              - 'daemon/Daemon.App/**'
+
+  daemon-app:
+    name: Daemon.App (macOS)
+    needs: daemon-app-changes
+    if: ${{ github.event_name == 'push' || needs.daemon-app-changes.outputs.run == 'true' }}
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build Daemon.App
+        run: make daemon-app
+
+      - name: Test Daemon.App
+        run: make daemon-app-test
+
+  ci-gate:
+    name: CI gate
+    needs: [changes, build-test, daemon-app-changes, daemon-app]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check required job results
+        run: |
+          ok=0
+          check() {
+            local name="$1" result="$2" allow_skipped="$3"
+            if [[ "$result" == "success" ]] || { [[ "$allow_skipped" == "yes" ]] && [[ "$result" == "skipped" ]]; }; then
+              echo "$name: $result"
+            else
+              echo "::error::$name result was '$result'"
+              ok=1
+            fi
+          }
+          check "changes" "${{ needs.changes.result }}" "no"
+          check "daemon-app-changes" "${{ needs.daemon-app-changes.result }}" "no"
+          check "build-test" "${{ needs.build-test.result }}" "yes"
+          check "daemon-app" "${{ needs.daemon-app.result }}" "yes"
+          exit "$ok"
