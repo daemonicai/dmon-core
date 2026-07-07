@@ -6,6 +6,10 @@ using Microsoft.Extensions.Time.Testing;
 
 namespace Dcal.Tests;
 
+// Shares the "DCAL env vars" collection with ApiKeyAuthIntegrationTests: both mutate the
+// process-global DCAL_ICAL_URL env var, and xunit runs distinct test classes in parallel
+// by default, so without this they can race each other's Set/Dispose-time null.
+[Collection("DCAL env vars")]
 public sealed class CalendarSyncServiceTests : IDisposable
 {
     private readonly string _dbPath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName() + ".db");

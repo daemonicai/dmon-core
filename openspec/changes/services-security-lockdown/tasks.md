@@ -18,16 +18,16 @@
 
 ## 4. Dcal — default-deny auth + constant-time compare (D4)
 
-- [ ] 4.1 In `services/Dcal/Program.cs`, remove the `if (!string.IsNullOrEmpty(apiKey))` guard so the `X-Api-Key` middleware is always installed; keep the `/health` exemption.
-- [ ] 4.2 Resolve the Dcal key like Dmail: `DCAL_API_KEY` if set, else auto-generate-and-persist to a `0600` file (introduce a `DCAL_DATA_DIR` default, or place `keys/api-key` next to `calendar.db`; pick one and note it), logging only the path.
-- [ ] 4.3 Replace the `key != apiKey` check with a constant-time comparison (`CryptographicOperations.FixedTimeEquals` over UTF-8 bytes), matching Dmail's `ApiKeyService.Validate`.
+- [x] 4.1 In `services/Dcal/Program.cs`, remove the `if (!string.IsNullOrEmpty(apiKey))` guard so the `X-Api-Key` middleware is always installed; keep the `/health` exemption.
+- [x] 4.2 Resolve the Dcal key like Dmail: `DCAL_API_KEY` if set, else auto-generate-and-persist to a `0600` file (introduce a `DCAL_DATA_DIR` default, or place `keys/api-key` next to `calendar.db`; pick one and note it), logging only the path.
+- [x] 4.3 Replace the `key != apiKey` check with a constant-time comparison (`CryptographicOperations.FixedTimeEquals` over UTF-8 bytes), matching Dmail's `ApiKeyService.Validate`.
 
 ## 5. Tests
 
 - [x] 5.1 `test/Dmail.Tests`: bind-policy cases — loopback default resolves to `127.0.0.1`; wildcard without opt-in throws at startup; wildcard with `DMAIL_ALLOW_NONLOOPBACK=true` is accepted.
 - [x] 5.2 `test/Dmail.Tests`: auth cases — `/api/status`, `/api/accounts`, `/api/accounts/{email}/sync`, and an OAuth endpoint each return 401 without a key and succeed (or reach handler) with a valid key; `/health` returns 200 with no key and its body contains no `idle_connections`/account fields.
 - [x] 5.3 `test/Dmail.Tests`: key-persistence cases — auto-generate writes a `0600` file and logs only the path (assert the key string is absent from captured logs); a second construction reuses the persisted key.
-- [ ] 5.4 `test/Dcal.Tests`: auth cases — with `DCAL_API_KEY` unset, `/api/events/upcoming` returns 401 without a key; `/health` is open; valid key admits; constant-time comparison in use (behavioural: wrong key → 401).
+- [x] 5.4 `test/Dcal.Tests`: auth cases — with `DCAL_API_KEY` unset, `/api/events/upcoming` returns 401 without a key; `/health` is open; valid key admits; constant-time comparison in use (behavioural: wrong key → 401).
 
 ## 6. Validate & docs
 
