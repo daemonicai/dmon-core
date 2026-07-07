@@ -48,3 +48,15 @@ Pinned facts (read before planning any block):
 **Reviewer notes (non-blocking, pre-existing — not regressions):**
 - Optional test-coverage gap: concurrent-fault and mid-resolution-cancellation cases are reasoned-correct but not directly asserted.
 - Dispose-during-in-flight-resolve: `DisposeResolved()` disposes the gate with no sync against a live `ResolveAsync`, so an overlapping teardown+turn could throw `ObjectDisposedException` in the resolver's `finally` Release. Same no-turn-in-flight-at-teardown assumption the old `Lazy` design relied on — introduced-here only because the gate is now disposable, but not reachable today. Mental note if concurrent dispose/turn ever becomes reachable.
+
+## Block 4 — tasks 4.1–4.3 (DONE, committed)
+
+Verification-only block (no feature code). Gate results, freshly run:
+- **4.1** `make build` clean (0-warn, TWAE on); `dotnet build daemon/Daemon.cs -c Release` compiles clean.
+- **4.2** Targeted `test/Dmon.Providers.Mlx.Tests` (77/77) + `test/Daemon.Routing.Tests` (45/45) green; single full `env -u MEKO_API_KEY make test` green across every project (Core 606/607 w/ 1 expected skip, Terminal 187, Network 209, etc.).
+- **4.3** `openspec validate mlx-escalation-resilience --strict` valid. Delta-spec-match confirmed by orchestrator against shipped code:
+  - `mlx-provider` ADDED "Concurrent-safe start" (3 scenarios) ← Block 1.
+  - `triage-routing` ADDED "Backend resolution recovers from a transient fault" (3 scenarios) ← Block 3.
+  - `triage-routing` MODIFIED "Escalation backend is a fixed-port mlx runtime" (request-path ensure-running, attach-first, seam=client wrapper; 3 scenarios incl. respawn-after-teardown + no-respawn-latency) ← Block 2.
+
+**Change complete: 12/12 tasks. Commits: 245c591 (block 1) → d26d443 (block 2) → a6c930e (block 3) → block 4.** Ready for user push/PR, then `/opsx:archive` proposal.

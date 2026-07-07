@@ -18,6 +18,6 @@
 
 ## 4. Gates and spec alignment
 
-- [ ] 4.1 `make build` clean (TreatWarningsAsErrors on) and `dotnet build daemon/Daemon.cs -c Release` compiles (the file-based composition root is not built by `make`).
-- [ ] 4.2 `env -u MEKO_API_KEY dotnet test test/Dmon.Providers.Mlx.Tests` and `env -u MEKO_API_KEY dotnet test test/Daemon.Routing.Tests` green, then a full `env -u MEKO_API_KEY make test` green (single run — concurrent full-suite runs collide/hang; pkill stale `Everything.slnx` testhost first).
-- [ ] 4.3 `openspec validate mlx-escalation-resilience --strict` passes; the change's delta specs (`triage-routing` ADDED/MODIFIED, `mlx-provider` ADDED) match the implemented behavior.
+- [x] 4.1 `make build` clean (TreatWarningsAsErrors on) and `dotnet build daemon/Daemon.cs -c Release` compiles (the file-based composition root is not built by `make`).
+- [x] 4.2 `env -u MEKO_API_KEY dotnet test test/Dmon.Providers.Mlx.Tests` and `env -u MEKO_API_KEY dotnet test test/Daemon.Routing.Tests` green, then a full `env -u MEKO_API_KEY make test` green (single run — concurrent full-suite runs collide/hang; pkill stale `Everything.slnx` testhost first).
+- [x] 4.3 `openspec validate mlx-escalation-resilience --strict` passes; the change's delta specs (`triage-routing` ADDED/MODIFIED, `mlx-provider` ADDED) match the implemented behavior.
