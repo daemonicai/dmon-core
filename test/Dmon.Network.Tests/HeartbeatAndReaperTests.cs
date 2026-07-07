@@ -204,6 +204,56 @@ public sealed class HeartbeatAndReaperTests
         Assert.NotNull(registry.TryGet("s1")); // must survive
     }
 
+    /// <summary>
+    /// 7.2c — A drain/send failure that clears the handler's connection (with NO
+    /// <see cref="SessionHandler.Detach"/> call) arms the grace clock exactly like an orderly
+    /// detach, so the reaper reaps it after the idle TTL. Proves design decision D1: the arm
+    /// happens inside <c>DrainAsync</c>'s catch block itself, not via a subsequent detach.
+    /// </summary>
+    [Fact]
+    public async Task Reaper_DrainFailureDisconnect_ArmsGraceClock_AndReapedAfterIdleTtl()
+    {
+        FakeTimeProvider time = new();
+        SessionRegistry registry = new();
+        IOptionsMonitor<NetworkOptions> options = new StaticOptionsMonitor(new NetworkOptions
+        {
+            IdleDetachedTtlMinutes = 15,
+            RunningTurnTtlMinutes = 60,
+        });
+
+        FeedableReader stdout = new();
+        StringWriter stdin = new();
+        SessionHandler handler = new("s1", new SessionHandlerTestOptions { Stdout = stdout, Stdin = stdin, TimeProvider = time });
+        registry.Register("s1", handler);
+
+        // Feed one event so the drain loop has something to send once a connection attaches.
+        stdout.Feed("""{"ev":"1"}""");
+
+        // Attach a connection whose send always throws — the drain loop's catch block clears
+        // _connection and (per D1) arms _detachedAt itself. No Detach call is made anywhere in
+        // this test — that is the crux of what is being proven.
+        ThrowingConnection failing = new();
+        handler.Attach(failing, lastSeq: 0);
+        await failing.WaitForFailureAsync();
+        await WaitForConditionAsync(() => handler.DetachedAt is not null, TimeSpan.FromSeconds(5));
+
+        Assert.NotNull(handler.DetachedAt);
+        Assert.False(handler.IsTurnInFlight);
+
+        SessionReaper reaper = new(registry, options, time,
+            NullLogger<SessionReaper>.Instance);
+
+        // Advance to just before the TTL — must NOT reap.
+        time.Advance(TimeSpan.FromMinutes(14));
+        await reaper.ScanAndReapAsync(CancellationToken.None);
+        Assert.NotNull(registry.TryGet("s1")); // still registered
+
+        // Advance past the TTL — must reap.
+        time.Advance(TimeSpan.FromMinutes(2)); // total = 16 min > 15 min TTL
+        await reaper.ScanAndReapAsync(CancellationToken.None);
+        Assert.Null(registry.TryGet("s1")); // removed from registry
+    }
+
     // -------------------------------------------------------------------------
     // 7.3 — In-flight turn retention and absolute-max TTL
     // -------------------------------------------------------------------------
@@ -516,6 +566,30 @@ public sealed class HeartbeatAndReaperTests
         }
 
         public void Abort() { }
+    }
+
+    /// <summary>
+    /// A connection whose <see cref="SendAsync"/> throws unconditionally, exercising the drain
+    /// loop's send-failure path without ever calling <see cref="SessionHandler.Detach"/>. Mirrors
+    /// <c>SessionHandlerTests.FailingConnection</c>, minimized to "always throws" since this test
+    /// only needs one failing send to arm the grace clock.
+    /// </summary>
+    private sealed class ThrowingConnection : INetworkConnection
+    {
+        private readonly TaskCompletionSource _failed =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public string? KeyId => null;
+
+        public ValueTask SendAsync(string frame, CancellationToken cancellationToken)
+        {
+            _failed.TrySetResult();
+            throw new IOException("simulated send failure");
+        }
+
+        public void Abort() { }
+
+        public Task WaitForFailureAsync() => _failed.Task.WaitAsync(TimeSpan.FromSeconds(5));
     }
 
     /// <summary>

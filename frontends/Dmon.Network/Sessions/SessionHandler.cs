@@ -24,7 +24,8 @@ namespace Dmon.Network.Sessions;
 ///
 /// Send failure: if <c>SendAsync</c> throws, <c>_sentSeq</c> is not advanced and
 /// <c>_connection</c> is cleared. The event stays in the retained log so the next attach
-/// replays it.
+/// replays it. Clearing the connection also arms <c>_detachedAt</c> (if not already armed),
+/// making the detected failure reap-equivalent to an orderly detach.
 ///
 /// Outlives any single connection — attach/detach are plain method calls.
 /// </summary>
@@ -562,7 +563,8 @@ public sealed class SessionHandler : IAsyncDisposable
     /// loop so ordering is guaranteed and deduplication by seq is structural.
     ///
     /// On send failure the cursor is not advanced and the connection is cleared; the entry stays
-    /// in the retained log so the next attach replays it.
+    /// in the retained log so the next attach replays it. Clearing the connection also arms the
+    /// grace clock (<c>_detachedAt</c>), making the failure reap-equivalent to an orderly detach.
     /// </summary>
     private async Task DrainAsync(CancellationToken cancellationToken)
     {
@@ -595,11 +597,17 @@ public sealed class SessionHandler : IAsyncDisposable
             catch
             {
                 // Send failed: do not advance the cursor. Clear the connection so the event
-                // is replayed from this seq on the next attach.
+                // is replayed from this seq on the next attach, and arm the grace clock so this
+                // detected disconnect is reap-equivalent to an orderly Detach (ADR-012 Decision
+                // 7/8). `??=` keeps this idempotent with the endpoint's subsequent
+                // `finally -> Detach(current)`, which will find _connection already null and no-op.
                 lock (_lock)
                 {
                     if (ReferenceEquals(_connection, current))
+                    {
                         _connection = null;
+                        _detachedAt ??= _timeProvider.GetUtcNow();
+                    }
                 }
                 return;
             }
