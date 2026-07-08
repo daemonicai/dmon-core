@@ -9,7 +9,14 @@ name: Release
 # so it is not duplicated here (ADR-035 D6 -- exactly one area map; this is
 # per-package tag resolution, a different concern).
 #
-# The app-artifact job (app/<name>-v* -> GitHub Release) is a later change.
+# The app-artifact job (app/<name>-v* -> GitHub Release) publishes non-NuGet
+# first-party artifacts on a separate publish sink (ADR-035 D3). dmonium
+# (daemon/Daemon.App) is the only app-artifact member today; Dmon.Desktop
+# bundling is deferred (no `dotnet publish` bundle recipe; IsPackable=false,
+# no RuntimeIdentifier/self-contained config, no build target; Avalonia has
+# no built-in .app/installer bundler) -- see its README "Deferred: installable
+# artifact" section. An app/desktop-v* tag fails fast in the app-artifact job
+# below rather than being silently accepted.
 
 on:
   push:
@@ -19,6 +26,7 @@ on:
       - 'tools/*-v*'
       - 'memory/*-v*'
       - 'frontends/*-v*'
+      - 'app/*-v*'
 
 permissions:
   contents: read
@@ -31,6 +39,7 @@ jobs:
   release:
     name: pack and publish
     runs-on: ubuntu-latest
+    if: ${{ !startsWith(github.ref_name, 'app/') }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -98,3 +107,82 @@ jobs:
               --source https://api.nuget.org/v3/index.json \
               --skip-duplicate
           fi
+
+  app-artifact:
+    name: package and attach app artifact
+    runs-on: macos-latest
+    if: ${{ startsWith(github.ref_name, 'app/') }}
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve tag and enforce app-artifact membership
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          case "$TAG" in
+            app/dmonium-v*) : ;;
+            app/desktop-v*)
+              echo "app/desktop-* is deferred to a follow-up change; Dmon.Desktop has no bundle recipe yet." >&2
+              exit 1 ;;
+            *) echo "Unknown app tag '$TAG'." >&2; exit 1 ;;
+          esac
+          VERSION="${TAG##*-v}"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+
+      - name: Build dmonium
+        run: make daemon-app
+
+      - name: Wrap dmonium in an unsigned .app bundle
+        run: |
+          set -euo pipefail
+          BUNDLE="dist/dmonium.app"
+          mkdir -p "$BUNDLE/Contents/MacOS"
+          cp daemon/Daemon.App/.build/release/DaemonApp "$BUNDLE/Contents/MacOS/DaemonApp"
+
+          cat > "$BUNDLE/Contents/Info.plist" <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>CFBundleName</key>
+            <string>dmonium</string>
+            <key>CFBundleDisplayName</key>
+            <string>dmonium</string>
+            <key>CFBundleExecutable</key>
+            <string>DaemonApp</string>
+            <key>CFBundleIdentifier</key>
+            <string>ai.daemonic.dmonium</string>
+            <key>CFBundlePackageType</key>
+            <string>APPL</string>
+            <key>CFBundleShortVersionString</key>
+            <string>${VERSION}</string>
+            <key>CFBundleVersion</key>
+            <string>${VERSION}</string>
+            <key>LSMinimumSystemVersion</key>
+            <string>14.0</string>
+            <key>NSHighResolutionCapable</key>
+            <true/>
+          </dict>
+          </plist>
+          PLIST
+
+          plutil -lint "$BUNDLE/Contents/Info.plist"
+
+      - name: Zip the app bundle
+        run: |
+          set -euo pipefail
+          ditto -c -k --keepParent "dist/dmonium.app" "dmonium-${VERSION}-macos-arm64-unsigned.zip"
+
+      - name: Attach to GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          gh release create "$GITHUB_REF_NAME" \
+            --title "dmonium ${VERSION} (unsigned)" \
+            --notes "Unsigned, un-notarized macOS (arm64) build. Gatekeeper will quarantine it -- right-click -> Open, or clear the quarantine xattr. Signing/notarization is deferred (ADR-035 Open Question)." \
+            "dmonium-${VERSION}-macos-arm64-unsigned.zip"

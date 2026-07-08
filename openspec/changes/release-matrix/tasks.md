@@ -21,8 +21,8 @@
 
 ## 5. App-artifact family
 
-- [ ] 5.1 Add an app-artifact job to `release.yml` triggered by `app/<name>-v*` tags that builds the dmonium bundle (`make daemon-app` packaging) and attaches it to a GitHub Release (design D3). Unsigned first cut is acceptable; label it unsigned (signing/notarization deferred — ADR-035 Open Question).
-- [ ] 5.2 Investigate whether `Dmon.Desktop` has a working `dotnet publish` bundle recipe. If straightforward, add its `app/desktop-v*` packaging; if non-trivial, document it as deferred to a follow-up and ship dmonium + the full NuGet family (design Open Questions). Log the deferral explicitly.
+- [x] 5.1 Add an app-artifact job to `release.yml` triggered by `app/<name>-v*` tags that builds the dmonium bundle (`make daemon-app` packaging) and attaches it to a GitHub Release (design D3). Unsigned first cut is acceptable; label it unsigned (signing/notarization deferred — ADR-035 Open Question).
+- [x] 5.2 Investigate whether `Dmon.Desktop` has a working `dotnet publish` bundle recipe. If straightforward, add its `app/desktop-v*` packaging; if non-trivial, document it as deferred to a follow-up and ship dmonium + the full NuGet family (design Open Questions). Log the deferral explicitly.
 
 ## 6. Gates
 
