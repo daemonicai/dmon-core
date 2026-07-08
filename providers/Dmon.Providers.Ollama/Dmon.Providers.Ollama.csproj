@@ -9,7 +9,7 @@
     <AssemblyName>Dmon.Providers.Ollama</AssemblyName>
     <IsPackable>true</IsPackable>
     <PackageId>Dmon.Providers.Ollama</PackageId>
-    <MinVerTagPrefix>sdk-</MinVerTagPrefix>
+    <MinVerTagPrefix>providers/ollama-v</MinVerTagPrefix>
     <Description>Ollama provider extension for the dmon coding agent. Exposes UseOllama() in the Dmon.Hosting namespace.</Description>
   </PropertyGroup>
 

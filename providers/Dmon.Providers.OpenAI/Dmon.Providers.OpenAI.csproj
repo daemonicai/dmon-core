@@ -9,7 +9,7 @@
     <AssemblyName>Dmon.Providers.OpenAI</AssemblyName>
     <IsPackable>true</IsPackable>
     <PackageId>Dmon.Providers.OpenAI</PackageId>
-    <MinVerTagPrefix>sdk-</MinVerTagPrefix>
+    <MinVerTagPrefix>providers/openai-v</MinVerTagPrefix>
     <Description>OpenAI provider factory for the dmon coding agent. Exposes UseOpenAI() in the Dmon.Hosting namespace.</Description>
   </PropertyGroup>
 

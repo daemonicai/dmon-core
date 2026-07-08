@@ -9,7 +9,7 @@
     <AssemblyName>Dmon.Providers.Gemini</AssemblyName>
     <IsPackable>true</IsPackable>
     <PackageId>Dmon.Providers.Gemini</PackageId>
-    <MinVerTagPrefix>sdk-</MinVerTagPrefix>
+    <MinVerTagPrefix>providers/gemini-v</MinVerTagPrefix>
     <Description>Google Gemini provider factory for the dmon coding agent. Exposes UseGemini() in the Dmon.Hosting namespace.</Description>
   </PropertyGroup>
 

@@ -13,8 +13,7 @@
     <UserSecretsId>dotnet-Dmon.Core-235116ed-4152-4f15-a7a2-f92f60df0333</UserSecretsId>
 
     <IsPackable>true</IsPackable>
-    <!-- Independent version line for the dmoncore agent core -->
-    <MinVerTagPrefix>core-</MinVerTagPrefix>
+    <MinVerTagPrefix>core/dmoncore-v</MinVerTagPrefix>
     <Description>The dmoncore agent core — a .NET library package referenced by a Dmon.cs composition-root file via #:package dmoncore. Exposes Dmon.Hosting.DmonHost for building and running the agent.</Description>
     <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>

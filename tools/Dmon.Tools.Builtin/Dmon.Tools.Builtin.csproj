@@ -9,7 +9,7 @@
     <AssemblyName>Dmon.Tools.Builtin</AssemblyName>
     <IsPackable>true</IsPackable>
     <PackageId>Dmon.Tools.Builtin</PackageId>
-    <MinVerTagPrefix>sdk-</MinVerTagPrefix>
+    <MinVerTagPrefix>tools/builtin-v</MinVerTagPrefix>
     <Description>Built-in tools (read_file, write_file, edit_file, glob, fetch, bash) for the dmon coding agent. Exposes AddBuiltinTools() in the Dmon.Hosting namespace.</Description>
   </PropertyGroup>
 

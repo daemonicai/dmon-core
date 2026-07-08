@@ -10,7 +10,7 @@
     <RootNamespace>Dmon.Providers.Mtplx</RootNamespace>
     <IsPackable>true</IsPackable>
     <PackageId>Dmon.Providers.Mtplx</PackageId>
-    <MinVerTagPrefix>sdk-</MinVerTagPrefix>
+    <MinVerTagPrefix>providers/mtplx-v</MinVerTagPrefix>
     <Description>Managed Apple-Silicon MTPLX provider for the dmon coding agent. Attaches to a local `mtplx serve` OpenAI-compatible server, exposes it as a Microsoft.Extensions.AI IChatClient, with probe-verified tool-calling. Exposes UseMtplx() in the Dmon.Hosting namespace.</Description>
     <PackageTags>dmon;mtplx;apple-silicon;local-llm;mtp;provider;ai</PackageTags>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>

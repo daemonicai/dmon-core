@@ -9,7 +9,7 @@
     <AssemblyName>Dmon.Tools.WebSearch</AssemblyName>
     <IsPackable>true</IsPackable>
     <PackageId>Dmon.Tools.WebSearch</PackageId>
-    <MinVerTagPrefix>sdk-</MinVerTagPrefix>
+    <MinVerTagPrefix>tools/websearch-v</MinVerTagPrefix>
     <Description>Web search tool (web_search) for the dmon coding agent. Delegates search and synthesis to a hosted, search-capable model and returns a structured answer with sources. Register with builder.AddAgentWebSearch(p => p.UseGemini("gemini-2.5-flash")) from the Dmon.Hosting namespace.</Description>
     <PackageTags>dmon;websearch;web;search;tools;agent</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>

@@ -6,8 +6,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
 
     <IsPackable>true</IsPackable>
-    <!-- Shared SDK version line with Dmon.Protocol -->
-    <MinVerTagPrefix>sdk-</MinVerTagPrefix>
+    <MinVerTagPrefix>core/abstractions-v</MinVerTagPrefix>
     <Description>Extension, middleware, and hosting contracts for the dmon coding agent. Provides IToolExtension, IDmonMiddleware, IDmonHostBuilder and IChatClientFactory using Microsoft.Extensions.AI (IChatClient / AIFunction).</Description>
     <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>

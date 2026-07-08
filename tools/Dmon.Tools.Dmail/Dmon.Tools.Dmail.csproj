@@ -9,7 +9,7 @@
     <AssemblyName>Dmon.Tools.Dmail</AssemblyName>
     <IsPackable>true</IsPackable>
     <PackageId>Dmon.Tools.Dmail</PackageId>
-    <MinVerTagPrefix>sdk-</MinVerTagPrefix>
+    <MinVerTagPrefix>tools/dmail-v</MinVerTagPrefix>
     <Description>Dmail email tools (search_email, check_new_messages, get_email) for the dmon coding agent. Register with builder.AddToolExtension&lt;DmailExtension&gt;() from the Dmon.Hosting namespace.</Description>
     <PackageTags>dmon;dmail;email;tools;agent</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>

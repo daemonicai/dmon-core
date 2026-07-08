@@ -9,7 +9,7 @@
     <AssemblyName>Dmon.Memory.Meko</AssemblyName>
     <IsPackable>true</IsPackable>
     <PackageId>Dmon.Memory.Meko</PackageId>
-    <MinVerTagPrefix>sdk-</MinVerTagPrefix>
+    <MinVerTagPrefix>memory/meko-v</MinVerTagPrefix>
     <Description>Meko-backed long-term memory for dmon — an ILongTermMemory implementation driven over the Meko (mekodata.ai) MCP server.</Description>
     <PackageTags>dmon;memory;meko;mcp;long-term-memory;ai;llm</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
