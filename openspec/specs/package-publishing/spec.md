@@ -60,19 +60,23 @@ The system SHALL publish `Dmon.Network` (the renamed WebSocket remote-access hos
 - **THEN** it contains the publish closure of the canonical `Dmon.cs` — `dmoncore.dll`, the cloud provider package assemblies, `Dmon.Tools.Builtin`, their dependency assemblies, `deps.json`, and `runtimeconfig.json` — laid out for direct `dotnet exec` with no further restore
 
 ### Requirement: Only the five distribution projects are packable
-The system SHALL default `IsPackable` to false for all projects and enable it only for the published projects: the contract packages (`Dmon.Protocol`, `Dmon.Abstractions`), the engine (`Dmon.Core`), the tool (`Dmon.Terminal`), each granular first-party implementation package (`Dmon.Providers.<Name>`, `Dmon.Tools.<Name>`, `Dmon.Middleware.<Name>`), and the **app-artifact dotnet tools** — currently `Dmon.Network` (`PackAsTool`, command `ndmon`). The original fixed list of five is superseded by this open set as implementation packages are split out (ADR-023 D2) and app-artifact tools are added (ADR-024). App-artifact tools are packable but are NOT part of the protocol-keyed first-party NuGet set (see "Protocol-keyed three-part version scheme"). Internal libraries such as `Dmon.Runtime` SHALL NOT be packable. `Dmon.Extensions` SHALL NOT be a project or a package.
+The system SHALL default `IsPackable` to false for all projects and enable it only for the published projects: the contract packages (`Dmon.Protocol`, `Dmon.Abstractions`), the engine (`Dmon.Core`), each granular first-party implementation package (`Dmon.Providers.<Name>`, `Dmon.Tools.<Name>`, `Dmon.Middleware.<Name>`), the **memory backend packages** (`Dmon.Memory`, `Dmon.Memory.Meko`), and the **dotnet tools** (`Dmon.Terminal`/`dmon` and `Dmon.Network`/`ndmon`, both `PackAsTool`). The original fixed list of five is superseded by this open set as implementation packages are split out (ADR-023 D2) and the memory bucket and tool packages join the NuGet family (ADR-035 D4/D5). All of these are members of the protocol-keyed first-party NuGet set (see "Protocol-keyed three-part version scheme"). Internal libraries such as `Dmon.Runtime` SHALL NOT be packable. `Dmon.Extensions` SHALL NOT be a project or a package.
 
 #### Scenario: Internal library is not packed
 - **WHEN** a solution-wide pack is run
-- **THEN** no package is produced for `Dmon.Runtime` (or any other internal/test project), and packages are produced only for the contract, engine, tool, granular implementation, and app-artifact-tool projects
+- **THEN** no package is produced for `Dmon.Runtime` (or any other internal/test project), and packages are produced only for the contract, engine, granular implementation, memory-backend, and dotnet-tool projects
 
 #### Scenario: No Dmon.Extensions package is produced
 - **WHEN** a solution-wide pack is run
 - **THEN** no `Dmon.Extensions` package is produced, because the project has been deleted and its contracts moved into `Dmon.Abstractions`
 
-#### Scenario: Network host is packable as an app-artifact tool
+#### Scenario: Memory backends are packable
 - **WHEN** a solution-wide pack is run
-- **THEN** a tool package is produced for `Dmon.Network`, separate from the protocol-keyed first-party NuGet set
+- **THEN** a package is produced for `Dmon.Memory` (with an explicit `PackageId`) and for `Dmon.Memory.Meko`, both in the protocol-keyed first-party NuGet set
+
+#### Scenario: Network tool is packable on the protocol line
+- **WHEN** a solution-wide pack is run
+- **THEN** a tool package is produced for `Dmon.Network` (`ndmon`), as a member of the protocol-keyed first-party NuGet set
 
 ### Requirement: Package license and metadata
 Every published package SHALL declare `PackageLicenseExpression` `MPL-2.0`, and the repository SHALL contain a corresponding `LICENSE` file. Published packages SHALL carry shared metadata (authors, repository URL, deterministic build, symbol package, SourceLink) sourced from a central `Directory.Build.props`.
@@ -82,28 +86,38 @@ Every published package SHALL declare `PackageLicenseExpression` `MPL-2.0`, and 
 - **THEN** its license expression is `MPL-2.0` and a `LICENSE` file exists at the repository root
 
 ### Requirement: Protocol-keyed three-part version scheme
-Published versions SHALL be three-part `Major.Minor.Patch`, where `Major.Minor` equals the wire-protocol contract version (`Dmon.Protocol.ProtocolVersion.Current`) and `Patch` is the component's own release counter. The contract packages and all first-party implementation packages (`Dmon.Providers.<Name>`, `Dmon.Tools.<Name>`, `Dmon.Middleware.<Name>`) SHALL move in lockstep on this protocol-keyed `Major.Minor` line together with `dmoncore` (ADR-023 D5). A packed version whose `Major.Minor` diverges from `ProtocolVersion.Current` SHALL be rejected by the build or release process. **App-artifact dotnet tools (currently `Dmon.Network`/`ndmon`) are exempt from this protocol-keyed gate**: they are independently versioned on their own cadence (ADR-024) and their `Major.Minor` is NOT required to equal `ProtocolVersion.Current`. Third-party packages SHALL NOT be bound to this lockstep; they pin `Dmon.Abstractions@X.Y.*` and version on their own cadence.
+Published versions SHALL be three-part `Major.Minor.Patch`, where `Major.Minor` equals the wire-protocol contract version (`Dmon.Protocol.ProtocolVersion.Current`) and `Patch` is the component's own release counter. The entire **NuGet family** — the contract packages, `dmoncore`, every first-party implementation package (`Dmon.Providers.<Name>`, `Dmon.Tools.<Name>`, `Dmon.Middleware.<Name>`), the memory backends (`Dmon.Memory`, `Dmon.Memory.Meko`), and the `PackAsTool` dotnet tools (`dmon`, `ndmon`) — SHALL move in lockstep on this protocol-keyed `Major.Minor` line; only `Patch` is independent per package (ADR-023 D5, ADR-035 D1/D4). A packed version whose `Major.Minor` diverges from `ProtocolVersion.Current` SHALL be rejected by the build or release process. The **app-artifact family** (non-NuGet bundles — the dmonium macOS app and the `Dmon.Desktop` bundle) is NOT bound to the restore-time protocol gate; those artifacts version on their own cadence and enforce protocol compatibility at runtime via the `agentReady` handshake (ADR-035 D3). Third-party packages SHALL NOT be bound to the lockstep; they pin `Dmon.Abstractions@X.Y.*` and version on their own cadence.
 
 #### Scenario: Version major.minor tracks the protocol
 - **WHEN** a package is built while `ProtocolVersion.Current` is `0.1`
 - **THEN** the package version's `Major.Minor` is `0.1`, and a version with a differing `Major.Minor` fails the version-consistency check
 
-#### Scenario: First-party packages move in lockstep
-- **WHEN** the protocol line advances and the first-party set (`dmoncore`, contracts, every `Dmon.Providers.<Name>` / `Dmon.Tools.<Name>` / `Dmon.Middleware.<Name>`) is packed
-- **THEN** every first-party package carries the same `Major.Minor` so an authored `Dmon.cs` pinning `@<protocol>.*` resolves one coherent dependency graph
+#### Scenario: First-party NuGet set moves in lockstep
+- **WHEN** the protocol line advances and the NuGet family (`dmoncore`, contracts, every implementation package, the memory backends, and the `dmon`/`ndmon` tools) is packed
+- **THEN** every one carries the same `Major.Minor` so an authored `Dmon.cs` pinning `@<protocol>.*` resolves one coherent dependency graph
 
-#### Scenario: App-artifact tool is exempt from the protocol gate
-- **WHEN** the `Dmon.Network` tool package is packed with a `Major.Minor` that differs from `ProtocolVersion.Current`
-- **THEN** the version-consistency check does NOT reject it, because app-artifact tools version independently of the protocol line
+#### Scenario: NuGet dotnet tool is on the protocol line
+- **WHEN** the `Dmon.Network` (`ndmon`) tool package is packed while `ProtocolVersion.Current` is `0.2`
+- **THEN** its `Major.Minor` is `0.2` (it is a nuget.org dotnet tool on the lockstep, not exempt), and only its `Patch` differs from other packages independently
+
+#### Scenario: Non-NuGet app artifact versions independently
+- **WHEN** the dmonium macOS app artifact is versioned
+- **THEN** it is not subject to the restore-time protocol-`Major.Minor` gate and enforces protocol compatibility at runtime via the `agentReady` handshake instead
 
 ### Requirement: Tag-driven release pipeline
-The system SHALL provide a tag-triggered release workflow that runs `dotnet pack` and `dotnet nuget push` to nuget.org using a `NUGET_API_KEY` secret. The pull-request CI SHALL NOT publish packages.
+The system SHALL provide a tag-triggered release workflow that publishes packages and artifacts on **per-package tags of the form `<area>/<name>-v<X.Y.Z>`** (ADR-035 D1). The workflow SHALL map a pushed tag to its single target project via that project's own `<MinVerTagPrefix>` — the single source of tag→project truth (ADR-035 D6/D7); the shared area→paths map (`.github/area-map.yml`) remains the CI path-filter's and is NOT duplicated as a tag-resolution map in the release workflow (it is area-granular and cannot derive a `<name>` segment's exact project). For NuGet-family tags it SHALL run `dotnet pack` + `dotnet nuget push` to nuget.org using a `NUGET_API_KEY` secret (including `.snupkg` symbols where produced). The pull-request CI SHALL NOT publish. Every NuGet-family package (ADR-035 D7) SHALL have a release path; the legacy `sdk-*`/`dmon-*`/`core-*` tag lines are retired. A protocol-cycle boundary SHALL be releasable as a wave that tags every NuGet-family package at `<prefix>X.Y.0` — including unchanged packages — so that `@X.Y.*` always resolves (ADR-035 D2).
 
-#### Scenario: Publish only on a release tag
-- **WHEN** a release tag is pushed
-- **THEN** the release workflow packs and pushes the distribution packages to nuget.org
-- **AND WHEN** a pull request is opened
-- **THEN** no package is published
+#### Scenario: Publish a single package on its per-package tag
+- **WHEN** a tag `providers/anthropic-v0.2.5` is pushed
+- **THEN** the release workflow packs and pushes only `Dmon.Providers.Anthropic` at `0.2.5` to nuget.org
+
+#### Scenario: Pull request never publishes
+- **WHEN** a pull request is opened
+- **THEN** no package or artifact is published
+
+#### Scenario: Cycle wave re-releases the whole set
+- **WHEN** a protocol cycle opens at `X.Y` and the cycle-wave release is run
+- **THEN** every NuGet-family package is tagged and published at `X.Y.0`, including packages with no source change since the previous cycle
 
 ### Requirement: Vendor-SDK-free engine
 `dmoncore` (`Dmon.Core`) SHALL be a vendor-SDK-free engine: it SHALL reference only the contract packages (`Dmon.Abstractions`, `Dmon.Protocol`) and SHALL NOT reference any vendor LLM SDK (e.g. `Anthropic`, `GeminiDotnet`, `Microsoft.Extensions.AI.OpenAI`, `OllamaSharp`) nor any concrete provider/tool/middleware implementation package. The `AddDmonProviders()` aggregate registration SHALL be removed; provider composition is performed by per-package `Use<Provider>` verbs and build-time DI-discovery (ADR-022 D5/D7, ADR-023 D1). The engine retains only the turn loop, RPC, session storage, permission/middleware pipelines, registries, and the hosting builder.
@@ -148,3 +162,15 @@ An authored `Dmon.cs` SHALL pin its `#:package` set at `@<protocol>.*` across th
 #### Scenario: Runtime gate backstops the prebuilt stock path
 - **WHEN** the prebuilt stock default core (shipped pre-resolved) is launched
 - **THEN** the `agentReady` `protocolVersion` gate remains in force as the skew backstop for that path, since it was not produced by an author's `dotnet restore`
+
+### Requirement: App-artifact release family
+Non-NuGet first-party artifacts — the dmonium macOS app (`daemon/Daemon.App`, `.app`/`.dmg`) and the `Dmon.Desktop` bundle — SHALL be released as the **app-artifact family**: built by dedicated packaging jobs and published as attachments to a **GitHub Release** (not nuget.org), triggered by `app/<name>-v<X.Y.Z>` tags (ADR-035 D3). Each app artifact SHALL carry an `X.Y.Z` version and SHALL enforce wire-protocol compatibility at runtime via the `agentReady` `protocolVersion` handshake rather than at restore time.
+
+#### Scenario: App artifact publishes to a GitHub Release
+- **WHEN** a tag `app/dmonium-v0.2.0` is pushed
+- **THEN** a packaging job builds the dmonium bundle and attaches it to a GitHub Release, and nothing is pushed to nuget.org for that tag
+
+#### Scenario: App artifact enforces protocol at runtime
+- **WHEN** an app-artifact host connects to a core whose `protocolVersion` is incompatible
+- **THEN** the `agentReady` handshake rejects the mismatch at runtime (the app artifact is not gated at restore time)
+
