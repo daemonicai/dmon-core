@@ -17,7 +17,7 @@
 
 ## 4. Cycle-wave
 
-- [ ] 4.1 Add a reproducible cycle-wave helper (`scripts/release-wave.sh` and/or `make release-wave X.Y`) that tags every NuGet-family package at `<prefix>X.Y.0`, guarded by the skew-check so it only runs when `ProtocolVersion.Current == X.Y` (design D2).
+- [x] 4.1 Add a reproducible cycle-wave helper (`scripts/release-wave.sh` and/or `make release-wave X.Y`) that tags every NuGet-family package at `<prefix>X.Y.0`, guarded by the skew-check so it only runs when `ProtocolVersion.Current == X.Y` (design D2).
 
 ## 5. App-artifact family
 

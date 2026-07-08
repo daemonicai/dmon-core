@@ -1,4 +1,4 @@
-.PHONY: all build build-terminal build-core build-core-pack build-memory test test-live pack smoke schema clean daemon-app daemon-app-test network
+.PHONY: all build build-terminal build-core build-core-pack build-memory test test-live pack smoke schema clean daemon-app daemon-app-test network release-wave
 
 CONFIG            ?= Release
 CORE_OUT          := build/dmoncore
@@ -73,3 +73,9 @@ network:
 	-dotnet tool uninstall --global Dmon.Network
 	rm -rf "$(HOME)/.nuget/packages/dmon.network"
 	dotnet tool install --global --add-source "$(abspath $(PACK_OUT))" Dmon.Network --prerelease
+
+# Tag every NuGet-family package at <prefix>VERSION.0 for a protocol-cycle
+# boundary release. Dry run by default; pass PUSH=1 to create and push tags.
+# Usage: make release-wave VERSION=0.2
+release-wave:
+	bash scripts/release-wave.sh $(VERSION) $(if $(filter 1,$(PUSH)),--push,)

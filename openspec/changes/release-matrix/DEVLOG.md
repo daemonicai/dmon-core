@@ -63,3 +63,14 @@ Rewrote `.github/workflows/release.yml` to per-package tag-driven NuGet publishi
 - **Gates:** `make build` clean; `env -u MEKO_API_KEY make test` all green (Dmon.Core.Tests 610 + all others); `openspec validate release-matrix --strict` valid; YAML parses (Ruby loader — `actionlint`/`yq` not in env); 18/18 resolution dry-run; provider build-then-pack dry-run produced `.nupkg`+`.snupkg`.
 - **Reviewer:** SIGN-OFF. One nit fixed by orchestrator: removed the now-dead `id: pack` step attribute (nothing consumed `steps.pack.outputs` after the `case` removal).
 - **Only `release.yml` changed** — `ci.yml`, `area-map.yml`, all `.csproj`, `Directory.Build.props` untouched.
+
+## Block 3 — task 4.1 (DONE, committed)
+
+Cycle-wave tagging helper (ADR-035 D2 / design D2).
+
+- **New `scripts/release-wave.sh`** — takes `X.Y`; order is arg-validate → **skew-guard** (parses `ProtocolVersion.Current` from `core/Dmon.Protocol/ProtocolVersion.cs`, exits non-zero if `X.Y` ≠ it) → **discover** the 18 prefixes by `grep -rhoE '<MinVerTagPrefix>…</MinVerTagPrefix>'` scoped to `core/ providers/ tools/ memory/ frontends/` (single-source per ADR-035 D6; the literal-18 is only a `EXPECTED_COUNT` cross-check assertion) → emit `<prefix>X.Y.0` → push. **Dry-run by default**; real `git tag`/`git push` strictly behind `--push`/`PUSH=1`.
+- **Makefile** — thin `make release-wave VERSION=X.Y [PUSH=1]` wrapper (`--push` passed only on `PUSH=1` via `$(if $(filter 1,$(PUSH)),--push,)`), `release-wave` added to `.PHONY`. All logic in the script.
+- **Verified:** `release-wave.sh 0.2` → exactly 18 `-v0.2.0` tags, `git tag` count 3→3 (no pollution); `0.3` → exit 1 before any emission; missing/malformed arg → exit 1 + usage; `bash -n` parses.
+- **Gates:** `make build` clean; `env -u MEKO_API_KEY make test` all green; `openspec validate release-matrix --strict` valid.
+- **Reviewer:** SIGN-OFF. 3 non-blocking nits left as-is (worker discretion): `\s` in `grep -E` (GNU ext; `[[:space:]]` is POSIX), `mapfile` needs bash≥4 (fine via `env bash`/Linux CI; **note for a maintainer running the wave on stock macOS `/bin/bash` 3.2 — use Homebrew bash**), redundant `shift || true`.
+- **Only `scripts/release-wave.sh` (new) + `Makefile` changed.**
