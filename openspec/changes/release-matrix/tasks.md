@@ -26,6 +26,6 @@
 
 ## 6. Gates
 
-- [ ] 6.1 `make build` clean; `env -u MEKO_API_KEY make test` green; `openspec validate release-matrix --strict`.
-- [ ] 6.2 Dry-run the release paths without publishing (e.g. `dotnet pack` each mapped project succeeds; the wave script emits the correct tag set; workflow YAML parses). Confirm the skew-guard rejects a deliberately mis-`Major.Minor`'d pack.
+- [x] 6.1 `make build` clean; `env -u MEKO_API_KEY make test` green; `openspec validate release-matrix --strict`.
+- [x] 6.2 Dry-run the release paths without publishing (e.g. `dotnet pack` each mapped project succeeds; the wave script emits the correct tag set; workflow YAML parses). Confirm the skew-guard rejects a deliberately mis-`Major.Minor`'d pack.
 - [ ] 6.3 Human-verify recipe (no secret in automation): a copy-pasteable sequence to push one real per-package tag and confirm nuget.org receipt, plus one `app/*` tag and confirm the GitHub Release attachment — to be run by the maintainer, then ticked.

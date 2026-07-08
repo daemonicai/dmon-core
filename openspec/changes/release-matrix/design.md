@@ -50,3 +50,59 @@ Clean break on the tag scheme (no production consumers). Old `sdk-*`/`dmon-*`/`c
 
 - Carried from ADR-035: `services/Dcal`/`Dmail` server deploy story; macOS signing/notarization; ADR-024 OQ-D cadence pressure. None blocks the NuGet-family matrix; the app-artifact job may ship unsigned first.
 - Does `Dmon.Desktop` (Avalonia) have a working `dotnet publish` bundle recipe today, or does the app-artifact job need to define one? Investigate at implementation; if it's non-trivial, scope Desktop to a follow-up and ship dmonium + the full NuGet family first.
+
+## Maintainer verification (task 6.3)
+
+Task 6.2's dry runs (build/pack/skew-guard/wave/YAML parse, all local, no secrets) prove the release machinery is internally consistent. They cannot prove the two live GitHub Actions jobs actually publish, because that needs `secrets.NUGET_API_KEY` / `secrets.GITHUB_TOKEN` and push permissions the local dry run doesn't have. This section is the maintainer's copy-pasteable recipe to prove each family end-to-end with one real tag push. Not run by CI or by the apply-workflow gates — it stays a manual, human-run step.
+
+### NuGet-family: one real per-package tag
+
+Pick any one package (protocol is small and fast to verify):
+
+```bash
+git tag core/protocol-v0.2.0
+git push origin core/protocol-v0.2.0
+```
+
+This fires the `release` job in `.github/workflows/release.yml` (`runs-on: ubuntu-latest`), which resolves the tag to `core/Dmon.Protocol/Dmon.Protocol.csproj` via its `MinVerTagPrefix`, runs `make build` + `make test`, then `dotnet build`/`dotnet pack --no-build` and `dotnet nuget push` to `https://api.nuget.org/v3/index.json`. The push step needs the **`NUGET_API_KEY` repo secret** to be set — without it the job reaches the push step and fails there (pack still succeeds, confirming the local dry run's assumptions).
+
+Confirm the push succeeded:
+
+```bash
+dotnet package search Dmon.Protocol --exact-match
+```
+
+or check `https://www.nuget.org/packages/Dmon.Protocol/0.2.0` directly. Allow a few minutes for nuget.org's search index to catch up — `dotnet package search` can lag behind a successful push; the package page updates faster.
+
+Because the push uses `--skip-duplicate`, re-pushing the same tag (e.g. after re-running the workflow) is safe and won't error on an already-published version — useful if you want to re-trigger the job (delete and re-push the tag, or use "Re-run jobs" in the Actions UI) without bumping the version.
+
+### App-artifact family: one real dmonium tag
+
+```bash
+git tag app/dmonium-v1.0.0
+git push origin app/dmonium-v1.0.0
+```
+
+This fires the `app-artifact` job (`runs-on: macos-latest`, needed for `make daemon-app`'s Swift build). The version comes from the **tag itself** (`VERSION="${TAG##*-v}"`), not MinVer — app-artifact releases are independently versioned (ADR-035 D3). The job needs no secret setup beyond the **auto-provisioned `secrets.GITHUB_TOKEN`**; the job declares `permissions: contents: write` so that token can create a release and attach an asset.
+
+Confirm the artifact landed:
+
+```bash
+gh release view app/dmonium-v1.0.0
+```
+
+Expect a release titled `dmonium 1.0.0 (unsigned)` with `dmonium-1.0.0-macos-arm64-unsigned.zip` attached. The zip is unsigned/un-notarized — opening it will trip Gatekeeper quarantine (right-click → Open, or clear the quarantine xattr with `xattr -d com.apple.quarantine`).
+
+`gh release create` (used by the job) is **not idempotent** — re-running the workflow against the same tag fails because the release already exists. To re-verify with the same version, delete both first:
+
+```bash
+gh release delete app/dmonium-v1.0.0 --yes
+git push origin :refs/tags/app/dmonium-v1.0.0
+git tag -d app/dmonium-v1.0.0
+```
+
+then re-tag and re-push.
+
+### Bulk path vs. minimal receipt
+
+`make release-wave VERSION=0.2 PUSH=1` (task 6.2's dry-run target, run for real) is the **bulk path** — it pushes all 18 NuGet-family tags for a protocol cycle in one go. The single-tag recipes above are the **minimal receipt check**: proof that the two publish sinks (nuget.org, GitHub Releases) and their secrets/permissions are wired correctly, without waiting on or committing to a full cycle-wave publish.

@@ -48,19 +48,43 @@
     <PrebuiltDefaultCoreDir>$(MSBuildThisFileDirectory)..\..\build\dmoncore</PrebuiltDefaultCoreDir>
   </PropertyGroup>
 
+  <!--
+    CollectPrebuiltDefaultCore's DependsOnTargets="ResolveReferences" only exists to
+    sequence the glob after compile-time reference resolution during a normal build/publish;
+    the glob itself (below) never touches @(ProjectReference) output. During a NoBuild
+    pack, that edge is actively harmful: MSBuild runs a target's DependsOnTargets before
+    evaluating the target's own Condition, so ANY caller reaching this target (both
+    CopyPrebuiltDefaultCoreToPublish below and StagePrebuiltDefaultCoreForPack) drags in a
+    fresh "default targets" P2P resolution that requires an actual Build of Dmon.Runtime/
+    Dmon.Protocol, i.e. NETSDK1085. Null the edge when NoBuild is true; the glob's own
+    Condition/body is untouched, so StagePrebuiltDefaultCoreForPack's pack-time payload
+    staging keeps working exactly as before.
+  -->
+  <PropertyGroup>
+    <_CollectPrebuiltDefaultCoreDependsOn Condition="'$(NoBuild)' != 'true'">ResolveReferences</_CollectPrebuiltDefaultCoreDependsOn>
+  </PropertyGroup>
+
   <Target Name="CollectPrebuiltDefaultCore"
-          DependsOnTargets="ResolveReferences"
+          DependsOnTargets="$(_CollectPrebuiltDefaultCoreDependsOn)"
           Condition="Exists('$(PrebuiltDefaultCoreDir)')">
     <ItemGroup>
       <PrebuiltDefaultCoreFile Include="$(PrebuiltDefaultCoreDir)\**\*" />
     </ItemGroup>
   </Target>
 
+  <!--
+    Guard the *dependency edge* onto CollectPrebuiltDefaultCore, not just this target's own
+    Condition, for the same DependsOnTargets-runs-before-Condition reason noted above.
+  -->
+  <PropertyGroup>
+    <_CopyPrebuiltDefaultCoreToPublishDependsOn Condition="'$(NoBuild)' != 'true'">CollectPrebuiltDefaultCore</_CopyPrebuiltDefaultCoreToPublishDependsOn>
+  </PropertyGroup>
+
   <!-- Copy prebuilt closure to publish output under dmoncore/ -->
   <Target Name="CopyPrebuiltDefaultCoreToPublish"
           AfterTargets="Publish"
-          DependsOnTargets="CollectPrebuiltDefaultCore"
-          Condition="Exists('$(PrebuiltDefaultCoreDir)')">
+          DependsOnTargets="$(_CopyPrebuiltDefaultCoreToPublishDependsOn)"
+          Condition="Exists('$(PrebuiltDefaultCoreDir)') and '$(NoBuild)' != 'true'">
     <Copy SourceFiles="@(PrebuiltDefaultCoreFile)"
           DestinationFiles="@(PrebuiltDefaultCoreFile->'$(PublishDir)dmoncore\%(RecursiveDir)%(Filename)%(Extension)')"
           SkipUnchangedFiles="true" />

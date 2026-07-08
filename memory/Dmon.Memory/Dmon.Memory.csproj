@@ -9,6 +9,17 @@
     <PackageId>Dmon.Memory</PackageId>
     <MinVerTagPrefix>memory/memory-v</MinVerTagPrefix>
     <Description>Short-term memory for the dmon coding agent — a sqlite-vec-backed IMemory implementation.</Description>
+    <!--
+      LLamaSharp.Backend.Cpu injects its native DLLs as <Content> items via an
+      auto-imported build .props (not the standard runtimes/ layout). With no RID on
+      dotnet pack, its fallback branch globs every RID's natives into this project as
+      Content, which pack bundles outside lib/ -> NU5100/NU5118 (promoted to errors by
+      TreatWarningsAsErrors). These are the project's only Content items; a consumer
+      restoring Dmon.Memory gets the natives transitively via LLamaSharp.Backend.Cpu's
+      own .props regardless, so excluding them from OUR pack is correct — build/test/
+      runtime output is unaffected (CopyToOutputDirectory still copies them to bin/).
+    -->
+    <IncludeContentInPack>false</IncludeContentInPack>
   </PropertyGroup>
   <ItemGroup>
     <!-- LlamaSharp 0.27.0 requires M.E.AI.Abstractions >=10.4.1; our pin (10.5.1) satisfies that. -->
