@@ -1,11 +1,15 @@
 # DEVLOG — release-trusted-publishing
 
 ## NEXT
-Groups 1–2 are complete and committed. Only **Group 3 (maintainer, human-in-the-loop live publish)** remains — it is NOT worker-implementable and stays unticked until the maintainer confirms real nuget.org receipts:
-- **3.1** set `NUGET_USER` repo secret (nuget.org profile name); confirm the Trusted Publishing policy (Owner `daemonicai`, Repo `dmon-core`, Workflow File `release.yml`, **Environment blank**) and that the policy owner owns the `Dmon.*` IDs.
-- **3.2** smoke: push `core/protocol-v0.2.0`, confirm OIDC login + `Dmon.Protocol 0.2.0` on nuget.org.
-- **3.3** full wave: `make release-wave VERSION=0.2 PUSH=1`, confirm all 18 at `0.2.0`.
-Caveat: private-repo Trusted Publishing policies have a 7-day pending-activation window before the first publish is allowed.
+**ALL TASKS DONE (11/11).** All 18 NuGet-family packages published to nuget.org at `0.2.0` via keyless OIDC on 2026-07-13. Ready for `/opsx:archive` (which syncs the `package-publishing` delta into the standing spec).
+
+## Group 3 — live publish (DONE 2026-07-13)
+- **3.1** prereqs confirmed working (the successful OIDC exchange proves `NUGET_USER=emmzrendle` + the policy are correct). nuget.org **org = `daemonic`** (policy Package Owner; packages are org-owned); GitHub org = `daemonicai` (policy Repository Owner) — **different names, don't cross them.** Environment blank. Login `user:` is the INDIVIDUAL nuget.org username (`emmzrendle`), not the org — per the NuGet/login docs.
+- **3.2** smoke `core/protocol-v0.2.0` — after the 1.5 LFS fix, the re-run went green: OIDC login ✓, push ✓, `Dmon.Protocol 0.2.0` live (page HTTP 200).
+- **3.3** full wave — published the other 17. All 18 verified live at `0.2.0` (flat-container/search). `frontends/dmon` publishes as PackageId **`dmon`** (the tool), not `Dmon.Terminal`.
+
+## Task 1.6 — release-wave.sh batching (surfaced by 3.3)
+`make release-wave VERSION=0.2 PUSH=1` created + pushed all 18 tags but **fired ZERO release runs**: `release-wave.sh` pushed all 18 in a single `git push`, and **GitHub triggers no workflow run when >3 tags are pushed at once**. Workaround this session: delete the tags, re-push in batches of ≤3 (6 pushes) — then all 17 (+ already-live protocol) triggered and published. Fix (1.6): the script now pushes in batches of ≤3 (`for ((i=0;i<${#TAGS[@]};i+=3)); git push origin "${TAGS[@]:i:3}"`). Reviewer signed off. LESSON for next cycle: the bulk-release path now works, but never push >3 tags in one `git push`.
 
 ## Task 1.5 — LFS checkout gap (surfaced by the 3.2 smoke, 2026-07-13)
 

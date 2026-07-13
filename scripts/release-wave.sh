@@ -112,7 +112,12 @@ for tag in "${TAGS[@]}"; do
 done
 
 echo "==> Pushing tags to origin"
-git -C "$REPO" push origin "${TAGS[@]}"
+# GitHub triggers NO workflow run when more than 3 tags arrive in a single
+# `git push`, so a bulk push of all 18 tags fires zero release runs. Push in
+# batches of at most 3 tags per push so every tag's release workflow triggers.
+for ((i = 0; i < ${#TAGS[@]}; i += 3)); do
+    git -C "$REPO" push origin "${TAGS[@]:i:3}"
+done
 
 echo ""
 echo "PASS: pushed $ACTUAL_COUNT tags for protocol cycle $VERSION"
