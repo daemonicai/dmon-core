@@ -17,6 +17,15 @@ name: Release
 # no built-in .app/installer bundler) -- see its README "Deferred: installable
 # artifact" section. An app/desktop-v* tag fails fast in the app-artifact job
 # below rather than being silently accepted.
+#
+# nuget.org publishing is keyless (Trusted Publishing / OIDC): the `release`
+# job requests an `id-token` and exchanges it for a short-lived push key via
+# `NuGet/login@v1` immediately before the push -- no long-lived NUGET_API_KEY
+# secret exists. The trust is anchored maintainer-side by a nuget.org Trusted
+# Publishing policy that must match exactly: Repository Owner `daemonicai`,
+# Repository `dmon-core`, Workflow File `release.yml`, Environment BLANK. The
+# only identity input carried in the workflow is the non-secret `NUGET_USER`
+# nuget.org profile name (not an email).
 
 on:
   push:
@@ -40,6 +49,9 @@ jobs:
     name: pack and publish
     runs-on: ubuntu-latest
     if: ${{ !startsWith(github.ref_name, 'app/') }}
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -92,18 +104,22 @@ jobs:
           dotnet build "$PROJ" -c Release
           dotnet pack "$PROJ" -c Release --no-build -o out
 
+      - name: Log in to nuget.org (Trusted Publishing / OIDC)
+        id: login
+        uses: NuGet/login@v1
+        with:
+          user: ${{ secrets.NUGET_USER }}
+
       - name: Push to nuget.org
-        env:
-          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
         run: |
           dotnet nuget push "out/*.nupkg" \
-            --api-key "$NUGET_API_KEY" \
+            --api-key "${{ steps.login.outputs.NUGET_API_KEY }}" \
             --source https://api.nuget.org/v3/index.json \
             --skip-duplicate
           # .snupkg symbol packages, where the packed project produces them.
           if compgen -G "out/*.snupkg" > /dev/null; then
             dotnet nuget push "out/*.snupkg" \
-              --api-key "$NUGET_API_KEY" \
+              --api-key "${{ steps.login.outputs.NUGET_API_KEY }}" \
               --source https://api.nuget.org/v3/index.json \
               --skip-duplicate
           fi
