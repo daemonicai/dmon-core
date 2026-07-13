@@ -58,6 +58,10 @@ jobs:
         with:
           # MinVer requires full history and all tags to compute versions correctly.
           fetch-depth: 0
+          # `make test` runs the Dmail app-boot integration tests, which load the
+          # Git-LFS-tracked ONNX model; without LFS materialization it is a pointer
+          # stub and OnnxRuntime fails with InvalidProtobuf (mirrors ci.yml).
+          lfs: true
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4

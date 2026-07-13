@@ -7,6 +7,10 @@ Groups 1–2 are complete and committed. Only **Group 3 (maintainer, human-in-th
 - **3.3** full wave: `make release-wave VERSION=0.2 PUSH=1`, confirm all 18 at `0.2.0`.
 Caveat: private-repo Trusted Publishing policies have a 7-day pending-activation window before the first publish is allowed.
 
+## Task 1.5 — LFS checkout gap (surfaced by the 3.2 smoke, 2026-07-13)
+
+The first smoke tag (`core/protocol-v0.2.0`) triggered the release run, which **failed at `Run tests`** — not the OIDC path (Build passed; login/push were skipped, nothing published). 3 `Dmail.Tests.ApiKeyAuthIntegrationTests` failed with `OnnxRuntimeException: InvalidProtobuf`. Root cause: `release.yml`'s Checkout lacked `lfs: true`, so the Git-LFS-tracked Dmail ONNX model was a pointer stub. `ci.yml` already had `lfs: true` (the `services-security-lockdown` L1 fix) but it was never mirrored into `release.yml`; the gap was latent because no tag had ever fired the release job, and #89's merge CI skipped the .NET suite (path-filtered workflow/openspec-only change). Fix: added `lfs: true` to the release job's Checkout via hotfix branch `fix/release-checkout-lfs`. After merge, re-tag `core/protocol-v0.2.0` at the fixed commit and re-run the smoke. Lesson: the release job runs the FULL `make test` unconditionally — any test needing LFS assets or live services must be satisfiable in that job's environment.
+
 ---
 
 ## Group 1–2 — keyless OIDC publishing (tasks 1.1–1.4, 2.1–2.2)
