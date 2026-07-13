@@ -4,6 +4,7 @@
 - [x] 1.2 Insert a `NuGet/login@v1` step (`id: login`) immediately before the "Push to nuget.org" step, with `user: ${{ secrets.NUGET_USER }}` (nuget.org profile name, not email).
 - [x] 1.3 Change both `dotnet nuget push` calls (the `*.nupkg` push and the conditional `*.snupkg` push) to authenticate with `--api-key ${{ steps.login.outputs.NUGET_API_KEY }}`, and remove the `env: NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}` block from that step. No other step changes.
 - [x] 1.4 Update the workflow's header comment to describe the keyless OIDC path (replacing the `secrets.NUGET_API_KEY` mention) and note the policy invariant (Repository Owner `daemonicai`, Repository `dmon-core`, Workflow File `release.yml`, Environment blank).
+- [x] 1.5 Add `lfs: true` to the `release` job's Checkout so `make test` (the Dmail app-boot ONNX integration tests) can load the Git-LFS-tracked model; without it the model is a pointer stub and OnnxRuntime throws `InvalidProtobuf`. Mirrors the `ci.yml` L1 fix. Surfaced by the 3.2 smoke (pre-existing `release.yml` gap, never hit because no tag had fired the release job before).
 
 ## 2. Verify the change (automated gates)
 
