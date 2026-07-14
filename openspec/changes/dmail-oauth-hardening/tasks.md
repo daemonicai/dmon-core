@@ -7,10 +7,10 @@
 
 ## 1. Redirect URI from configuration (#11a)
 
-- [ ] 1.1 Add a helper (single source of truth) that computes the OAuth base URL from `DMAIL_OAUTH_REDIRECT_BASE_URL`, falling back to `http://127.0.0.1:{DMAIL_PORT}` (loopback) when unset — never from `ctx.Request.Host`.
-- [ ] 1.2 Replace the `Host`-derived `redirectUri` in the login handler (`EndpointExtensions.cs:246`) with the helper-computed value.
-- [ ] 1.3 Replace the `Host`-derived `redirectUri` in the callback handler (`EndpointExtensions.cs:267`) with the same helper-computed value, so login and callback are identical.
-- [ ] 1.4 Register `DMAIL_OAUTH_REDIRECT_BASE_URL` in `appsettings.json` (empty default) and document it in `services/Dmail/README.md`.
+- [x] 1.1 Add a helper (single source of truth) that computes the OAuth base URL from `DMAIL_OAUTH_REDIRECT_BASE_URL`, falling back to `http://127.0.0.1:{DMAIL_PORT}` (loopback) when unset — never from `ctx.Request.Host`.
+- [x] 1.2 Replace the `Host`-derived `redirectUri` in the login handler (`EndpointExtensions.cs:246`) with the helper-computed value.
+- [x] 1.3 Replace the `Host`-derived `redirectUri` in the callback handler (`EndpointExtensions.cs:267`) with the same helper-computed value, so login and callback are identical.
+- [x] 1.4 Register `DMAIL_OAUTH_REDIRECT_BASE_URL` in `appsettings.json` (empty default) and document it in `services/Dmail/README.md`.
 
 ## 2. OAuth path exemption from the app API key (functional regression fix)
 
@@ -25,7 +25,7 @@
 - [ ] 4.1 Test: `GET /api/auth/google/callback` with **no** `X-Api-Key` is NOT rejected with 401 by the middleware (reaches the handler; unknown state → 400 `invalid_state`).
 - [ ] 4.2 Test: `GET /api/auth/google/login` with **no** `X-Api-Key` is NOT rejected with 401 (reaches the handler / issues the Google redirect).
 - [ ] 4.3 Test: a non-exempt `/api/*` path (e.g. `GET /api/status`, and a decoy `/api/auth/other`) with no `X-Api-Key` still returns 401.
-- [ ] 4.4 Test: the computed `redirect_uri` uses `DMAIL_OAUTH_REDIRECT_BASE_URL` when set and ignores a spoofed `Host` header; falls back to `http://127.0.0.1:{DMAIL_PORT}` when unset — asserted for both the login and callback handlers (identical value).
+- [x] 4.4 Test: the computed `redirect_uri` uses `DMAIL_OAUTH_REDIRECT_BASE_URL` when set and ignores a spoofed `Host` header; falls back to `http://127.0.0.1:{DMAIL_PORT}` when unset — asserted for both the login and callback handlers (identical value).
 - [ ] 4.5 Test: callback with an unknown/consumed `state` returns 400 `invalid_state` and performs no token exchange (state is single-use / non-replayable).
 
 ## 5. Gates
