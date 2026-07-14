@@ -44,8 +44,17 @@ public sealed class ReadFileTool : IToolExtension
 
         try
         {
-            string resolved = Path.GetFullPath(path);
-            string cwd = Path.GetFullPath(Environment.CurrentDirectory);
+            // Resolve BOTH the target and the CWD through symlinks before the containment
+            // check. Path.GetFullPath collapses ".." but does not follow symlinks, so a
+            // symlink inside the CWD pointing outside would otherwise be auto-allowed.
+            // Resolving the CWD too avoids false prompts where the CWD itself lives under a
+            // symlinked ancestor (e.g. macOS /tmp -> /private/tmp). Fail closed on either
+            // being unresolvable (a broken/dangling symlink).
+            string? resolved = RealPathResolver.ResolveRealPath(Path.GetFullPath(path));
+            string? cwd = RealPathResolver.ResolveRealPath(Path.GetFullPath(Environment.CurrentDirectory));
+            if (resolved is null || cwd is null)
+                return PermissionResult.Prompt;
+
             return IsUnder(resolved, cwd) ? PermissionResult.Allow : PermissionResult.Prompt;
         }
         catch

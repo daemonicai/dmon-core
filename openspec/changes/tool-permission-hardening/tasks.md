@@ -2,9 +2,9 @@
 
 ## 1. read_file symlink-safe containment (#15)
 
-- [ ] 1.1 Add a private symlink-resolution helper inside `Dmon.Tools.Builtin` that mirrors `SandboxContainmentChecker.ResolveRealPath` behaviour (resolve deepest existing ancestor through symlinks, re-append non-existent tail, follow a leaf symlink, fail closed to `null` on a broken/unresolvable link). Do NOT reference `Dmon.Core`.
-- [ ] 1.2 Change `ReadFileTool.Evaluate` to resolve the real path of `path` and the CWD before the `IsUnder` containment check; auto-`Allow` only when the real target is within the CWD, and return `Prompt` when the real target escapes CWD or the path is unresolvable (fail closed).
-- [ ] 1.3 Add unit tests: (a) symlink inside CWD pointing outside → `Prompt`; (b) regular file within CWD → `Allow`; (c) broken/unresolvable symlink → `Prompt`; (d) plain in-CWD relative path unchanged → `Allow`.
+- [x] 1.1 Add a private symlink-resolution helper inside `Dmon.Tools.Builtin` that mirrors `SandboxContainmentChecker.ResolveRealPath` behaviour (resolve deepest existing ancestor through symlinks, re-append non-existent tail, follow a leaf symlink, fail closed to `null` on a broken/unresolvable link). Do NOT reference `Dmon.Core`.
+- [x] 1.2 Change `ReadFileTool.Evaluate` to resolve the real path of `path` and the CWD before the `IsUnder` containment check; auto-`Allow` only when the real target is within the CWD, and return `Prompt` when the real target escapes CWD or the path is unresolvable (fail closed).
+- [x] 1.3 Add unit tests: (a) symlink inside CWD pointing outside → `Prompt`; (b) regular file within CWD → `Allow`; (c) broken/unresolvable symlink → `Prompt`; (d) plain in-CWD relative path unchanged → `Allow`.
 
 ## 2. fetch SSRF guard (#16)
 
