@@ -2,6 +2,26 @@
 
 Cross-block memory for the architect. Newest block first.
 
+## Block 2 — API-key OAuth exemption + state fence (final) — tasks 2.1, 3.1, 4.1, 4.2, 4.3, 4.5
+
+**Status:** DONE, reviewer approved, gates green. **Final block — change complete (all 15 tasks ticked).**
+
+### What landed
+- `services/Dmail/ApiKeyAuthExtensions.cs` (production) — added a closed 2-path allow-list (`/api/auth/google/login`, `/api/auth/google/callback`) + `IsOAuthEntryPoint` helper. Exemption sits **after** the `/api` gate and **before** key validation; GET-only (`HttpMethods.IsGet`) + exact (`StartsWithSegments(exempt, OrdinalIgnoreCase, out remaining) && !remaining.HasValue`). So `/api/auth/google/login/evil`, `/api/auth/google/callbackXYZ`, `/api/auth/other`, and any non-GET verb all fall through to default-deny 401.
+- `test/Dmail.Tests/ApiKeyAuthMiddlewareTests.cs` — `BuildContext` gained a `method` param (default `"GET"`; `DefaultHttpContext.Request.Method` defaults to `""`). Removed `/api/auth/google/login` from the 401 theory (H1); added decoys (`/api/auth/other`, `.../login/evil`, `.../callbackXYZ`) + a non-GET-on-exempt-path 401 theory + a passing exempt-path theory.
+- `test/Dmail.Tests/ApiKeyAuthIntegrationTests.cs` — `OAuthCallback_NoKey_ReachesHandlerAndRejectsUnknownState` (no key + unknown state ⇒ **400 invalid_state**, not 401 — proves exemption wired + fence intact; passes BOTH `code` & `state` to avoid a binding-400 masquerade), `OAuthLogin_NoKey_ReachesHandlerAndRedirects` (302; sets `DMAIL_GOOGLE_CLIENT_ID` in fixture setup, null'd in Dispose), `OtherApiAuthPath_NoKey_Returns401`.
+- `test/Dmail.Tests/OAuth2StateStoreTests.cs` (NEW) — single-use/replay: second `GetVerifier(state)` ⇒ null. Dmail.Tests now 118.
+
+### 3.1 finding
+**Confirmed — NO code change.** `EndpointExtensions.cs:261-265` looks up `store.GetVerifier(state)` → `400 invalid_state` before any `ExchangeCodeAsync`; `OAuth2StateStore.GetVerifier` uses `TryRemove` (single-use). Left byte-identical.
+
+### Reviewer nits (NOT applied, non-blocking)
+- Exemption is `OrdinalIgnoreCase` ⇒ `/API/AUTH/...` also exempt. Harmless — ASP.NET routing is case-insensitive anyway, so matching middleware to routing is correct.
+- `HttpMethods.IsGet` excludes HEAD ⇒ HEAD on exempt path ⇒ 401. Acceptable (stricter than GET-only spec).
+
+### Change complete
+Both blocks reviewer-approved; full gates green (Dmail.Tests 118, full suite pass, validate --strict). Spec delta (`specs/dmail-server/spec.md`): 1 MODIFIED (API-key exemption carve-out) + 2 ADDED (redirect-uri = block 1, state/PKCE fence = this block) — all match implemented behaviour (gate 5.3). Next: push + PR; then batch `/opsx:archive` all outstanding (this change + #96/#97/#98 + network-access-hardening #99).
+
 **Carve-out approval:** The §2 OAuth path-exemption BLOCKER (modifies the deliberately-absolute "only /health + dashboard are exempt" wording from `services-security-lockdown`) is **user-approved** (confirmed this session). Not a blocker — proceed.
 
 ## Block 1 — OAuth redirect_uri from configuration (#11a) — tasks 1.1, 1.2, 1.3, 1.4, 4.4

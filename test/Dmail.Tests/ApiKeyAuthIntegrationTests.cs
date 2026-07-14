@@ -27,6 +27,10 @@ public sealed class ApiKeyAuthIntegrationTests : IDisposable
 
         Environment.SetEnvironmentVariable("DMAIL_API_KEY", ApiKey);
         Environment.SetEnvironmentVariable("DMAIL_DATA_DIR", _dataDir);
+        // Public OAuth client id (no secret) so the login handler can build the
+        // Google authorization redirect deterministically — proves the exempt
+        // GET path reaches the handler and issues a 302 rather than a config 500.
+        Environment.SetEnvironmentVariable("DMAIL_GOOGLE_CLIENT_ID", "test-google-client-id");
 
         _factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
         {
@@ -51,6 +55,7 @@ public sealed class ApiKeyAuthIntegrationTests : IDisposable
         _factory.Dispose();
         Environment.SetEnvironmentVariable("DMAIL_API_KEY", null);
         Environment.SetEnvironmentVariable("DMAIL_DATA_DIR", null);
+        Environment.SetEnvironmentVariable("DMAIL_GOOGLE_CLIENT_ID", null);
         try { Directory.Delete(_dataDir, recursive: true); } catch { }
     }
 
@@ -83,6 +88,48 @@ public sealed class ApiKeyAuthIntegrationTests : IDisposable
         var response = await client.GetAsync("/health");
 
         Assert.Equal(System.Net.HttpStatusCode.OK, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task OAuthCallback_NoKey_ReachesHandlerAndRejectsUnknownState()
+    {
+        var client = _factory.CreateClient();
+
+        // Both code and state are required query params — pass both so the model
+        // binder succeeds and we exercise the handler's state fence (not a binding
+        // 400). Unknown state => the handler's own 400 invalid_state, which proves
+        // the middleware let the request through (401 would mean the exemption
+        // failed to wire) AND the state/PKCE fence is intact.
+        var response = await client.GetAsync("/api/auth/google/callback?code=x&state=does-not-exist");
+
+        Assert.Equal(System.Net.HttpStatusCode.BadRequest, response.StatusCode);
+        var body = await response.Content.ReadAsStringAsync();
+        Assert.Contains("invalid_state", body);
+    }
+
+    [Fact]
+    public async Task OAuthLogin_NoKey_ReachesHandlerAndRedirects()
+    {
+        var client = _factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+        });
+
+        var response = await client.GetAsync("/api/auth/google/login");
+
+        // Not 401 (exemption wired) and the handler issued the Google redirect.
+        Assert.NotEqual(System.Net.HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.Equal(System.Net.HttpStatusCode.Redirect, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task OtherApiAuthPath_NoKey_Returns401()
+    {
+        var client = _factory.CreateClient();
+
+        var response = await client.GetAsync("/api/auth/other");
+
+        Assert.Equal(System.Net.HttpStatusCode.Unauthorized, response.StatusCode);
     }
 }
 

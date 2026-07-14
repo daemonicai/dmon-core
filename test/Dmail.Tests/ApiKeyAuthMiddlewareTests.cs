@@ -25,13 +25,14 @@ public class ApiKeyAuthMiddlewareTests
             .BuildServiceProvider();
     }
 
-    private static DefaultHttpContext BuildContext(string path, string? apiKey, IServiceProvider services)
+    private static DefaultHttpContext BuildContext(string path, string? apiKey, IServiceProvider services, string method = "GET")
     {
         var context = new DefaultHttpContext
         {
             RequestServices = services,
             Response = { Body = new MemoryStream() },
         };
+        context.Request.Method = method;
         context.Request.Path = path;
         if (apiKey is not null)
         {
@@ -41,11 +42,18 @@ public class ApiKeyAuthMiddlewareTests
         return context;
     }
 
+    // The OAuth entry-point exemption is an exact, closed, GET-only allow-list of
+    // exactly two paths. Every other /api/* route stays default-deny, including
+    // sibling /api/auth/* routes (decoy /api/auth/other), sub-paths of an exempt
+    // path (decoy /api/auth/google/login/evil — defeats a prefix bypass), and the
+    // exempt paths under a non-GET verb (POST /api/auth/google/login).
     [Theory]
     [InlineData("/api/status")]
     [InlineData("/api/accounts")]
     [InlineData("/api/accounts/user%40example.com/sync")]
-    [InlineData("/api/auth/google/login")]
+    [InlineData("/api/auth/other")]
+    [InlineData("/api/auth/google/login/evil")]
+    [InlineData("/api/auth/google/callbackXYZ")]
     public async Task NoKey_ApiPath_Returns401AndDoesNotCallNext(string path)
     {
         var services = BuildServices();
@@ -60,6 +68,45 @@ public class ApiKeyAuthMiddlewareTests
 
         Assert.Equal(StatusCodes.Status401Unauthorized, context.Response.StatusCode);
         Assert.False(nextCalled);
+    }
+
+    [Theory]
+    [InlineData("POST")]
+    [InlineData("PUT")]
+    [InlineData("DELETE")]
+    public async Task NoKey_NonGetOnExemptPath_Returns401AndDoesNotCallNext(string method)
+    {
+        var services = BuildServices();
+        var context = BuildContext("/api/auth/google/login", apiKey: null, services, method);
+        var nextCalled = false;
+
+        await ApiKeyAuthExtensions.InvokeAsync(context, () =>
+        {
+            nextCalled = true;
+            return Task.CompletedTask;
+        });
+
+        Assert.Equal(StatusCodes.Status401Unauthorized, context.Response.StatusCode);
+        Assert.False(nextCalled);
+    }
+
+    [Theory]
+    [InlineData("/api/auth/google/login")]
+    [InlineData("/api/auth/google/callback")]
+    public async Task NoKey_GetOAuthEntryPoint_CallsNextAndDoesNotReturn401(string path)
+    {
+        var services = BuildServices();
+        var context = BuildContext(path, apiKey: null, services);
+        var nextCalled = false;
+
+        await ApiKeyAuthExtensions.InvokeAsync(context, () =>
+        {
+            nextCalled = true;
+            return Task.CompletedTask;
+        });
+
+        Assert.True(nextCalled);
+        Assert.NotEqual(StatusCodes.Status401Unauthorized, context.Response.StatusCode);
     }
 
     [Fact]
