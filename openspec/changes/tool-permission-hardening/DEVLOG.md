@@ -1,8 +1,7 @@
 # DEVLOG — tool-permission-hardening
 
 ## NEXT
-- **Block 2 = tasks 2.1–2.5** (fetch SSRF guard). Pre-resolved design note: to thread the HTTP allowlist to the execute path (task 2.3), inject `IPermissionSettings` — it is a DI-registered singleton (`core/Dmon.Core/DaemonServiceExtensions.cs:104`), so `FetchTool` can constructor-inject it and read `.Settings.Http.Allow` live at execute-time; registration is at `AddBuiltinToolsExtensions.cs:30–34` (the extra ctor arg is DI-supplied). Enforce the SSRF refusal at **execute-time** (before `GetAsync`), with a defensive `Evaluate` tightening (do not auto-`Allow` a literal private-IP host unless allowlisted). Redirect-chain re-validation is explicitly OUT of scope (design residual note).
-- Then Gates tasks 3.1–3.3 (whole-change) → done.
+- **Change COMPLETE — all tasks ticked (1.1–1.3, 2.1–2.5, 3.1–3.3).** Ready for PR + merge, then archive.
 
 ## Section 1 — read_file symlink-safe containment (#15) — DONE (tasks 1.1–1.3)
 
@@ -16,3 +15,16 @@ Made `ReadFileTool.Evaluate`'s implicit within-CWD auto-`Allow` symlink-safe and
 **Reviewer:** Approve, no blockers; verified line-by-line parity with the engine checker. Non-blocking nit (ancestor-symlink test) was closed. Architectural notes surfaced for later, NOT fixed here: (1) residual TOCTOU between `Evaluate` and `ExecuteAsync` (inherent to evaluate-then-execute; `ExecuteAsync` out of this block's scope); (2) duplicated `ResolveRealPath` primitive can silently diverge (accepted per design D1; mitigated by shared spec + parallel tests + doc cross-ref).
 
 **Gates:** `make build` 0-warn; full `env -u MEKO_API_KEY make test` all projects green; `openspec validate --strict` valid.
+
+## Section 2 — fetch SSRF guard (#16) — DONE (tasks 2.1–2.5)
+
+Added an execute-time SSRF guard to `fetch`.
+
+- **New `tools/Dmon.Tools.Builtin/SsrfGuard.cs`** (`internal static`, BCL-only, no `Dmon.Core` dep per ADR-023 D6): `IsRefused(IPAddress)` + `AnyRefused(IEnumerable<IPAddress>)`. Refuses IPv4 `127/8`, **`0.0.0.0/8`**, `169.254/16` (incl `169.254.169.254`), `10/8`, `172.16–31/12`, `192.168/16`; IPv6 `::1`, **`::`**, `fe80::/10`, `fc00::/7`; IPv4-mapped IPv6 un-mapped first.
+- **`FetchTool`**: constructor-injects `IPermissionSettings` (DI singleton) to read `Http.Allow` live; `CheckSsrfAsync` runs **before** `GetAsync` — allowlist exemption on `uri.Host`, literal IP via `uri.DnsSafeHost` skips DNS, else `Dns.GetHostAddressesAsync`; refusal AND resolution failure both return `"Error:"`, never throw. Explicit `http`/`https` **scheme gate**. `Evaluate` returns `Allow` only on exact allowlist match (no new literal-IP branch — that was the dead code removed in review).
+- **Injectable resolver seam** (`Func<string,CancellationToken,Task<IPAddress[]>>`, internal test ctor + `InternalsVisibleTo`) so the hostname→resolve→AnyRefused path (the primary SSRF vector) is actually tested, not just literal-IP short-circuits.
+- **Opt-in reuses `Http.Allow` — NO new config key.** Redirect-chain re-validation + the DNS-rebind window between guard-resolve and HttpClient-resolve are conscious residuals (design Non-Goals/Risks).
+
+**Review (2 rounds):** first pass Request-changes — B1 `0.0.0.0/8` and B2 `::` were unrefused loopback bypasses (reach the local MLX runtime at :8800), B3 the `Evaluate` literal-IP block was dead code (both branches → `Prompt`). All fixed; N1 injectable-resolver + hostname tests, N2 no-throw, N3 `172/12` boundary, N5 scheme gate added. Orchestrator added `0.0.0.0`/`::` to the delta spec's refused set (spec "SHALL include" is a floor). Second pass **Approve**.
+
+**Gates:** `make build` 0-warn; full `make test` 20/20 projects green (Builtin 130/130); `openspec validate --strict` valid.

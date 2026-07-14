@@ -8,14 +8,14 @@
 
 ## 2. fetch SSRF guard (#16)
 
-- [ ] 2.1 Add an IP-range classifier inside `Dmon.Tools.Builtin` covering IPv4 loopback `127.0.0.0/8`, link-local `169.254.0.0/16` (incl. `169.254.169.254`), RFC1918 `10.0.0.0/8` / `172.16.0.0/12` / `192.168.0.0/16`, IPv6 `::1`, `fe80::/10`, `fc00::/7`, and IPv4-mapped IPv6 mapped to their embedded IPv4 form.
-- [ ] 2.2 In `FetchTool.ExecuteAsync`, before `GetAsync`, resolve the target host's addresses; if the host is not on the HTTP allowlist and any resolved address is in a refused range, return an `"Error:"` string and do not issue the request. Handle resolution failure by returning an `"Error:"` string (no throw).
-- [ ] 2.3 Thread the HTTP allowlist to the execute path so an allowlisted host is exempt from the SSRF refusal (reuse `Http.Allow`; no new config key).
-- [ ] 2.4 Tighten `FetchTool.Evaluate` so it does not return `Allow` for a URL whose host is a literal IP address in a refused range unless that exact host string is on the allowlist.
-- [ ] 2.5 Add unit tests: loopback refused (no GET); `169.254.169.254` refused; each RFC1918 range refused; IPv6 `::1`/`fe80::`/`fc00::` refused; allowlisted private host permitted; public host still fetched; `Evaluate` does not auto-allow a literal private IP host.
+- [x] 2.1 Add an IP-range classifier inside `Dmon.Tools.Builtin` covering IPv4 loopback `127.0.0.0/8`, link-local `169.254.0.0/16` (incl. `169.254.169.254`), RFC1918 `10.0.0.0/8` / `172.16.0.0/12` / `192.168.0.0/16`, IPv6 `::1`, `fe80::/10`, `fc00::/7`, and IPv4-mapped IPv6 mapped to their embedded IPv4 form.
+- [x] 2.2 In `FetchTool.ExecuteAsync`, before `GetAsync`, resolve the target host's addresses; if the host is not on the HTTP allowlist and any resolved address is in a refused range, return an `"Error:"` string and do not issue the request. Handle resolution failure by returning an `"Error:"` string (no throw).
+- [x] 2.3 Thread the HTTP allowlist to the execute path so an allowlisted host is exempt from the SSRF refusal (reuse `Http.Allow`; no new config key).
+- [x] 2.4 Tighten `FetchTool.Evaluate` so it does not return `Allow` for a URL whose host is a literal IP address in a refused range unless that exact host string is on the allowlist.
+- [x] 2.5 Add unit tests: loopback refused (no GET); `169.254.169.254` refused; each RFC1918 range refused; IPv6 `::1`/`fe80::`/`fc00::` refused; allowlisted private host permitted; public host still fetched; `Evaluate` does not auto-allow a literal private IP host.
 
 ## 3. Gates
 
-- [ ] 3.1 `make build` is clean (no warnings; `TreatWarningsAsErrors`).
-- [ ] 3.2 `env -u MEKO_API_KEY make test` is green (new tests plus all existing tests).
-- [ ] 3.3 `openspec validate tool-permission-hardening --strict` passes.
+- [x] 3.1 `make build` is clean (no warnings; `TreatWarningsAsErrors`).
+- [x] 3.2 `env -u MEKO_API_KEY make test` is green (new tests plus all existing tests).
+- [x] 3.3 `openspec validate tool-permission-hardening --strict` passes.
