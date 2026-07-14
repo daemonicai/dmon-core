@@ -16,6 +16,7 @@ All configuration is via environment variables:
 | `DMAIL_DATA_DIR` | `/data` | Directory for the SQLite database and Data-Protection key ring. |
 | `DMAIL_PORT` | `8080` | HTTP listen port. |
 | `DMAIL_API_KEY` | _(auto-generated)_ | Required as `X-Api-Key` on every `/api/*` endpoint. If unset, a key is auto-generated on first run and written to `<DMAIL_DATA_DIR>/keys/api-key` (owner-only permissions), reused across restarts. Only the file path is logged at startup — never the key value. |
+| `DMAIL_OAUTH_REDIRECT_BASE_URL` | _(loopback)_ | Origin (scheme + host + optional port, no path) used to build the Google OAuth2 `redirect_uri` (`{base}/api/auth/google/callback`). Derived from the request `Host` is **never** used. When unset, falls back to the server's own loopback bind `http://127.0.0.1:{DMAIL_PORT}`. Set this to the externally-reachable base URL for containerised or non-loopback deployments; it must be the exact value registered in the Google Cloud console. |
 | `DMAIL_BACKFILL_MONTHS` | `1` | How many months of history to backfill per account. |
 | `DMAIL_GOOGLE_CLIENT_ID` / `DMAIL_GOOGLE_CLIENT_SECRET` | _(none)_ | Google OAuth2 client credentials, required to link Gmail accounts. |
 

@@ -241,16 +241,16 @@ public static class EndpointExtensions
 
     public static void MapAuthHandlers(this WebApplication app)
     {
-        app.MapGet("/api/auth/google/login", async (HttpContext ctx, OAuth2Service oauth, OAuth2StateStore store) =>
+        app.MapGet("/api/auth/google/login", async (IConfiguration config, OAuth2Service oauth, OAuth2StateStore store, HttpContext ctx) =>
         {
-            var redirectUri = $"{ctx.Request.Scheme}://{ctx.Request.Host}/api/auth/google/callback";
+            var redirectUri = ResolveOAuthRedirectUri(config);
             var (authUrl, codeVerifier, state) = oauth.BuildAuthorizationUrl(redirectUri);
             store.Store(state, codeVerifier);
             ctx.Response.Redirect(authUrl);
         });
 
         app.MapGet("/api/auth/google/callback", async (
-            HttpContext ctx,
+            IConfiguration config,
             string code,
             string state,
             OAuth2Service oauth,
@@ -264,7 +264,7 @@ public static class EndpointExtensions
                 return Results.BadRequest(new { error = "invalid_state" });
             }
 
-            var redirectUri = $"{ctx.Request.Scheme}://{ctx.Request.Host}/api/auth/google/callback";
+            var redirectUri = ResolveOAuthRedirectUri(config);
             try
             {
                 await oauth.ExchangeCodeAsync(code, codeVerifier, redirectUri);
@@ -280,6 +280,20 @@ public static class EndpointExtensions
                 return Results.Redirect("/?auth=error");
             }
         });
+    }
+
+    // Single source of truth for the Google OAuth2 redirect_uri (security defect #11a).
+    // Derived from configuration, NEVER from the inbound request Host header, so a
+    // spoofed Host cannot redirect the OAuth code to an attacker-controlled origin.
+    // The login and callback handlers MUST produce the identical value or Google
+    // returns redirect_uri_mismatch.
+    internal static string ResolveOAuthRedirectUri(IConfiguration config)
+    {
+        var configuredBase = config["DMAIL_OAUTH_REDIRECT_BASE_URL"];
+        var baseUrl = string.IsNullOrWhiteSpace(configuredBase)
+            ? $"http://127.0.0.1:{config["DMAIL_PORT"] ?? "8080"}"
+            : configuredBase.TrimEnd('/');
+        return $"{baseUrl}/api/auth/google/callback";
     }
 }
 
