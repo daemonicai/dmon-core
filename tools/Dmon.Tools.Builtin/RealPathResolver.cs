@@ -117,6 +117,15 @@ internal static class RealPathResolver
                 final = dir is null ? final : Path.GetFullPath(Path.Combine(dir, final));
             }
 
+            // A dangling final target must fail closed on every platform. macOS throws
+            // IOException for a broken final target (handled below), but Linux returns a
+            // FileSystemInfo for the non-existent target path, which would otherwise resolve
+            // to an in-cwd path and fail open. returnFinalTarget resolves the whole chain, so
+            // Path.Exists on the ultimate target is a reliable existence check; a valid link
+            // to an existing file/dir still returns its existing target and is unaffected.
+            if (final is not null && !Path.Exists(final))
+                return null;
+
             return final;
         }
         catch (IOException)
