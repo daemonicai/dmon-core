@@ -11,17 +11,17 @@
 
 ## 3. Guard the Desktop async void handlers (#8)
 
-- [ ] 3.1 Investigate `frontends/Dmon.Desktop/SessionViewModel.cs`: confirm `HandleToolConfirmAsync` (~line 147) and `HandleUiInputAsync` (~line 182) are `async void` with no `try`/`catch`, awaiting `Interaction.Handle(...).FirstAsync()` (157/190) and `_session.SendAsync(...)` (179/199). Identify an available diagnostic/log surface for the error state.
-- [ ] 3.2 Wrap the entire body of each handler in `try`/`catch (Exception ex)`; on catch, surface an error state (log; show where a surface exists) rather than rethrowing — no exception may escape the `async void` continuation. Keep the happy path byte-for-byte identical and keep the two handlers independent (D3).
+- [x] 3.1 Investigate `frontends/Dmon.Desktop/SessionViewModel.cs`: confirm `HandleToolConfirmAsync` (~line 147) and `HandleUiInputAsync` (~line 182) are `async void` with no `try`/`catch`, awaiting `Interaction.Handle(...).FirstAsync()` (157/190) and `_session.SendAsync(...)` (179/199). Identify an available diagnostic/log surface for the error state.
+- [x] 3.2 Wrap the entire body of each handler in `try`/`catch (Exception ex)`; on catch, surface an error state (log; show where a surface exists) rather than rethrowing — no exception may escape the `async void` continuation. Keep the happy path byte-for-byte identical and keep the two handlers independent (D3).
 
 ## 4. Tests
 
 - [x] 4.1 In `test/Dmon.Runtime.Tests/RpcClientTests.cs`, add a test that starts an `RpcClient` over `FeedableTransport`, issues a `RequestAsync<TResult>`, calls `transport.Complete()` (stdout EOF), and asserts the awaiting request faults promptly with `RpcTransportClosedException` (not `RpcTimeoutException`, not a hang to the request timeout). Add a companion test that a non-OCE pump fault faults pending with `RpcTransportClosedException` carrying the cause and does not resurface at `DisposeAsync`.
 - [x] 4.2 In `test/Dmon.Runtime.Tests`, add a `CoreProcessManager` test that exercises stop/restart when the graceful shutdown times out (forcing the kill path) and asserts the replacement spawn does not hit a `SessionLockedException` (i.e. the old process's lock is released before respawn). Use a bounded/real short-lived core-launch harness consistent with existing runtime tests.
-- [ ] 4.3 In `test/Dmon.Desktop.Tests`, add a `SessionViewModel` test using the existing `FakeCoreSession` seam configured to throw from `SendAsync`, dispatch a `ToolConfirmRequestEvent` (and a `UiInputRequestEvent`), and assert no exception escapes to the UI thread (the handler catches and surfaces an error state).
+- [x] 4.3 In `test/Dmon.Desktop.Tests`, add a `SessionViewModel` test using the existing `FakeCoreSession` seam configured to throw from `SendAsync`, dispatch a `ToolConfirmRequestEvent` (and a `UiInputRequestEvent`), and assert no exception escapes to the UI thread (the handler catches and surfaces an error state).
 
 ## 5. Gates and spec alignment
 
-- [ ] 5.1 `make build` clean (TreatWarningsAsErrors on).
-- [ ] 5.2 `env -u MEKO_API_KEY make test` green — the new tests plus all existing tests (pkill a stale `Everything.slnx` testhost first if it hangs).
-- [ ] 5.3 `openspec validate rpc-failure-resilience --strict` passes; both deltas (`host-rpc-transport` two ADDED requirements, `desktop-host` one ADDED requirement) match the implemented behaviour.
+- [x] 5.1 `make build` clean (TreatWarningsAsErrors on).
+- [x] 5.2 `env -u MEKO_API_KEY make test` green — the new tests plus all existing tests (pkill a stale `Everything.slnx` testhost first if it hangs).
+- [x] 5.3 `openspec validate rpc-failure-resilience --strict` passes; both deltas (`host-rpc-transport` two ADDED requirements, `desktop-host` one ADDED requirement) match the implemented behaviour.

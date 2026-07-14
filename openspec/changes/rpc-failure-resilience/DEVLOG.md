@@ -3,11 +3,12 @@
 Architect split this change into 3 impl blocks (one per finding) + per-block tests + final gates:
 - **Block 1 = #12** (tasks 1.1–1.3, 4.1) — RpcClient faults pending on pump exit. **DONE.**
 - **Block 2 = #13** (tasks 2.1, 2.2, 4.2) — CoreProcessManager awaits exit after Kill. **DONE.**
-- **Block 3 = #8** (tasks 3.1–3.2, 4.3) — Desktop async-void handler guards.
-- Gates 5.1–5.3 at the end.
+- **Block 3 = #8** (tasks 3.1–3.2, 4.3) — Desktop async-void handler guards. **DONE.**
+- Gates 5.1–5.3 — **DONE** (change complete).
 
 ## NEXT
-- **Block 3 = #8** (tasks 3.1–3.2, 4.3): wrap `frontends/Dmon.Desktop/SessionViewModel.HandleToolConfirmAsync`/`HandleUiInputAsync` bodies in try/catch (no escape from `async void`), surface an error state (find the log/diagnostic surface); happy path byte-for-byte identical; handlers independent. Test via the `FakeCoreSession` seam throwing from `SendAsync`, dispatch `ToolConfirmRequestEvent` + `UiInputRequestEvent`, assert no exception escapes. Then gates 5.1–5.3 → change complete.
+- **Change COMPLETE — all tasks ticked (1.x, 2.x, 3.x, 4.x, 5.x).** Ready for PR + merge, then archive.
+- **Forward-looking (for whoever adds a Desktop error UI later):** `SessionViewModel.HandlerErrors` (`IObservable<HandlerError>`) was added by block 3 as the deterministically-testable "surfaced error" channel but has **no production consumer yet** — a future block should wire it to a real UI surface. HAZARD when wiring it: `Subject.OnNext` dispatches synchronously and rethrows if a subscriber throws — so the consuming subscription MUST `ObserveOn(uiScheduler)` and keep its `OnNext` non-throwing, else a throwing subscriber re-introduces the escaped-exception-on-`async void` bug this change fixed. (Log-then-OnNext ordering in the catch already guarantees the log fires first.)
 
 ## Block 1 — #12 RpcClient faults pending on pump exit — DONE (tasks 1.1–1.3, 4.1)
 
@@ -33,3 +34,14 @@ Architect split this change into 3 impl blocks (one per finding) + per-block tes
 **Reviewer:** Approve, no blockers. Verified the fresh-bounded-token fix, best-effort guard totality, and that the test truly fails pre-fix (the `.lock` reacquire is the real guard — deterministic on Windows, kernel-teardown-released on Unix; post-fix green on all). Accepted cosmetic nits (redundant `using`s under ImplicitUsings; "replicated flags" comment is really the correct subset; 5s budget larger than "short" but a fine safety ceiling) — build-clean, not worth a round-trip.
 
 **Gates:** `make build` 0-warn; full `make test` 20/20 projects green (Runtime 44/44); `openspec validate --strict` valid.
+
+## Block 3 — #8 Desktop async-void handler guards — DONE (tasks 3.1, 3.2, 4.3)
+
+The two `async void` interaction handlers in `SessionViewModel` can no longer crash the app.
+
+- **`frontends/Dmon.Desktop/SessionViewModel.cs`:** wrapped the full body of `HandleToolConfirmAsync` + `HandleUiInputAsync` in `try`/`catch (Exception ex)`. Each catch is **total and synchronous** (async-void rule — no `await` in the catch, nothing that can throw a second unobserved exception): `this.Log().Error(...)` (Splat `IEnableLogger`, non-throwing, first) then `_handlerErrors.OnNext(...)`. Both sinks are thread-agnostic, so the off-UI-thread resume after `SendAsync(...).ConfigureAwait(false)` needs no marshalling. Happy path byte-for-byte identical (only wrapped/re-indented). New: private `Subject<HandlerError>`, public `IObservable<HandlerError> HandlerErrors`, `record HandlerError(string Handler, Exception Exception)` — the deterministically-assertable "surfaced error" channel (no existing ILogger/error surface in Dmon.Desktop).
+- **Test seam:** `FakeCoreSession.SendFault` (`Func<Command,Exception?>?`) → `Task.FromException`, command NOT recorded (interface untouched). **3 tests** (`SessionViewModelResilienceTests`): dead-core send fault on one handler contained + sibling still sends (independence); interaction-raise throw contained + sibling unaffected; symmetric direction. Each asserts no crash, sibling command recorded, `HandlerError` surfaced for the right handler. Subject-based (not Splat-global) → deterministic; fails if the try/catch is removed.
+
+**Reviewer:** Approve, no blockers. Verified async-void totality, no off-thread UI-bound mutation, byte-identical happy path, genuine independence, non-tautological tests. Nits recorded in `## NEXT` (HandlerErrors has no prod consumer yet; future consumer must ObserveOn(ui)+non-throwing).
+
+**Gates:** `make build` 0-warn; full `make test` 20/20 projects green (Desktop 54/54); `openspec validate --strict` valid. **Change complete.**
