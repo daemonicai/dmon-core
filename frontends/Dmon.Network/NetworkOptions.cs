@@ -86,6 +86,20 @@ public sealed class NetworkOptions
     public bool AllowNonLoopbackBind { get; set; }
 
     /// <summary>
+    /// The exact browser <c>Origin</c> values permitted to complete a <c>/ws</c> WebSocket upgrade
+    /// (e.g. <c>https://app.example</c>). Bound from the <c>Network</c> config section.
+    /// Defaults to empty ⇒ every request carrying an <c>Origin</c> header is rejected with HTTP 403,
+    /// so browser access is opt-in (ADR-036 Decision 2).
+    /// </summary>
+    /// <remarks>
+    /// Matching is exact ordinal string comparison — no case-folding, scheme/port normalisation,
+    /// trailing-slash tolerance, or wildcard/prefix support. Native clients send no <c>Origin</c>
+    /// header and are unaffected. This is defence-in-depth atop device-key auth, not a replacement:
+    /// both checks apply to every upgrade. The network host config/state home is <c>~/.dmon/network</c>.
+    /// </remarks>
+    public string[] AllowedOrigins { get; set; } = [];
+
+    /// <summary>
     /// The workspace root used to resolve named agents (<c>.dmon/agents/&lt;name&gt;.cs</c>).
     /// When empty or not set, defaults to the current working directory at startup.
     /// </summary>

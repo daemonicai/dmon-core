@@ -296,6 +296,71 @@ public sealed class AuthAndBindTests
     }
 
     // -------------------------------------------------------------------------
+    // 3.2 — Origin allowlist on the /ws upgrade (ADR-036 Decision 2)
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public async Task HandleAsync_NoOriginHeader_ProceedsToAuth()
+    {
+        // (a) No Origin header ⇒ native client ⇒ proceed (falls through to IsWebSocketRequest 400).
+        NetworkConnectionEndpoint endpoint = MakeEndpoint(DeviceKeySet.Empty);
+        DefaultHttpContext context = new();
+
+        await endpoint.HandleAsync(context);
+
+        Assert.NotEqual(StatusCodes.Status403Forbidden, context.Response.StatusCode);
+        Assert.NotEqual(StatusCodes.Status401Unauthorized, context.Response.StatusCode);
+    }
+
+    [Fact]
+    public async Task HandleAsync_OriginPresent_EmptyAllowlist_Returns403()
+    {
+        // (b) Origin present + default empty allowlist ⇒ 403 before any socket.
+        NetworkConnectionEndpoint endpoint = MakeEndpoint(DeviceKeySet.Empty);
+        DefaultHttpContext context = new();
+        context.Request.Headers.Origin = "https://app.example";
+
+        await endpoint.HandleAsync(context);
+
+        Assert.Equal(StatusCodes.Status403Forbidden, context.Response.StatusCode);
+    }
+
+    [Fact]
+    public async Task HandleAsync_OriginPresent_ExactMatch_ProceedsToAuth()
+    {
+        // (c) Origin present + exact allowlist match ⇒ proceed (falls through to 400).
+        NetworkConnectionEndpoint endpoint = MakeEndpoint(
+            DeviceKeySet.Empty,
+            new NetworkOptions { AllowedOrigins = ["https://app.example"] });
+        DefaultHttpContext context = new();
+        context.Request.Headers.Origin = "https://app.example";
+
+        await endpoint.HandleAsync(context);
+
+        Assert.NotEqual(StatusCodes.Status403Forbidden, context.Response.StatusCode);
+        Assert.NotEqual(StatusCodes.Status401Unauthorized, context.Response.StatusCode);
+    }
+
+    [Fact]
+    public async Task HandleAsync_AllowlistedOrigin_BadToken_Still401()
+    {
+        // (d) Independence: allowlisted origin does NOT short-circuit past auth. A non-empty key set
+        // with a bad token still 401s. Loopback default bind, so the empty-set 401 gate never fires
+        // and control cleanly reaches the device-key auth 401.
+        DeviceKeySet set = MakeSet(("k1", "s3cr3t"));
+        NetworkConnectionEndpoint endpoint = MakeEndpoint(
+            set,
+            new NetworkOptions { AllowedOrigins = ["https://app.example"] });
+        DefaultHttpContext context = new();
+        context.Request.Headers.Origin = "https://app.example";
+        context.Request.Headers.Authorization = "Bearer wrong-token";
+
+        await endpoint.HandleAsync(context);
+
+        Assert.Equal(StatusCodes.Status401Unauthorized, context.Response.StatusCode);
+    }
+
+    // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------
 

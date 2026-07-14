@@ -173,6 +173,24 @@ public sealed class NetworkConnectionEndpoint
         DeviceKeySet keySet = _deviceKeySetProvider.Current;
 
         NetworkOptions options = _options.CurrentValue;
+
+        // Browser-Origin allowlist (ADR-036 Decision 2), evaluated FIRST and independently of the
+        // device-key check — defence-in-depth atop auth, never a replacement: both gates must pass.
+        // No Origin header ⇒ native client ⇒ proceed. An Origin present ⇒ 403 before any socket
+        // unless it exactly matches (ordinal) a configured allowlist entry. Default allowlist empty
+        // ⇒ every Origin-bearing upgrade is rejected; browser access is opt-in. 403, not 401 — no
+        // credential was wrong; 401 stays reserved for the device-key path below.
+        string? origin = context.Request.Headers.Origin;
+        if (!string.IsNullOrEmpty(origin)
+            && Array.IndexOf(options.AllowedOrigins, origin) < 0)
+        {
+            _logger.LogWarning(
+                "WebSocket upgrade rejected: Origin '{Origin}' is not in the configured allowlist.",
+                origin);
+            context.Response.StatusCode = StatusCodes.Status403Forbidden;
+            return;
+        }
+
         bool nonLoopbackBind = NetworkBindPolicy.IsNonLoopbackWithOptIn(
             options.BindAddress, options.AllowNonLoopbackBind);
 

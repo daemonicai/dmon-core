@@ -2,6 +2,20 @@
 
 Cross-block memory for the architect. Newest block first.
 
+## Block 2 — Browser-Origin allowlist on the /ws upgrade (#17) — tasks 3.1, 3.2, 4.2
+
+**Status:** DONE, reviewer approved, gates green. **Final code block — change is complete (all 12 tasks ticked).**
+
+### What landed
+- `frontends/Dmon.Network/NetworkOptions.cs` — new `public string[] AllowedOrigins { get; set; } = [];` (bound from `Network` section, default empty ⇒ all Origin-bearing upgrades rejected; browser access is opt-in). Documented with exact-ordinal-match / `~/.dmon/network` home notes.
+- `frontends/Dmon.Network/NetworkConnectionEndpoint.cs` — in `HandleAsync`, **ahead of** the block-1 empty-set 401 gate: read `context.Request.Headers.Origin`; `string.IsNullOrEmpty(origin)` ⇒ proceed (absent header or empty value = native client); present + not an exact ordinal match (`Array.IndexOf(options.AllowedOrigins, origin)`) ⇒ **HTTP 403** and `return` before `AcceptWebSocketAsync`. Reuses the already-resolved `options` (no second `.CurrentValue`). Block-1's 401 gate left byte-identical. Load-bearing comment at `:177–182` documents the 403-vs-401 split + defence-in-depth ordering.
+- `test/Dmon.Network.Tests/AuthAndBindTests.cs` — new `3.2 — Origin allowlist` section, 4 tests mapping 1:1 to 4.2(a)–(d): no-Origin proceeds; Origin+empty allowlist⇒403; Origin+exact match proceeds; allowlisted Origin+non-empty set+bad token⇒still 401 (independence). Network.Tests now 222.
+
+### Decisions / notes
+- **Gate order in `HandleAsync`: Origin 403 gate FIRST, then empty-set 401 gate, then `Authenticate` 401.** This gives 4.2(d) for free (allowlisted origin never short-circuits auth). Reverse (good token + unlisted origin ⇒ 403) holds by construction — Origin gate returns before auth is consulted.
+- Multiple `Origin` headers ⇒ comma-joined `StringValues` string ⇒ matches nothing ⇒ 403 (fail-safe). Reviewer noted this as a positive.
+- Reviewer optional nits (NOT applied): a dedicated reverse-independence test (good token + unlisted origin ⇒ 403) and an explicit empty-string-Origin test would document intent; 4.2(a)–(d) as specified are all present, so these are extras not gaps.
+
 ## Block 1 — Empty key set fails closed on a non-loopback bind (#6) — tasks 2.1, 2.2, 2.3, 4.1
 
 **Commit:** (this block) · **Status:** DONE, reviewer approved, gates green.

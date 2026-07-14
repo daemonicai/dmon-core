@@ -10,16 +10,16 @@
 
 ## 3. Browser-Origin allowlist on the WebSocket upgrade (#17)
 
-- [ ] 3.1 Add `AllowedOrigins` to `frontends/Dmon.Network/NetworkOptions.cs`: a `string[]` bound from the `Network` config section, defaulting to empty. Document it (default empty ⇒ all browser `Origin`s rejected; the network host config/state home is `~/.dmon/network`).
-- [ ] 3.2 In `NetworkConnectionEndpoint.HandleAsync`, before `AcceptWebSocketAsync` and independent of the device-key check, evaluate the `Origin` request header: no `Origin` header ⇒ proceed (native clients); an `Origin` present ⇒ reject with HTTP 403 unless it exactly matches an entry in `AllowedOrigins`. Both the `Origin` check and the device-key check must pass before upgrade; neither waives the other.
+- [x] 3.1 Add `AllowedOrigins` to `frontends/Dmon.Network/NetworkOptions.cs`: a `string[]` bound from the `Network` config section, defaulting to empty. Document it (default empty ⇒ all browser `Origin`s rejected; the network host config/state home is `~/.dmon/network`).
+- [x] 3.2 In `NetworkConnectionEndpoint.HandleAsync`, before `AcceptWebSocketAsync` and independent of the device-key check, evaluate the `Origin` request header: no `Origin` header ⇒ proceed (native clients); an `Origin` present ⇒ reject with HTTP 403 unless it exactly matches an entry in `AllowedOrigins`. Both the `Origin` check and the device-key check must pass before upgrade; neither waives the other.
 
 ## 4. Tests
 
 - [x] 4.1 In `test/Dmon.Network.Tests`, add empty-set / bind tests: (a) empty set + non-loopback effective bind ⇒ `/ws` upgrade rejected 401, no socket; (b) empty set + loopback bind ⇒ authorized (unchanged); (c) non-empty set enforced identically on a non-loopback bind (matching token authorized+tagged; missing/unmatched token 401).
-- [ ] 4.2 In `test/Dmon.Network.Tests`, add `Origin`-allowlist tests: (a) no `Origin` header ⇒ proceeds to auth (allowed); (b) `Origin` present + empty allowlist ⇒ 403; (c) `Origin` present + exact match in allowlist ⇒ proceeds; (d) allowlisted `Origin` but failing device-key check (non-empty set, bad token) ⇒ still 401 (checks independent, both enforced).
+- [x] 4.2 In `test/Dmon.Network.Tests`, add `Origin`-allowlist tests: (a) no `Origin` header ⇒ proceeds to auth (allowed); (b) `Origin` present + empty allowlist ⇒ 403; (c) `Origin` present + exact match in allowlist ⇒ proceeds; (d) allowlisted `Origin` but failing device-key check (non-empty set, bad token) ⇒ still 401 (checks independent, both enforced).
 
 ## 5. Gates and spec alignment
 
-- [ ] 5.1 `make build` clean (TreatWarningsAsErrors on).
-- [ ] 5.2 `env -u MEKO_API_KEY make test` green — the new tests plus all existing tests.
-- [ ] 5.3 `openspec validate network-access-hardening --strict` passes; the `remote-session-gateway` delta (one MODIFIED requirement, two ADDED requirements) matches the implemented behaviour, and ADR-036 is accepted and referenced.
+- [x] 5.1 `make build` clean (TreatWarningsAsErrors on).
+- [x] 5.2 `env -u MEKO_API_KEY make test` green — the new tests plus all existing tests.
+- [x] 5.3 `openspec validate network-access-hardening --strict` passes; the `remote-session-gateway` delta (one MODIFIED requirement, two ADDED requirements) matches the implemented behaviour, and ADR-036 is accepted and referenced.
