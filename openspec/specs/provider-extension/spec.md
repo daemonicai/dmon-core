@@ -6,9 +6,7 @@
 ## Purpose
 
 `IProviderExtension` is implemented by NuGet packages that contribute a local-inference provider (Ollama, LM Studio, llama.cpp, etc.) to a running dmon session. It is the second extension kind alongside `IToolExtension` (tool extensions).
-
 ## Requirements
-
 ### Requirement: IProviderExtension interface shape
 Every provider extension package SHALL implement `IProviderExtension` with the following contract:
 
@@ -29,7 +27,7 @@ public interface IProviderExtension
 - **THEN** the type exposes `ProviderName`, `IsApplicable`, `IsRunningAsync`, `EnsureRunningAsync`, `ListModelsAsync`, and `CreateFactory` with the signatures above
 
 ### Requirement: ProviderName is stable and unique
-`ProviderName` SHALL be a human-readable string that is unique per provider (e.g. `"oMLX"`, `"Ollama"`, `"LM Studio"`) and stable across versions of the extension package. It is used as `ProviderConfig.Name` in the registry and passed to `SetProvider(name)`.
+`ProviderName` SHALL be a human-readable string that is unique per provider (e.g. `"Ollama"`, `"LM Studio"`, `"llama.cpp"`) and stable across versions of the extension package. It is used as `ProviderConfig.Name` in the registry and passed to `SetProvider(name)`.
 
 #### Scenario: ProviderName used as registry key
 - **WHEN** a provider extension is registered
@@ -203,3 +201,4 @@ The provider extension lifecycle SHALL include a `StopAsync(cancellationToken)` 
 #### Scenario: Stop after attach leaves external server running
 - **WHEN** a provider attached to an already-running external server and `StopAsync` is later called
 - **THEN** the external server is left running
+

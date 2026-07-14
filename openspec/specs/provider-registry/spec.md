@@ -24,7 +24,7 @@ The system SHALL maintain a registry of named LLM providers, each resolved to an
 ### Requirement: Supported provider adapters
 The system SHALL support the following adapter types via `IProviderFactory` implementations in `Dmon.Providers`:
 
-- `openai` — `Microsoft.Extensions.AI.OpenAI`; supports custom `baseUrl` for Ollama, llama.cpp, oMLX
+- `openai` — `Microsoft.Extensions.AI.OpenAI`; supports custom `baseUrl` for Ollama, llama.cpp, and other OpenAI-compatible local runtimes
 - `anthropic` — `Anthropic.SDK` community package
 - `gemini` — `GeminiDotnet.Extensions.AI`
 
@@ -32,9 +32,9 @@ The system SHALL support the following adapter types via `IProviderFactory` impl
 - **WHEN** a provider is configured with adapter `openai` and a `baseUrl` of `http://localhost:11434/v1`
 - **THEN** the registry creates an `IChatClient` pointing at that endpoint
 
-#### Scenario: oMLX via Anthropic adapter
-- **WHEN** a provider is configured with adapter `anthropic` and a `baseUrl` pointing to an oMLX instance
-- **THEN** the registry creates an Anthropic `IChatClient` targeting the oMLX endpoint
+#### Scenario: Anthropic-compatible local endpoint via baseUrl
+- **WHEN** a provider is configured with adapter `anthropic` and a `baseUrl` pointing to a local Anthropic-compatible endpoint
+- **THEN** the registry creates an Anthropic `IChatClient` targeting that endpoint
 
 ### Requirement: ProviderRegistry tracks and commits pending provider and model switches
 `ProviderRegistry` SHALL maintain a pending provider index and pending model ID, each independently nullable (set by `SetProvider` and `SetModel` respectively). `CommitPendingSwitch` SHALL apply both pending values atomically, dispose the previous `IChatClient`, and return a `ProviderSwitchResult?` (null if nothing was pending). `TurnHandler` is responsible for mapping `ProviderSwitchResult` to `ProviderSwitchedEvent` before emitting.
