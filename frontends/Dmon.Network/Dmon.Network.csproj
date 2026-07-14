@@ -18,7 +18,10 @@
          duplicate-file error is the standard fix; it does not affect the running host. -->
     <ErrorOnDuplicatePublishOutputFiles>false</ErrorOnDuplicatePublishOutputFiles>
     <!-- NuGet.Protocol advisory warning: informational only, does not affect correctness. -->
-    <NoWarn>$(NoWarn);NU1901</NoWarn>
+    <!-- SQLitePCLRaw.lib.e_sqlite3 2.1.11 (transitive via Microsoft.Data.Sqlite) carries
+         GHSA-2m69-gcr7-jv3q (high). Suppressed until Microsoft.Data.Sqlite ships a version
+         that pulls in SQLitePCLRaw >= 2.1.12 where the advisory is fixed. -->
+    <NoWarn>$(NoWarn);NU1901;NU1903</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

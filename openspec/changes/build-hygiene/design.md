@@ -14,7 +14,7 @@ Verified spread (46 `.csproj` total, `build/` excluded):
 
 - `TreatWarningsAsErrors`: present in **45** of 46 — hand-copied. Missing from exactly **`samples/Dmon.ExtensionSmoke`** (#9b).
 - `<Nullable>enable</Nullable>`: present in **all 46** — hand-copied.
-- `Microsoft.Data.Sqlite` (the `NU1903` transitive's source): referenced by exactly **6** projects — `core/Dmon.Core`, `memory/Dmon.Memory`, `services/Dcal`, `services/Dmail`, `test/Dmon.Memory.Tests`, `test/Dcal.Tests`. (The audit's guess of "likely `Dmon.Memory`" undercounts — it is 6, spanning `core/`, `memory/`, `services/`, and `test/`.)
+- `Microsoft.Data.Sqlite` (the `NU1903` transitive's source): **directly** referenced by 6 projects (`core/Dmon.Core`, `memory/Dmon.Memory`, `services/Dcal`, `services/Dmail`, `test/Dmon.Memory.Tests`, `test/Dcal.Tests`) — but NU1903 is a **transitive** restore-audit warning (default audit mode `all`, no `PrivateAssets` on the refs), so it also fires on every `ProjectReference` dependent of those and on the file-based composition roots that `#:package dmoncore`. The **empirical emitting set is 18**, not 6 (see D3).
 - `Markdig`: referenced by 1 project (`frontends/Dmon.Terminal`); `1.*` currently resolves to **`1.3.2`** (verified from the restored `project.assets.json` and the local NuGet cache).
 
 ## Goals
@@ -53,7 +53,11 @@ Then remove the two properties from all 46 `.csproj`. Because MSBuild applies th
 Remove `<NoWarn>$(NoWarn);NU1903</NoWarn>` from the root `Directory.Build.props`. Add `<NoWarn>$(NoWarn);NU1903</NoWarn>` to exactly the 6 projects that reference `Microsoft.Data.Sqlite`:
 `core/Dmon.Core`, `memory/Dmon.Memory`, `services/Dcal`, `services/Dmail`, `test/Dmon.Memory.Tests`, `test/Dcal.Tests`.
 
-Per-`.csproj` placement is chosen over a new per-area `Directory.Build.props` because the consumers span four buckets (`core/`, `memory/`, `services/`, `test/`) — no single area file covers them, and scattering four new props files is worse than 6 one-line `.csproj` entries. The explanatory comment (advisory id, why suppressed, the upgrade trigger) moves with the suppression. This keeps the advisory suppressed where it genuinely applies while restoring the `NU1903` signal for the other 40 projects.
+Per-`.csproj` placement is chosen over a new per-area `Directory.Build.props` because the consumers span multiple buckets — no single area file covers them, and scattering new props files is worse than one-line `.csproj` entries. The explanatory comment (advisory id, why suppressed, the upgrade trigger) moves with the suppression. This keeps the advisory suppressed where it genuinely applies while restoring the `NU1903` signal everywhere else.
+
+**Correction (implementation): the emitting set is the transitive closure, 18 targets, not 6.** NU1903 is a NuGet restore-audit warning; with default audit mode `all` and no `PrivateAssets` on the SQLite refs, it propagates across `ProjectReference`. The authoritative enumerator is "remove the repo-wide suppression, build `Everything.slnx` with TWE off, collect the projects NU1903 names." Result: **13 `.csproj`** — the 6 direct + `daemon/Daemon.Routing`, `frontends/Dmon.Network`, `test/Dmon.Core.Tests`, `test/Dmail.Tests`, `test/Daemon.Routing.Tests`, `test/Dmon.Network.Tests`, `test/Dmon.Tools.Dcal.Tests` (all transitive via `ProjectReference`) — **plus 5 file-based composition roots** that `#:package dmoncore` and inherit the root TWE but are compiled by no `.slnx`/`make build`/`make test` gate: `default-core/Dmon.cs`, root `Dmon.cs`, `samples/Dmon.{ComposedCore,MtplxCore,WebSearchCore}/Dmon.cs`. File-based programs can't inherit a `Directory.Build.props` `NoWarn`, so each carries an inline `#:property NoWarn=$(NoWarn);NU1903`.
+
+**Hazard for future authors:** any new file-based composition root (`.dmon/agents/*.cs`, a new sample) that `#:package dmoncore` will hit NU1903-as-error under the inherited TWE and must carry its own `#:property NoWarn=$(NoWarn);NU1903` — there is no shared props to centralize it. All 18 suppressions can be deleted once `Microsoft.Data.Sqlite` ships a build pulling SQLitePCLRaw ≥ 2.1.12.
 
 ### D4 — `Markdig` exact pin (9d): `1.3.2`, drop floating opt-in
 
