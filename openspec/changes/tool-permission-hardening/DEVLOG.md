@@ -1,7 +1,9 @@
 # DEVLOG — tool-permission-hardening
 
 ## NEXT
-- **Change COMPLETE — all tasks ticked (1.1–1.3, 2.1–2.5, 3.1–3.3).** Ready for PR + merge, then archive.
+- **Change COMPLETE — all tasks ticked (1.1–1.3, 2.1–2.5, 3.1–3.3).** PR #96 open.
+- **CI fix (post-PR):** `Evaluate_BrokenSymlinkInCwd_ReturnsPrompt` passed on macOS but FAILED on Ubuntu CI — `File.ResolveLinkTarget(returnFinalTarget:true)` throws for a broken final target on macOS but RETURNS the non-existent target on Linux, so a dangling in-cwd link resolved to `Allow` (fail-open) on Linux. Fixed in `RealPathResolver.FollowLinkToTarget` with an explicit `Path.Exists(final)` check → `null` (fail closed) on both platforms (commit `ac2e315`). Lesson: **local gates are macOS, CI is Ubuntu — symlink/filesystem behavior diverges; CI is the real verification for those.**
+- **FOLLOW-UP (out of scope for this change — engine):** `core/Dmon.Core/Permissions/SandboxContainmentChecker.cs` `FollowLinkToTarget` has the **same latent Linux fail-open bug** (untested there — no broken-symlink test exercises it on Linux). Its asset-sandbox containment could resolve a dangling in-root symlink to an in-root path on Linux. Needs the identical `Path.Exists(final)` existence-check fix in a separate change touching `Dmon.Core`.
 
 ## Section 1 — read_file symlink-safe containment (#15) — DONE (tasks 1.1–1.3)
 
