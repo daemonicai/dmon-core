@@ -249,6 +249,14 @@ public sealed class RpcClient : IRpcClient
 
     private async Task RunPumpAsync(CancellationToken cancellationToken)
     {
+        // Distinguish the three exits (design D1):
+        //   - cancellation (disposal): leave _pending for DisposeAsync to fault with
+        //     ObjectDisposedException — do NOT touch it here.
+        //   - normal EOF (loop completes): fault _pending with a null-cause transport-closed error.
+        //   - non-OCE pump fault (read threw): catch it here so it does not resurface at
+        //     DisposeAsync's `await _pumpTask`, and fault _pending carrying it as the cause.
+        bool cancelled = false;
+        Exception? faultCause = null;
         try
         {
             await foreach (Event evt in _transport.Events.WithCancellation(cancellationToken).ConfigureAwait(false))
@@ -265,12 +273,33 @@ public sealed class RpcClient : IRpcClient
                 }
             }
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            // Pump stopped via cancellation — normal shutdown path.
+            // Pump stopped via disposal cancellation — normal shutdown path. DisposeAsync owns _pending.
+            cancelled = true;
+        }
+        catch (Exception ex)
+        {
+            // A non-cancellation read fault — including a stray OperationCanceledException
+            // surfaced from a dying transport read while disposal was NOT requested. Observe
+            // it here (do not let it escape _pumpTask) and carry it as the cause when faulting
+            // pending requests, so those requests do not hang to the request timeout.
+            faultCause = ex;
         }
         finally
         {
+            // On EOF or a non-OCE fault the channel is gone: fault every remaining pending
+            // request with a transport-closed error, exactly once each. On cancellation,
+            // leave _pending untouched for DisposeAsync.
+            if (!cancelled)
+            {
+                foreach ((string id, TaskCompletionSource<ResultEvent> _) in _pending)
+                {
+                    if (_pending.TryRemove(id, out TaskCompletionSource<ResultEvent>? pendingTcs))
+                        pendingTcs.TrySetException(new RpcTransportClosedException(id, faultCause));
+                }
+            }
+
             // Complete all broadcast subscribers when the pump exits.
             lock (_subscribersLock)
             {

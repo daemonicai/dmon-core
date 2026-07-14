@@ -36,6 +36,12 @@ public sealed class RpcClientTests
         /// <summary>Signal end-of-stream (core process exited).</summary>
         public void Complete() => _channel.Writer.Complete();
 
+        /// <summary>
+        /// Fault the stream — completing the writer WITH an exception makes the pump's
+        /// <c>ReadAllAsync</c> throw it when drained (a non-cancellation pump fault).
+        /// </summary>
+        public void Fault(Exception ex) => _channel.Writer.Complete(ex);
+
         public Task SendAsync(Command command, CancellationToken cancellationToken)
         {
             SentCommands.Add(command);
@@ -435,5 +441,100 @@ public sealed class RpcClientTests
             $"Expected ObjectDisposedException, got {thrown?.GetType().Name}");
 
         transport.Complete();
+    }
+
+    // ---------------------------------------------------------------
+    // 4.1 — Core exit (stdout EOF) faults pending with RpcTransportClosedException
+    //        promptly — NOT RpcTimeoutException, NOT a 30s hang.
+    // ---------------------------------------------------------------
+
+    [Fact]
+    public async Task RequestAsync_CoreExitsEof_FaultsWithTransportClosed_NotTimeout()
+    {
+        // Long timeout: if the fix regressed, this would hang to the timeout instead of
+        // faulting promptly. The short assertion timeout below turns that into a fast failure.
+        (RpcClient client, FeedableTransport transport) = await StartClientAsync(
+            timeout: TimeSpan.FromSeconds(30));
+        await using (client)
+        {
+            SessionCreateCommand cmd = new() { Id = "cmd-eof" };
+
+            Task<SessionCreatedResultEvent> request =
+                client.RequestAsync<SessionCreatedResultEvent>(cmd, CancellationToken.None);
+
+            // Core exits: no correlated result, just EOF.
+            transport.Complete();
+
+            RpcTransportClosedException ex = await Assert.ThrowsAsync<RpcTransportClosedException>(
+                () => request.WaitAsync(TimeSpan.FromSeconds(5)));
+
+            Assert.Equal("cmd-eof", ex.CommandId);
+            Assert.Null(ex.InnerException);
+            // ThrowsAsync<RpcTransportClosedException> already proves the fault type is
+            // distinct from RpcTimeoutException (they are unrelated sealed types).
+        }
+    }
+
+    // ---------------------------------------------------------------
+    // 4.1 — A non-cancellation pump fault faults pending with
+    //        RpcTransportClosedException carrying the cause, and is observed
+    //        (does not resurface at DisposeAsync).
+    // ---------------------------------------------------------------
+
+    [Fact]
+    public async Task RequestAsync_PumpFaults_FaultsWithTransportClosedCarryingCause_AndDisposeIsClean()
+    {
+        (RpcClient client, FeedableTransport transport) = await StartClientAsync(
+            timeout: TimeSpan.FromSeconds(30));
+        await using (client)
+        {
+            SessionCreateCommand cmd = new() { Id = "cmd-fault" };
+
+            Task<SessionCreatedResultEvent> request =
+                client.RequestAsync<SessionCreatedResultEvent>(cmd, CancellationToken.None);
+
+            IOException cause = new("transport read failed");
+            transport.Fault(cause);
+
+            RpcTransportClosedException ex = await Assert.ThrowsAsync<RpcTransportClosedException>(
+                () => request.WaitAsync(TimeSpan.FromSeconds(5)));
+
+            Assert.Equal("cmd-fault", ex.CommandId);
+            Assert.Same(cause, ex.InnerException);
+
+            // The non-OCE fault must have been observed inside the pump: disposal (via the
+            // enclosing await using) completes cleanly and does not rethrow the injected exception.
+        }
+    }
+
+    // ---------------------------------------------------------------
+    // 4.1 — A STRAY OperationCanceledException (disposal token NOT cancelled,
+    //        e.g. a dying transport read) routes to the transport-closed fault
+    //        rather than being misclassified as disposal-cancellation (which
+    //        would leave the request to hang to the request timeout).
+    // ---------------------------------------------------------------
+
+    [Fact]
+    public async Task RequestAsync_StrayOperationCanceled_FaultsWithTransportClosed_NotHang()
+    {
+        (RpcClient client, FeedableTransport transport) = await StartClientAsync(
+            timeout: TimeSpan.FromSeconds(30));
+        await using (client)
+        {
+            SessionCreateCommand cmd = new() { Id = "cmd-stray-oce" };
+
+            Task<SessionCreatedResultEvent> request =
+                client.RequestAsync<SessionCreatedResultEvent>(cmd, CancellationToken.None);
+
+            // The pump read surfaces an OCE while disposal was NEVER requested.
+            TaskCanceledException cause = new("transport read cancelled");
+            transport.Fault(cause);
+
+            RpcTransportClosedException ex = await Assert.ThrowsAsync<RpcTransportClosedException>(
+                () => request.WaitAsync(TimeSpan.FromSeconds(5)));
+
+            Assert.Equal("cmd-stray-oce", ex.CommandId);
+            Assert.Same(cause, ex.InnerException);
+        }
     }
 }

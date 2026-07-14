@@ -20,8 +20,21 @@ internal sealed class FakeCoreSession : ICoreSession
 
     public bool ReloadCalled { get; private set; }
 
+    /// <summary>
+    /// Optional per-command fault selector. When it returns a non-null exception for a given
+    /// command, <see cref="SendAsync"/> returns a faulted task and does NOT record the command —
+    /// letting one handler's send fail while another succeeds (proves handler independence).
+    /// </summary>
+    public Func<Command, Exception?>? SendFault { get; set; }
+
     public Task SendAsync(Command command, CancellationToken cancellationToken = default)
     {
+        Exception? fault = SendFault?.Invoke(command);
+        if (fault is not null)
+        {
+            return Task.FromException(fault);
+        }
+
         SentCommands.Add(command);
         return Task.CompletedTask;
     }

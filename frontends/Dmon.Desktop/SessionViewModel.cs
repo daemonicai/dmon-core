@@ -1,10 +1,12 @@
 using System.Reactive.Concurrency;
 using System.Reactive.Linq;
+using System.Reactive.Subjects;
 using System.Text.Json;
 using Dmon.Protocol.Commands;
 using Dmon.Protocol.Events;
 using ReactiveUI;
 using ReactiveUI.Avalonia;
+using Splat;
 
 namespace Dmon.Desktop;
 
@@ -26,6 +28,22 @@ public sealed class SessionViewModel : ReactiveObject, IScreen
     private readonly ICoreSession _session;
     private readonly ObservableAsPropertyHelper<bool> _isStreaming;
     private string? _activeSessionId;
+
+    // Diagnostic error channel for the async-void interaction handlers. Subject.OnNext is
+    // synchronous and thread-agnostic, so the catch bodies (which may resume off the UI thread)
+    // can push onto it without marshalling. This is a diagnostic surface, not user-facing UI.
+    private readonly Subject<HandlerError> _handlerErrors = new();
+
+    /// <summary>
+    /// A failure caught in one of the async-void interaction handlers.
+    /// </summary>
+    public sealed record HandlerError(string Handler, Exception Exception);
+
+    /// <summary>
+    /// Errors surfaced when an interaction handler fails at any step (raising the
+    /// <see cref="Interaction{TInput, TOutput}"/> or sending the response command).
+    /// </summary>
+    public IObservable<HandlerError> HandlerErrors => _handlerErrors;
 
     // Exposed for the view to register interaction handlers.
     public Interaction<ToolConfirmRequest, ToolConfirmResult> ToolConfirmInteraction { get; } = new();
@@ -146,56 +164,76 @@ public sealed class SessionViewModel : ReactiveObject, IScreen
 
     private async void HandleToolConfirmAsync(ToolConfirmRequestEvent confirm)
     {
-        string argsText = confirm.Args is JsonElement el ? el.ToString() : string.Empty;
-
-        ToolConfirmRequest request = new(
-            Name: confirm.Name,
-            Args: argsText,
-            Risk: confirm.Risk,
-            ConfirmId: confirm.ConfirmId);
-
-        ToolConfirmResult result = await ToolConfirmInteraction.Handle(request).FirstAsync();
-
-        string? scope = result.Choice switch
+        try
         {
-            ToolConfirmChoice.AllowOnce    => "once",
-            ToolConfirmChoice.AllowProject => "project",
-            ToolConfirmChoice.AllowGlobal  => "global",
-            _                              => null
-        };
+            string argsText = confirm.Args is JsonElement el ? el.ToString() : string.Empty;
 
-        bool confirmed = result.Choice is ToolConfirmChoice.AllowOnce
-                                       or ToolConfirmChoice.AllowProject
-                                       or ToolConfirmChoice.AllowGlobal;
+            ToolConfirmRequest request = new(
+                Name: confirm.Name,
+                Args: argsText,
+                Risk: confirm.Risk,
+                ConfirmId: confirm.ConfirmId);
 
-        ToolConfirmResponseCommand response = new()
+            ToolConfirmResult result = await ToolConfirmInteraction.Handle(request).FirstAsync();
+
+            string? scope = result.Choice switch
+            {
+                ToolConfirmChoice.AllowOnce    => "once",
+                ToolConfirmChoice.AllowProject => "project",
+                ToolConfirmChoice.AllowGlobal  => "global",
+                _                              => null
+            };
+
+            bool confirmed = result.Choice is ToolConfirmChoice.AllowOnce
+                                           or ToolConfirmChoice.AllowProject
+                                           or ToolConfirmChoice.AllowGlobal;
+
+            ToolConfirmResponseCommand response = new()
+            {
+                Id        = confirm.ConfirmId,
+                Confirmed = confirmed,
+                Cancelled = result.Choice == ToolConfirmChoice.Cancelled,
+                Scope     = scope
+            };
+
+            await _session.SendAsync(response).ConfigureAwait(false);
+        }
+        catch (Exception ex)
         {
-            Id        = confirm.ConfirmId,
-            Confirmed = confirmed,
-            Cancelled = result.Choice == ToolConfirmChoice.Cancelled,
-            Scope     = scope
-        };
-
-        await _session.SendAsync(response).ConfigureAwait(false);
+            // Total, non-throwing catch: no exception may escape an async-void continuation.
+            // Both sinks are synchronous and thread-agnostic — safe off the UI thread.
+            this.Log().Error(ex, "ToolConfirm interaction/send failed");
+            _handlerErrors.OnNext(new HandlerError("ToolConfirm", ex));
+        }
     }
 
     private async void HandleUiInputAsync(UiInputRequestEvent uiInput)
     {
-        UiInputRequest request = new(
-            Prompt: uiInput.Prompt,
-            Kind: uiInput.Kind,
-            Options: uiInput.Options,
-            EventId: uiInput.EventId);
-
-        UiInputResult result = await UiInputInteraction.Handle(request).FirstAsync();
-
-        UiInputResponseCommand response = new()
+        try
         {
-            Id        = uiInput.EventId,
-            Value     = result.Value,
-            Cancelled = result.Cancelled
-        };
+            UiInputRequest request = new(
+                Prompt: uiInput.Prompt,
+                Kind: uiInput.Kind,
+                Options: uiInput.Options,
+                EventId: uiInput.EventId);
 
-        await _session.SendAsync(response).ConfigureAwait(false);
+            UiInputResult result = await UiInputInteraction.Handle(request).FirstAsync();
+
+            UiInputResponseCommand response = new()
+            {
+                Id        = uiInput.EventId,
+                Value     = result.Value,
+                Cancelled = result.Cancelled
+            };
+
+            await _session.SendAsync(response).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            // Total, non-throwing catch: no exception may escape an async-void continuation.
+            // Both sinks are synchronous and thread-agnostic — safe off the UI thread.
+            this.Log().Error(ex, "UiInput interaction/send failed");
+            _handlerErrors.OnNext(new HandlerError("UiInput", ex));
+        }
     }
 }
