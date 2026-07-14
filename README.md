@@ -1,6 +1,8 @@
 # dmon
 
-A .NET-native coding agent inspired by [Pi](https://github.com/earendil-works/pi). Written in C# on .NET 10. The agent core runs as a separate process over JSONL/stdio; two host surfaces are planned: a console/TUI host and an Avalonia desktop host.
+A .NET-native coding agent inspired by [Pi](https://github.com/earendil-works/pi). Written in C# on .NET 10. The agent core runs as a separate process over JSONL/stdio; host surfaces include a console/TUI host (`frontends/Dmon.Terminal`), an Avalonia desktop host (`frontends/Dmon.Desktop`), and a Tailscale-fronted WebSocket remote host (`Dmon.Network`, installed as the `ndmon` tool).
+
+The codebase is a monorepo organised into top-level buckets: `core/`, `providers/`, `tools/`, `memory/`, `frontends/`, `daemon/`, and `services/` (see [`docs/adrs/ADR-025-monorepo-consolidation.md`](./docs/adrs/ADR-025-monorepo-consolidation.md)).
 
 See [`coding-agent-brief.md`](./coding-agent-brief.md) for the full vision and [`CLAUDE.md`](./CLAUDE.md) for project conventions.
 
@@ -36,7 +38,7 @@ extension.analyze <id>       # security-analyse source before loading
 extension.load    <id>       # load a confirmed extension (RPC command)
 ```
 
-Extensions implement `IDaemonExtension` (from `Dmon.Extensions`) and expose tools as `AIFunction` instances. See [`docs/adrs/ADR-002-extension-tool-contract.md`](./docs/adrs/ADR-002-extension-tool-contract.md) for the contract.
+Extensions implement `IToolExtension` (from `Dmon.Abstractions`) and expose tools as `AIFunction` instances. See [`docs/adrs/ADR-002-extension-tool-contract.md`](./docs/adrs/ADR-002-extension-tool-contract.md) for the contract.
 
 ### Security
 
@@ -72,8 +74,8 @@ When authoring an extension, write your `AIFunctionFactory.Create` descriptions 
 
 ## Architecture
 
-- **RPC protocol:** JSONL over stdio — see [`docs/adrs/ADR-003-rpc-protocol.md`](./docs/adrs/ADR-003-rpc-protocol.md)
-- **LLM abstraction:** `Microsoft.Extensions.AI` (`IChatClient`) — see [`docs/adrs/ADR-001-llm-abstraction.md`](./docs/adrs/ADR-001-llm-abstraction.md)
-- **Extension model:** `IDaemonExtension` + `AIFunction` — see [`docs/adrs/ADR-002-extension-tool-contract.md`](./docs/adrs/ADR-002-extension-tool-contract.md)
+- **RPC protocol:** JSONL over stdio — see [`docs/adrs/ADR-003-rpc-surface.md`](./docs/adrs/ADR-003-rpc-surface.md)
+- **LLM abstraction:** `Microsoft.Extensions.AI` (`IChatClient`) — see [`docs/adrs/ADR-001-llm-provider-abstraction.md`](./docs/adrs/ADR-001-llm-provider-abstraction.md)
+- **Extension model:** `IToolExtension` + `AIFunction` — see [`docs/adrs/ADR-002-extension-tool-contract.md`](./docs/adrs/ADR-002-extension-tool-contract.md)
 - **Session storage:** relocatable directory, append-only JSONL — see [`docs/adrs/ADR-004-session-storage.md`](./docs/adrs/ADR-004-session-storage.md)
 - **Permission model:** tiered prompts, conservative by default — see [`docs/adrs/ADR-006-permission-model.md`](./docs/adrs/ADR-006-permission-model.md)

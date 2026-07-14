@@ -1,6 +1,6 @@
 ## Purpose
 
-Define the standing contract for `daemon/Daemon.cs`, the Daemon personal-assistant composition root (ADR-028): how it wires triage routing over three backends (e2b local, local reasoner, gated cloud egress), which personal-scope abilities it registers (dcal, Dmail, memory), and the requirement that all credentials and model endpoints come from the environment or `~/.dmon/config.yaml` rather than source literals.
+Define the standing contract for `daemon/Daemon.cs`, the Daemon personal-assistant composition root (ADR-028): how it wires triage routing over three backends (first-line mlx, escalation mlx, gated cloud egress), which personal-scope abilities it registers (dcal, Dmail, memory), and the requirement that all credentials and model endpoints come from the environment or `~/.dmon/config.yaml` rather than source literals.
 
 ## Requirements
 

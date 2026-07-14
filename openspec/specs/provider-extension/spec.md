@@ -5,7 +5,7 @@
 
 ## Purpose
 
-`IProviderExtension` is implemented by NuGet packages that contribute a local-inference provider (Ollama, oMLX, LM Studio, llama.cpp, etc.) to a running dmon session. It is the second extension kind alongside `IDaemonExtension` (tool extensions).
+`IProviderExtension` is implemented by NuGet packages that contribute a local-inference provider (Ollama, LM Studio, llama.cpp, etc.) to a running dmon session. It is the second extension kind alongside `IToolExtension` (tool extensions).
 
 ## Requirements
 

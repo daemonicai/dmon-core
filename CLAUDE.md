@@ -136,16 +136,16 @@ Use `/opsx:archive` once all tasks are done and the code is merged. This moves t
 
 ## Build and test
 
-The solution is `Dmon.slnx`; common tasks are wrapped in the `Makefile`.
+The solution is `Everything.slnx`; common tasks are wrapped in the `Makefile`.
 
 ```
 make build            # publish core, terminal, and extensions into build/
 make test             # dotnet test -c Release (all test projects)
 make clean            # remove build/
 
-dotnet build Dmon.slnx -c Release          # quick whole-solution compile check
-dotnet test -c Release                     # run all tests
-dotnet run --project src/Dmon.Terminal     # run the terminal host (spawns Dmon.Core)
+dotnet build Everything.slnx -c Release       # quick whole-solution compile check
+dotnet test -c Release                        # run all tests
+dotnet run --project frontends/Dmon.Terminal  # run the terminal host (spawns Dmon.Core)
 openspec validate <slug> --strict          # validate an OpenSpec change
 ```
 
