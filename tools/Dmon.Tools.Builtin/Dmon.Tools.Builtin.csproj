@@ -25,4 +25,8 @@
     <ProjectReference Include="..\..\core\Dmon.Protocol\Dmon.Protocol.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="Dmon.Tools.Builtin.Tests" />
+  </ItemGroup>
+
 </Project>

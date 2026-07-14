@@ -1,5 +1,6 @@
 using Dmon.Abstractions.Extensions;
 using Dmon.Abstractions.Hosting;
+using Dmon.Protocol.Permissions;
 using Dmon.Tools.Builtin.Bash;
 using Dmon.Tools.Builtin.Tools;
 using Microsoft.Extensions.Configuration;
@@ -30,7 +31,8 @@ public static class AddBuiltinToolsExtensions
         registration.Services.AddSingleton<IToolExtension>(sp =>
         {
             HttpClient httpClient = sp.GetRequiredService<IHttpClientFactory>().CreateClient("builtin");
-            return new FetchTool(httpClient);
+            IPermissionSettings permissionSettings = sp.GetRequiredService<IPermissionSettings>();
+            return new FetchTool(httpClient, permissionSettings);
         });
 
         registration.Services.AddSingleton<IToolExtension>(sp =>
