@@ -216,8 +216,92 @@ public sealed class AuthAndBindTests
     }
 
     // -------------------------------------------------------------------------
+    // 2.x — HandleAsync: empty key set fails closed on a non-loopback bind (ADR-036)
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public async Task HandleAsync_EmptyKeySet_NonLoopbackBind_NoHeader_Returns401()
+    {
+        // Empty set + non-loopback effective bind → fail closed before any socket.
+        NetworkConnectionEndpoint endpoint = MakeEndpoint(DeviceKeySet.Empty, NonLoopbackOptions());
+        DefaultHttpContext context = new();
+
+        await endpoint.HandleAsync(context);
+
+        Assert.Equal(StatusCodes.Status401Unauthorized, context.Response.StatusCode);
+    }
+
+    [Fact]
+    public async Task HandleAsync_EmptyKeySet_NonLoopbackBind_WithHeader_Returns401()
+    {
+        // An Authorization header must not rescue the empty-set non-loopback path.
+        NetworkConnectionEndpoint endpoint = MakeEndpoint(DeviceKeySet.Empty, NonLoopbackOptions());
+        DefaultHttpContext context = new();
+        context.Request.Headers.Authorization = "Bearer anything";
+
+        await endpoint.HandleAsync(context);
+
+        Assert.Equal(StatusCodes.Status401Unauthorized, context.Response.StatusCode);
+    }
+
+    [Fact]
+    public async Task HandleAsync_EmptyKeySet_LoopbackBind_PassesAuthCheck()
+    {
+        // Empty set + loopback bind → auth disabled, unchanged from before ADR-036.
+        NetworkConnectionEndpoint endpoint = MakeEndpoint(DeviceKeySet.Empty);
+        DefaultHttpContext context = new();
+
+        await endpoint.HandleAsync(context);
+
+        Assert.NotEqual(StatusCodes.Status401Unauthorized, context.Response.StatusCode);
+    }
+
+    [Fact]
+    public async Task HandleAsync_NonEmptySet_NonLoopbackBind_CorrectToken_PassesAuthCheck()
+    {
+        // Non-empty set enforces per-device Bearer identically on a non-loopback bind.
+        DeviceKeySet set = MakeSet(("k1", "s3cr3t"));
+        NetworkConnectionEndpoint endpoint = MakeEndpoint(set, NonLoopbackOptions());
+        DefaultHttpContext context = new();
+        context.Request.Headers.Authorization = "Bearer s3cr3t";
+
+        await endpoint.HandleAsync(context);
+
+        Assert.NotEqual(StatusCodes.Status401Unauthorized, context.Response.StatusCode);
+    }
+
+    [Fact]
+    public async Task HandleAsync_NonEmptySet_NonLoopbackBind_MissingHeader_Returns401()
+    {
+        DeviceKeySet set = MakeSet(("k1", "s3cr3t"));
+        NetworkConnectionEndpoint endpoint = MakeEndpoint(set, NonLoopbackOptions());
+        DefaultHttpContext context = new();
+
+        await endpoint.HandleAsync(context);
+
+        Assert.Equal(StatusCodes.Status401Unauthorized, context.Response.StatusCode);
+    }
+
+    [Fact]
+    public async Task HandleAsync_NonEmptySet_NonLoopbackBind_WrongToken_Returns401()
+    {
+        DeviceKeySet set = MakeSet(("k1", "s3cr3t"));
+        NetworkConnectionEndpoint endpoint = MakeEndpoint(set, NonLoopbackOptions());
+        DefaultHttpContext context = new();
+        context.Request.Headers.Authorization = "Bearer wrong-token";
+
+        await endpoint.HandleAsync(context);
+
+        Assert.Equal(StatusCodes.Status401Unauthorized, context.Response.StatusCode);
+    }
+
+    // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------
+
+    /// <summary>A non-loopback effective bind: specific host + explicit opt-in.</summary>
+    private static NetworkOptions NonLoopbackOptions() =>
+        new() { BindAddress = "http://100.64.0.1:5500", AllowNonLoopbackBind = true };
 
     /// <summary>Returns the lowercase-hex SHA-256 of <paramref name="token"/> (the stored form).</summary>
     private static string HashToken(string token) =>
@@ -244,6 +328,15 @@ public sealed class AuthAndBindTests
             new NetworkConnectionEndpoint.TestOptions
             {
                 DeviceKeySetProvider = new DeviceKeySetProvider(keySet),
+            },
+            NullLogger<NetworkConnectionEndpoint>.Instance);
+
+    private static NetworkConnectionEndpoint MakeEndpoint(DeviceKeySet keySet, NetworkOptions options) =>
+        new(new SessionRegistry(),
+            new NetworkConnectionEndpoint.TestOptions
+            {
+                DeviceKeySetProvider = new DeviceKeySetProvider(keySet),
+                Options = new NetworkConnectionEndpoint.StaticOptionsMonitor(options),
             },
             NullLogger<NetworkConnectionEndpoint>.Instance);
 }

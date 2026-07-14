@@ -25,8 +25,10 @@ if (!bindAllowed)
     return 1;
 }
 
-if (NetworkBindPolicy.IsNonLoopbackWithOptIn(
-        networkOptions.BindAddress, networkOptions.AllowNonLoopbackBind))
+bool effectiveNonLoopback = NetworkBindPolicy.IsNonLoopbackWithOptIn(
+    networkOptions.BindAddress, networkOptions.AllowNonLoopbackBind);
+
+if (effectiveNonLoopback)
 {
     Console.WriteLine(
         $"[dmon-network] WARNING: Binding to non-loopback address '{networkOptions.BindAddress}'. " +
@@ -66,6 +68,18 @@ else
             $"[dmon-network] FATAL: Failed to load device-key store '{deviceKeyPaths.DevicesPath}': {ex.Message}");
         return 1;
     }
+}
+
+// ADR-036: an empty/absent device-key set is auth-disabled only on a loopback bind; on a
+// non-loopback bind it fails closed. Announce the effective posture at startup so the operator
+// knows whether they must pair a device before any /ws upgrade will succeed.
+if (startupKeySet.IsEmpty)
+{
+    Console.WriteLine(effectiveNonLoopback
+        ? "[dmon-network] Authentication is FAIL-CLOSED: the device-key store is empty/absent on a " +
+          "non-loopback bind; every /ws upgrade is rejected (401) until a device is paired."
+        : "[dmon-network] Authentication is disabled: the device-key store is empty/absent on a " +
+          "loopback bind; every /ws upgrade is authorized (local-dev convenience).");
 }
 
 builder.Services.AddNetworkHostServices(deviceKeyPaths, startupKeySet);

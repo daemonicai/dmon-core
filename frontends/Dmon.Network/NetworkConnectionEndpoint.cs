@@ -160,9 +160,32 @@ public sealed class NetworkConnectionEndpoint
     {
         // Auth check: runs before IsWebSocketRequest so an unauthorized caller
         // learns nothing about the endpoint (no upgrade attempted, no socket opened).
-        // Empty key set → auth disabled (Authorized == true, KeyId == null).
+        //
+        // The active key set is snapshotted once and reused for both the empty-set
+        // fail-closed gate and Authenticate, closing the empty-check/Authenticate TOCTOU.
+        //
+        // Empty key set → the behaviour is bind-dependent (ADR-036):
+        //   - loopback bind: auth disabled (Authorized == true, KeyId == null) — an operator
+        //     cannot lock themselves out on the local-dev convenience path (ADR-018 D2).
+        //   - non-loopback bind: fail closed — reject every upgrade with HTTP 401 before any
+        //     socket is opened, rather than authorizing via the empty-set short-circuit.
+        // A non-empty key set enforces per-device Bearer auth identically on any bind.
+        DeviceKeySet keySet = _deviceKeySetProvider.Current;
+
+        NetworkOptions options = _options.CurrentValue;
+        bool nonLoopbackBind = NetworkBindPolicy.IsNonLoopbackWithOptIn(
+            options.BindAddress, options.AllowNonLoopbackBind);
+
+        if (keySet.IsEmpty && nonLoopbackBind)
+        {
+            _logger.LogWarning(
+                "WebSocket upgrade rejected: device-key store is empty on a non-loopback bind (fail-closed).");
+            context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+            return;
+        }
+
         string? authHeader = context.Request.Headers.Authorization;
-        DeviceAuthResult authResult = DeviceKeyAuthenticator.Authenticate(authHeader, _deviceKeySetProvider.Current);
+        DeviceAuthResult authResult = DeviceKeyAuthenticator.Authenticate(authHeader, keySet);
         if (!authResult.Authorized)
         {
             _logger.LogWarning("WebSocket upgrade rejected: missing or mismatched Authorization header.");
