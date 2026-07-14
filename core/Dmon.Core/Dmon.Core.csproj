@@ -6,9 +6,10 @@
     <GenerateRuntimeConfigurationFiles>false</GenerateRuntimeConfigurationFiles>
     <AssemblyName>Dmon.Core</AssemblyName>
     <PackageId>dmoncore</PackageId>
-    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-    <NoWarn>$(NoWarn);NU1901</NoWarn>
-    <Nullable>enable</Nullable>
+    <!-- SQLitePCLRaw.lib.e_sqlite3 2.1.11 (transitive via Microsoft.Data.Sqlite) carries
+         GHSA-2m69-gcr7-jv3q (high). Suppressed until Microsoft.Data.Sqlite ships a version
+         that pulls in SQLitePCLRaw >= 2.1.12 where the advisory is fixed. -->
+    <NoWarn>$(NoWarn);NU1901;NU1903</NoWarn>
     <ImplicitUsings>enable</ImplicitUsings>
     <UserSecretsId>dotnet-Dmon.Core-235116ed-4152-4f15-a7a2-f92f60df0333</UserSecretsId>
 

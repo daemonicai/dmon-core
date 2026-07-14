@@ -30,10 +30,10 @@
          App-artifact dotnet tools (e.g. Dmon.Network) set this to false per ADR-024 (independently versioned). -->
     <IsProtocolKeyedPackage>true</IsProtocolKeyedPackage>
 
-    <!-- SQLitePCLRaw.lib.e_sqlite3 2.1.11 (transitive via Microsoft.Data.Sqlite) carries
-         GHSA-2m69-gcr7-jv3q (high). Suppressed repo-wide until Microsoft.Data.Sqlite ships
-         a version that pulls in SQLitePCLRaw >= 2.1.12 where the advisory is fixed. -->
-    <NoWarn>$(NoWarn);NU1903</NoWarn>
+    <!-- Warning-clean + nullable-reference settings, defined once for every project
+         (and the file-based default-core program, which has no shadowing props). -->
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <Nullable>enable</Nullable>
   </PropertyGroup>
 
   <!-- CI: deterministic path-mapping so build paths don't embed the CI agent's home dir -->
