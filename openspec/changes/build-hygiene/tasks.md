@@ -2,10 +2,10 @@
 
 ## 1. Centralize `TreatWarningsAsErrors` / `Nullable` (#9a, #9b)
 
-- [ ] 1.1 Add `<TreatWarningsAsErrors>true</TreatWarningsAsErrors>` and `<Nullable>enable</Nullable>` to a `<PropertyGroup>` in the root `Directory.Build.props`.
-- [ ] 1.2 Remove the duplicated `TreatWarningsAsErrors` property from all `.csproj` that declare it (45 projects).
-- [ ] 1.3 Remove the duplicated `<Nullable>enable</Nullable>` property from all 46 `.csproj`.
-- [ ] 1.4 Confirm `samples/Dmon.ExtensionSmoke` is now under TWE (via 1.1) and fix — at source, never suppress — any warning it (or the `default-core/Dmon.cs` file-based program) newly surfaces as an error. If a surfaced warning cannot be legitimately fixed within build-config scope, STOP AND ASK.
+- [x] 1.1 Add `<TreatWarningsAsErrors>true</TreatWarningsAsErrors>` and `<Nullable>enable</Nullable>` to a `<PropertyGroup>` in the root `Directory.Build.props`.
+- [x] 1.2 Remove the duplicated `TreatWarningsAsErrors` property from all `.csproj` that declare it (45 projects).
+- [x] 1.3 Remove the duplicated `<Nullable>enable</Nullable>` property from all 46 `.csproj`.
+- [x] 1.4 Confirm `samples/Dmon.ExtensionSmoke` is now under TWE (via 1.1) and fix — at source, never suppress — any warning it (or the `default-core/Dmon.cs` file-based program) newly surfaces as an error. If a surfaced warning cannot be legitimately fixed within build-config scope, STOP AND ASK.
 
 ## 2. Scope the `NU1903` suppression (#9c)
 

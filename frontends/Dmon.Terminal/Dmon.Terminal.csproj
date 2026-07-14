@@ -6,8 +6,6 @@
     <AssemblyName>dmon</AssemblyName>
     <RootNamespace>Dmon.Terminal</RootNamespace>
     <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
-    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
 
     <IsPackable>true</IsPackable>
     <PackAsTool>true</PackAsTool>

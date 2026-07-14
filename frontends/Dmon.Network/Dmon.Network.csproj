@@ -6,8 +6,6 @@
     <RootNamespace>Dmon.Network</RootNamespace>
     <AssemblyName>Dmon.Network</AssemblyName>
     <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
-    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <!-- Network ships as a dotnet global tool (ndmon); NuGet-family tool on the
          protocol Major.Minor lockstep, patch (Z) independent via MinVerTagPrefix (ADR-035 D4). -->
     <IsPackable>true</IsPackable>

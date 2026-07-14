@@ -2,7 +2,6 @@
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
-    <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <!-- Version injected by the smoke script via -p:DmonSdkVersion=<packed version>. -->
     <DmonSdkVersion Condition="'$(DmonSdkVersion)' == ''">0.1.0-*</DmonSdkVersion>
