@@ -1,9 +1,7 @@
 ## Purpose
 
 Define the standing structural contract for the dmon monorepo (ADR-025): the top-level role buckets and what each holds, the per-area `.slnx` + root `Everything.slnx` requirement, the intra-repo `ProjectReference` rule (and the `samples/` consumer-simulation exemption), the nested `Directory.Build.props` / central `Directory.Packages.props` arrangement, and the ADR-023 D3 package naming families. Future changes (satellite grafts, new packages) must conform to it.
-
 ## Requirements
-
 ### Requirement: Top-level role buckets
 
 The repository SHALL organise first-party projects into top-level role buckets, each holding the projects of one role: `core/` (contracts + engine: `Dmon.Abstractions`, `Dmon.Protocol`, `Dmon.Core`, `Dmon.Runtime`, `Dmon.Protocol.SchemaGen`), `providers/` (provider packages), `tools/` (tool packages), `memory/` (memory backend implementations + the `IMemory` facade), `middleware/` (ADR-023 chat-pipeline middleware packages), `frontends/` (protocol-surface host apps), `daemon/` (the Daemon personal-assistant *composition*: the `Daemon.cs` composition root, the `Daemon.Routing` triage-policy library, and the `Daemon.App` Swift menu bar app — ADR-028), `services/` (standalone backing **server** apps that pair with a `tools/` extension — e.g. the `Dcal` iCal-sync server; app artifacts, independently versioned, not on the protocol-lockstep train — ADR-028), and `samples/` (composition-root examples + the prebuilt stock default core). The memory **contracts** (`Dmon.Abstractions.Memory`) remain part of `core/`; only memory **implementations** live under `memory/`. A role bucket with no current members (e.g. `middleware/` until the first `IDmonMiddleware` ships) SHALL NOT exist as a directory; the role remains defined and its bucket materialises with its first member. No first-party project SHALL remain under a flat `src/` or a top-level `extensions/` directory.
@@ -101,3 +99,23 @@ First-party packageable projects SHALL follow the ADR-023 D3 naming families: pr
 - **THEN** the local short-term tier is `Dmon.Memory` and the Meko long-term backend is `Dmon.Memory.Meko` (assembly, namespace, and `PackageId`)
 - **AND** both reside under `memory/`
 - **AND** both are marked packable
+
+### Requirement: Centralized warning-clean build settings and reproducible restores
+
+Warning-clean and nullable-reference settings SHALL be defined once in the root `Directory.Build.props` and SHALL NOT be duplicated per-project: `TreatWarningsAsErrors=true` and `Nullable=enable` apply to every project in the repository via the root props (including the file-based `default-core` program, which has no shadowing `Directory.Build.props`). Vulnerable-package advisory suppressions (`NoWarn` for `NUxxxx` security advisories) SHALL be scoped to only the projects that reference the affected package, never applied repository-wide. Third-party package versions in the CPM catalogue SHALL be exact-pinned; floating version specifiers (e.g. `1.*`) SHALL NOT be used, and the repo SHALL NOT enable CPM floating-version support.
+
+#### Scenario: Warning settings live only in the root props
+
+- **WHEN** the project files are inspected for `TreatWarningsAsErrors` and `Nullable`
+- **THEN** both settings are declared in the root `Directory.Build.props` and no `.csproj` redeclares either of them, and every project builds warning-clean under `TreatWarningsAsErrors`
+
+#### Scenario: Vulnerable-package suppression is scoped to consumers
+
+- **WHEN** a transitive package carries a security advisory (`NU1903` for `SQLitePCLRaw.lib.e_sqlite3` via `Microsoft.Data.Sqlite`) and the advisory is suppressed
+- **THEN** the `NoWarn` suppression appears only on the projects that reference the affected package (the `Microsoft.Data.Sqlite` consumers), and the root `Directory.Build.props` does not suppress it repository-wide
+
+#### Scenario: Package versions are exact-pinned
+
+- **WHEN** the root `Directory.Packages.props` is inspected
+- **THEN** every `PackageVersion` uses an exact version rather than a floating specifier, and CPM floating-version support is not enabled
+

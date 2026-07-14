@@ -7,7 +7,7 @@ The network host SHALL bind to loopback by default and SHALL NOT listen on a pub
 - **WHEN** the network host starts with no explicit bind address
 - **THEN** it listens only on loopback
 
-#### Scenario: Empty key set disables the check on a loopback bind
+#### Scenario: Empty key set disables the check
 - **WHEN** the effective bind is loopback, the active device-key set is empty, and a WebSocket upgrade arrives
 - **THEN** the upgrade is authorized regardless of any `Authorization` header
 

@@ -3,9 +3,7 @@
 ## Purpose
 
 The desktop host (`Dmon.Desktop`) is the Avalonia, ReactiveUI-based frontend of dmon. It is a thin client over `Dmon.Runtime`: it spawns a local `Dmon.Core` process, communicates with it over JSONL/stdio, and renders the conversation — streaming output, typed conversation parts, themed markdown, and host-directed input — through a PipBoy-themed, MVVM-with-routing UI. It re-implements no protocol, framing, or agent logic of its own.
-
 ## Requirements
-
 ### Requirement: Desktop host is a thin frontend over `Dmon.Runtime`
 
 The Avalonia desktop host (`Dmon.Desktop`) SHALL host the agent by spawning a **local** `Dmon.Core` process and communicating over JSONL/stdio through `Dmon.Runtime`'s host-facing surface — `ICoreLauncher.StartProtocolCompatibleCoreAsync` to launch and protocol-gate the core, and `IRpcClient` (over `CoreProcessRpcTransport`) to send commands and consume events. It SHALL NOT re-implement framing, request/response correlation, or protocol-version gating, and SHALL NOT reference `Dmon.Core` internals; it depends only on `Dmon.Runtime` and `Dmon.Protocol`. It SHALL share zero UI code with `Dmon.Terminal`.
@@ -149,3 +147,16 @@ The desktop host SHALL live at `frontends/Dmon.Desktop`, target `net10.0` with `
 
 - **WHEN** the solution is built in Release
 - **THEN** `frontends/Dmon.Desktop` is included via `frontends.slnx`/`Everything.slnx` and compiles with no warnings under `TreatWarningsAsErrors`
+
+### Requirement: Host-directed interaction handlers surface failures as an error state
+
+The desktop host's fire-and-forget handlers for host-directed input events — the `tool.confirmRequest` handler and the UI-input handler — SHALL NOT allow an exception to escape as an unhandled exception on the UI thread. Each handler SHALL guard its full body so that a failure at any step (raising the ReactiveUI `Interaction`, or relaying the response to the core via `SendAsync` when the core is dead or the client is faulted) is caught and surfaced as an error state — logged, and shown where a surface exists — rather than crashing the process. The two handlers SHALL be independent: a failure in one SHALL NOT suppress or short-circuit the other, and the successful (non-failing) path SHALL be unchanged.
+
+#### Scenario: Dead-core send failure does not crash the host
+- **WHEN** the tool-confirmation or UI-input handler relays its response and the send fails (for example the core has died and the underlying client faults)
+- **THEN** the failure is caught and surfaced as an error state (logged / shown), and no unhandled exception reaches the UI thread
+
+#### Scenario: Interaction failure is contained
+- **WHEN** raising or awaiting the confirmation or input `Interaction` throws
+- **THEN** the handler catches it and surfaces an error state instead of propagating an unhandled exception, leaving the other handler unaffected
+
