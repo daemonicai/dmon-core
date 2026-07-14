@@ -2,13 +2,12 @@
 
 Architect split this change into 3 impl blocks (one per finding) + per-block tests + final gates:
 - **Block 1 = #12** (tasks 1.1–1.3, 4.1) — RpcClient faults pending on pump exit. **DONE.**
-- **Block 2 = #13** (tasks 2.1, 4.2) — CoreProcessManager awaits exit after Kill. NEXT.
+- **Block 2 = #13** (tasks 2.1, 2.2, 4.2) — CoreProcessManager awaits exit after Kill. **DONE.**
 - **Block 3 = #8** (tasks 3.1–3.2, 4.3) — Desktop async-void handler guards.
 - Gates 5.1–5.3 at the end.
 
 ## NEXT
-- **Block 2 = #13** (tasks 2.1, 4.2). `core/Dmon.Runtime/CoreProcessManager.cs`: after `_process.Kill(entireProcessTree:true)` on the graceful-timeout catch (~line 112), `await WaitForExitAsync` with a fresh **bounded** token so the OS releases the session-dir lock before `StopAsync` returns; guard it (best-effort, like the existing `catch {}` around Kill) so a second timeout / already-exited process can't throw out of `StopAsync`. Leave the graceful non-kill path (already awaits exit) unchanged. Test 4.2 needs a short-lived core-launch harness that forces the graceful-shutdown timeout and asserts no `SessionLockedException` on respawn — heavier than block 1's channel test, so its own block.
-- **Block 3 = #8** (tasks 3.1–3.2, 4.3): wrap `SessionViewModel.HandleToolConfirmAsync`/`HandleUiInputAsync` bodies in try/catch (no escape from `async void`), surface an error state; test via the `FakeCoreSession` seam throwing from `SendAsync`.
+- **Block 3 = #8** (tasks 3.1–3.2, 4.3): wrap `frontends/Dmon.Desktop/SessionViewModel.HandleToolConfirmAsync`/`HandleUiInputAsync` bodies in try/catch (no escape from `async void`), surface an error state (find the log/diagnostic surface); happy path byte-for-byte identical; handlers independent. Test via the `FakeCoreSession` seam throwing from `SendAsync`, dispatch `ToolConfirmRequestEvent` + `UiInputRequestEvent`, assert no exception escapes. Then gates 5.1–5.3 → change complete.
 
 ## Block 1 — #12 RpcClient faults pending on pump exit — DONE (tasks 1.1–1.3, 4.1)
 
@@ -23,3 +22,14 @@ Architect split this change into 3 impl blocks (one per finding) + per-block tes
 **Reviewer:** Approve with nits; verified the three-exit model, double-completion safety, observability. Nits closed: OCE guard (above), `await using` in the fault test. (Untracked-file nit handled by orchestrator at commit.)
 
 **Gates:** `make build` 0-warn; full `make test` 20/20 projects green (Runtime 43/43); `openspec validate --strict` valid.
+
+## Block 2 — #13 CoreProcessManager awaits exit after Kill — DONE (tasks 2.1, 2.2, 4.2)
+
+`StopAsync`'s forced-kill path now awaits the process exit so the OS releases the session-dir `.lock` before the method returns, closing the `SessionLockedException` respawn race.
+
+- **`core/Dmon.Runtime/CoreProcessManager.cs`:** in the graceful-timeout OCE catch, after `Kill(entireProcessTree:true)`, `await WaitForExitAsync` under a **fresh bounded** `CancellationTokenSource(5s)` (NOT the already-fired 500ms `cts`, NOT `None`), wrapped in its own best-effort try/catch so a second timeout / already-exited process can't throw or hang `StopAsync` (spec: bounded wait elapses → still returns). Graceful path / `RestartAsync` / signatures untouched. ADR-004 host-side lock honouring; no protocol change.
+- **Deterministic test needed a stub** — the REAL core exits on stdin EOF so the graceful wait always succeeds and the kill path never runs. New fixture **`test/fixtures/Dmon.StubCore`** (Exe, dependency-free, TWE): takes `<cwd>/.lock` (`FileShare.None`, matching `SessionLock`), emits `agentReady` AFTER locking (load-bearing handshake), then `Thread.Sleep(Infinite)` ignoring stdin (`GC.KeepAlive(lockFile)` after the sleep keeps the FileStream alive in Release/TWE). Referenced via `ProjectReference` (dll copied beside the test). `CoreProcessManagerStopTests` starts it via `LaunchMode.DotnetExec`, waits `agentReady`, `StopAsync`, then asserts `!IsRunning` AND an exclusive `.lock` reacquire succeeds without `IOException` (spec-faithful proxy for "replacement acquires lock without SessionLockedException"). Genuinely fails on reverted code.
+
+**Reviewer:** Approve, no blockers. Verified the fresh-bounded-token fix, best-effort guard totality, and that the test truly fails pre-fix (the `.lock` reacquire is the real guard — deterministic on Windows, kernel-teardown-released on Unix; post-fix green on all). Accepted cosmetic nits (redundant `using`s under ImplicitUsings; "replicated flags" comment is really the correct subset; 5s budget larger than "short" but a fine safety ceiling) — build-clean, not worth a round-trip.
+
+**Gates:** `make build` 0-warn; full `make test` 20/20 projects green (Runtime 44/44); `openspec validate --strict` valid.

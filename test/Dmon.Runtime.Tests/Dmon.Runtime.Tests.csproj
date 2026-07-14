@@ -21,6 +21,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\core\Dmon.Runtime\Dmon.Runtime.csproj" />
+    <ProjectReference Include="..\fixtures\Dmon.StubCore\Dmon.StubCore.csproj" />
   </ItemGroup>
 
 </Project>

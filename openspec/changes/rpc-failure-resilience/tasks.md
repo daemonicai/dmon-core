@@ -6,8 +6,8 @@
 
 ## 2. Await process exit after Kill (#13)
 
-- [ ] 2.1 Investigate `core/Dmon.Runtime/CoreProcessManager.cs`: confirm `StopAsync` (~lines 91–115) kills the tree in the `WaitForExitAsync`-timeout catch (line 112) and returns without awaiting exit, and that `RestartAsync` (~lines 121–127) stops → disposes/nulls → `StartAsync` immediately.
-- [ ] 2.2 In `StopAsync`, after `_process.Kill(entireProcessTree: true)`, `await _process.WaitForExitAsync(...)` with a fresh **bounded** token (short budget) so the OS releases the session-directory lock before `StopAsync` returns. Guard the wait (best-effort, like the existing `catch { }` around `Kill`) so a second timeout or an already-exited process cannot throw out of `StopAsync`. Leave the graceful (non-kill) path — which already awaits exit — unchanged (D2).
+- [x] 2.1 Investigate `core/Dmon.Runtime/CoreProcessManager.cs`: confirm `StopAsync` (~lines 91–115) kills the tree in the `WaitForExitAsync`-timeout catch (line 112) and returns without awaiting exit, and that `RestartAsync` (~lines 121–127) stops → disposes/nulls → `StartAsync` immediately.
+- [x] 2.2 In `StopAsync`, after `_process.Kill(entireProcessTree: true)`, `await _process.WaitForExitAsync(...)` with a fresh **bounded** token (short budget) so the OS releases the session-directory lock before `StopAsync` returns. Guard the wait (best-effort, like the existing `catch { }` around `Kill`) so a second timeout or an already-exited process cannot throw out of `StopAsync`. Leave the graceful (non-kill) path — which already awaits exit — unchanged (D2).
 
 ## 3. Guard the Desktop async void handlers (#8)
 
@@ -17,7 +17,7 @@
 ## 4. Tests
 
 - [x] 4.1 In `test/Dmon.Runtime.Tests/RpcClientTests.cs`, add a test that starts an `RpcClient` over `FeedableTransport`, issues a `RequestAsync<TResult>`, calls `transport.Complete()` (stdout EOF), and asserts the awaiting request faults promptly with `RpcTransportClosedException` (not `RpcTimeoutException`, not a hang to the request timeout). Add a companion test that a non-OCE pump fault faults pending with `RpcTransportClosedException` carrying the cause and does not resurface at `DisposeAsync`.
-- [ ] 4.2 In `test/Dmon.Runtime.Tests`, add a `CoreProcessManager` test that exercises stop/restart when the graceful shutdown times out (forcing the kill path) and asserts the replacement spawn does not hit a `SessionLockedException` (i.e. the old process's lock is released before respawn). Use a bounded/real short-lived core-launch harness consistent with existing runtime tests.
+- [x] 4.2 In `test/Dmon.Runtime.Tests`, add a `CoreProcessManager` test that exercises stop/restart when the graceful shutdown times out (forcing the kill path) and asserts the replacement spawn does not hit a `SessionLockedException` (i.e. the old process's lock is released before respawn). Use a bounded/real short-lived core-launch harness consistent with existing runtime tests.
 - [ ] 4.3 In `test/Dmon.Desktop.Tests`, add a `SessionViewModel` test using the existing `FakeCoreSession` seam configured to throw from `SendAsync`, dispatch a `ToolConfirmRequestEvent` (and a `UiInputRequestEvent`), and assert no exception escapes to the UI thread (the handler catches and surfaces an error state).
 
 ## 5. Gates and spec alignment

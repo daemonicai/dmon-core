@@ -111,6 +111,16 @@ public sealed class CoreProcessManager : ICoreProcess
         {
             try { _process.Kill(entireProcessTree: true); }
             catch { /* best effort */ }
+
+            // Await the kill so the OS reaps the process and releases the session-directory
+            // (.lock) before StopAsync returns, closing the SessionLockedException respawn race.
+            // Bounded so a wedged/unkillable process cannot hang StopAsync; best-effort like Kill.
+            try
+            {
+                using CancellationTokenSource killWaitCts = new(TimeSpan.FromSeconds(5));
+                await _process.WaitForExitAsync(killWaitCts.Token).ConfigureAwait(false);
+            }
+            catch { /* best effort — second timeout or already-exited */ }
         }
     }
 
