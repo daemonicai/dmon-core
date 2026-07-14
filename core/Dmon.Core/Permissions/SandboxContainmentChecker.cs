@@ -218,8 +218,9 @@ internal static class SandboxContainmentChecker
         try
         {
             // ResolveLinkTarget(returnFinalTarget: true) follows the full chain.
-            // On Linux it throws IOException for dangling symlinks (target does not exist).
-            // On macOS it returns the (non-existent) target path without throwing.
+            // macOS/Windows throw IOException for a dangling symlink (target does not exist);
+            // Linux returns the non-existent target path without throwing. The explicit
+            // Path.Exists(final) guard below fails both closed on every platform.
             // Either way, a non-null result that is not rooted is re-anchored below.
             string? final = File.ResolveLinkTarget(path, returnFinalTarget: true)?.FullName
                          ?? Directory.ResolveLinkTarget(path, returnFinalTarget: true)?.FullName;
@@ -231,6 +232,13 @@ internal static class SandboxContainmentChecker
                 string? dir = Path.GetDirectoryName(path);
                 final = dir is null ? final : Path.GetFullPath(Path.Combine(dir, final));
             }
+
+            // Dangling final target must fail closed on every platform: macOS/Windows already
+            // threw above; Linux returns the non-existent target here. returnFinalTarget resolved
+            // the whole chain, so Path.Exists on the ultimate target is reliable — a live link to
+            // an existing target still returns its existing target and is unaffected.
+            if (final is not null && !Path.Exists(final))
+                return null;
 
             return final;
         }

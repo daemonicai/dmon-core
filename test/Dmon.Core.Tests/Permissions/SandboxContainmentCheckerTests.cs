@@ -234,6 +234,87 @@ public sealed class SandboxContainmentCheckerTests : IDisposable
     }
 
     // -------------------------------------------------------------------------
+    // Cases 11–13 verify the fail-closed existence guard in FollowLinkToTarget.
+    //
+    // CI NOTE: The guard is only *observable* on Linux/Ubuntu CI. On macOS/Windows,
+    // File/Directory.ResolveLinkTarget(returnFinalTarget: true) THROWS IOException for a
+    // dangling link, so the checker already fails closed via the catch — these tests pass
+    // there whether or not the guard exists. On Linux, ResolveLinkTarget returns the
+    // non-existent target without throwing; the dangling links below point at a path
+    // *inside* the asset dir, so the resolved (unguarded) target is lexically in-root and
+    // IsContained would fail OPEN (return true) without the guard. A green local `make test`
+    // on macOS therefore does NOT prove the fix — Ubuntu CI is the real verification.
+    // The links MUST point inside the asset dir: a dangling link to an outside path is
+    // already rejected by the containment prefix check on Linux and would gate nothing
+    // (contrast Cases 8/9/10, which point outside).
+    // -------------------------------------------------------------------------
+
+    // -------------------------------------------------------------------------
+    // Case 11: Dangling LEAF symlink pointing at a non-existent path INSIDE the
+    // asset dir → NOT contained (fail closed).
+    // assetDir/link -> assetDir/ghost   (ghost never created)
+    // -------------------------------------------------------------------------
+    [Fact]
+    public void DanglingLeafSymlinkPointingInside_IsNotContained()
+    {
+        string assetDir = MakeDir("assets/sess11");
+
+        string link = Path.Combine(assetDir, "link");
+        string ghost = Path.Combine(assetDir, "ghost"); // never created
+        File.CreateSymbolicLink(link, ghost);
+
+        Assert.False(File.Exists(ghost), "Pre-condition: ghost target must not exist");
+        Assert.False(SandboxContainmentChecker.IsContained(link, assetDir));
+    }
+
+    // -------------------------------------------------------------------------
+    // Case 12: Dangling ANCESTOR symlink pointing at a non-existent directory
+    // INSIDE the asset dir → NOT contained (fail closed).
+    // assetDir/dir -> assetDir/ghostdir   (ghostdir never created)
+    // target = assetDir/dir/file.txt
+    // -------------------------------------------------------------------------
+    [Fact]
+    public void DanglingAncestorSymlinkPointingInside_IsNotContained()
+    {
+        string assetDir = MakeDir("assets/sess12");
+
+        string dirLink = Path.Combine(assetDir, "dir");
+        string ghostDir = Path.Combine(assetDir, "ghostdir"); // never created
+        Directory.CreateSymbolicLink(dirLink, ghostDir);
+
+        string target = Path.Combine(assetDir, "dir", "file.txt");
+
+        Assert.False(Directory.Exists(ghostDir), "Pre-condition: ghost dir must not exist");
+        Assert.False(SandboxContainmentChecker.IsContained(target, assetDir));
+    }
+
+    // -------------------------------------------------------------------------
+    // Case 13: LIVE, resolvable in-sandbox symlink still resolves → contained
+    // (regression: the guard must not reject a valid link to an existing target).
+    // assetDir/link -> assetDir/real   (real exists, holds data.bin)
+    // target = assetDir/link/data.bin
+    //
+    // The complementary "live symlink whose target escapes the sandbox is not
+    // contained" case is already covered by Case 5
+    // (ExistingFileUnderSymlinkedAncestorPointingOutside_IsNotContained).
+    // -------------------------------------------------------------------------
+    [Fact]
+    public void LiveInSandboxSymlink_IsContained()
+    {
+        string assetDir = MakeDir("assets/sess13");
+        string realDir = MakeDir("assets/sess13/real");
+        File.WriteAllText(Path.Combine(realDir, "data.bin"), "payload");
+
+        string link = Path.Combine(assetDir, "link");
+        Directory.CreateSymbolicLink(link, realDir);
+
+        string target = Path.Combine(assetDir, "link", "data.bin");
+
+        Assert.True(File.Exists(target), "Pre-condition: target must be reachable through the live link");
+        Assert.True(SandboxContainmentChecker.IsContained(target, assetDir));
+    }
+
+    // -------------------------------------------------------------------------
     // Helper
     // -------------------------------------------------------------------------
     private string MakeDir(string relativePath)
