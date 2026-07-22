@@ -1,4 +1,5 @@
 using System.Net;
+using System.Runtime.CompilerServices;
 using System.Text;
 using Dmon.Abstractions.Providers;
 using Microsoft.Extensions.AI;
@@ -7,14 +8,41 @@ namespace Dmon.Providers.Mlx.Tests;
 
 // ---------------------------------------------------------------------------
 // 4.1/4.3 — MlxProviderFactory
+//
+// The factory now owns the self-heal (design.md D2): CreateAsync awaits the
+// extension's EnsureRunningAsync (which runs the one-time tool-calling probe)
+// before snapshotting capabilities, then wraps the stack in EnsureRunningChatClient.
+// Every factory is therefore built with an extension whose attach-first seam is
+// stubbed (isRunningProbe -> true) and whose probe result is driven by a fake
+// probeClientFactory — no real mlx_lm.server spawn, no live port dialled.
 // ---------------------------------------------------------------------------
 
 public sealed class MlxProviderFactoryTests
 {
-    private static MlxProviderFactory MakeFactory(MlxRuntimeState state, MlxRuntimeOptions? opts = null)
+    private static MlxProviderFactory MakeFactory(
+        MlxRuntimeState state,
+        bool probeReturnsToolCall,
+        MlxRuntimeOptions? opts = null,
+        HttpMessageHandler? handler = null,
+        StrongBox<int>? ensureRunningCalls = null)
     {
         opts ??= MlxRuntimeOptions.Firstline();
-        return new MlxProviderFactory(opts, state);
+        MlxProviderExtension extension = new(
+            opts,
+            state,
+            isRunningProbe: _ =>
+            {
+                if (ensureRunningCalls is not null)
+                    Interlocked.Increment(ref ensureRunningCalls.Value);
+                return Task.FromResult(true);
+            },
+            provisionEnvDelegate: _ => Task.FromResult("0.31.3"),
+            startServerDelegate: null,
+            probeClientFactory: (_, _) => new ProbeFakeChatClient(probeReturnsToolCall));
+
+        return handler is null
+            ? new MlxProviderFactory(opts, state, extension)
+            : new MlxProviderFactory(opts, state, extension, handler);
     }
 
     private static ProviderConfig DefaultConfig(string baseUrl) => new()
@@ -40,7 +68,7 @@ public sealed class MlxProviderFactoryTests
     [Fact]
     public void AdapterName_IsMlx()
     {
-        MlxProviderFactory factory = MakeFactory(new MlxRuntimeState());
+        MlxProviderFactory factory = MakeFactory(new MlxRuntimeState(), probeReturnsToolCall: false);
         Assert.Equal("mlx", factory.AdapterName);
     }
 
@@ -48,7 +76,7 @@ public sealed class MlxProviderFactoryTests
     public void DefaultModelId_ReflectsOptions()
     {
         MlxRuntimeOptions opts = MlxRuntimeOptions.Firstline();
-        MlxProviderFactory factory = new(opts, new MlxRuntimeState());
+        MlxProviderFactory factory = MakeFactory(new MlxRuntimeState(), probeReturnsToolCall: false, opts: opts);
         Assert.Equal(opts.ModelId, factory.DefaultModelId);
     }
 
@@ -59,13 +87,9 @@ public sealed class MlxProviderFactoryTests
     [Fact]
     public async Task CreateAsync_ReturnsCapabilitiesDecoratorWrappedClient()
     {
-        MlxRuntimeState state = new()
-        {
-            BaseUrl = "http://127.0.0.1:8800/v1",
-            ToolCallingVerified = true,
-        };
+        MlxRuntimeState state = new() { BaseUrl = "http://127.0.0.1:8800/v1" };
 
-        MlxProviderFactory factory = MakeFactory(state);
+        MlxProviderFactory factory = MakeFactory(state, probeReturnsToolCall: true);
         IChatClient client = await factory.CreateAsync(DefaultConfig(state.BaseUrl), apiKey: null);
 
         object? caps = client.GetService(typeof(ChatClientCapabilities));
@@ -74,15 +98,13 @@ public sealed class MlxProviderFactoryTests
     }
 
     [Fact]
-    public async Task CreateAsync_Capabilities_ReflectToolCallingVerified_True()
+    public async Task CreateAsync_Capabilities_ReflectProbeVerifiedToolCalling_True()
     {
-        MlxRuntimeState state = new()
-        {
-            BaseUrl = "http://127.0.0.1:8800/v1",
-            ToolCallingVerified = true,
-        };
+        // The probe (run inside CreateAsync via EnsureRunningAsync) returns a tool call,
+        // so the capability snapshot taken afterwards advertises tool calling.
+        MlxRuntimeState state = new() { BaseUrl = "http://127.0.0.1:8800/v1" };
 
-        MlxProviderFactory factory = MakeFactory(state);
+        MlxProviderFactory factory = MakeFactory(state, probeReturnsToolCall: true);
         IChatClient client = await factory.CreateAsync(DefaultConfig(state.BaseUrl), apiKey: null);
 
         ChatClientCapabilities caps = (ChatClientCapabilities)client.GetService(typeof(ChatClientCapabilities))!;
@@ -90,15 +112,12 @@ public sealed class MlxProviderFactoryTests
     }
 
     [Fact]
-    public async Task CreateAsync_Capabilities_ReflectToolCallingVerified_False()
+    public async Task CreateAsync_Capabilities_ReflectProbeVerifiedToolCalling_False()
     {
-        MlxRuntimeState state = new()
-        {
-            BaseUrl = "http://127.0.0.1:8800/v1",
-            ToolCallingVerified = false,
-        };
+        // The probe returns no tool call → capabilities advertise tool calling disabled.
+        MlxRuntimeState state = new() { BaseUrl = "http://127.0.0.1:8800/v1" };
 
-        MlxProviderFactory factory = MakeFactory(state);
+        MlxProviderFactory factory = MakeFactory(state, probeReturnsToolCall: false);
         IChatClient client = await factory.CreateAsync(DefaultConfig(state.BaseUrl), apiKey: null);
 
         ChatClientCapabilities caps = (ChatClientCapabilities)client.GetService(typeof(ChatClientCapabilities))!;
@@ -106,26 +125,30 @@ public sealed class MlxProviderFactoryTests
     }
 
     [Fact]
-    public async Task CreateAsync_Capabilities_ToolCalling_False_WhenUnprobed()
+    public async Task CreateAsync_Capabilities_ToolCalling_ResolvedByProbe_FromUnprobedState()
     {
+        // State starts unprobed (null); the probe run inside CreateAsync resolves it. A probe
+        // that returns no tool call yields SupportsToolCalling == false — driven by the probe,
+        // not a pre-probe default.
         MlxRuntimeState state = new()
         {
             BaseUrl = "http://127.0.0.1:8800/v1",
             ToolCallingVerified = null,
         };
 
-        MlxProviderFactory factory = MakeFactory(state);
+        MlxProviderFactory factory = MakeFactory(state, probeReturnsToolCall: false);
         IChatClient client = await factory.CreateAsync(DefaultConfig(state.BaseUrl), apiKey: null);
 
         ChatClientCapabilities caps = (ChatClientCapabilities)client.GetService(typeof(ChatClientCapabilities))!;
         Assert.False(caps.SupportsToolCalling);
+        Assert.False(state.ToolCallingVerified);
     }
 
     [Fact]
     public async Task CreateAsync_DoesNotThrow_WithValidBaseUrl()
     {
         MlxRuntimeState state = new() { BaseUrl = "http://127.0.0.1:8800/v1" };
-        MlxProviderFactory factory = MakeFactory(state);
+        MlxProviderFactory factory = MakeFactory(state, probeReturnsToolCall: true);
 
         Exception? ex = await Record.ExceptionAsync(() =>
             factory.CreateAsync(DefaultConfig(state.BaseUrl), apiKey: null).AsTask());
@@ -140,13 +163,58 @@ public sealed class MlxProviderFactoryTests
         MlxRuntimeOptions opts = MlxRuntimeOptions.Firstline(port: 8800);
         MlxRuntimeState state = new() { BaseUrl = string.Empty };
 
-        MlxProviderFactory factory = new(opts, state);
+        MlxProviderFactory factory = MakeFactory(state, probeReturnsToolCall: true, opts: opts);
         IChatClient client = await factory.CreateAsync(ConfigNoBaseUrl(), apiKey: null);
 
         Assert.NotNull(client);
         object? caps = client.GetService(typeof(ChatClientCapabilities));
         Assert.NotNull(caps);
         Assert.IsType<ChatClientCapabilities>(caps);
+    }
+
+    [Fact]
+    public async Task CreateAsync_InvokesEnsureRunning_AndReturnsSelfHealingClient()
+    {
+        // 3.2 — the start path fires during construction (EnsureRunningAsync ran, via the
+        // seam), and the returned client is EnsureRunningChatClient-wrapped so a subsequent
+        // request re-invokes the ensure-running seam before dispatching to the runtime.
+        StrongBox<int> ensureRunningCalls = new(0);
+        MlxRuntimeState state = new() { BaseUrl = "http://127.0.0.1:8800/v1" };
+        CapturingHandler handler = new(BuildTextResponse());
+
+        MlxProviderFactory factory = MakeFactory(
+            state,
+            probeReturnsToolCall: true,
+            handler: handler,
+            ensureRunningCalls: ensureRunningCalls);
+
+        IChatClient client = await factory.CreateAsync(DefaultConfig(state.BaseUrl), apiKey: null);
+
+        Assert.Equal(1, ensureRunningCalls.Value);
+        Assert.IsType<EnsureRunningChatClient>(client);
+
+        await client.GetResponseAsync([new ChatMessage(ChatRole.User, "hi")]);
+
+        Assert.Equal(2, ensureRunningCalls.Value);
+    }
+
+    [Fact]
+    public async Task CreateAsync_ActiveProviderClient_AdvertisesToolCalling_WhenProbeVerified()
+    {
+        // 3.3 — the capability snapshot is taken after the probe, so a probe that verified
+        // tool support surfaces as SupportsToolCalling == true on the returned client.
+        MlxRuntimeState state = new()
+        {
+            BaseUrl = "http://127.0.0.1:8800/v1",
+            ToolCallingVerified = null,
+        };
+
+        MlxProviderFactory factory = MakeFactory(state, probeReturnsToolCall: true);
+        IChatClient client = await factory.CreateAsync(DefaultConfig(state.BaseUrl), apiKey: null);
+
+        ChatClientCapabilities caps = (ChatClientCapabilities)client.GetService(typeof(ChatClientCapabilities))!;
+        Assert.True(caps.SupportsToolCalling);
+        Assert.True(state.ToolCallingVerified);
     }
 
     // ---------------------------------------------------------------------------
@@ -210,8 +278,8 @@ public sealed class MlxProviderFactoryTests
     {
         CapturingHandler handler = new(BuildToolCallResponse());
         MlxRuntimeOptions opts = MlxRuntimeOptions.Firstline();
-        MlxRuntimeState state = new() { BaseUrl = "http://127.0.0.1:8800/v1", ToolCallingVerified = true };
-        MlxProviderFactory factory = new(opts, state, handler);
+        MlxRuntimeState state = new() { BaseUrl = "http://127.0.0.1:8800/v1" };
+        MlxProviderFactory factory = MakeFactory(state, probeReturnsToolCall: true, opts: opts, handler: handler);
 
         IChatClient client = await factory.CreateAsync(
             DefaultConfig("http://127.0.0.1:8800/v1"), apiKey: null);
@@ -244,7 +312,7 @@ public sealed class MlxProviderFactoryTests
         CapturingHandler handler = new(BuildTextResponse());
         MlxRuntimeOptions opts = MlxRuntimeOptions.Firstline();
         MlxRuntimeState state = new() { BaseUrl = "http://127.0.0.1:8800/v1" };
-        MlxProviderFactory factory = new(opts, state, handler);
+        MlxProviderFactory factory = MakeFactory(state, probeReturnsToolCall: false, opts: opts, handler: handler);
 
         IChatClient client = await factory.CreateAsync(
             DefaultConfig("http://127.0.0.1:8800/v1"), apiKey: null);
@@ -269,7 +337,7 @@ public sealed class MlxProviderFactoryTests
         CapturingHandler handler = new(BuildTextResponse());
         MlxRuntimeOptions opts = MlxRuntimeOptions.Firstline();
         MlxRuntimeState state = new() { BaseUrl = "http://127.0.0.1:8800/v1" };
-        MlxProviderFactory factory = new(opts, state, handler);
+        MlxProviderFactory factory = MakeFactory(state, probeReturnsToolCall: false, opts: opts, handler: handler);
 
         IChatClient client = await factory.CreateAsync(
             DefaultConfig("http://127.0.0.1:8800/v1"), apiKey: null);
@@ -299,7 +367,7 @@ public sealed class MlxProviderFactoryTests
         StreamingCapturingHandler handler = new();
         MlxRuntimeOptions opts = MlxRuntimeOptions.Firstline();
         MlxRuntimeState state = new() { BaseUrl = "http://127.0.0.1:8800/v1" };
-        MlxProviderFactory factory = new(opts, state, handler);
+        MlxProviderFactory factory = MakeFactory(state, probeReturnsToolCall: false, opts: opts, handler: handler);
 
         IChatClient client = await factory.CreateAsync(
             DefaultConfig("http://127.0.0.1:8800/v1"), apiKey: null);
@@ -328,7 +396,7 @@ public sealed class MlxProviderFactoryTests
         StreamingCapturingHandler handler = new();
         MlxRuntimeOptions opts = MlxRuntimeOptions.Firstline();
         MlxRuntimeState state = new() { BaseUrl = "http://127.0.0.1:8800/v1" };
-        MlxProviderFactory factory = new(opts, state, handler);
+        MlxProviderFactory factory = MakeFactory(state, probeReturnsToolCall: false, opts: opts, handler: handler);
 
         IChatClient client = await factory.CreateAsync(
             DefaultConfig("http://127.0.0.1:8800/v1"), apiKey: null);
@@ -351,6 +419,33 @@ public sealed class MlxProviderFactoryTests
     // ---------------------------------------------------------------------------
     // Test infrastructure
     // ---------------------------------------------------------------------------
+
+    // Fake probe client driving the factory's in-CreateAsync tool-calling probe: its response
+    // either includes or omits a FunctionCallContent. It is wired via probeClientFactory, so it
+    // never touches the CapturingHandler HTTP stub that captures the real chat request.
+    private sealed class ProbeFakeChatClient(bool hasToolCall) : IChatClient
+    {
+        public Task<ChatResponse> GetResponseAsync(
+            IEnumerable<ChatMessage> messages,
+            ChatOptions? options = null,
+            CancellationToken cancellationToken = default)
+        {
+            List<AIContent> contents = hasToolCall
+                ? [new FunctionCallContent("call-1", "get_test_value", new Dictionary<string, object?>())]
+                : [new TextContent("I cannot call tools.")];
+
+            return Task.FromResult(new ChatResponse([new ChatMessage(ChatRole.Assistant, contents)]));
+        }
+
+        public IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
+            IEnumerable<ChatMessage> messages,
+            ChatOptions? options = null,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public object? GetService(Type serviceType, object? serviceKey = null) => null;
+        public void Dispose() { }
+    }
 
     // In-memory HTTP handler that returns a canned JSON response and captures request bodies.
     private sealed class CapturingHandler(string responseJson) : HttpMessageHandler
