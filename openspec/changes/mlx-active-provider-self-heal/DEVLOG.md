@@ -1,9 +1,21 @@
 # DEVLOG — mlx-active-provider-self-heal
 
 ## NEXT
-- **Block 2 = tasks 2.1, 2.2, 3.4** (single-source the keyed path). Simplify `MlxClientExtensions.MlxClient(key)` to resolve the keyed `MlxProviderExtension`, build the `ProviderConfig`, and return `((MlxProviderFactory)ext.CreateFactory()).CreateAsync(...)` — dropping its own up-front `EnsureRunningAsync` and its own `EnsureRunningChatClient` wrap (both now supplied by the factory as of Block 1). Confirm `AddMlxFirstline`/`AddMlxEscalation`, `EscalationWarmingService`, `MlxRuntimeKeys` untouched (2.2). Add test 3.4: `MlxClient(key)` returns a self-healing client sourced from the factory, no double-invoke/double-wrap.
-  - Hazard: `MlxClient(key)` currently does its own `EnsureRunningAsync` + wrap. After Block 1 the factory does both — so a naive keep-both would double-wrap (`EnsureRunningChatClient` inside `EnsureRunningChatClient`) and double-probe. The block's whole point is to remove the duplication. Verify the keyed daemon warm/stop semantics (via `EscalationWarmingService`) are behaviourally unchanged.
-- **Then gates block = 4.1, 4.2** (full `make build` + `env -u MEKO_API_KEY make test` + `openspec validate --strict`) and **4.3** (human-in-the-loop `sandbox-code` `.UseMlx(...)` verification — needs a copy-pasteable recipe and the user's confirmation before ticking).
+- **Only task 4.3 remains** — human-in-the-loop live verification. Rebuild `sandbox-code` (`bash sandbox-code/build.sh`), run its `.UseMlx("mlx-community/gemma-4-26B-A4B-it-qat-nvfp4", port: 8666)` Agent, issue one turn, and confirm the model responds (cold start may pause while the model loads) instead of `Connection refused (127.0.0.1:8666)`. Tick 4.3 **only after the user confirms** a live turn succeeded. Then the change is fully done → propose `/opsx:archive` and wait for confirmation. No further code blocks.
+
+## Block 2 — Single-source the keyed path (tasks 2.1, 2.2, 3.4, 4.1, 4.2) — DONE
+Commit scope: `providers/Dmon.Providers.Mlx/MlxClientExtensions.cs` + new `test/Dmon.Providers.Mlx.Tests/MlxClientExtensionsTests.cs`. Reviewer (Opus) signed off; gates green (build 0 warnings, full suite EXIT=0, Mlx 88/88, validate strict OK). Folded gate tasks 4.1/4.2 into this block (they *are* the standard block gates).
+
+### What changed
+- `MlxClient(key)` reduced to: resolve the keyed `MlxProviderExtension`, build `ProviderConfig { BaseUrl = null, DefaultModelId = ext.Options.ModelId, ... }`, and `return ((MlxProviderFactory)ext.CreateFactory()).CreateAsync(modelCfg, apiKey: null, ct)` — dropped `async`, returns the `ValueTask` directly. Removed the helper's own up-front `EnsureRunningAsync` **and** its own outer `EnsureRunningChatClient` wrap; both now come solely from the factory (Block 1). XML doc updated to say self-heal is single-sourced in the factory.
+- New test `MlxClientExtensionsTests`: builds a keyed extension via the attach-first lifecycle seam (`isRunningProbe → true`, no spawn), registers it under `MlxRuntimeKeys.Firstline`, calls `sp.MlxClient(...)`, asserts `IsType<EnsureRunningChatClient>` + `ensureRunningCalls == 1` (the pre-D4 double-probe would be 2). Does not dispatch → no port dialled.
+
+### Decisions / why
+- **Keyed port fidelity holds (the critical check):** `CreateFactory() => new MlxProviderFactory(_options, _runtimeState, this)` carries the *keyed* extension's own options/state, and `EnsureRunningAsync` seeds `_runtimeState.BaseUrl = http://{Host}:{Port}/v1` before `CreateAsync` reads it, so `BaseUrl = null` falls back to the correct keyed URL (firstline :8800 / escalation :8810). No misrouting. Architect verified this before briefing; reviewer re-verified end-to-end.
+- **2.2 was confirmation-only:** `AddMlxFirstline`/`AddMlxEscalation`, `EscalationWarmingService`, `MlxRuntimeKeys`, core, daemon all untouched. Keyed runtimes still resolved as router backends (`GetRequiredKeyedService`), NOT registered as active-provider `IProviderExtension` (ADR-027 honoured).
+
+### Reviewer note carried forward (non-blocking, not fixed)
+- `MlxClientExtensionsTests.cs:50` comment over-claims that the `IsType<EnsureRunningChatClient>` assertion guards against a nested double-wrap — `IsType` only checks the outermost type. The real double-wrap/double-probe guard is `Assert.Equal(1, ensureRunningCalls.Value)` (line 55), which genuinely fails on pre-D4 code. Test is sound; only the comment is imprecise. Fold into a later touch if convenient.
 
 ## Block 1 — Factory owns the self-heal (tasks 1.1, 1.2, 1.3, 3.1, 3.2, 3.3) — DONE
 Commit scope: `providers/Dmon.Providers.Mlx/` + `test/Dmon.Providers.Mlx.Tests/`. Reviewer (Opus) signed off; gates green (build 0 warnings, full suite EXIT=0, Mlx 87/87, validate strict OK).

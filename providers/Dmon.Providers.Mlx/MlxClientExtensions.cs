@@ -11,42 +11,36 @@ namespace Dmon.Hosting;
 public static class MlxClientExtensions
 {
     /// <summary>
-    /// Resolves the registered <see cref="MlxProviderExtension"/> for <paramref name="key"/>,
-    /// ensures the runtime is running via <see cref="MlxProviderExtension.EnsureRunningAsync"/>,
-    /// then constructs and returns an <see cref="IChatClient"/> bound to that runtime.
+    /// Resolves the registered <see cref="MlxProviderExtension"/> for <paramref name="key"/>
+    /// and returns the factory-produced, self-healing <see cref="IChatClient"/> bound to that runtime.
     /// </summary>
     /// <remarks>
     /// Suitable as the factory delegate for <c>UseTriage</c> / <c>AddEscalation</c> in
     /// <c>Daemon.Routing</c>: <c>sp => sp.MlxClient(MlxRuntimeKeys.Firstline)</c>.
-    /// EnsureRunningAsync is the self-heal backstop — a no-op when the runtime is already up,
-    /// a respawn when it was torn down by the daemon scheduler.
+    /// The self-heal is single-sourced in <see cref="MlxProviderFactory.CreateAsync"/>: it awaits
+    /// the extension's <c>EnsureRunningAsync</c> at construction and wraps its output in an
+    /// attach-first <see cref="EnsureRunningChatClient"/>. This helper adds no duplicate
+    /// ensure-running call and no duplicate wrapper — it returns the factory client verbatim.
     /// </remarks>
-    public static async ValueTask<IChatClient> MlxClient(
+    public static ValueTask<IChatClient> MlxClient(
         this IServiceProvider sp,
         string key,
         CancellationToken cancellationToken = default)
     {
         MlxProviderExtension ext = sp.GetRequiredKeyedService<MlxProviderExtension>(key);
 
-        await ext.EnsureRunningAsync(cancellationToken).ConfigureAwait(false);
-
         ProviderConfig modelCfg = new()
         {
             Name = "mlx",
             Adapter = "mlx",
-            // Leave BaseUrl null so the factory falls back to MlxRuntimeState.BaseUrl set during EnsureRunningAsync.
+            // Leave BaseUrl null so the factory falls back to MlxRuntimeState.BaseUrl,
+            // which its own EnsureRunningAsync seeds before reading it.
             BaseUrl = null,
             DefaultModelId = ext.Options.ModelId,
             Auth = new ProviderAuthConfig { Type = "none" },
         };
 
-        IChatClient inner = await ((MlxProviderFactory)ext.CreateFactory())
-            .CreateAsync(modelCfg, apiKey: null, cancellationToken)
-            .ConfigureAwait(false);
-
-        // Wrap outermost: every subsequent request re-checks EnsureRunningAsync (attach-first)
-        // so a runtime torn down for idle by the daemon scheduler self-heals on its own request
-        // path, rather than dispatching to a dead endpoint.
-        return new EnsureRunningChatClient(inner, ext);
+        return ((MlxProviderFactory)ext.CreateFactory())
+            .CreateAsync(modelCfg, apiKey: null, cancellationToken);
     }
 }
