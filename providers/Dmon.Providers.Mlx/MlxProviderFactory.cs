@@ -17,22 +17,29 @@ public sealed class MlxProviderFactory : IProviderFactory
 
     private readonly MlxRuntimeOptions _options;
     private readonly MlxRuntimeState _runtimeState;
+    private readonly MlxProviderExtension _extension;
     private readonly HttpMessageHandler? _handlerOverride;
 
-    public MlxProviderFactory(MlxRuntimeOptions options, MlxRuntimeState runtimeState)
+    public MlxProviderFactory(
+        MlxRuntimeOptions options,
+        MlxRuntimeState runtimeState,
+        MlxProviderExtension extension)
     {
         _options = options;
         _runtimeState = runtimeState;
+        _extension = extension;
     }
 
     // Internal constructor for testability — injects an HTTP handler to stub the OpenAI wire.
     internal MlxProviderFactory(
         MlxRuntimeOptions options,
         MlxRuntimeState runtimeState,
+        MlxProviderExtension extension,
         HttpMessageHandler handlerOverride)
     {
         _options = options;
         _runtimeState = runtimeState;
+        _extension = extension;
         _handlerOverride = handlerOverride;
     }
 
@@ -50,11 +57,16 @@ public sealed class MlxProviderFactory : IProviderFactory
             SupportsToolCalling = _runtimeState.ToolCallingVerified ?? false,
         };
 
-    public ValueTask<IChatClient> CreateAsync(
+    public async ValueTask<IChatClient> CreateAsync(
         ProviderConfig config,
         string? apiKey,
         CancellationToken cancellationToken = default)
     {
+        // Self-heal (design.md D2): start the runtime and run the one-time tool-calling probe
+        // before snapshotting capabilities, so the probe's ToolCallingVerified result is
+        // reflected in the client's advertised SupportsToolCalling rather than a pre-probe default.
+        await _extension.EnsureRunningAsync(cancellationToken).ConfigureAwait(false);
+
         string modelId = config.DefaultModelId ?? _options.ModelId;
         string baseUrl = config.BaseUrl
             ?? (string.IsNullOrEmpty(_runtimeState.BaseUrl)
@@ -70,7 +82,8 @@ public sealed class MlxProviderFactory : IProviderFactory
         IChatClient client = chatClient.AsIChatClient();
         IChatClient withTokens = new MlxMaxTokensDefaulter(client);
         ChatClientCapabilities caps = GetCapabilities(modelId);
-        return ValueTask.FromResult<IChatClient>(new CapabilitiesDecorator(withTokens, caps));
+        IChatClient decorated = new CapabilitiesDecorator(withTokens, caps);
+        return new EnsureRunningChatClient(decorated, _extension);
     }
 
     // Applies a generous default max_tokens so gemma-4 reasoning clears before tool calls.

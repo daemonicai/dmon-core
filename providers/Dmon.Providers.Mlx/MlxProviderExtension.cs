@@ -278,7 +278,7 @@ public sealed class MlxProviderExtension : IProviderExtension, IDisposable, IAsy
         }
     }
 
-    public IProviderFactory CreateFactory() => new MlxProviderFactory(_options, _runtimeState);
+    public IProviderFactory CreateFactory() => new MlxProviderFactory(_options, _runtimeState, this);
 
     public async Task StopAsync(CancellationToken cancellationToken = default)
     {
