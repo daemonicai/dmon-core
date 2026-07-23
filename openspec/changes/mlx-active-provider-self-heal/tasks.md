@@ -20,4 +20,4 @@
 
 - [x] 4.1 `make build` clean (TreatWarningsAsErrors) and `env -u MEKO_API_KEY make test` green (new + existing).
 - [x] 4.2 `openspec validate mlx-active-provider-self-heal --strict` passes.
-- [ ] 4.3 Rebuild `sandbox-code` (`bash sandbox-code/build.sh`) and confirm a `.UseMlx(...)` turn reaches the model instead of connection-refused (human-in-the-loop: the architect provides a copy-pasteable verification recipe; this task is ticked only after the user confirms).
+- [x] 4.3 Rebuild `sandbox-code` (`bash sandbox-code/build.sh`) and confirm a `.UseMlx(...)` turn reaches the model instead of connection-refused (human-in-the-loop: the architect provides a copy-pasteable verification recipe; this task is ticked only after the user confirms).

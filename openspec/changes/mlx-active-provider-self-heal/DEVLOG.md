@@ -1,7 +1,7 @@
 # DEVLOG — mlx-active-provider-self-heal
 
 ## NEXT
-- **Only task 4.3 remains** — human-in-the-loop live verification. Rebuild `sandbox-code` (`bash sandbox-code/build.sh`), run its `.UseMlx("mlx-community/gemma-4-26B-A4B-it-qat-nvfp4", port: 8666)` Agent, issue one turn, and confirm the model responds (cold start may pause while the model loads) instead of `Connection refused (127.0.0.1:8666)`. Tick 4.3 **only after the user confirms** a live turn succeeded. Then the change is fully done → propose `/opsx:archive` and wait for confirmation. No further code blocks.
+- **All 12 tasks done.** 4.3 live-verified by the user (2026-07-23): rebuilt `sandbox-code`, ran a `.UseMlx(..., port: 8666)` turn — the model responded, created and ran a hello-world in C, and prompted for tool permissions. Confirms BOTH halves of the fix: runtime self-heal (no `Connection refused`) AND tool-calling advertised/used. Change is complete → propose `/opsx:archive` (awaiting user confirmation).
 
 ## Block 2 — Single-source the keyed path (tasks 2.1, 2.2, 3.4, 4.1, 4.2) — DONE
 Commit scope: `providers/Dmon.Providers.Mlx/MlxClientExtensions.cs` + new `test/Dmon.Providers.Mlx.Tests/MlxClientExtensionsTests.cs`. Reviewer (Opus) signed off; gates green (build 0 warnings, full suite EXIT=0, Mlx 88/88, validate strict OK). Folded gate tasks 4.1/4.2 into this block (they *are* the standard block gates).
