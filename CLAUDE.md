@@ -66,6 +66,8 @@ New ADRs belong in `docs/adrs/ADR-NNN-<slug>.md`. Use the existing ADRs as the f
 
 ## OpenSpec workflow
 
+<!-- dmons-scaffold: 0.3.0 -->
+
 All planned changes go through the OpenSpec workflow in [`openspec/`](./openspec/).
 
 ### Proposing a change
@@ -76,32 +78,93 @@ Use `/opsx:propose` to create a new change. This generates a proposal, design, s
 
 Use `/opsx:apply`. **This subsection is authoritative** — if the skill's behaviour ever conflicts with what's written here, follow this document.
 
-#### Roles — the main thread never plans or writes feature code
+#### Roles — the Product Owner owns the vision; the main thread never writes feature code
 
-- **Orchestrator** = the main thread (you). You drive the loop: run pre-flight, spawn agents, run the gates, tick boxes, keep `DEVLOG.md` current, handle the user conversation, and commit. **You do not plan the blocks, write the briefs, or implement feature code directly** — those belong to the architect and worker.
-- **`architect`** agent (Opus) — looks at the remaining tasks and picks the **smallest reasonable, independently gate-passing block** of work (one task or a small contiguous range), then writes the self-contained brief for the worker. Plans and briefs only; never edits, spawns, or commits. Flags stop-and-ask blockers (including any task that would contradict a binding ADR) instead of briefing around them.
-- **`worker`** agent (Sonnet) — implements the block from the architect's brief; writes tests; leaves the tree green.
-- **`reviewer`** agent (Opus) — audits the worker's block diff and **reports findings; it does not edit code.**
+- **Product Owner** = the user. They hold the vision. Every *product* call — what to build, which change to apply, how to resolve an ambiguity or a wrong spec — is theirs. You realise their vision; you do not decide it for them.
+- **Analyst/Architect** = the main thread (you), on **Opus**. One role, two hats — and you should know which you're wearing:
+  - **Analyst** during `/opsx:explore` — shaping *what* with the Product Owner.
+  - **Architect** during `/opsx:propose` and the whole apply loop below — you shape *how*, then orchestrate the build: read the specs and ADRs, carve each section into blocks, write the briefs, spawn the agents, run the gates, tick boxes, keep `DEVLOG.md` current, and commit. **You do not implement feature code directly.**
+- **`worker`** agent (Sonnet) — implements each block from your brief; writes tests; leaves the tree green.
+- **`reviewer`** agent (Sonnet) — audits each block's diff and **reports findings; it does not edit code.** One reviewer for the whole change.
+- **`supervisor`** agent (Opus) — audits each finished `## N.` section as a whole, once all its blocks have landed. One supervisor for the whole change.
 
-All three agents are defined in `.claude/agents/`. Delegate; don't shortcut by planning, briefing, or implementing yourself.
+**The two auditors have different jobs and must not be swapped.** The `reviewer` is **diff-local** and runs per block; the `supervisor` is the only agent that ever sees more than one block at a time, and looks for what block reviews structurally cannot catch — cross-block drift, duplicated abstractions, dead scaffolding, and whether the section genuinely satisfies its spec rather than merely ticking its tasks. Neither ever edits code: both report, and a worker fixes.
 
-#### Pre-flight (orchestrator, once before the first block)
+The agents are defined in `.claude/agents/`. Delegate; don't shortcut by implementing yourself.
 
-1. Skim `proposal.md` and `design.md` for context (the **architect** reads them — and the specs and ADRs — in depth when it plans each block).
+#### The DEVLOG — the change's working record
+
+Every active change keeps a **`DEVLOG.md`** next to its `tasks.md` (`openspec/changes/<slug>/DEVLOG.md`). **You (the Architect) own it** — the agents report back to you and you record; they don't write to it themselves. Conventions:
+
+- Organised by `## N.` **section** (mirroring `tasks.md`), with a pinned `## NEXT` at the bottom.
+- **The first post under each `## N.` heading is the section's base commit** — `**[architect]** Base: <sha> — <what this section delivers>`. The supervisor's review scope is `git diff <sha>..HEAD`, so this post is load-bearing, not ceremony.
+- Posts are **attributed** to whose work they record — `[architect]`, `[worker]`, `[reviewer]`, `[supervisor]` — and reference the **block** (`N.1`–`N.3`) they concern.
+- **Append-only** — posts persist; only `## NEXT` is rewritten. It is committed with each block and moves to the archive with the change, so a shipped change's DEVLOG is the durable record of *how* it was built.
+
+Maintain it via the devlog skill.
+
+#### Pre-flight (Architect, before the first block)
+
+1. Read `proposal.md`, `design.md` (especially **`## Decisions`** and **`## Open Questions`**), and the relevant `specs/<cap>/spec.md` for the section(s) you're about to work.
 2. **Working tree must be clean** (`git status`). If dirty, stop and ask.
 3. **Change must validate:** `openspec validate <slug> --strict`. If not, stop and ask.
 4. **Be on the change branch** `change/<slug>`. Create it from `main` if missing: `git switch -c change/<slug>`.
+5. **Check the preceding section closed.** Ticked boxes are not proof a section passed its supervisor review — a session can end after the last block commits and before the review runs. Before starting the resume point's section, read the DEVLOG: if the previous `## N.` has no `[supervisor]` `Approve` under it, run that review first (3c). If it never got a `Base:` post either, reconstruct the range from `git log` and say so in the DEVLOG.
 
-#### Implement — architect-planned blocks
+#### Implement — section by section, block by block
 
-The unit of work is a **block**: the **smallest reasonable, independently gate-passing** slice of remaining tasks — one task (e.g. `1.3`) or a small contiguous range (e.g. `1.3`–`1.5`). The **architect** chooses each block; you don't pick it yourself. Loop until every task in the change is ticked:
+Walk the change's `## N.` sections in order from the resume point. There are **two nested loops**:
 
-1. **Plan the block (architect).** Spawn the `architect`. It reads `tasks.md` (ticked state), `proposal.md`, `design.md`, the relevant specs, the binding ADRs, and `DEVLOG.md`, then returns **(a)** the block's task ids + deliverable name and **(b)** a self-contained worker brief (tasks, binding spec/ADR excerpts, design decisions, already-resolved `DEVLOG` decisions, scope boundaries, investigation pointers, contract/permission/persistence hazards, gates).
-   - The architect is spawned **fresh each block** — so the **`DEVLOG.md` is its cross-block memory**. Keep the DEVLOG current (step 7) or the architect plans blind. (Maintain `DEVLOG.md` via the devlog skill.)
-   - **If the architect flags a BLOCKER** (ambiguity, contradiction, unresolved Open Question, out-of-scope need, spec-looks-wrong, or a task that would contradict a binding ADR), go to *Stop and ask* — don't brief around it.
-2. **Brief the worker.** Hand the architect's brief to the `worker` verbatim (add the gates below if the architect didn't). The worker implements the **whole block** — splittable across multiple `worker` calls if needed, but it remains **one commit** at block end.
+```
+OUTER — for each ## N. section, in order
+  ├─ post the section's base commit to the DEVLOG
+  ├─ INNER — for each block in the section
+  │    brief worker → worker implements → reviewer audits → loop until Approve
+  │    → gates pass → tick boxes → commit
+  └─ SECTION REVIEW — supervisor audits the whole section
+       Approve → next section
+       Request changes → carve a remediation block, re-enter INNER
+```
+
+**The unit of work is not the whole section — it is a *block*:** the **smallest reasonable, independently gate-passing** slice of remaining tasks — one task (e.g. `1.3`) or a small contiguous range (e.g. `1.3`–`1.5`). You carve each section into blocks; a section is one or more blocks, and **a block never spans sections** — if a block wants to, the section breakdown is wrong.
+
+##### 3a. Opening a section (outer loop)
+
+Before briefing the first block of a `## N.` section, post its **base commit** to the DEVLOG as the first entry under that heading:
+
+```
+**[architect]** Base: <sha> — <one line: what this section delivers>
+```
+
+`<sha>` is the current `HEAD` (`git rev-parse --short HEAD`). This is what gives the supervisor its review scope at the end of the section (`git diff <sha>..HEAD`); without it, it has no reliable way to see the section as a whole. Post it **before** any block of the section is committed.
+
+##### 3b. Each block (inner loop)
+
+**Carving the block.** From the remaining unticked tasks in this section, choose the smallest contiguous run that is a coherent, independently shippable deliverable. Heuristics:
+
+- **Independently green-able.** After the worker finishes, every gate must pass. A block that leaves a dangling reference, an unimplemented interface member, or a red test is too small or wrongly cut. (Watch for cross-project breaks: adding a member to an interface that test fakes implement means the fake stub belongs in the *same* block.)
+- **Coherent deliverable.** The block should map to a sentence: "read the informational version in `RpcHostedService`", "wire the provider factory". If you can't name it cleanly, the cut is wrong.
+- **Respect dependencies.** A type or RPC contract before the behaviour that uses it; a fake/seam before the test that drives it. Read `tasks.md` order and `DEVLOG.md` for the real sequence; the lowest-numbered unticked task is the usual — but not automatic — starting point.
+- **Contract-, permission-, persistence-, or load-touching tasks deserve their own block**, with an explicit call-out in the brief that the reviewer will hammer them: the wire shape (ADR-003 JSONL/stdio Pi-shape, ADR-015 typed correlated results), the permission model (ADR-006), session storage append-only semantics (ADR-004), extension loading (ADR-008), and "no third-party types in the API" (ADR-016).
+- **Don't over-bundle.** When in doubt, cut smaller — a tight block reviews faster and commits cleaner.
+- **Size to the worker's context window.** The `worker` runs on **Sonnet** — a smaller context window than yours. Scope each block so the worker's whole job (your brief + the files it must read + the code and tests it writes + running the gates) comfortably fits, **aiming to stay under ~100k tokens**. If a block would force the worker to load many large files or sprawl across many projects to do it well, that's a signal to cut it smaller or split it. A brief that sends the worker spelunking blows this budget — keep briefs self-contained and point at *specific* files/symbols, not whole directories. Prefer `graphify query "<question>"` over raw grep when locating code to point at.
+
+Then run the block:
+
+1. **Brief the worker.** Post the brief to the DEVLOG (`[architect]`, under the block's `## N.` section) and hand it to the `worker`. It must be **self-contained** — the worker should not have to go hunting:
+   - **Block:** the change slug + exact task ids + a one-line name of the deliverable.
+   - **Tasks:** the verbatim task text for each id.
+   - **Binding design decisions / ADRs:** the `design.md` decision ids and the ADR clauses that bind this block, each with a one-line gloss; plus any already-resolved decision from `DEVLOG.md`. Quote the specific clauses the block touches; don't dump the whole list.
+   - **Spec excerpts that bind this block:** quoted requirement/scenario text from `specs/<cap>/spec.md`.
+   - **Scope boundaries:** what this block does NOT do, and which later block owns the deferred parts.
+   - **Investigate first:** the specific files/symbols to read before writing, and why.
+   - **Contract / permission / persistence / load hazards:** the invariants the reviewer will check hardest.
+   - **Gates:** the list below.
+
+   The worker implements the **whole block** — splittable across multiple `worker` calls if needed, but it remains **one commit** at block end.
+2. **Worker implements the block** and reports back.
 3. **Audit.** Spawn `reviewer` on the **block diff** (correctness, ADR compliance, OpenSpec scope, C# idiom, agentic-AI design quality, security).
-4. **Review loop.** Feed the reviewer's findings to the `worker`; worker fixes; `reviewer` re-audits. **Repeat until the reviewer signs off.** (Doc-only spec/design realignments and the `DEVLOG.md` are the orchestrator's to edit — agents don't.)
+4. **Review loop.** Feed the reviewer's findings to the `worker`; worker fixes; `reviewer` re-audits. **Repeat until the reviewer signs off.** (Doc-only spec/design realignments and the `DEVLOG.md` are yours to edit — agents don't.)
 5. **Gates — all must pass before ticking any box:**
    - `make build` clean (no errors; `TreatWarningsAsErrors` clean)
    - `make test` (or `env -u MEKO_API_KEY make test` to avoid the live-Meko smoke hang) green — new tests for the block **and** all existing tests
@@ -109,18 +172,33 @@ The unit of work is a **block**: the **smallest reasonable, independently gate-p
 
    If a gate fails, it's back to step 4, not a commit.
 6. **Tick the boxes.** Mark every `- [x] N.M` in the block in `tasks.md`. Never rewrite `tasks.md` wholesale — only flip `[ ]→[x]`.
-7. **Update the DEVLOG.** Record the block's decisions/deviations so the next (fresh) architect can plan.
-8. **Commit — one conventional commit per block**, scoped to the component, with the change slug in the body (`Change: <slug>`). Use the real task ids the block covered. Then loop back to step 1 for the next block.
+7. **Update the DEVLOG.** Record the block's decisions/deviations, the reviewer's verdict, and anything a later block needs to know.
+8. **Commit — one conventional commit per block**, scoped to the component, with the change slug in the body (`Change: <slug>`). Use the real task ids the block covered. Commit the DEVLOG with the block. Then loop back to step 1 for the next block in this section.
+
+##### 3c. Closing a section — the supervisor review
+
+When the **last block of a `## N.` section** has landed (reviewer approved, gates green, boxes ticked, committed), the section is not done yet. Run the section review before opening the next one.
+
+1. **Spawn `supervisor`** on the section's full range — `git diff <base-sha>..HEAD`, where `<base-sha>` is the one you posted in 3a. Point it at the section's spec requirements, not just its tasks. Record its verdict in the DEVLOG under the section's heading as `[supervisor]`.
+   - Run it for **every** section, including a single-block one — the lens is different from the reviewer's, not merely wider.
+2. **`Approve`** → the section is closed. Roll any architectural notes into `## NEXT` and move to the next section.
+3. **`Request changes`** → carve a **remediation block** from the findings and re-enter the inner loop (3b) with it: brief the worker, `reviewer` audits it, gates, commit.
+   - The remediation block gets **no new `N.M` numbers** and ticks nothing — every box in the section is already ticked. The findings and the fix live in the DEVLOG; that is the record.
+   - Commit it as a fix, not a feature: `fix(<component>): address supervisor findings (section N)`, with the findings and what changed in the body plus `Change: <slug>`.
+   - Then **re-run the supervisor** on the same `<base-sha>..HEAD` range (now including the fix).
+4. **Two rounds, then stop.** If the supervisor still requests changes after one remediation block, **do not carve a third** — stop and put it to the Product Owner. A section that won't converge in two rounds usually means the section breakdown or the spec is wrong, and more fixing won't resolve either.
+
+**Do not open the next section until the current one has a supervisor `Approve`** (or the Product Owner has explicitly waved it on). The whole point of the outer loop is that drift is caught before it is built on.
 
 #### Stop and ask — do not improvise
 
-Stop **immediately** and ask the user (do not improvise a fix) — whether surfaced by the **architect** while planning, the **worker** mid-implementation, or the **reviewer** — when: a spec/design is **ambiguous** or two specs **contradict**; doing the task properly needs changes **outside this change's scope**; a task is **blocked by an unresolved Open Question** in `design.md`; implementation reveals the **spec itself is wrong**; a task would require **contradicting a binding ADR** (the path is a superseding ADR the user must accept first); or a task **requires human-in-the-loop verification** automated gates can't settle (give a precise, copy-pasteable verification recipe and wait for confirmation before ticking it).
+These are the **Product Owner's** calls, not yours. Stop **immediately** and ask (do not improvise a fix) — whether you hit it while carving a block, or the **worker** hit it mid-implementation, or the **reviewer** or **supervisor** surfaced it — when: a spec/design is **ambiguous** or two specs **contradict**; doing the task properly needs changes **outside this change's scope**; a task is **blocked by an unresolved Open Question** in `design.md`; implementation reveals the **spec itself is wrong**; a task would require **contradicting a binding ADR** (the path is a superseding ADR the user must accept first); a task **requires human-in-the-loop verification** automated gates can't settle (give a precise, copy-pasteable verification recipe and wait for confirmation before ticking it); or the **supervisor still requests changes after one remediation block** (3c.4) — report its findings and ask whether to remediate again, re-cut the section, or fix the spec.
 
 **On stopping mid-block:** leave the WIP **uncommitted**, do **not** tick the block, do **not** revert. Report the **exact task (`N.M`)** that stopped you and why.
 
 #### Done
 
-When every task is ticked and the final review is clean: report blocks completed, commits made, and the test summary; push the `change/<slug>` branch (and open a PR) when the user asks; then **propose `/opsx:archive`** and **wait for confirmation**. Do not archive automatically.
+When every task is ticked **and the final section has a supervisor `Approve`**: report sections closed, blocks completed, commits made, the test summary, and any architectural notes the supervisor parked in `## NEXT`; push the `change/<slug>` branch (and open a PR) when the user asks; then **propose `/opsx:archive`** and **wait for confirmation**. Do not archive automatically.
 
 ### Archiving a change
 
