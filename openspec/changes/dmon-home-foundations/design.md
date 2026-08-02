@@ -281,7 +281,7 @@ three things that look settled today are settled only for the co-located case:
 | Auth requirement | Optional; empty store is auth-disabled on loopback (ADR-036) | **Mandatory** — ADR-036 fails closed on a non-loopback bind, and `AllowNonLoopbackBind` must be opted into |
 | Transport security | Loopback needs none; `tailscale serve` gives iOS a valid cert on `*.ts.net` | Undecided — a bare LAN hostname has no cert, so either the link rides Tailscale too, or it is plaintext carrying a bearer token |
 | Supervision | Host supervises its children | Gateway, both mlx runtimes, dcal and dmail are all remote. **Largely absorbed already**: the supervision spec distinguishes monitors — "health sources that are never spawned, adopted or killed" — and a remote process is exactly that |
-| Speech sidecar (D4) | Co-resident with the models | Genuinely open — audio hardware is where the *person* is, but the memory is on the other box. Either speech runs on the smaller machine, or raw audio crosses the LAN on the most latency-sensitive path in the system |
+| Speech sidecar (D7) | Co-resident with the models | Genuinely open — audio hardware is where the *person* is, but the memory is on the other box. Either speech runs on the smaller machine, or raw audio crosses the LAN on the most latency-sensitive path in the system |
 
 The two rows worth carrying forward are **provisioning** and **speech location**. Neither blocks this
 change; both should be reopened before a split is attempted rather than discovered during one.

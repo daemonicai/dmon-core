@@ -37,10 +37,13 @@ ADR-012 gateway.
 - **Power assertion** — `ProcessInfo.beginActivity` held while the gateway is enabled, released when
   disabled, so an idle app is not App-Napped into coalesced timers (PRD §7.1).
 - **`GatewayClient` package** — the host is a **gateway client, not an stdio host** (PRD §2.1). It
-  connects to `Dmon.Network` over loopback WebSocket with its own device key and speaks the same `gw`
-  control frames the iOS client uses: `create` → `created` → `attach` → `attached`, `turn.submit`,
-  rendering `messageDelta` / `turnEnd`. Transport sits behind a Swift protocol so it can be swapped
-  for a direct stdio core without touching callers.
+  connects to `Dmon.Network` over a **configured WebSocket gateway endpoint** — loopback in the
+  co-located deployment, but configuration rather than an assumption (PRD §7.4) — with its own device
+  key, and speaks the same `gw` control frames the iOS client uses: `create` → `created` → `attach` →
+  `attached`, `turn.submit`, rendering `messageDelta` / `turnEnd`. Transport sits behind a Swift
+  protocol so no caller depends on a concrete WebSocket type; its day-one payoff is testability via an
+  in-memory conformer, and its second is topology. PRD §2.1's stdio-core fallback is **contingent on
+  co-location** and is not a general-purpose retreat — see design D2.
 - **Typed input in the UI**, proving the protocol end-to-end independently of audio.
 - **Corrects stale comments in `core/Dmon.Protocol/Gateway/ControlFrames.cs`** — `AttachedFrame` says
   `generation` is "issued here but not enforced until Group 6" and `AckFrame` says "dedup logic is
@@ -80,8 +83,9 @@ its CI job, or its release artifact.
 
 ## Impact
 
-**New:** `home/` bucket — `project.yml`, the `DmonHomeApp` app target, and the `Supervisor` /
-`GatewayClient` SPM packages with their test targets.
+**New:** `home/` bucket — `project.yml`, the `DmonHomeApp` app target, and the `Supervisor`,
+`GatewayClient` and `Power` SPM packages with their test targets. The bucket also holds the product's
+requirements document (`home/PRD.md`).
 
 **Modified:** `Makefile` (build/test targets for the new package, alongside the existing `daemon-app`
 ones); `.github/workflows/ci.yml` (a second macOS Swift job with its own path filter);

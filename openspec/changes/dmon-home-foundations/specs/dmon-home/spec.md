@@ -2,7 +2,7 @@
 
 ### Requirement: The macOS host lives in the `home/` bucket
 
-The repository SHALL carry a `home/` top-level role bucket holding the macOS host product `dmon-home`. The bucket SHALL contain the XcodeGen manifest, the `DmonHomeApp` application target, and the host's local Swift packages. `home/` holds no .NET projects and SHALL NOT carry a `.slnx`.
+The repository SHALL carry a `home/` top-level role bucket holding the macOS host product `dmon-home`. The bucket SHALL contain the product's requirements document, the XcodeGen manifest, the `DmonHomeApp` application target, and the host's local Swift packages. `home/` holds no .NET projects and SHALL NOT carry a `.slnx`.
 
 #### Scenario: The host resides in the home bucket
 

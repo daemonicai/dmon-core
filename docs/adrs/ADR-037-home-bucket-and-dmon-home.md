@@ -35,9 +35,11 @@ value (PRD §7.4).
 ## Decision
 
 1. **`home/` is a first-class top-level monorepo bucket.** It holds the `dmon-home` macOS host
-   product: the XcodeGen manifest, the app target, and the host's local Swift packages. It contains
-   **no .NET projects** and therefore carries **no `.slnx`** (consistent with ADR-025's rule that an
-   area with no C# members has no solution, and that a memberless role bucket has no directory).
+   product: the product's requirements document (`home/PRD.md`), the XcodeGen manifest, the app
+   target, and the host's local Swift packages. It contains **no .NET projects** and therefore carries
+   **no `.slnx`** (consistent with ADR-025's rule that an area with no C# members has no solution, and
+   that a memberless role bucket has no directory — the bucket materialises with its first member,
+   which is the requirements document).
    Rationale for `home/` over the alternatives: `frontends/` is reserved for processes that *are*
    dmon-protocol surfaces (Terminal, Network, Desktop) — `dmon-home` is a *client* of one, and
    `frontends/` is otherwise all .NET; `daemon/` holds the Daemon product's *composition* (ADR-028
@@ -46,7 +48,7 @@ value (PRD §7.4).
    **Amends ADR-025 D2 and ADR-028 D1.**
 
 2. **`dmon-home` is an ADR-012 gateway client, not an ADR-003 stdio host.** It connects over a
-   WebSocket to a **configured gateway endpoint** — loopback in this change's co-located deployment,
+   WebSocket to a **configured gateway endpoint** — loopback in the co-located deployment,
    but not assumed to be: the endpoint is configuration, not a hard-coded assumption (PRD §7.4) — and
    speaks the same `gw` control frames a remote iOS client speaks
    (`create`/`created`/`createRejected`/`attach`/`attached`/`ack`/`ping`/`pong`). It does **not**
@@ -62,7 +64,7 @@ value (PRD §7.4).
       after a dropped connection come free locally.
    4. The local and remote clients become the same client, over the same protocol, tested once.
 
-   The cost is one WebSocket hop — loopback in this change's co-located deployment. The transport
+   The cost is one WebSocket hop — loopback in the co-located deployment. The transport
    sits behind a swappable Swift protocol, and no code above it may reference a concrete WebSocket
    type. Its day-one payoff is testability: an in-memory conformer drives the handshake and turn flow
    in tests with no network involved. Its second payoff is topology: a remote or TLS-secured
