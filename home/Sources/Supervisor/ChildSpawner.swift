@@ -58,8 +58,31 @@ public struct ChildSpawner: Sendable {
         var attr: posix_spawnattr_t? = nil
         posix_spawnattr_init(&attr)
         defer { posix_spawnattr_destroy(&attr) }
-        posix_spawnattr_setflags(&attr, Int16(POSIX_SPAWN_SETPGROUP))
+        posix_spawnattr_setflags(
+            &attr,
+            Int16(POSIX_SPAWN_SETPGROUP | POSIX_SPAWN_SETSIGDEF | POSIX_SPAWN_SETSIGMASK)
+        )
         posix_spawnattr_setpgroup(&attr, 0)
+
+        // Without this, the child inherits this process's signal mask and
+        // dispositions verbatim — so a `SIGTERM` this process happens to have
+        // blocked (confirmed directly: `swift test`'s own runner blocks it)
+        // is silently blocked in the child too, and in every grandchild it
+        // spawns, since a blocked-or-non-default disposition inherits across
+        // `posix_spawn`/`fork`/`exec` unless explicitly reset. That defeats
+        // graceful termination (4.5) entirely: `killProcessGroup(signal:
+        // SIGTERM)` would succeed at the `kill(2)` call, yet the signal would
+        // never actually be delivered. `POSIX_SPAWN_SETSIGMASK` with an empty
+        // mask unblocks everything; `POSIX_SPAWN_SETSIGDEF` with a full set
+        // resets every signal's disposition to `SIG_DFL`, undoing any
+        // handler this process (or its runtime) installed. A fresh child
+        // process should never inherit either.
+        var noBlockedSignals = sigset_t()
+        sigemptyset(&noBlockedSignals)
+        posix_spawnattr_setsigmask(&attr, &noBlockedSignals)
+        var allSignalsDefaulted = sigset_t()
+        sigfillset(&allSignalsDefaulted)
+        posix_spawnattr_setsigdefault(&attr, &allSignalsDefaulted)
 
         var fileActions: posix_spawn_file_actions_t? = nil
         posix_spawn_file_actions_init(&fileActions)

@@ -50,7 +50,7 @@ struct ChildSpawnerTests {
     func awaitExitReportsTheChildsRealExitCode() async throws {
         let spawner = ChildSpawner()
         let child = try await spawner.spawn(id: "exit-child", executablePath: "/bin/sh", arguments: ["-c", "exit 7"])
-        let status = await awaitExit(of: child.pid)
+        let status = try #require(await awaitExit(of: child.pid).exitedStatus, "an uncancelled wait must report a real exit status")
 
         #expect(status.pid == child.pid)
         #expect(status.exitCode == 7)
@@ -93,6 +93,38 @@ struct ChildSpawnerTests {
     /// assertion — a test whose failure mode is worse than the bug it
     /// guards. Testing the predicate in isolation gets the same coverage
     /// with no signal ever sent.
+    /// A spawned child must not inherit whatever signal mask or dispositions
+    /// this process happens to have — proven directly rather than assumed,
+    /// because `swift test`'s own runner blocks `SIGTERM` (confirmed while
+    /// diagnosing task 4.5's graceful-shutdown tests): without
+    /// `POSIX_SPAWN_SETSIGDEF` / `POSIX_SPAWN_SETSIGMASK`, this test's own
+    /// trap never fires and the child instead runs its full 30-second sleep
+    /// — the exact failure mode `withTimeout` below bounds rather than hangs
+    /// on.
+    @Test
+    func aSpawnedChildDoesNotInheritThisProcessesSignalMaskOrDispositions() async throws {
+        let markerFile = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: markerFile) }
+        let spawner = ChildSpawner()
+        let script = "trap 'echo graceful >> \"\(markerFile.path)\"; exit 0' TERM\nsleep 30 &\nwait"
+        let child = try await spawner.spawn(id: "signal-mask-child", executablePath: "/bin/sh", arguments: ["-c", script])
+
+        // Give the trap a moment to be installed before signalling.
+        try await Task.sleep(nanoseconds: 200_000_000)
+        #expect(spawner.killProcessGroup(of: child, signal: SIGTERM))
+
+        // `withTimeout`'s "timed out" `nil` and `awaitExit`'s own
+        // `.cancelled` are collapsed by `exitedStatus` into the same `nil`
+        // here — this test only needs to tell "genuinely exited" apart from
+        // either.
+        let outcome = await withTimeout(3) { await awaitExit(of: child.pid) }
+        let status = outcome?.exitedStatus
+        #expect(status?.exitCode == 0, "the child should have exited via its own TERM trap rather than running its full sleep")
+
+        let content = (try? String(contentsOf: markerFile, encoding: .utf8)) ?? ""
+        #expect(content.contains("graceful"))
+    }
+
     @Test
     func wouldSignalOurOwnGroupIsTrueForOurOwnGroupAndFalseForAnythingElse() {
         let spawner = ChildSpawner()
@@ -111,7 +143,7 @@ struct ChildSpawnerTests {
         // enforces it, this test only documents that `[SpawnedChild]` is
         // genuinely the narrowest type that compiles.
         let refused = spawner.killProcessGroups(of: [child])
-        let status = await awaitExit(of: child.pid)
+        let status = try #require(await awaitExit(of: child.pid).exitedStatus, "an uncancelled wait must report a real exit status")
 
         #expect(refused.isEmpty)
         #expect(status.terminatingSignal == SIGKILL)
@@ -129,13 +161,4 @@ private func waitForPid(at url: URL, timeout: TimeInterval = 2) async throws -> 
     }
     struct TimedOutWaitingForPidFile: Error {}
     throw TimedOutWaitingForPidFile()
-}
-
-private func waitUntilTrue(timeout: TimeInterval, condition: @escaping @Sendable () -> Bool) async -> Bool {
-    await withTimeout(timeout) {
-        while !condition() {
-            try? await Task.sleep(nanoseconds: 10_000_000)
-        }
-        return true
-    } ?? false
 }
