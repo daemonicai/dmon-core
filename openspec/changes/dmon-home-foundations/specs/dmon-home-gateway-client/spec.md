@@ -12,7 +12,7 @@ The host SHALL obtain and drive its session by connecting to the network host (`
 
 ### Requirement: The transport is abstracted behind a protocol
 
-The WebSocket transport SHALL sit behind a transport abstraction, and no code above that abstraction SHALL reference a transport-specific type. This exists so a direct stdio core can be substituted later without changing callers.
+The WebSocket transport SHALL sit behind a transport abstraction, and no code above that abstraction SHALL reference a transport-specific type. This exists so the client can be driven without a network — an in-memory conformer exercises the handshake, turn submission and event rendering in tests — and so an alternative transport can be substituted without changing callers.
 
 #### Scenario: Callers are transport-agnostic
 
