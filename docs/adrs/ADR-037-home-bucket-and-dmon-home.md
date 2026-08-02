@@ -153,8 +153,8 @@ value (PRD §7.4).
 - **ADR-028** — *Amends D1* (bucket membership: `daemon/` is no longer the only new bucket since
   ADR-025), *D2* (`dmonium`'s placement, product name and bundle id are superseded going forward by
   `dmon-home`/`ai.daemonic.dmon-home`), and *prospectively D6* (artifact source, once `dmon-home`
-  ships). `daemon/`, `services/`, the `dcal` rename, and Swift-in-repo (Decisions 3–5, 7) are
-  untouched; `daemon/Daemon.App` keeps building and shipping until its retirement change lands.
+  ships). `daemon/`, `services/`, the `dcal` rename, and Swift-in-repo (**ADR-028** Decisions 3–5, 7)
+  are untouched; `daemon/Daemon.App` keeps building and shipping until its retirement change lands.
 - **ADR-012** — *Builds on, unchanged.* `dmon-home` is a conforming client of the existing `gw`
   control-frame sub-protocol (create/attach/replay/resume); no wire-string, frame-shape, or transport
   decision changes.

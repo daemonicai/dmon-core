@@ -24,12 +24,12 @@ The host SHALL be built for `arm64` only and SHALL NOT produce an `x86_64` slice
 
 - **WHEN** the built `.app` bundle's executable is inspected
 - **THEN** it reports `arm64` as its only architecture
+- **AND** the app build target fails if the built executable reports any other architecture
 
 #### Scenario: No ambiguous destination
 
 - **WHEN** the app is built through the project's app build target
 - **THEN** the build does not warn that it is selecting between multiple matching destinations
-- **AND** the target fails if the built executable reports any architecture other than `arm64`
 
 ### Requirement: The Xcode project is generated, never hand-edited
 
