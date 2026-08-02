@@ -16,6 +16,20 @@ The repository SHALL carry a `home/` top-level role bucket holding the macOS hos
 - **THEN** `daemon/Daemon.App` still builds and tests via its existing `make` targets
 - **AND** its CI job and release artifact are unchanged
 
+### Requirement: The host targets Apple Silicon only
+
+The host SHALL be built for `arm64` only and SHALL NOT produce an `x86_64` slice. The MLX runtime the host depends on requires Apple Silicon, and the host runs an MLX speech sidecar locally, so an Intel build could be compiled but never function. The build SHALL NOT present an ambiguous choice of architecture.
+
+#### Scenario: The built binary is arm64 only
+
+- **WHEN** the built `.app` bundle's executable is inspected
+- **THEN** it reports `arm64` as its only architecture
+
+#### Scenario: No ambiguous destination
+
+- **WHEN** the app is built from the command line
+- **THEN** the build does not warn that it is selecting between multiple matching destinations of differing architecture
+
 ### Requirement: The Xcode project is generated, never hand-edited
 
 The host's Xcode project SHALL be generated from a checked-in XcodeGen manifest (`project.yml`). The generated `.xcodeproj` SHALL NOT be hand-edited, and SHALL be reproducible from the manifest alone.

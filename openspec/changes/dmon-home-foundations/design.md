@@ -302,6 +302,34 @@ moving between them rather than a maintenance one, and `swift test` runs both id
 handling. The bounded-window argument above is a reason the cost is small, not the reason the decision
 is right — if retirement slips, D14 still stands.
 
+### D15 — Apple Silicon only, and speech co-locates with `dmon-home`
+
+Two Product Owner decisions taken 2026-08-02, after task 3.3's verification surfaced that `xcodebuild`
+was offering an `x86_64` destination.
+
+**`dmon-home` targets `arm64` only.** MLX requires Apple Silicon — it is built on Metal and unified
+memory, and there is no Intel path. Since the host runs an MLX speech sidecar locally (below), an
+Intel build could never be functional, only compilable. Building one invites a destination ambiguity
+warning on every build, a slice nobody tests, and the false impression that Intel is supported.
+
+Worth noting how this got missed: `home/project.yml` carried **no** architecture settings at all, so
+nothing was choosing Intel — but nothing was excluding it either, and Xcode's default is to offer both.
+Compounding it, **ADR-034 never records the Apple Silicon constraint** (grepped: no mention of arm64,
+Metal, or unified memory), so the requirement that makes Intel impossible was not written anywhere a
+reader or an agent would find it. The build setting is the fix; the missing record is the cause.
+
+**Speech runs on the `dmon-home` host, under any topology.** STT, TTS and VAD co-locate with the
+application, not with the reasoner. This resolves the "speech sidecar location" row left open in the
+split-topology table below, and it is the right answer for the reason the PRD cares about: the
+microphone is where the *person* is, so keeping speech local means raw audio never crosses the LAN on
+the most latency-sensitive path in the system. The consequence to plan for is memory — under a split,
+the machine running `dmon-home` must hold Parakeet plus a TTS voice, not merely drive a UI.
+
+This **refines** ADR-037 D4 rather than contradicting it: the sidecar decision stands, but D4's stated
+rationale ("keeps the speech models co-resident with the models they share memory pressure with") is
+only true in the co-located deployment. Under a split, speech follows the host and the reasoner is
+elsewhere. Recorded as an in-place amendment note on ADR-037.
+
 ## Known future topology — a split back-end
 
 The Product Owner has flagged (2026-08-02) that `dmon-home` and the back-end may in future run on
@@ -317,10 +345,14 @@ three things that look settled today are settled only for the co-located case:
 | Auth requirement | Optional; empty store is auth-disabled on loopback (ADR-036) | **Mandatory** — ADR-036 fails closed on a non-loopback bind, and `AllowNonLoopbackBind` must be opted into |
 | Transport security | Loopback needs none; `tailscale serve` gives iOS a valid cert on `*.ts.net` | Undecided — a bare LAN hostname has no cert, so either the link rides Tailscale too, or it is plaintext carrying a bearer token |
 | Supervision | Host supervises its children | Gateway, both mlx runtimes, dcal and dmail are all remote. **Largely absorbed already**: the supervision spec distinguishes monitors — "health sources that are never spawned, adopted or killed" — and a remote process is exactly that |
-| Speech sidecar (D7) | Co-resident with the models | Genuinely open — audio hardware is where the *person* is, but the memory is on the other box. Either speech runs on the smaller machine, or raw audio crosses the LAN on the most latency-sensitive path in the system |
+| Speech sidecar (D7) | Co-resident with the models | **Resolved (D15)** — speech follows `dmon-home`, not the reasoner. Raw audio never crosses the LAN; the host machine must have the memory for Parakeet plus a TTS voice |
 
-The two rows worth carrying forward are **provisioning** and **speech location**. Neither blocks this
-change; both should be reopened before a split is attempted rather than discovered during one.
+**Speech location is now resolved** (D15): speech follows the host. The one row still worth carrying
+forward is **provisioning** — self-provisioning is impossible cross-machine and a split needs the
+`ndmon` verb. **Transport security** also remains undecided and is the Product Owner's call, not a
+technical unknown: PRD §8 says "Do not set `AllowNonLoopbackBind`", which a split would require.
+Neither blocks this change; both should be settled before a split is attempted rather than discovered
+during one.
 
 ## Risks / Trade-offs
 

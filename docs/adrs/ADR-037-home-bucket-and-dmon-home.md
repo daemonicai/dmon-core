@@ -5,6 +5,11 @@
 **Amends:** ADR-025 (D2 bucket set — adds `home/`; D10 release-matrix artifact sources — prospectively, when `dmon-home` gains an artifact), ADR-028 (D1 bucket membership; D2 `dmonium` placement, product name and the `ai.daemonic.dmonium` bundle id; D6 artifact source — prospectively, when `dmon-home` gains an artifact)
 **Builds on:** ADR-012 (remote session transport / the `gw` control-frame sub-protocol), ADR-034 (mlx local runtime), ADR-036 (loopback-vs-non-loopback auth posture), ADR-003 (the wire contract this host deliberately does not speak directly), ADR-024 / ADR-035 (app-artifact family, independently versioned)
 
+> **Amendment (2026-08-02, change `dmon-home-foundations`) — platform and speech location; no numbered decision changes.**
+> Two Product Owner clarifications, both refining Decision 4 rather than altering it:
+> 1. **`dmon-home` targets Apple Silicon (`arm64`) only.** MLX is built on Metal and unified memory and has no Intel path, so an Intel slice could be compiled but never function. Note that ADR-034 does not itself state this constraint; it is recorded here because `dmon-home` is the first product whose build had to act on it.
+> 2. **The speech sidecar runs on the `dmon-home` host under any topology** — STT, TTS and VAD co-locate with the application, not with the reasoner. Decision 4's rationale below ("keeps the speech models co-resident with the models they share memory pressure with") holds only in the co-located deployment; should the back-end ever move to a separate machine, speech follows the host so raw audio never crosses the network on the latency-critical path. The sidecar decision itself is unchanged.
+
 ## Context
 
 `home/PRD.md` specifies a native macOS app that supervises the Mac-side dmon stack, hosts a realtime

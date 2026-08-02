@@ -76,10 +76,12 @@ dmon-home-test:
 
 # Requires xcodegen (brew install xcodegen). home/project.yml is the source
 # of truth; the generated home/DmonHomeApp.xcodeproj is gitignored.
+# -destination silences the ambiguous "My Mac" vs "Any Mac" destination warning;
+# unrelated to ARCHS, which is set in project.yml and pins the built slice.
 dmon-home-app:
 	xcodegen generate --spec home/project.yml --project home
 	xcodebuild -project home/DmonHomeApp.xcodeproj -scheme DmonHomeApp -configuration Release \
-		-derivedDataPath home/.build-xcode -quiet build
+		-derivedDataPath home/.build-xcode -destination 'platform=macOS,arch=arm64' -quiet build
 
 network:
 	dotnet pack frontends/Dmon.Network/Dmon.Network.csproj -c $(CONFIG) -o "$(PACK_OUT)"
