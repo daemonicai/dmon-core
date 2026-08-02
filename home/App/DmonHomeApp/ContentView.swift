@@ -1,18 +1,13 @@
 import GatewayClient
-import Power
 import Supervisor
 import SwiftUI
 
-/// A placeholder window proving the app target wires up `Supervisor`,
-/// `GatewayClient` and `Power`. Real supervision, transport and gateway UI
-/// land in later sections.
+/// A placeholder window proving the app target wires up `Supervisor` and
+/// `GatewayClient`. Real supervision, transport and gateway UI land in later
+/// sections.
 struct ContentView: View {
     private let wireVersion = WireVersion.current
     private let placeholderChildHealth = ChildHealth.unknown
-    private let placeholderActivityAssertion = ActivityAssertion(
-        options: [.userInitiated],
-        reason: "dmon-home placeholder window"
-    )
 
     var body: some View {
         VStack(spacing: 8) {

@@ -1,4 +1,4 @@
-.PHONY: all build build-terminal build-core build-core-pack build-memory test test-live pack smoke schema clean daemon-app daemon-app-test dmon-home dmon-home-test network release-wave
+.PHONY: all build build-terminal build-core build-core-pack build-memory test test-live pack smoke schema clean daemon-app daemon-app-test dmon-home dmon-home-test dmon-home-app network release-wave
 
 CONFIG            ?= Release
 CORE_OUT          := build/dmoncore
@@ -73,6 +73,13 @@ dmon-home:
 
 dmon-home-test:
 	swift test --package-path home
+
+# Requires xcodegen (brew install xcodegen). home/project.yml is the source
+# of truth; the generated home/DmonHomeApp.xcodeproj is gitignored.
+dmon-home-app:
+	xcodegen generate --spec home/project.yml --project home
+	xcodebuild -project home/DmonHomeApp.xcodeproj -scheme DmonHomeApp -configuration Release \
+		-derivedDataPath home/.build-xcode -quiet build
 
 network:
 	dotnet pack frontends/Dmon.Network/Dmon.Network.csproj -c $(CONFIG) -o "$(PACK_OUT)"

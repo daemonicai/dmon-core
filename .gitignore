@@ -93,6 +93,9 @@ home/.build/
 # XcodeGen output — home/project.yml is the source of truth
 home/*.xcodeproj
 
+# xcodebuild derived data for `make dmon-home-app` (distinct from SwiftPM's home/.build/)
+home/.build-xcode/
+
 # macOS
 .DS_Store
 

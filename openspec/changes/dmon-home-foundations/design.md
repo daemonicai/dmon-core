@@ -104,10 +104,11 @@ spawn a core over stdio on a machine you are not running on. This does not weake
 it. Being a gateway client is what makes the split *possible*, and the stdio escape hatch should not
 be relied on as a general-purpose retreat.
 
-### D3 — Only four SPM packages now; the audio packages arrive with their phase
+### D3 — Only four modules now; the audio modules arrive with their phase
 
-PRD §2.3 lists seven packages. This change creates **`Supervisor`**, **`GatewayClient`**, **`Power`**
-and the **`DmonHomeApp`** app target. `AudioEngine`, `Speech` and `Directedness` are **not** created.
+PRD §2.3 lists seven packages. This change creates four modules: the library targets **`Supervisor`**,
+**`GatewayClient`** and **`Power`** — all three in a single package manifest, see **D14** — plus the
+**`DmonHomeApp`** app target. `AudioEngine`, `Speech` and `Directedness` are **not** created.
 
 *Rationale.* Empty placeholder packages are dead scaffolding — they pass review, then rot. The repo
 already holds this principle for .NET: `monorepo-layout` requires that "a role bucket with no current
@@ -294,6 +295,12 @@ better against `actor`-isolated state than XCTest's assertion plus `async` boile
 `home/` couples to XCTest-only machinery (UI test bundles, `XCTestExpectation`) that would force a
 mixed approach later. **New Swift code under `home/` uses swift-testing; `daemon/Daemon.App` is not
 converted.**
+
+The decision does **not** depend on the retirement schedule. Even if dmonium never retires, the two
+Swift trees share no test code, fixtures or helpers, so the cost is a *reading* cost for a human
+moving between them rather than a maintenance one, and `swift test` runs both idioms with no special
+handling. The bounded-window argument above is a reason the cost is small, not the reason the decision
+is right — if retirement slips, D14 still stands.
 
 ## Known future topology — a split back-end
 
