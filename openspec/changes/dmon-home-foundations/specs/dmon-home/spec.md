@@ -27,8 +27,9 @@ The host SHALL be built for `arm64` only and SHALL NOT produce an `x86_64` slice
 
 #### Scenario: No ambiguous destination
 
-- **WHEN** the app is built from the command line
-- **THEN** the build does not warn that it is selecting between multiple matching destinations of differing architecture
+- **WHEN** the app is built through the project's app build target
+- **THEN** the build does not warn that it is selecting between multiple matching destinations
+- **AND** the target fails if the built executable reports any architecture other than `arm64`
 
 ### Requirement: The Xcode project is generated, never hand-edited
 

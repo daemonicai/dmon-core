@@ -78,10 +78,16 @@ dmon-home-test:
 # of truth; the generated home/DmonHomeApp.xcodeproj is gitignored.
 # -destination silences the ambiguous "My Mac" vs "Any Mac" destination warning;
 # unrelated to ARCHS, which is set in project.yml and pins the built slice.
+# The lipo check enforces the spec requirement that the built binary reports
+# arm64 as its only architecture (ADR-037 Decision 5, design D15) — without it
+# an ARCHS regression in project.yml would go undetected until a human ran
+# lipo by hand.
 dmon-home-app:
 	xcodegen generate --spec home/project.yml --project home
 	xcodebuild -project home/DmonHomeApp.xcodeproj -scheme DmonHomeApp -configuration Release \
 		-derivedDataPath home/.build-xcode -destination 'platform=macOS,arch=arm64' -quiet build
+	lipo -archs home/.build-xcode/Build/Products/Release/DmonHomeApp.app/Contents/MacOS/DmonHomeApp | grep -qx arm64 \
+		|| { echo "dmon-home-app: expected arm64-only binary, got: $$(lipo -archs home/.build-xcode/Build/Products/Release/DmonHomeApp.app/Contents/MacOS/DmonHomeApp)"; exit 1; }
 
 network:
 	dotnet pack frontends/Dmon.Network/Dmon.Network.csproj -c $(CONFIG) -o "$(PACK_OUT)"

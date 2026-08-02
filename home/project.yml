@@ -23,7 +23,7 @@ targets:
         INFOPLIST_KEY_NSMicrophoneUsageDescription: "dmon-home uses the microphone so you can talk to your daemon by voice."
         SWIFT_VERSION: "6.0"
         SWIFT_STRICT_CONCURRENCY: complete
-        # Apple Silicon only — the MLX runtime requires arm64 (ADR-037 amendment, design D15).
+        # Apple Silicon only — the MLX runtime requires arm64 (ADR-037 Decision 5, design D15).
         ARCHS: arm64
     dependencies:
       - package: DmonHome

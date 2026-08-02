@@ -2,13 +2,19 @@
 
 **Date:** 2026-08-02
 **Status:** Accepted
-**Amends:** ADR-025 (D2 bucket set — adds `home/`; D10 release-matrix artifact sources — prospectively, when `dmon-home` gains an artifact), ADR-028 (D1 bucket membership; D2 `dmonium` placement, product name and the `ai.daemonic.dmonium` bundle id; D6 artifact source — prospectively, when `dmon-home` gains an artifact)
+**Amends:** ADR-025 (D2 bucket set — adds `home/`; D10 release-matrix artifact sources — prospectively, when `dmon-home` gains an artifact, which per Decision 5 will be **arm64-only**), ADR-028 (D1 bucket membership; D2 `dmonium` placement, product name and the `ai.daemonic.dmonium` bundle id; D6 artifact source — prospectively, on the same terms)
 **Builds on:** ADR-012 (remote session transport / the `gw` control-frame sub-protocol), ADR-034 (mlx local runtime), ADR-036 (loopback-vs-non-loopback auth posture), ADR-003 (the wire contract this host deliberately does not speak directly), ADR-024 / ADR-035 (app-artifact family, independently versioned)
 
-> **Amendment (2026-08-02, change `dmon-home-foundations`) — platform and speech location; no numbered decision changes.**
-> Two Product Owner clarifications, both refining Decision 4 rather than altering it:
-> 1. **`dmon-home` targets Apple Silicon (`arm64`) only.** MLX is built on Metal and unified memory and has no Intel path, so an Intel slice could be compiled but never function. Note that ADR-034 does not itself state this constraint; it is recorded here because `dmon-home` is the first product whose build had to act on it.
-> 2. **The speech sidecar runs on the `dmon-home` host under any topology** — STT, TTS and VAD co-locate with the application, not with the reasoner. Decision 4's rationale below ("keeps the speech models co-resident with the models they share memory pressure with") holds only in the co-located deployment; should the back-end ever move to a separate machine, speech follows the host so raw audio never crosses the network on the latency-critical path. The sidecar decision itself is unchanged.
+> **Amendment (2026-08-02, change `dmon-home-foundations`) — speech location; refines Decision 4's rationale, no decision changes.**
+> The speech sidecar **runs on the `dmon-home` host under any topology**: STT and TTS co-locate with the application rather than with the reasoner. (Silero VAD was already host-side per Decision 4 and is unaffected.) Should the back-end ever move to a separate machine, speech follows the host, so raw audio never crosses the network on the latency-critical path.
+>
+> This makes **both** of Decision 4's stated rationales conditional on the co-located deployment, and the leading one does not merely weaken:
+> - *"two MLX runtimes competing for unified memory is worse than one socket hop"* — under a split there is exactly **one** MLX runtime on the `dmon-home` machine, because the reasoner is elsewhere. The memory-contention argument does not apply at all.
+> - *"keeps the speech models co-resident with the models they share memory pressure with"* — under a split they are not co-resident with the reasoner.
+>
+> **Decision 4 nevertheless stands**, on grounds that hold under either topology: it is consistent with the uv-venv runtime pattern ADR-034 established, and there is no in-process Swift MLX path, so a sidecar is what hosting MLX speech models means. Recorded because a reader reopening the split will otherwise find a decision whose every stated reason has lapsed.
+>
+> *(The Apple Silicon constraint first recorded in this note has been promoted to **Decision 5** below — it is normative content and belongs in the decision set, not in an amendment.)*
 
 ## Context
 
@@ -103,6 +109,24 @@ value (PRD §7.4).
    provider), because round-tripping to a backend to decide whether someone is speaking is not
    acceptable latency-wise.
 
+   > **Both rationales above are specific to the co-located deployment** — see the 2026-08-02
+   > amendment at the top of this ADR. Under a split back-end the memory-contention argument does not
+   > apply at all (only one MLX runtime is on the host) and the co-residency argument is false. The
+   > decision stands on the uv-venv pattern and the absence of an in-process Swift MLX path.
+
+5. **`dmon-home` targets Apple Silicon (`arm64`) only.** The app is built for `arm64` and produces no
+   `x86_64` slice. MLX is built on Metal and unified memory and has **no Intel path**; since
+   `dmon-home` runs the Decision 4 speech sidecar on its own machine, an Intel build could be
+   compiled but never function — an untested slice that falsely implies Intel support. This binds the
+   XcodeGen manifest of Decision 1 and the app target of Decision 3, and it makes any future
+   `dmon-home` release artifact arm64-only for release-matrix purposes (ADR-035 D3/D7).
+
+   Note that **ADR-034 does not itself record this constraint** — it says nothing of arm64, Metal or
+   unified memory — so the requirement that makes Intel impossible was, until this ADR, written
+   nowhere a reader or an agent would find. It is stated here because `dmon-home` is the first
+   product whose build had to act on it; recording it against the MLX runtime itself remains
+   outstanding.
+
 ## Consequences
 
 - **`home/` is real but minimal.** No `.slnx`, no C# — a pure-Swift bucket, so `Everything.slnx` and
@@ -116,6 +140,9 @@ value (PRD §7.4).
 - **The speech sidecar is a future supervised child, not code landing here.** This decision only
   fixes where STT/TTS will live so the packages that need it are shaped for a socket client from the
   start.
+- **`dmon-home` will never run on an Intel Mac**, and its release artifact — when it gains one — is
+  single-architecture. A machine hosting `dmon-home` under a split back-end must also have the memory
+  for the speech models, since Decision 4's sidecar follows the host rather than the reasoner.
 
 ## Relationship to other ADRs
 
@@ -136,6 +163,8 @@ value (PRD §7.4).
 - **ADR-034 / ADR-036** — *Builds on, unchanged.* The mlx runtime pattern and the loopback-vs-
   non-loopback device-key posture are consumed as-is by the speech sidecar and the device-key
   authentication the host will perform against `Dmon.Network`.
-- **ADR-024 / ADR-035** — *Builds on, unchanged.* `dmon-home`, once it ships an artifact, joins the
-  app-artifact release family as an independently versioned member, exactly like the Gateway daemon
-  and dmonium's `.app`.
+- **ADR-024 / ADR-035** — *Builds on; ADR-035's package→family map prospectively amended.*
+  `dmon-home`, once it ships an artifact, joins the app-artifact release family as an independently
+  versioned member, exactly like the Gateway daemon and dmonium's `.app`. Per **Decision 5** that
+  artifact will be **arm64-only**, so ADR-035 D3/D7's map gains a single-architecture member when it
+  lands. No ADR-035 decision text changes; the entry does not exist yet.

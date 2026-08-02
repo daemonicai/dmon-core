@@ -165,6 +165,13 @@ wrong now means reworking it seven times later.
 keeps Parakeet and the TTS models co-resident in the same MLX process as the models they share memory
 pressure with, and it matches the existing `Dmon.Providers.Mlx` uv-venv pattern already in the repo.
 
+> **The first two of those reasons are specific to the co-located deployment — see D15.** Under a
+> split back-end the reasoner is on the other machine, so there is exactly **one** MLX runtime on the
+> `dmon-home` host: the memory-contention argument does not apply at all, and the co-residency
+> argument is false. **D7 stands regardless**, on the third reason alone — the uv-venv pattern — plus
+> the absence of any in-process Swift MLX path, which makes a sidecar simply what hosting MLX speech
+> models means.
+
 *Alternative.* In-process Swift via sherpa-onnx (Parakeet TDT, Silero VAD and several TTS families
 with Swift bindings) removes a hop and a supervised child, but introduces a second ONNX/Metal runtime
 alongside mlx_lm. Note this only settles **STT/TTS**: Silero **VAD** still runs host-side via ONNX
@@ -307,9 +314,9 @@ is right — if retirement slips, D14 still stands.
 Two Product Owner decisions taken 2026-08-02, after task 3.3's verification surfaced that `xcodebuild`
 was offering an `x86_64` destination.
 
-**`dmon-home` targets `arm64` only.** MLX requires Apple Silicon — it is built on Metal and unified
-memory, and there is no Intel path. Since the host runs an MLX speech sidecar locally (below), an
-Intel build could never be functional, only compilable. Building one invites a destination ambiguity
+**`dmon-home` targets `arm64` only** — recorded as **ADR-037 Decision 5**. MLX requires Apple Silicon
+— it is built on Metal and unified memory, and there is no Intel path. Since the host runs an MLX
+speech sidecar locally (below), an Intel build could never be functional, only compilable. Building one invites a destination ambiguity
 warning on every build, a slice nobody tests, and the false impression that Intel is supported.
 
 Worth noting how this got missed: `home/project.yml` carried **no** architecture settings at all, so
@@ -318,17 +325,28 @@ Compounding it, **ADR-034 never records the Apple Silicon constraint** (grepped:
 Metal, or unified memory), so the requirement that makes Intel impossible was not written anywhere a
 reader or an agent would find it. The build setting is the fix; the missing record is the cause.
 
-**Speech runs on the `dmon-home` host, under any topology.** STT, TTS and VAD co-locate with the
-application, not with the reasoner. This resolves the "speech sidecar location" row left open in the
-split-topology table below, and it is the right answer for the reason the PRD cares about: the
-microphone is where the *person* is, so keeping speech local means raw audio never crosses the LAN on
-the most latency-sensitive path in the system. The consequence to plan for is memory — under a split,
-the machine running `dmon-home` must hold Parakeet plus a TTS voice, not merely drive a UI.
+**Speech runs on the `dmon-home` host, under any topology.** STT and TTS co-locate with the
+application rather than with the reasoner; Silero VAD was already host-side per ADR-037 D4 and is
+unaffected. This resolves the "speech sidecar location" row left open in the split-topology table
+below, and it is the right answer for the reason the PRD cares about: the microphone is where the
+*person* is, so keeping speech local means raw audio never crosses the LAN on the most
+latency-sensitive path in the system. The consequence to plan for is memory — under a split, the
+machine running `dmon-home` must hold Parakeet plus a TTS voice, not merely drive a UI.
 
-This **refines** ADR-037 D4 rather than contradicting it: the sidecar decision stands, but D4's stated
-rationale ("keeps the speech models co-resident with the models they share memory pressure with") is
-only true in the co-located deployment. Under a split, speech follows the host and the reasoner is
-elsewhere. Recorded as an in-place amendment note on ADR-037.
+This **refines** ADR-037 D4 rather than contradicting it, but it refines it further than first
+recorded: **both** of D4's stated rationales are specific to the co-located deployment, and the
+leading one lapses entirely. "Two MLX runtimes competing for unified memory is worse than one socket
+hop" assumes the reasoner shares the machine — under a split there is exactly **one** MLX runtime on
+the `dmon-home` host. The co-residency rationale is simply false there. D4 nonetheless stands, on
+grounds that survive either topology: the uv-venv runtime pattern of ADR-034, and the absence of any
+in-process Swift MLX path. Recorded as an in-place amendment note on ADR-037.
+
+**Recording instruments differ for the two halves of D15**, and the distinction is the point. The
+speech-location clarification genuinely refines an existing decision's rationale, so an amendment note
+is right. The arm64 constraint is **new normative content** — it became a `SHALL` in a binding spec
+requirement and changed a build manifest — so it is **ADR-037 Decision 5**, not a note. Recording
+normative content under a header that disclaims normative content is how a constraint becomes
+unfindable, which is precisely the failure that produced this decision in the first place.
 
 ## Known future topology — a split back-end
 

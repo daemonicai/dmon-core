@@ -9,6 +9,7 @@ struct ContentView: View {
     private let wireVersion = WireVersion.current
     private let placeholderChildHealth = ChildHealth.unknown
     @State private var microphoneAuthorization = MicrophoneAuthorizationModel()
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         VStack(spacing: 8) {
@@ -34,5 +35,10 @@ struct ContentView: View {
         }
         .padding()
         .frame(minWidth: 320, minHeight: 200)
+        .onChange(of: scenePhase) { _, newPhase in
+            if newPhase == .active {
+                microphoneAuthorization.refresh()
+            }
+        }
     }
 }
