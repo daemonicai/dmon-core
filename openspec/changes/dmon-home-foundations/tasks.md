@@ -19,7 +19,7 @@
 
 ## 4. Supervision
 
-- [ ] 4.1 Define the child descriptor — transport, endpoint, health check, timeout, startup order, adoption policy — so a child is expressed as configuration rather than a bespoke type. Enumerate the full inventory (network gateway, Dcal, Dmail, mlx reasoner, mlx triage, speech sidecar) and the read-only monitors (Tailscale, calendar sync, mail, egress) as descriptors, marking which are started in this change. (Satisfies "The child model accommodates the full inventory".)
+- [x] 4.1 Define the child descriptor — transport, endpoint, health check, timeout, startup order, adoption policy — so a child is expressed as configuration rather than a bespoke type. Enumerate the full inventory (network gateway, Dcal, Dmail, mlx reasoner, mlx triage, speech sidecar) and the read-only monitors (Tailscale, calendar sync, mail, egress) as descriptors, marking which are started in this change. (Satisfies "The child model accommodates the full inventory".)
 - [ ] 4.2 Implement reattach-first startup: health-check the endpoint, adopt a live process, spawn only when nothing answers. Track whether each child was adopted or spawned. (Satisfies "Children are adopted before they are spawned" — adopt and spawn scenarios.)
 - [ ] 4.3 Implement bounded health checking: every check carries a timeout, a check exceeding it is recorded as failed without blocking other children, and each child's health is published for the UI. (Satisfies "Each child is health-checked with a bounded timeout".)
 - [ ] 4.4 Implement crash detection with exponential backoff between restart attempts, and surface repeated failure rather than retrying silently. (Satisfies "Crashes are detected and retried with exponential backoff".)
