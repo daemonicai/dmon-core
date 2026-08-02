@@ -8,6 +8,7 @@ import SwiftUI
 struct ContentView: View {
     private let wireVersion = WireVersion.current
     private let placeholderChildHealth = ChildHealth.unknown
+    @State private var microphoneAuthorization = MicrophoneAuthorizationModel()
 
     var body: some View {
         VStack(spacing: 8) {
@@ -16,6 +17,20 @@ struct ContentView: View {
             Text("wire protocol \(wireVersion.description) · supervisor \(placeholderChildHealth.rawValue)")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+
+            Divider()
+                .padding(.vertical, 4)
+
+            Text("Microphone: \(microphoneAuthorization.status.dmonHomeLabel)")
+                .font(.headline)
+            Text(microphoneAuthorization.status.dmonHomeGuidance)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+            Button("Request Microphone Access") {
+                Task { await microphoneAuthorization.requestAccess() }
+            }
+            .disabled(microphoneAuthorization.status != .notDetermined)
         }
         .padding()
         .frame(minWidth: 320, minHeight: 200)

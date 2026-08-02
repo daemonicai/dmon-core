@@ -20,6 +20,7 @@ targets:
         CURRENT_PROJECT_VERSION: "1"
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_CFBundleDisplayName: dmon-home
+        INFOPLIST_KEY_NSMicrophoneUsageDescription: "dmon-home uses the microphone so you can talk to your daemon by voice."
         SWIFT_VERSION: "6.0"
         SWIFT_STRICT_CONCURRENCY: complete
     dependencies:

@@ -12,8 +12,8 @@
 
 ## 3. App bundle, entitlements, and the microphone gate
 
-- [ ] 3.1 Configure the app target to produce a genuine `.app` bundle with **App Sandbox disabled** and `NSMicrophoneUsageDescription` set to a meaningful string in `Info.plist`. (Satisfies "The host ships as an unsandboxed `.app` bundle that can prompt for microphone access" — the bundle and entitlement scenarios.)
-- [ ] 3.2 Add a minimal microphone authorisation request path plus a UI surface showing the current authorisation status. No capture, no audio engine — only the permission request and its result.
+- [x] 3.1 Configure the app target to produce a genuine `.app` bundle with **App Sandbox disabled** and `NSMicrophoneUsageDescription` set to a meaningful string in `Info.plist`. (Satisfies "The host ships as an unsandboxed `.app` bundle that can prompt for microphone access" — the bundle and entitlement scenarios.)
+- [x] 3.2 Add a minimal microphone authorisation request path plus a UI surface showing the current authorisation status. No capture, no audio engine — only the permission request and its result.
 - [ ] 3.3 **HUMAN VERIFICATION — do not tick without Product Owner confirmation.** Recipe: run `make dmon-home-app`, then open the built bundle from Finder — `open -R home/.build-xcode/Build/Products/Release/DmonHomeApp.app` reveals it — and launch it by double-clicking (not from a terminal, and not the raw binary inside: TCC keys the grant on the **bundle**). Trigger the authorisation request from the UI. Confirm macOS shows the microphone permission prompt and that it displays the configured usage description. Report the observed prompt text back before ticking. Note: the app is ad-hoc signed, so TCC — which keys a grant on bundle id **plus** cdhash — discards the grant on every rebuild; a fresh prompt each time is expected, and `tccutil reset Microphone ai.daemonic.dmon-home` should not be needed. If no prompt appears at all, that is the failure PRD §11 warns about (silent silence, no prompt) and the bundle or usage string is wrong. (Satisfies "The microphone permission prompt appears".)
 
 ## 4. Supervision
