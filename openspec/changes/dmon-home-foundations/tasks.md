@@ -6,9 +6,9 @@
 
 ## 2. Xcode project and Swift package skeleton
 
-- [ ] 2.1 Add a checked-in XcodeGen `home/project.yml` defining the `DmonHomeApp` application target (bundle id `ai.daemonic.dmon-home`, macOS 14+). Do **not** commit a hand-edited `.xcodeproj`; confirm the project regenerates from the manifest alone. (Satisfies "The Xcode project is generated, never hand-edited".)
-- [ ] 2.2 Create the local Swift packages `Supervisor`, `GatewayClient` and `Power`, each with a test target, and wire them into the app target. Do **not** create `AudioEngine`, `Speech` or `Directedness` — they are created by the change that first puts code in them (design D3). (Satisfies "Application logic lives in local Swift packages" and its no-empty-placeholder scenario.)
-- [ ] 2.3 Add `make` build and test targets for the `home/` packages, named so they do not collide with the existing `daemon-app` targets, and confirm `swift test` runs the package tests headlessly without launching the app.
+- [x] 2.1 Add a checked-in XcodeGen `home/project.yml` defining the `DmonHomeApp` application target (bundle id `ai.daemonic.dmon-home`, macOS 14+). Do **not** commit a hand-edited `.xcodeproj`; confirm the project regenerates from the manifest alone. (Satisfies "The Xcode project is generated, never hand-edited".)
+- [x] 2.2 Create the local Swift packages `Supervisor`, `GatewayClient` and `Power`, each with a test target, and wire them into the app target. Do **not** create `AudioEngine`, `Speech` or `Directedness` — they are created by the change that first puts code in them (design D3). (Satisfies "Application logic lives in local Swift packages" and its no-empty-placeholder scenario.)
+- [x] 2.3 Add `make` build and test targets for the `home/` packages, named so they do not collide with the existing `daemon-app` targets, and confirm `swift test` runs the package tests headlessly without launching the app.
 
 ## 3. App bundle, entitlements, and the microphone gate
 

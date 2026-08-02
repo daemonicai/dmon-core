@@ -88,6 +88,10 @@ graphify-out/
 
 # SwiftPM build output
 daemon/Daemon.App/.build/
+home/.build/
+
+# XcodeGen output — home/project.yml is the source of truth
+home/*.xcodeproj
 
 # macOS
 .DS_Store

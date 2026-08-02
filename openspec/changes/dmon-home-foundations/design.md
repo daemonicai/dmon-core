@@ -266,6 +266,35 @@ sides share a machine**.
 Request provenance is stamped so `AbilityRegistry.ForScope` can later distinguish a request from the
 phone from one originating on the machine holding the models (PRD §8). Cheap now, awkward to retrofit.
 
+### D14 — Swift 6 language mode, one package manifest, and swift-testing
+
+Three toolchain choices, settled during section 2 and recorded here because they bind every later
+section. Toolchain on the development machine is Swift 6.3.3 / Xcode 26.6.
+
+**Swift 6 language mode** (`swift-tools-version: 6.0`, `.swiftLanguageMode(.v6)` on every target,
+including test targets), not `daemon/Daemon.App`'s 5.9. This is not modernity for its own sake:
+PRD §4.3 permits `@unchecked Sendable` and `nonisolated(unsafe)` **only** at the audio ring-buffer
+boundary, "where a safety property is being asserted that the compiler cannot see", and treats their
+appearance anywhere else as evidence that "a concurrency diagnostic has been suppressed rather than a
+problem solved". That constraint is unenforceable without strict concurrency checking — under 5.9 it
+would be a comment, not a rule. It earned its place immediately: the first `Power` implementation was
+drafted with `NSLock` + `@unchecked Sendable` and was rewritten as an `actor` before review.
+
+**One `home/Package.swift` with three library targets**, not three separate packages. PRD §2.3's table
+says "packages"; targets provide the identical module boundary and import discipline with one manifest
+to maintain, a single `swift test --package-path home` that mirrors the existing `daemon-app-test`
+pattern, and one local package for XcodeGen to wire rather than three.
+
+**swift-testing** (`import Testing`, `@Test`, `@Suite`) for `home/`, while `daemon/Daemon.App` stays on
+XCTest. Accepted deliberately rather than drifted into. The cost is real — two test idioms in one repo
+for anyone moving between the Swift trees — but it is bounded, because D3/ADR-037 retires
+`daemon/Daemon.App` at parity and the trees are not meant to coexist long-term. Against that:
+`home/` is greenfield on a 6.0 toolchain; swift-testing's async-native `#expect` reads materially
+better against `actor`-isolated state than XCTest's assertion plus `async` boilerplate; and nothing in
+`home/` couples to XCTest-only machinery (UI test bundles, `XCTestExpectation`) that would force a
+mixed approach later. **New Swift code under `home/` uses swift-testing; `daemon/Daemon.App` is not
+converted.**
+
 ## Known future topology — a split back-end
 
 The Product Owner has flagged (2026-08-02) that `dmon-home` and the back-end may in future run on

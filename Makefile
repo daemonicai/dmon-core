@@ -1,4 +1,4 @@
-.PHONY: all build build-terminal build-core build-core-pack build-memory test test-live pack smoke schema clean daemon-app daemon-app-test network release-wave
+.PHONY: all build build-terminal build-core build-core-pack build-memory test test-live pack smoke schema clean daemon-app daemon-app-test dmon-home dmon-home-test network release-wave
 
 CONFIG            ?= Release
 CORE_OUT          := build/dmoncore
@@ -67,6 +67,12 @@ daemon-app:
 
 daemon-app-test:
 	swift test --package-path daemon/Daemon.App
+
+dmon-home:
+	swift build -c release --package-path home
+
+dmon-home-test:
+	swift test --package-path home
 
 network:
 	dotnet pack frontends/Dmon.Network/Dmon.Network.csproj -c $(CONFIG) -o "$(PACK_OUT)"
