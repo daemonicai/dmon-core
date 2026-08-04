@@ -115,6 +115,38 @@ public actor HostSupervisor {
         }
     }
 
+    /// Kills the process group of every child this host still has spawned,
+    /// and returns the ids of any it refused to signal. A **backstop**,
+    /// meant to run after `shutdown()` — not a substitute for it: a clean
+    /// `shutdown()` already clears `spawnedChild` for every child it reaps
+    /// (in `handleExit`, via the graceful and escalated-SIGKILL paths
+    /// alike), so this finds nothing to do in the ordinary case. It exists
+    /// for the case where `shutdown()` itself was cut short — e.g. an
+    /// app-level termination budget cancelling the `Task` running it while
+    /// a child's graceful-termination wait is still in flight, which can
+    /// resolve that wait early (via `shutdownChild`'s cancellation
+    /// handling) without ever confirming the child actually exited, leaving
+    /// `spawnedChild` still populated for a process that may still be
+    /// alive.
+    ///
+    /// Signals only — it does **not** wait for exit or touch
+    /// `supervisionTask`. Doing so would violate this type's single-waiter
+    /// invariant (see the type-level documentation above): each spawned
+    /// child's live pid already has exactly one `Task` awaiting it via
+    /// `awaitExit(of:)`, and starting a second wait here would race that
+    /// `Task`. `kill(2)` needs no such ownership, so simply signalling every
+    /// still-spawned child's group is safe regardless of what any
+    /// supervision `Task` is doing concurrently.
+    ///
+    /// An adopted child has no `SpawnedChild` value at all (see
+    /// `SpawnedChild`'s own documentation), so it is never a candidate for
+    /// `states.values.compactMap(\.spawnedChild)` below — "adoption is
+    /// exempt" holds by construction, the same way it does for
+    /// `ChildSpawner.killProcessGroups`.
+    public func terminateSpawnedProcessGroups() -> [ChildID] {
+        spawner.killProcessGroups(of: states.values.compactMap(\.spawnedChild))
+    }
+
     // MARK: - Starting and restarting
 
     private func startChild(_ id: ChildID) async {

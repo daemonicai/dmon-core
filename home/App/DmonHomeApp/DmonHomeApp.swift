@@ -2,9 +2,11 @@ import SwiftUI
 
 @main
 struct DmonHomeApp: App {
+    @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            ContentView(statusObserver: appDelegate.statusObserver)
         }
     }
 }
