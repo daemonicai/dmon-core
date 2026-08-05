@@ -89,10 +89,8 @@ extension ChildHealth {
     var dmonHomeLabel: String {
         switch self {
         case .unknown: "unknown"
-        case .starting: "starting"
         case .healthy: "healthy"
         case .unhealthy: "unhealthy"
-        case .stopped: "stopped"
         }
     }
 }

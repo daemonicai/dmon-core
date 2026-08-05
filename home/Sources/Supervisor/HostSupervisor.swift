@@ -108,43 +108,38 @@ public actor HostSupervisor {
     }
 
     /// Shuts down every enabled child, in the reverse of its declared
-    /// startup order.
-    public func shutdown() async {
+    /// startup order, and returns the ids of any it refused to signal — see
+    /// `ChildSpawner.killProcessGroup`'s own documentation for the one
+    /// refusal reason that exists today. Deliberately not
+    /// `@discardableResult`, for the same reason `killProcessGroup` itself
+    /// is not: a caller (the app's termination hook) must at least
+    /// acknowledge a non-empty result.
+    public func shutdown() async -> [ChildID] {
+        var refused: [ChildID] = []
         for id in startupOrder.reversed() {
-            await shutdownChild(id)
+            if let refusedID = await shutdownChild(id) {
+                refused.append(refusedID)
+            }
         }
+        return refused
     }
 
-    /// Kills the process group of every child this host still has spawned,
-    /// and returns the ids of any it refused to signal. A **backstop**,
-    /// meant to run after `shutdown()` — not a substitute for it: a clean
-    /// `shutdown()` already clears `spawnedChild` for every child it reaps
-    /// (in `handleExit`, via the graceful and escalated-SIGKILL paths
-    /// alike), so this finds nothing to do in the ordinary case. It exists
-    /// for the case where `shutdown()` itself was cut short — e.g. an
-    /// app-level termination budget cancelling the `Task` running it while
-    /// a child's graceful-termination wait is still in flight, which can
-    /// resolve that wait early (via `shutdownChild`'s cancellation
-    /// handling) without ever confirming the child actually exited, leaving
-    /// `spawnedChild` still populated for a process that may still be
-    /// alive.
+    /// The worst case `shutdown()` could take if every enabled child's whole
+    /// process group ignored `SIGTERM`: each child's own
+    /// `gracefulShutdownTimeout` wait, for as many children as this host
+    /// supervises — `shutdown()` walks them strictly sequentially (task
+    /// 4.5), so these do not overlap and the total is a plain product, not
+    /// a race. A caller deriving an app-exit termination budget from this
+    /// gets a value that changes automatically when the inventory or the
+    /// timeout does, instead of a hand-computed constant that can silently
+    /// drift out of sync with either.
     ///
-    /// Signals only — it does **not** wait for exit or touch
-    /// `supervisionTask`. Doing so would violate this type's single-waiter
-    /// invariant (see the type-level documentation above): each spawned
-    /// child's live pid already has exactly one `Task` awaiting it via
-    /// `awaitExit(of:)`, and starting a second wait here would race that
-    /// `Task`. `kill(2)` needs no such ownership, so simply signalling every
-    /// still-spawned child's group is safe regardless of what any
-    /// supervision `Task` is doing concurrently.
-    ///
-    /// An adopted child has no `SpawnedChild` value at all (see
-    /// `SpawnedChild`'s own documentation), so it is never a candidate for
-    /// `states.values.compactMap(\.spawnedChild)` below — "adoption is
-    /// exempt" holds by construction, the same way it does for
-    /// `ChildSpawner.killProcessGroups`.
-    public func terminateSpawnedProcessGroups() -> [ChildID] {
-        spawner.killProcessGroups(of: states.values.compactMap(\.spawnedChild))
+    /// `nonisolated`: both inputs are `let`-bound `Sendable` values fixed at
+    /// `init` and never mutated afterward, so reading them needs no actor
+    /// hop — a caller computing a budget at app-launch does not need to
+    /// `await` into this actor first.
+    public nonisolated var worstCaseShutdownDuration: TimeInterval {
+        gracefulShutdownTimeout * TimeInterval(startupOrder.count)
     }
 
     // MARK: - Starting and restarting
@@ -264,8 +259,13 @@ public actor HostSupervisor {
 
     // MARK: - Shutdown
 
-    private func shutdownChild(_ id: ChildID) async {
-        guard var state = states[id] else { return }
+    /// Returns `id` if this refused to signal `id`'s process group — never
+    /// for any other reason (a reap failure past that point is recorded via
+    /// `store.publish` alone, since it is a distinct failure mode from
+    /// refusing to signal in the first place). `nil` covers every other
+    /// outcome, including "nothing live here to begin with".
+    private func shutdownChild(_ id: ChildID) async -> ChildID? {
+        guard var state = states[id] else { return nil }
         state.intentionalStop = true
         states[id] = state
 
@@ -273,7 +273,7 @@ public actor HostSupervisor {
             // Adopted (never ours to signal), never started, or already
             // exited and mid-way through its own restart decision — either
             // way there is nothing live here to terminate.
-            return
+            return nil
         }
 
         let requestedGracefulTermination = spawner.killProcessGroup(of: child, signal: SIGTERM)
@@ -284,7 +284,7 @@ public actor HostSupervisor {
             // `@discardableResult`, so a refusal is recorded rather than
             // silently assumed away.
             await store.publish(.repeatedFailure(delay: 0), for: id)
-            return
+            return id
         }
 
         // `withTimeout` alone cannot bound `await task.value`: `task` is a
@@ -307,44 +307,78 @@ public actor HostSupervisor {
             )
         } ?? false
 
-        if !exitedGracefully {
-            // By the time `withTimeout` returns here, `task` is guaranteed
-            // to have already finished: `withTaskGroup` cannot return until
-            // every task it added — including the cancellation-propagating
-            // wrapper above, and transitively `task` itself — has completed.
-            // `task` therefore gave up its wait (via the cancellation just
-            // propagated) without reaping; the process may still be alive.
+        if exitedGracefully {
+            // `task` has already run `handleExit` to completion by now
+            // (`task.value` cannot resolve until the `Task` closure's own
+            // `await self?.handleExit(id: id)` returns), which — since
+            // `state.intentionalStop` was set above before this child was
+            // ever signalled — has already cleared `spawnedChild` and
+            // published `.stoppedIntentionally` for `id`. But that only
+            // proves the *leader* exited; requirement 5 (design D6) is
+            // "kill that group on exit", not "kill the leader on exit", and
+            // a descendant that ignores `SIGTERM` (or is simply still
+            // working) survives the leader's own prompt exit undisturbed
+            // unless something else reaches it too — the defect this
+            // remediation closes.
+            //
+            // `SIGKILL`ing the group here is safe even though the leader's
+            // own pid has already been reaped: POSIX guarantees a
+            // process-group id is not reused until the group's *last*
+            // member exits, so exactly in the case that matters — a
+            // descendant still alive — the group is still occupied and this
+            // pgid still reaches it. The only other case is a group that is
+            // already fully empty, where `kill(2)` returns `ESRCH`, which
+            // `killProcessGroup` intentionally leaves unchecked. This is not
+            // a pid-reuse hazard requiring a kill-before-reap ordering: the
+            // reservation outlives the reap precisely as long as the group
+            // itself does.
             let requestedKill = spawner.killProcessGroup(of: child, signal: SIGKILL)
             if !requestedKill {
                 await store.publish(.repeatedFailure(delay: 0), for: id)
             }
-            // The abandoned wait fully relinquished ownership of this pid
-            // before `task` returned, so this is a fresh call, not a second
-            // concurrent waiter — reaps whatever `SIGKILL` (or the ignored
-            // `SIGTERM`, if it raced in first) actually produced.
-            //
-            // Shielded from *this* task's own cancellation, deliberately: if
-            // whatever drives `shutdown()` is itself cancelled while
-            // suspended here, this reap is the last chance to avoid leaving
-            // a SIGKILLed-but-unreaped zombie for the host's lifetime —
-            // there is no fourth attempt. A plain unstructured `Task` does
-            // not inherit or receive its parent's cancellation automatically
-            // (only *structured* children — task groups, `async let` — do),
-            // so wrapping the reap in one makes it immune by construction,
-            // not merely by a comment asserting it should never be needed.
-            let reapOutcome = await Task { await awaitExit(of: child.pid) }.value
-            if case .reapFailed = reapOutcome {
-                // Same reason `!requestedKill` above is surfaced rather than
-                // absorbed: this reap is the last chance to reconcile this
-                // pid, so its failure deserves the same acknowledgement.
-                await store.publish(.repeatedFailure(delay: 0), for: id)
-            }
-            if var finalState = states[id] {
-                finalState.spawnedChild = nil
-                finalState.supervisionTask = nil
-                states[id] = finalState
-            }
-            await store.publish(.stoppedIntentionally, for: id)
+            return requestedKill ? nil : id
         }
+
+        // By the time `withTimeout` returns here, `task` is guaranteed
+        // to have already finished: `withTaskGroup` cannot return until
+        // every task it added — including the cancellation-propagating
+        // wrapper above, and transitively `task` itself — has completed.
+        // `task` therefore gave up its wait (via the cancellation just
+        // propagated) without reaping; the process may still be alive.
+        let requestedKill = spawner.killProcessGroup(of: child, signal: SIGKILL)
+        if !requestedKill {
+            await store.publish(.repeatedFailure(delay: 0), for: id)
+        }
+        // The abandoned wait fully relinquished ownership of this pid
+        // before `task` returned, so this is a fresh call, not a second
+        // concurrent waiter — reaps whatever `SIGKILL` (or the ignored
+        // `SIGTERM`, if it raced in first) actually produced.
+        //
+        // Shielded from *this* task's own cancellation, deliberately: if
+        // whatever drives `shutdown()` is itself cancelled while
+        // suspended here, this reap is the last chance to avoid leaving
+        // a SIGKILLed-but-unreaped zombie for the host's lifetime —
+        // there is no fourth attempt. A plain unstructured `Task` does
+        // not inherit or receive its parent's cancellation automatically
+        // (only *structured* children — task groups, `async let` — do),
+        // so wrapping the reap in one makes it immune by construction,
+        // not merely by a comment asserting it should never be needed.
+        let reapOutcome = await Task { await awaitExit(of: child.pid) }.value
+        if case .reapFailed = reapOutcome {
+            // Same reason `!requestedKill` above is surfaced rather than
+            // absorbed: this reap is the last chance to reconcile this
+            // pid, so its failure deserves the same acknowledgement. Not
+            // folded into the returned `ChildID?` — that return means
+            // specifically "refused to signal", and a reap failure is a
+            // distinct failure mode from that.
+            await store.publish(.repeatedFailure(delay: 0), for: id)
+        }
+        if var finalState = states[id] {
+            finalState.spawnedChild = nil
+            finalState.supervisionTask = nil
+            states[id] = finalState
+        }
+        await store.publish(.stoppedIntentionally, for: id)
+        return requestedKill ? nil : id
     }
 }

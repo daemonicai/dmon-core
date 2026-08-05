@@ -148,10 +148,11 @@ public struct ChildSpawner: Sendable {
     /// is reachable, not merely hypothetical — this is not trusted from
     /// further away. A signal is irreversible, so refusing costs nothing but
     /// the signal itself, and this returns `false` rather than trapping.
-    /// **Not `@discardableResult`**: a caller signalling one child on its own
-    /// must look at the result, exactly like `killProcessGroups` below must
-    /// look at its `[ChildID]` — silently discarding either is the same
-    /// silent-failure hazard this whole remediation exists to close.
+    /// **Not `@discardableResult`**: a caller signalling a child must look
+    /// at the result — silently discarding it is the same silent-failure
+    /// hazard this whole remediation exists to close. `HostSupervisor
+    /// .shutdown()` is the one caller today, and surfaces a refusal as the
+    /// `ChildID` it returns.
     public func killProcessGroup(of child: SpawnedChild, signal: Int32 = SIGKILL) -> Bool {
         guard !wouldSignalOurOwnGroup(child.processGroupID) else {
             return false
@@ -162,34 +163,5 @@ public struct ChildSpawner: Sendable {
         // group" (returned above) is.
         kill(-child.processGroupID, signal)
         return true
-    }
-
-    /// Kills every given child's process group, continuing past any refusal
-    /// rather than stopping at the first one: at app-exit, children
-    /// 2...n still need to be signalled even if child 1's group turned out
-    /// to be unsafe. Because this accepts only `[SpawnedChild]`, an adopted
-    /// child — which has no `SpawnedChild` value to begin with — cannot be
-    /// passed here even by mistake: "kill everything this host spawned, and
-    /// leave everything it adopted alone" holds by construction.
-    ///
-    /// Returns the ids of any children this refused to signal. Deliberately
-    /// not `@discardableResult`: the supervision spec requires failure to be
-    /// surfaced rather than silently avoided, so a caller (the app-exit
-    /// wiring, task 4.7) must at least acknowledge an empty-vs-nonempty
-    /// result, even if only to log it.
-    ///
-    /// Note for whoever adds a second refusal reason (not 4.4, not 4.5, as
-    /// far as either touches this file): `[ChildID]` is sufficient only
-    /// because `wouldSignalOurOwnGroup` is the *only* way this can refuse
-    /// today. A second reason would need the return type to carry which
-    /// reason applied per child, not just the id.
-    public func killProcessGroups(of children: [SpawnedChild], signal: Int32 = SIGKILL) -> [ChildID] {
-        var refused: [ChildID] = []
-        for child in children {
-            if !killProcessGroup(of: child, signal: signal) {
-                refused.append(child.id)
-            }
-        }
-        return refused
     }
 }

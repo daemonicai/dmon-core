@@ -88,11 +88,11 @@ struct ChildSpawnerTests {
     /// signal itself, so this is the one safe way to exercise the case where
     /// it collides with our own group: constructing a `SpawnedChild` whose
     /// `processGroupID` equals `getpgrp()` and handing it to
-    /// `killProcessGroup`/`killProcessGroups` would, under an inverted guard,
-    /// send `SIGKILL` to the test runner's own group instead of failing an
-    /// assertion — a test whose failure mode is worse than the bug it
-    /// guards. Testing the predicate in isolation gets the same coverage
-    /// with no signal ever sent.
+    /// `killProcessGroup` would, under an inverted guard, send `SIGKILL` to
+    /// the test runner's own group instead of failing an assertion — a test
+    /// whose failure mode is worse than the bug it guards. Testing the
+    /// predicate in isolation gets the same coverage with no signal ever
+    /// sent.
     /// A spawned child must not inherit whatever signal mask or dispositions
     /// this process happens to have — proven directly rather than assumed,
     /// because `swift test`'s own runner blocks `SIGTERM` (confirmed while
@@ -130,23 +130,6 @@ struct ChildSpawnerTests {
         let spawner = ChildSpawner()
         #expect(spawner.wouldSignalOurOwnGroup(getpgrp()))
         #expect(!spawner.wouldSignalOurOwnGroup(getpgrp() + 1))
-    }
-
-    @Test
-    func killProcessGroupsAcceptsOnlySpawnedChildrenNotAdoptedOnes() async throws {
-        let spawner = ChildSpawner()
-        let child = try await spawner.spawn(id: "batch-child", executablePath: "/bin/sh", arguments: ["-c", "sleep 30"])
-
-        // `ChildStartOutcome.adopted` carries no `SpawnedChild` value at all,
-        // so there is nothing an adopted child could contribute to this
-        // array even if a caller wanted to include one — the compiler
-        // enforces it, this test only documents that `[SpawnedChild]` is
-        // genuinely the narrowest type that compiles.
-        let refused = spawner.killProcessGroups(of: [child])
-        let status = try #require(await awaitExit(of: child.pid).exitedStatus, "an uncancelled wait must report a real exit status")
-
-        #expect(refused.isEmpty)
-        #expect(status.terminatingSignal == SIGKILL)
     }
 }
 

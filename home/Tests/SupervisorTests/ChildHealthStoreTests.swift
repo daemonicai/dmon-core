@@ -23,7 +23,7 @@ struct ChildHealthStoreTests {
     @Test
     func laterPublishesOverwritePriorHealthForTheSameChild() async {
         let store = ChildHealthStore()
-        await store.publish(.starting, for: "network-gateway")
+        await store.publish(.unhealthy, for: "network-gateway")
         await store.publish(.healthy, for: "network-gateway")
         #expect(await store.health(for: "network-gateway") == .healthy)
     }

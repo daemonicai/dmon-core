@@ -117,6 +117,72 @@ struct HostRuntimeTests {
         #expect(statuses.first { $0.id == "child-a" }?.supervision == .stoppedIntentionally)
     }
 
+    /// Requirement 5 / design D6's exact defect, closed by this
+    /// remediation: a leader that exits promptly on `SIGTERM` must not let
+    /// a still-alive group member escape termination. The leader here has
+    /// no trap of its own — `ChildSpawner.spawn` resets every signal to its
+    /// default disposition, so it dies the instant the group is signalled,
+    /// well inside `gracefulShutdownTimeout` — while a backgrounded
+    /// grandchild explicitly ignores `SIGTERM` (`trap '' TERM`, which
+    /// survives `exec` into `sleep`) and would run its full 30s sleep
+    /// undisturbed if anything here decided whether to escalate by the
+    /// leader's liveness alone. `handleExit` also clears this child from
+    /// `HostSupervisor`'s own state as soon as the leader is reaped —
+    /// before this assertion ever runs — so the grandchild's death here
+    /// cannot come from any path keyed off that state; only the group kill
+    /// on `shutdownChild`'s ordinary graceful-exit branch reaches it.
+    @Test
+    func shutdownForTerminationKillsAGrandchildEvenWhenTheLeaderExitsPromptlyOnItsOwn() async throws {
+        let pidFile = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: pidFile) }
+        let descriptor = Self.spawnableDescriptor(
+            id: "child-a",
+            displayName: "Child A",
+            command: "(trap '' TERM; sleep 30) &\necho $! > \"\(pidFile.path)\"\nwait"
+        )
+        let runtime = HostRuntime(
+            children: [descriptor],
+            monitors: [],
+            healthChecker: HealthChecker(httpProbe: { _ in true }),
+            healthCheckInterval: 0.02
+        )
+
+        await runtime.start()
+        let grandchildPid = try await Self.waitForPid(at: pidFile)
+        #expect(kill(grandchildPid, 0) == 0, "grandchild should be alive before shutdown")
+
+        let refused = await runtime.shutdownForTermination()
+
+        #expect(refused.isEmpty)
+        // Polled, not a bare synchronous check: the grandchild is re-parented
+        // to launchd once its leader is reaped, so this process is not its
+        // parent and has no `wait()`-based synchronization point for when the
+        // delivered `SIGKILL` actually finishes taking it down — only that
+        // `kill(-pgid, SIGKILL)` was already sent by the time
+        // `shutdownForTermination()` returned. Bounded well below the test's
+        // own patience, not `gracefulShutdownTimeout`: a real defect here
+        // would leave the grandchild alive indefinitely, not merely slow to
+        // die, so this timeout is about tolerating scheduling latency, not
+        // masking the very defect this test exists to catch.
+        let grandchildDied = await waitUntilTrue(timeout: 2) { kill(grandchildPid, 0) != 0 }
+        #expect(grandchildDied, "shutdownForTermination should have killed the grandchild even though the leader exited on its own")
+    }
+
+    /// R5: the one fact an app-exit termination budget must derive from,
+    /// exposed through `HostRuntime` rather than restated. `nonisolated`,
+    /// so no `await` is needed to read it.
+    @Test
+    func worstCaseShutdownDurationDerivesFromTheSupervisorsOwnValue() {
+        let descriptor = Self.spawnableDescriptor(id: "child-a", displayName: "Child A")
+        let runtime = HostRuntime(
+            children: [descriptor],
+            monitors: [],
+            gracefulShutdownTimeout: 9
+        )
+
+        #expect(runtime.worstCaseShutdownDuration == 9)
+    }
+
     // MARK: - Helpers
 
     private static func spawnableDescriptor(

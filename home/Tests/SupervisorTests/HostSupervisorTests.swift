@@ -46,7 +46,7 @@ struct HostSupervisorTests {
         #expect(sawSixCrashes, "expected 6 recorded restart delays")
         #expect(await recorder.delays == [2, 4, 8, 16, 32, 60])
 
-        await supervisor.shutdown()
+        _ = await supervisor.shutdown()
     }
 
     /// The interaction B4 exists for: without an explicit intentional-stop
@@ -74,7 +74,7 @@ struct HostSupervisorTests {
         }
         #expect(sawSpawn)
 
-        await supervisor.shutdown()
+        _ = await supervisor.shutdown()
 
         let lines = ((try? String(contentsOf: markerFile, encoding: .utf8)) ?? "")
             .split(separator: "\n").map(String.init)
@@ -136,7 +136,7 @@ struct HostSupervisorTests {
         }
         #expect(allReady)
 
-        await supervisor.shutdown()
+        _ = await supervisor.shutdown()
 
         let lines = ((try? String(contentsOf: logFile, encoding: .utf8)) ?? "")
             .split(separator: "\n").map(String.init)
@@ -167,7 +167,7 @@ struct HostSupervisorTests {
         }
         #expect(isReady)
 
-        await supervisor.shutdown()
+        _ = await supervisor.shutdown()
 
         let content = (try? String(contentsOf: markerFile, encoding: .utf8)) ?? ""
         #expect(content.contains("graceful"))
@@ -206,7 +206,7 @@ struct HostSupervisorTests {
         #expect(isReady)
         #expect(kill(pid, 0) == 0, "child should be alive before shutdown")
 
-        await supervisor.shutdown()
+        _ = await supervisor.shutdown()
 
         #expect(kill(pid, 0) != 0, "child should be dead after shutdown escalated to SIGKILL")
     }
@@ -242,7 +242,7 @@ struct HostSupervisorTests {
         }
         #expect(sawRepeatedFailure, "two unstable crashes should surface repeated failure even though the backoff delay is nowhere near its 1000s cap")
 
-        await supervisor.shutdown()
+        _ = await supervisor.shutdown()
     }
 
     /// Surfacing repeated failure is only meaningful if it *stays* surfaced.
@@ -295,7 +295,7 @@ struct HostSupervisorTests {
             try? await Task.sleep(nanoseconds: 2_000_000)
         }
 
-        await supervisor.shutdown()
+        _ = await supervisor.shutdown()
 
         guard let firstRepeatedFailureIndex = observed.firstIndex(where: {
             if case .repeatedFailure = $0 { return true }
@@ -349,6 +349,94 @@ struct HostSupervisorTests {
             await supervisor.currentPID(for: descriptor.id) == nil
         }
         #expect(adopted, "the restart should adopt rather than spawn a second process")
+    }
+
+    // MARK: - Process-group kill and adoption exemption on shutdown
+
+    /// "Adoption is exempt" (task 4.6), proven against the ordinary
+    /// `shutdown()` path now that the standalone process-group sweep this
+    /// used to be proven through has folded into it (DEVLOG remediation for
+    /// task 4.7, R1/R6): an adopted descriptor never populates
+    /// `spawnedChild` in the first place (`apply`'s `.adopted` case), so
+    /// there is structurally nothing for `shutdownChild` to signal.
+    /// `currentPID(for:) == nil`, both before and after `shutdown()`, is
+    /// the only claim any implementation could ever prove through this
+    /// type: an adopted child's real backing pid is never communicated to
+    /// `HostSupervisor` in any form, so no test double standing in for
+    /// "the adopted process" can be observed alive or dead through this
+    /// API — asserting on one, as an earlier version of this test did,
+    /// proves nothing an implementation could ever falsify. Proven
+    /// alongside a genuinely spawned sibling that *is* killed, so this is
+    /// not merely "shutdown does nothing".
+    @Test
+    func shutdownExemptsAnAdoptedChildAndKillsAGenuinelySpawnedSibling() async throws {
+        let coordinator = ChildStartCoordinator(healthChecker: HealthChecker(httpProbe: { _ in true }))
+        let adoptedDescriptor = Self.descriptor(id: "adopted-child", policy: .adoptOrSpawn, command: "sleep 30")
+        let spawnedDescriptor = Self.descriptor(id: "genuinely-spawned", command: "sleep 30")
+        let supervisor = HostSupervisor(
+            descriptors: [adoptedDescriptor, spawnedDescriptor],
+            coordinator: coordinator,
+            store: ChildSupervisionStore()
+        )
+
+        await supervisor.start()
+        #expect(
+            await supervisor.currentPID(for: adoptedDescriptor.id) == nil,
+            "an adoptOrSpawn descriptor whose endpoint already answers should adopt, not spawn"
+        )
+        let spawnedPid = try #require(await supervisor.currentPID(for: spawnedDescriptor.id))
+
+        let refused = await supervisor.shutdown()
+
+        #expect(refused.isEmpty)
+        let spawnedDied = await waitUntilTrue(timeout: 2) { kill(spawnedPid, 0) != 0 }
+        #expect(spawnedDied, "the genuinely spawned sibling should be killed by shutdown")
+        #expect(
+            await supervisor.currentPID(for: adoptedDescriptor.id) == nil,
+            "an adopted child has no pid for shutdown to ever have touched"
+        )
+    }
+
+    // MARK: - Worst-case shutdown duration
+
+    /// The one fact an app-exit termination budget must derive from (task
+    /// 4.7's remediation, R5): a plain product of `gracefulShutdownTimeout`
+    /// and how many children `shutdown()` actually walks — proven here by
+    /// choosing values (7s, 3 children) that could not coincide with any
+    /// other plausible formula (e.g. summing instead of multiplying, or
+    /// off-by-one on the count) without failing the exact-equality check.
+    /// `nonisolated`, so no `await` needed to read it.
+    @Test
+    func worstCaseShutdownDurationIsGracefulTimeoutTimesEnabledChildCount() {
+        let descriptors = (0..<3).map {
+            Self.descriptor(id: ChildID("child-\($0)"), startupOrder: $0, command: "sleep 30")
+        }
+        let supervisor = HostSupervisor(descriptors: descriptors, store: ChildSupervisionStore(), gracefulShutdownTimeout: 7)
+
+        #expect(supervisor.worstCaseShutdownDuration == 21)
+    }
+
+    /// A disabled child is never in `startupOrder` (filtered at `init`), so
+    /// it must not inflate the worst case either — the same descriptor set
+    /// as above, plus one disabled child, must still report the same value.
+    @Test
+    func worstCaseShutdownDurationExcludesDisabledChildren() {
+        let enabled = Self.descriptor(id: "enabled-child", startupOrder: 0, command: "sleep 30")
+        let disabled = ChildDescriptor(
+            id: "disabled-child",
+            displayName: "Disabled",
+            transport: .loopbackHTTP,
+            endpoint: URL(string: "http://127.0.0.1:9999/disabled")!,
+            healthCheck: .http(URL(string: "http://127.0.0.1:9999/disabled")!),
+            healthCheckTimeout: 1,
+            startupOrder: 1,
+            adoptionPolicy: .spawnOnly,
+            launch: ChildLaunch(),
+            isEnabled: false
+        )
+        let supervisor = HostSupervisor(descriptors: [enabled, disabled], store: ChildSupervisionStore(), gracefulShutdownTimeout: 7)
+
+        #expect(supervisor.worstCaseShutdownDuration == 7)
     }
 
     // MARK: - Helpers

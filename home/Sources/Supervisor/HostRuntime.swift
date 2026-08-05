@@ -16,11 +16,11 @@ public struct ChildStatus: Hashable, Sendable {
 /// a shell, so this — not the app — is what `swift test` exercises).
 ///
 /// Owns a `HostSupervisor` over the enabled children in `children`, a
-/// `HealthMonitor` over those same enabled children plus every entry in
-/// `monitors`, and both stores those two write into. Also merges the
-/// stores' independent snapshots into one `[ChildStatus]` feed, so the app
-/// target's UI mirror only has to consume a stream and store a value —
-/// never decide anything.
+/// `HealthMonitor` over those same enabled children (see `healthEntities`
+/// for why `monitors` is accepted but not, today, fed to it), and both
+/// stores those two write into. Also merges the stores' independent
+/// snapshots into one `[ChildStatus]` feed, so the app target's UI mirror
+/// only has to consume a stream and store a value — never decide anything.
 public actor HostRuntime {
     public let healthStore: ChildHealthStore
     public let supervisionStore: ChildSupervisionStore
@@ -80,7 +80,22 @@ public actor HostRuntime {
         self.healthMonitor = HealthMonitor(checker: healthChecker, store: healthStore, interval: healthCheckInterval)
 
         let enabledChildren = children.filter(\.isEnabled)
-        self.healthEntities = enabledChildren.map { $0 as any HealthCheckable } + monitors.map { $0 as any HealthCheckable }
+        // `monitors` is deliberately **not** folded in here (Product Owner
+        // decision, 2026-08-04): `statusUpdates()` already excludes
+        // monitors from its merged feed (see `supervisedIDs` below), so
+        // checking them today bought nothing but standing cost — a
+        // DNS+TLS request to `egress`'s external endpoint every
+        // `healthCheckInterval`, two more against services this change
+        // never starts, and a `.process`-kind check (`tailscale`)
+        // `HealthChecker` cannot execute at all, so it could only ever
+        // report `.unknown`. The `monitors` parameter itself stays (so
+        // `ChildInventory.monitors` remains representable and pluggable,
+        // per requirement 6), it is simply not wired to this loop yet.
+        // Re-enable by adding `monitors.map { $0 as any HealthCheckable }`
+        // back below, once something actually consumes a monitor's
+        // `ChildHealthStore` entry — a status feed for monitors, which does
+        // not exist yet.
+        self.healthEntities = enabledChildren.map { $0 as any HealthCheckable }
         self.supervisedIDs = enabledChildren.map(\.id)
         self.displayNames = Dictionary(uniqueKeysWithValues: enabledChildren.map { ($0.id, $0.displayName) })
     }
@@ -111,22 +126,21 @@ public actor HostRuntime {
         }
     }
 
-    /// Cancels the health-check loop, gracefully shuts down every enabled
-    /// child in reverse startup order, then sweeps: kills the process group
-    /// of any child still left with a live `SpawnedChild` — a backstop for
-    /// `shutdown()` having been cut short (see `HostSupervisor
-    /// .terminateSpawnedProcessGroups()`), a no-op after a clean shutdown.
+    /// Cancels the health-check loop, then gracefully shuts down every
+    /// enabled child in reverse startup order — killing each one's whole
+    /// process group (not just its leader) once its own graceful wait
+    /// resolves, whichever way it resolves (see `HostSupervisor
+    /// .shutdown()`), so no spawned descendant survives this call.
     ///
-    /// Returns the ids the sweep refused to signal, exactly as
-    /// `HostSupervisor.terminateSpawnedProcessGroups()` does — not
-    /// `@discardableResult`, for the same reason: a caller (the app's
-    /// termination hook) must at least acknowledge a non-empty result.
+    /// Returns the ids `shutdown()` refused to signal — not
+    /// `@discardableResult`, for the same reason `HostSupervisor.shutdown()`
+    /// itself is not: a caller (the app's termination hook) must at least
+    /// acknowledge a non-empty result.
     public func shutdownForTermination() async -> [ChildID] {
         healthMonitorTask?.cancel()
         healthMonitorTask = nil
 
-        await supervisor.shutdown()
-        let refused = await supervisor.terminateSpawnedProcessGroups()
+        let refused = await supervisor.shutdown()
 
         healthForwardingTask?.cancel()
         healthForwardingTask = nil
@@ -134,6 +148,17 @@ public actor HostRuntime {
         supervisionForwardingTask = nil
 
         return refused
+    }
+
+    /// See `HostSupervisor.worstCaseShutdownDuration` — the one fact an
+    /// app-exit termination budget must be derived from rather than
+    /// restate, so enabling a new child or retuning `gracefulShutdownTimeout`
+    /// cannot make a hand-computed budget silently wrong. `nonisolated` for
+    /// the same reason the value it forwards is: both are `let`-bound,
+    /// fixed at `init`, so a caller does not need to `await` into this actor
+    /// just to size a budget before anything has even started.
+    public nonisolated var worstCaseShutdownDuration: TimeInterval {
+        supervisor.worstCaseShutdownDuration
     }
 
     /// A live feed of every enabled child's merged status: the current
