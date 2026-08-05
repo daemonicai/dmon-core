@@ -56,19 +56,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// even after the budget has already forced a reply — see
     /// `replyToTerminate`.
     ///
-    /// **That non-cancellation is a safety precondition, not merely a design
-    /// preference — do not change it without reading this.** `HostSupervisor`
-    /// used to carry a `terminateSpawnedProcessGroups()` sweep as a backstop
-    /// for a shutdown cut short mid-flight. That backstop was removed once
-    /// `shutdownChild` began killing each child's process group on its
-    /// *graceful* path too, on the strength of exactly one fact: nothing
-    /// cancels this task, so `shutdown()` always runs to completion and the
-    /// group kill always fires. Make `shutdownForTermination()` cancellable
-    /// here — a `SIGTERM` handler with its own cancel-and-timeout, a
-    /// different `.terminateLater` strategy — and a child's process group can
-    /// once again survive host exit, **with no compiler or test signal**,
-    /// because the mechanism that used to catch that class of regression is
-    /// the one this precondition justified deleting.
+    /// `HostSupervisor` used to carry a `terminateSpawnedProcessGroups()`
+    /// sweep as a backstop for a shutdown cut short mid-flight. It was
+    /// removed once `shutdownChild` began killing each child's process group
+    /// on its *graceful* branch too — so **cancelling this task does not
+    /// re-open that hole.** Under cancellation `withTimeout`'s sleep throws
+    /// and yields `nil` (escalation branch, group `SIGKILL`) or its operation
+    /// returns `true` (graceful branch, group `SIGKILL`); both outcomes
+    /// signal the group, so cancellation degrades to *kill everything fast*
+    /// rather than *skip the kill*.
+    ///
+    /// **The residual exposure is narrower, and worth knowing before you
+    /// restructure `HostSupervisor.shutdown()`:** its `for` loop is not a
+    /// cancellation checkpoint, so it always walks every child. Add a
+    /// `try Task.checkCancellation()` inside that loop — or rewrite it into a
+    /// throwing form that bails — and children later in the reverse order are
+    /// never signalled at all, **with no compiler or test signal**, because
+    /// the deleted sweep iterated `states.values` rather than following the
+    /// loop and was the only thing that would have caught it. The structural
+    /// fix, if that day comes, is to make the walk uncancellable by
+    /// construction rather than by this comment: see `## NEXT` in the change
+    /// DEVLOG.
     private let terminationBudget: TimeInterval
 
     private var didReplyToTerminate = false
