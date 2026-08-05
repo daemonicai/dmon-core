@@ -49,6 +49,136 @@ struct HostSupervisorTests {
         _ = await supervisor.shutdown()
     }
 
+    /// The consequence, not the symptom the test above already covers.
+    /// `apply`/`handleExit`/`shutdownChild` used to capture `states[id]`
+    /// into a local `ChildState`, mutate the copy, and write the whole
+    /// thing back after an `await` — see `apply`'s own doc comment for the
+    /// failure this caused: a generation that crashed and respawned while
+    /// an *earlier* generation's own `handleExit` was still suspended
+    /// (reentrant, since this actor is reentrant at every `await`) could
+    /// have its freshly-recorded `SpawnedChild` silently overwritten when
+    /// the earlier call resumed and wrote its stale copy back — leaving the
+    /// supervisor tracking a dead pid while the real, newest generation
+    /// kept running with no reference to it anywhere. `shutdownChild` would
+    /// then find and signal the wrong (already-dead) pid, and the live one
+    /// would survive host shutdown entirely, re-parented to launchd —
+    /// requirement 5 (design D6) failing silently for a process this host
+    /// itself spawned. A fix that happened to get the *delay numbers*
+    /// right (the test above) without actually closing this would still
+    /// fail this one: it asserts the supervisor ends the storm tracking the
+    /// *actual* newest generation's pid, independently confirmed via a
+    /// marker file the surviving generation writes itself, and that
+    /// `shutdown()` genuinely signals that exact pid.
+    ///
+    /// **What this test actually is, stated plainly.** This is a
+    /// correctness/invariant check against the *fixed* code — it asserts
+    /// that after a crash-restart storm, tracking is consistent with
+    /// reality (the tracked pid is the newest generation's, and shutdown
+    /// signals it) — **not a regression guard for the specific reentrancy
+    /// race** `apply`'s doc comment describes. That race is a single
+    /// child's very first spawn racing its own near-instant crash against
+    /// `apply`'s own `await store.publish(.normal, for: id)`, and
+    /// `store.publish` is a trivial, same-process actor hop — fast enough
+    /// that a child's real crash-detection (kernel process-exit delivery,
+    /// categorically slower) does not appear to win that race in practice
+    /// on this platform: twenty solo repetitions of this scenario against
+    /// the *reverted*, buggy code (`state: inout ChildState`, written back
+    /// after the `await`) passed all twenty times, and this test's own
+    /// 40-concurrent-children shape, run against that same reverted code,
+    /// **also produced zero failures** — concurrent scheduling pressure
+    /// from many simultaneous storms did not change the outcome. The
+    /// defect the reverted code has is real (verified statically, and by
+    /// the reviewer independently), but neither shape above catches it
+    /// empirically. What running many children *does* still buy: were
+    /// `apply` to regress in some coarser way — losing track of which pid
+    /// is current at all, for reasons unrelated to this specific timing
+    /// window — checking every one of forty independent storms rather than
+    /// one makes that far less likely to pass by accident. Kept at 40
+    /// children for that reason, not because the count improves this
+    /// test's odds against the narrow race it was originally written to
+    /// catch.
+    @Test
+    func aCrashRestartStormEndsWithTheSupervisorTrackingTheNewestGenerationNotAStaleOne() async throws {
+        let childCount = 40
+        var descriptors: [ChildDescriptor] = []
+        var counterFiles: [ChildID: URL] = [:]
+        var pidFiles: [ChildID: URL] = [:]
+
+        for i in 0..<childCount {
+            let id = ChildID("storm-child-\(i)")
+            let counterFile = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+            let pidFile = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+            try "0".write(to: counterFile, atomically: true, encoding: .utf8)
+            counterFiles[id] = counterFile
+            pidFiles[id] = pidFile
+
+            // Six near-instant crashes, then a stable seventh generation
+            // that announces its own real pid independently, via a marker
+            // file rather than anything this test could compute or infer
+            // from `HostSupervisor`'s own bookkeeping — so
+            // `trackedPID == survivingPID` below is a comparison against
+            // ground truth, not against another view of the same
+            // possibly-corrupted state.
+            let script = """
+            n=$(( $(cat "\(counterFile.path)") + 1 ))
+            echo "$n" > "\(counterFile.path)"
+            if [ "$n" -le 6 ]; then
+              exit 1
+            fi
+            echo $$ > "\(pidFile.path)"
+            sleep 30
+            """
+            descriptors.append(Self.descriptor(id: id, startupOrder: i, command: script))
+        }
+        defer {
+            for url in counterFiles.values { try? FileManager.default.removeItem(at: url) }
+            for url in pidFiles.values { try? FileManager.default.removeItem(at: url) }
+        }
+
+        let supervisor = HostSupervisor(
+            descriptors: descriptors,
+            store: ChildSupervisionStore(),
+            // Bounds `shutdown()`'s worst case: it walks all `childCount`
+            // children strictly sequentially, and this test's own script
+            // has no `TERM` trap (default disposition kills it instantly),
+            // so a generous-but-small per-child budget still leaves ample
+            // room while keeping a slow run bounded rather than potentially
+            // compounding to `childCount * gracefulShutdownTimeout` if a
+            // handful of real spawns are ever sluggish to reap under load.
+            gracefulShutdownTimeout: 1,
+            // An instant, non-blocking injected sleep, for the same reason
+            // as the canary test above: real backoff delays make the
+            // reentrancy window vanishingly unlikely to matter, this makes
+            // it reachable.
+            sleep: { _ in }
+        )
+
+        await supervisor.start()
+
+        var survivingPIDs: [ChildID: pid_t] = [:]
+        for descriptor in descriptors {
+            survivingPIDs[descriptor.id] = try await Self.waitForPid(at: pidFiles[descriptor.id]!, timeout: 10)
+        }
+
+        for descriptor in descriptors {
+            let survivingPID = survivingPIDs[descriptor.id]!
+            let trackedPID = await supervisor.currentPID(for: descriptor.id)
+            #expect(
+                trackedPID == survivingPID,
+                "\(descriptor.id): the supervisor must track the newest generation's own pid (\(survivingPID)), not an earlier, already-dead generation's (got \(String(describing: trackedPID)))"
+            )
+            #expect(kill(survivingPID, 0) == 0, "\(descriptor.id): the newest generation should still be alive before shutdown")
+        }
+
+        _ = await supervisor.shutdown()
+
+        for descriptor in descriptors {
+            let survivingPID = survivingPIDs[descriptor.id]!
+            let died = await waitUntilTrue(timeout: 2) { kill(survivingPID, 0) != 0 }
+            #expect(died, "\(descriptor.id): shutdown must signal the actual newest generation's pid, not a stale one")
+        }
+    }
+
     /// The interaction B4 exists for: without an explicit intentional-stop
     /// path, quitting the host would restart everything it just shut down.
     /// This distinguishes "restarted" from "never stopped" by asserting the
@@ -460,6 +590,19 @@ struct HostSupervisorTests {
             launch: ChildLaunch(candidates: [.absolutePath("/bin/sh")], arguments: ["-c", command]),
             isEnabled: true
         )
+    }
+
+    private static func waitForPid(at url: URL, timeout: TimeInterval) async throws -> pid_t {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if let contents = try? String(contentsOf: url, encoding: .utf8),
+               let pid = pid_t(contents.trimmingCharacters(in: .whitespacesAndNewlines)) {
+                return pid
+            }
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        struct TimedOutWaitingForPidFile: Error {}
+        throw TimedOutWaitingForPidFile()
     }
 }
 

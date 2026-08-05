@@ -25,6 +25,17 @@ public actor HostRuntime {
     public let healthStore: ChildHealthStore
     public let supervisionStore: ChildSupervisionStore
 
+    /// Every supervised child's captured stdout/stderr (section 5.1),
+    /// exposed the same way `healthStore`/`supervisionStore` are — a live
+    /// `AsyncStream` an observer subscribes to directly, rather than
+    /// something merged into `statusUpdates()`. Unlike health and
+    /// supervision, which the app renders as one joined `[ChildStatus]` row
+    /// per child, output is its own pane and the app can attribute each
+    /// line to its child using `ChildLogLine.childID` and the display names
+    /// already available from `statusUpdates()` — no merging logic
+    /// belongs on either side for that.
+    public let logStore: ChildLogStore
+
     private let supervisor: HostSupervisor
     private let healthMonitor: HealthMonitor
     private let healthEntities: [any HealthCheckable]
@@ -59,22 +70,27 @@ public actor HostRuntime {
         backoff: RestartBackoff = RestartBackoff(),
         repeatedFailureThreshold: Int = 5,
         gracefulShutdownTimeout: TimeInterval = 5,
+        logDrainGrace: TimeInterval = 2,
         healthStore: ChildHealthStore = ChildHealthStore(),
         supervisionStore: ChildSupervisionStore = ChildSupervisionStore(),
+        logStore: ChildLogStore = ChildLogStore(),
         sleep: @escaping @Sendable (TimeInterval) async -> Void = { seconds in
             try? await Task.sleep(nanoseconds: UInt64(max(seconds, 0) * 1_000_000_000))
         }
     ) {
         self.healthStore = healthStore
         self.supervisionStore = supervisionStore
+        self.logStore = logStore
         self.supervisor = HostSupervisor(
             descriptors: children,
             coordinator: coordinator,
             spawner: spawner,
             store: supervisionStore,
+            logStore: logStore,
             backoff: backoff,
             repeatedFailureThreshold: repeatedFailureThreshold,
             gracefulShutdownTimeout: gracefulShutdownTimeout,
+            logDrainGrace: logDrainGrace,
             sleep: sleep
         )
         self.healthMonitor = HealthMonitor(checker: healthChecker, store: healthStore, interval: healthCheckInterval)

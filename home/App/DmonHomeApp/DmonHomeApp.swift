@@ -6,7 +6,7 @@ struct DmonHomeApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ContentView(statusObserver: appDelegate.statusObserver)
+            ContentView(statusObserver: appDelegate.statusObserver, logObserver: appDelegate.logObserver)
         }
     }
 }

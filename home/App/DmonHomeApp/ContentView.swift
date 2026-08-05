@@ -12,6 +12,10 @@ struct ContentView: View {
     /// never constructs one itself. See `ChildStatusObserver`'s doc comment
     /// for why that matters.
     let statusObserver: ChildStatusObserver
+
+    /// Same ownership rule as `statusObserver` — see `ChildLogObserver`'s
+    /// doc comment.
+    let logObserver: ChildLogObserver
     @State private var microphoneAuthorization = MicrophoneAuthorizationModel()
     @Environment(\.scenePhase) private var scenePhase
 
@@ -27,6 +31,11 @@ struct ContentView: View {
                 .padding(.vertical, 4)
 
             SupervisedChildrenView(statuses: statusObserver.statuses)
+
+            Divider()
+                .padding(.vertical, 4)
+
+            ChildLogPaneView(statuses: statusObserver.statuses, buffers: logObserver.buffers)
 
             Divider()
                 .padding(.vertical, 4)
@@ -82,6 +91,79 @@ private struct SupervisedChildrenView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+/// One scrollable section per supervised child: its captured stdout/stderr,
+/// attributed by child (the "Child output is visible" scenario) and
+/// retained across a restart by `ChildLogStore` itself, not by anything
+/// here — this only renders whatever `buffers` already contains. Pure
+/// rendering, same as `SupervisedChildrenView`.
+private struct ChildLogPaneView: View {
+    let statuses: [ChildStatus]
+    let buffers: ChildLogStore.Snapshot
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Output")
+                .font(.headline)
+            if statuses.isEmpty {
+                Text("Starting…")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 8) {
+                        ForEach(statuses, id: \.id) { status in
+                            ChildLogSectionView(displayName: status.displayName, buffer: buffers[status.id] ?? .empty)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .frame(maxHeight: 160)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private struct ChildLogSectionView: View {
+    let displayName: String
+    let buffer: ChildLogBuffer
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(displayName)
+                .font(.caption)
+                .bold()
+            if buffer.droppedCount > 0 {
+                Text("… \(buffer.droppedCount) earlier line\(buffer.droppedCount == 1 ? "" : "s") dropped")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            if buffer.lines.isEmpty {
+                Text("No output yet")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(buffer.lines) { line in
+                    Text("[\(line.source.dmonHomeLabel)] \(line.text)")
+                        .font(.system(.caption2, design: .monospaced))
+                        .textSelection(.enabled)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+extension ChildLogSource {
+    var dmonHomeLabel: String {
+        switch self {
+        case .standardOutput: "stdout"
+        case .standardError: "stderr"
+        case .host: "host"
+        }
     }
 }
 

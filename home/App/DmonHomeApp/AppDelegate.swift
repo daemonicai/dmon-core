@@ -20,12 +20,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// comment for why that single-construction guarantee matters.
     let statusObserver: ChildStatusObserver
 
+    /// Same single-construction guarantee as `statusObserver`, for the same
+    /// reason — see `ChildLogObserver`'s own doc comment.
+    let logObserver: ChildLogObserver
+
     private let logger = Logger(subsystem: "ai.daemonic.dmon-home", category: "AppDelegate")
 
     override init() {
         let hostRuntime = HostRuntime()
         self.hostRuntime = hostRuntime
         self.statusObserver = ChildStatusObserver(hostRuntime: hostRuntime)
+        self.logObserver = ChildLogObserver(hostRuntime: hostRuntime)
         self.terminationBudget = hostRuntime.worstCaseShutdownDuration + AppDelegate.terminationBudgetMargin
         super.init()
     }
