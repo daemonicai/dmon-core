@@ -189,9 +189,19 @@ struct HostSupervisorTests {
         let markerFile = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: markerFile) }
 
+        // Trap first, marker second, and the order is load-bearing: the
+        // marker is this test's readiness signal, so it must not appear
+        // until a `TERM` handler exists. Written the other way round —
+        // as it was — `shutdown()`'s `SIGTERM` can land in the window
+        // before the trap is installed, the shell's default disposition
+        // kills the child outright, no `terminated` line is ever written,
+        // and this test fails having proved nothing about restarts.
+        // Measured at roughly 1 in 40 full-suite runs; injecting a sleep
+        // between the two lines makes it fail 5/5, and the same injection
+        // against this ordering passes 5/5.
         let script = """
-        echo spawned >> "\(markerFile.path)"
         trap 'echo terminated >> "\(markerFile.path)"; exit 0' TERM
+        echo spawned >> "\(markerFile.path)"
         sleep 30 &
         wait
         """
