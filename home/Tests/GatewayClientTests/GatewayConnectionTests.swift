@@ -96,12 +96,15 @@ struct GatewayConnectionTests {
         let connection = GatewayConnection(transport: transport)
         let stream = try await connection.connect()
 
-        await transport.enqueue(#"{"gw":"attached","generation":1,"headSeq":5}"#)
+        // `wire` must be present and compatible or `route(_:)` refuses the
+        // frame instead of surfacing it — see `GatewayConnectionTests`'
+        // wire-version-specific tests below for that behaviour itself.
+        await transport.enqueue(#"{"gw":"attached","generation":1,"headSeq":5,"wire":"0.2"}"#)
 
         var iterator = stream.makeAsyncIterator()
         let item = try await iterator.next()
 
-        #expect(item == .control(.attached(AttachedFrame(generation: 1, headSeq: 5))))
+        #expect(item == .control(.attached(AttachedFrame(generation: 1, headSeq: 5, wire: "0.2"))))
     }
 
     @Test
@@ -340,6 +343,225 @@ struct GatewayConnectionTests {
         var iterator = stream.makeAsyncIterator()
         let item = try await iterator.next()
         #expect(item == nil)
+    }
+
+    @Test
+    func aMatchingWireVersionOnAttachedLetsTheFrameProceed() async throws {
+        let transport = InMemoryGatewayTransport()
+        let connection = GatewayConnection(transport: transport)
+        let stream = try await connection.connect()
+
+        await transport.enqueue(#"{"gw":"attached","generation":1,"headSeq":5,"wire":"0.2"}"#)
+
+        var iterator = stream.makeAsyncIterator()
+        let item = try await iterator.next()
+
+        #expect(item == .control(.attached(AttachedFrame(generation: 1, headSeq: 5, wire: "0.2"))))
+    }
+
+    @Test
+    func afterAMatchingWireVersionSubsequentFramesStillArrive() async throws {
+        let transport = InMemoryGatewayTransport()
+        let connection = GatewayConnection(transport: transport)
+        let stream = try await connection.connect()
+
+        await transport.enqueue(#"{"gw":"attached","generation":1,"headSeq":5,"wire":"0.2"}"#)
+        let raw = #"{"type":"turn.start","turnId":"t1"}"#
+        await transport.enqueue(raw)
+
+        var iterator = stream.makeAsyncIterator()
+        let first = try await iterator.next()
+        let second = try await iterator.next()
+
+        #expect(first == .control(.attached(AttachedFrame(generation: 1, headSeq: 5, wire: "0.2"))))
+        #expect(second == .event(raw))
+    }
+
+    /// The falsification "refuses to proceed" actually needs: a bad
+    /// version on `attached` followed immediately by an ADR-003 event
+    /// must surface the error and **never** the event. A test that only
+    /// checks an error is thrown would still pass if the event slipped
+    /// through afterwards.
+    ///
+    /// This does not assert on a second `iterator.next()` call to prove
+    /// that — see `home/TOOLCHAIN-NOTES.md`'s `AsyncThrowingStream` entry
+    /// for why a second call cannot be trusted on this toolchain. Instead
+    /// this inspects the transport directly: the event enqueued right
+    /// behind the bad `attached` frame is still sitting in it, unconsumed,
+    /// which is only possible if `runReadLoop()` tore itself down without
+    /// ever calling `receive()` again — the read loop, not the stream's
+    /// retry count, is what "never delivers" actually depends on.
+    @Test
+    func aMismatchedWireVersionRefusesTheConnectionAndNeverDeliversTheFrameThatFollows() async throws {
+        let transport = InMemoryGatewayTransport()
+        let connection = GatewayConnection(transport: transport)
+        let stream = try await connection.connect()
+
+        await transport.enqueue(#"{"gw":"attached","generation":1,"headSeq":5,"wire":"9.9"}"#)
+        let eventRaw = #"{"type":"turn.delta","text":"must never arrive"}"#
+        await transport.enqueue(eventRaw)
+
+        var iterator = stream.makeAsyncIterator()
+        await #expect(throws: WireVersion.CompatibilityError.mismatch(
+            client: .current,
+            host: WireVersion(major: 9, minor: 9)
+        )) {
+            _ = try await iterator.next()
+        }
+
+        let stillBuffered = try await transport.receive()
+        #expect(stillBuffered == eventRaw)
+
+        // Draining that one buffered frame empties the inbox; the
+        // transport itself was actually closed, not merely abandoned.
+        await #expect(throws: GatewayTransportError.closedLocally) {
+            _ = try await transport.receive()
+        }
+    }
+
+    /// Pins the property `teardown(throwing:)`'s ordering exists for:
+    /// `finish(throwing:)` running before the first `await` is what makes
+    /// the **first entrant** into `teardown(throwing:)` the one whose
+    /// outcome wins, regardless of which caller's `await
+    /// transport.close()` happens to resume first.
+    ///
+    /// The bad-wire `attached` frame drives `route(_:)` into
+    /// `teardown(throwing:)` with a `CompatibilityError` — the first
+    /// entrant. `InMemoryGatewayTransport(closeDelay:)` makes that call's
+    /// `transport.close()` sleep, and `isCloseInFlight()` lets this test
+    /// wait until it provably has (not merely been scheduled) before
+    /// starting a second, concurrent `connection.close()` — the external
+    /// close, entering second. Because `closeDelay` only delays the first
+    /// `close()` call, the external close's own `transport.close()`
+    /// resumes essentially immediately — well before the refusal's,
+    /// which is still asleep. If the ordering in `teardown(throwing:)`
+    /// were reversed (`await transport.close()` before
+    /// `finish(throwing:)`), the external close would reach `finish()`
+    /// first, with `nil`, and the consumer would see a normal completion
+    /// instead of the refusal's error — this test does fail under that
+    /// reversed order, verified by hand while writing it.
+    @Test
+    func teardownPrefersTheFirstEntrantsErrorRegardlessOfWhichTransportCloseResumesFirst() async throws {
+        let transport = InMemoryGatewayTransport(closeDelay: .milliseconds(300))
+        let connection = GatewayConnection(transport: transport)
+        let stream = try await connection.connect()
+
+        await transport.enqueue(#"{"gw":"attached","generation":1,"headSeq":5,"wire":"9.9"}"#)
+
+        let refusalIsClosingTheTransport = await waitUntil(timeout: 2) {
+            await transport.isCloseInFlight()
+        }
+        #expect(refusalIsClosingTheTransport)
+
+        // Entering second, but — because the refusal's `transport.close()`
+        // is still sleeping — resuming its own `transport.close()` first.
+        await connection.close()
+
+        var iterator = stream.makeAsyncIterator()
+        await #expect(throws: WireVersion.CompatibilityError.mismatch(
+            client: .current,
+            host: WireVersion(major: 9, minor: 9)
+        )) {
+            _ = try await iterator.next()
+        }
+    }
+
+    @Test
+    func aMismatchedWireVersionErrorMessageNamesBothVersions() async throws {
+        let transport = InMemoryGatewayTransport()
+        let connection = GatewayConnection(transport: transport)
+        let stream = try await connection.connect()
+
+        await transport.enqueue(#"{"gw":"attached","generation":1,"headSeq":5,"wire":"1.7"}"#)
+
+        var iterator = stream.makeAsyncIterator()
+        do {
+            _ = try await iterator.next()
+            Issue.record("expected the mismatch error to be thrown")
+        } catch let error as WireVersion.CompatibilityError {
+            #expect(error.message.contains("0.2"))
+            #expect(error.message.contains("1.7"))
+        }
+    }
+
+    @Test
+    func anAttachedFrameWithNoWireFieldIsRefusedAsNotAdvertised() async throws {
+        let transport = InMemoryGatewayTransport()
+        let connection = GatewayConnection(transport: transport)
+        let stream = try await connection.connect()
+
+        await transport.enqueue(#"{"gw":"attached","generation":1,"headSeq":5}"#)
+
+        var iterator = stream.makeAsyncIterator()
+        await #expect(throws: WireVersion.CompatibilityError.notAdvertised(client: .current)) {
+            _ = try await iterator.next()
+        }
+    }
+
+    @Test
+    func anAttachedFrameWithAnUnparsableWireVersionIsRefused() async throws {
+        let transport = InMemoryGatewayTransport()
+        let connection = GatewayConnection(transport: transport)
+        let stream = try await connection.connect()
+
+        await transport.enqueue(#"{"gw":"attached","generation":1,"headSeq":5,"wire":"banana"}"#)
+
+        var iterator = stream.makeAsyncIterator()
+        await #expect(throws: WireVersion.CompatibilityError.unparsable(client: .current, raw: "banana")) {
+            _ = try await iterator.next()
+        }
+    }
+
+    /// The C# side's `ProtocolVersion.MajorMinor` truncates a three-part
+    /// version string; this client must not mirror that on the
+    /// enforcement path either — a three-part advertisement is refused
+    /// by name, not silently truncated into a match.
+    @Test
+    func anAttachedFrameWithAThreeComponentWireVersionIsRefusedNotTruncated() async throws {
+        let transport = InMemoryGatewayTransport()
+        let connection = GatewayConnection(transport: transport)
+        let stream = try await connection.connect()
+
+        await transport.enqueue(#"{"gw":"attached","generation":1,"headSeq":5,"wire":"0.2.1"}"#)
+
+        var iterator = stream.makeAsyncIterator()
+        await #expect(throws: WireVersion.CompatibilityError.unparsable(client: .current, raw: "0.2.1")) {
+            _ = try await iterator.next()
+        }
+    }
+
+    @Test
+    func aMajorOnlyVersionDifferenceOnAttachedIsRefused() async throws {
+        let transport = InMemoryGatewayTransport()
+        let connection = GatewayConnection(transport: transport)
+        let stream = try await connection.connect()
+
+        await transport.enqueue(#"{"gw":"attached","generation":1,"headSeq":5,"wire":"1.2"}"#)
+
+        var iterator = stream.makeAsyncIterator()
+        await #expect(throws: WireVersion.CompatibilityError.mismatch(
+            client: .current,
+            host: WireVersion(major: 1, minor: 2)
+        )) {
+            _ = try await iterator.next()
+        }
+    }
+
+    @Test
+    func aMinorOnlyVersionDifferenceOnAttachedIsRefused() async throws {
+        let transport = InMemoryGatewayTransport()
+        let connection = GatewayConnection(transport: transport)
+        let stream = try await connection.connect()
+
+        await transport.enqueue(#"{"gw":"attached","generation":1,"headSeq":5,"wire":"0.9"}"#)
+
+        var iterator = stream.makeAsyncIterator()
+        await #expect(throws: WireVersion.CompatibilityError.mismatch(
+            client: .current,
+            host: WireVersion(major: 0, minor: 9)
+        )) {
+            _ = try await iterator.next()
+        }
     }
 
     @Test

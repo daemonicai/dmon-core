@@ -80,7 +80,16 @@ public actor GatewayConnection {
     /// close code and reason verbatim, so a caller can tell "this
     /// connection was superseded by a newer attach" (4409) apart from
     /// "the core failed" (4500) apart from "the session no longer exists"
-    /// (4404) rather than seeing one generic disconnection.
+    /// (4404) rather than seeing one generic disconnection. It also
+    /// finishes by throwing a `WireVersion.CompatibilityError` the first
+    /// time an `attached` frame arrives whose `wire` field is absent,
+    /// unparsable, or names a version this client is not compatible
+    /// with (`route(_:)` checks every `attached` frame, on first attach
+    /// and on every reattach, via
+    /// `WireVersion.checkCompatibility(advertised:)`) — the connection
+    /// tears itself down when that happens rather than yielding the
+    /// frame, so no `attached` frame a caller ever receives from this
+    /// stream is one this client has not already vetted.
     public func connect() async throws -> AsyncThrowingStream<GatewayInboundItem, Error> {
         try await transport.connect()
 
@@ -149,11 +158,59 @@ public actor GatewayConnection {
     /// the same as any other event mid-turn when a session is not
     /// resumed. It is not lost in the course of ordinary reconnect-and-
     /// resume use, which is the case this trade-off is for.
+    ///
+    /// Delegates to `teardown(throwing:)`, the single teardown path this
+    /// type has — the same one a refused `attached` frame's wire
+    /// version drives from inside `route(_:)`, passing the
+    /// `WireVersion.CompatibilityError` in place of `nil`. Everything
+    /// above holds for both callers: neither waits, both return or
+    /// complete deterministically, and both accept the same two
+    /// residuals.
     public func close() async {
+        await teardown(throwing: nil)
+    }
+
+    /// The shared teardown for `close()` and for `route(_:)` refusing an
+    /// `attached` frame on a wire version mismatch: finishes the stream
+    /// — with `error`, or without one for `close()`'s ordinary local
+    /// close — then closes the transport and cancels the read loop.
+    /// See `close()`'s own doc comment for what "cancels" does and does
+    /// not guarantee and for the two residuals that follow from not
+    /// waiting for the loop; both apply here unchanged regardless of
+    /// which caller reached this method.
+    ///
+    /// `finish(throwing:)` runs first, and before any `await` in this
+    /// method — an actor only yields to another queued call at a
+    /// suspension point, so nothing else on this actor can run between
+    /// this method being entered and that call completing. That is what
+    /// keeps "exactly once, with the right error" true even if `close()`
+    /// and a version refusal are both invoked around the same moment:
+    /// whichever call reaches this method first is the one whose
+    /// `finish(throwing:)` wins, and every later call's `finish` is a
+    /// no-op against an already-finished `continuation` (see `finish`'s
+    /// own doc comment) — not a race decided by which `await
+    /// transport.close()` happens to resume first.
+    ///
+    /// One consequence of `finish` running first: a consumer can observe
+    /// the stream end — a `next()` call returning or throwing — before
+    /// `transport.close()` has completed. "The stream ended" is therefore
+    /// not proof "the transport is closed"; nothing today depends on the
+    /// reverse being true, but a later caller must not assume it.
+    ///
+    /// `route(_:)` calls this from inside the read loop's own `Task`,
+    /// cancelling that same `Task` it is currently running on. That is
+    /// safe: `Task.cancel()` only sets a flag rather than preempting,
+    /// so this call still runs to completion and `route(_:)` still
+    /// returns normally afterwards; back in `runReadLoop()`,
+    /// `while !Task.isCancelled` is only ever checked before the next
+    /// `receive()`, never between a frame already decoded and it being
+    /// routed — so a self-cancellation here drops nothing the read loop
+    /// has already gotten hold of.
+    private func teardown(throwing error: Error?) async {
+        finish(throwing: error)
         await transport.close()
         readLoopTask?.cancel()
         readLoopTask = nil
-        finish()
     }
 
     private func runReadLoop() async {
@@ -228,6 +285,22 @@ public actor GatewayConnection {
         switch frame {
         case .control(.ping):
             await replyToPing()
+        case .control(.attached(let attachedFrame)):
+            // `route(_:)` sees every `attached` frame this connection
+            // ever receives, on first attach and on every reattach — so
+            // this is where wire protocol compatibility is checked
+            // ("Wire protocol compatibility is checked on connect"),
+            // not left as a free function a later caller might forget
+            // to invoke. A frame that fails the check is never yielded;
+            // `teardown(throwing:)` ends the stream with the error
+            // instead.
+            do {
+                _ = try WireVersion.checkCompatibility(advertised: attachedFrame.wire)
+                continuation?.yield(.control(.attached(attachedFrame)))
+            } catch {
+                logger.error("refusing to proceed: \(String(describing: error), privacy: .public)")
+                await teardown(throwing: error)
+            }
         case .control(let controlFrame):
             continuation?.yield(.control(controlFrame))
         case .event(let raw):

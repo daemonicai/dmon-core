@@ -34,6 +34,9 @@ actor InMemoryGatewayTransport: GatewayTransport {
     private var isWedged = false
     private let isUncooperative: Bool
     private let sendDelay: Duration
+    private let closeDelay: Duration
+    private var hasDelayedAClose = false
+    private var isDelayingAClose = false
 
     /// - Parameters:
     ///   - uncooperative: When `true`, a `receive()` call that would
@@ -49,9 +52,22 @@ actor InMemoryGatewayTransport: GatewayTransport {
     ///     recording the frame, letting a test force the interleaving
     ///     "close while the read loop is genuinely inside `route()`,
     ///     rather than parked in `receive()`". Default `.zero`.
-    init(uncooperative: Bool = false, sendDelay: Duration = .zero) {
+    ///   - closeDelay: An artificial delay the **first** call to `close()`
+    ///     sleeps for before completing; every later concurrent call
+    ///     returns immediately. Lets a test force "two teardown paths
+    ///     both reach `transport.close()`, but the second one resumes
+    ///     first" — the exact interleaving
+    ///     `GatewayConnection.teardown(throwing:)`'s ordering has to get
+    ///     right regardless of which caller entered it first. A delay
+    ///     applied to every call, rather than only the first, would not
+    ///     do this: two concurrent calls sleeping for the same duration
+    ///     resume in the same order they started, which never exercises
+    ///     the "second entrant resumes first" case this exists to force.
+    ///     Default `.zero`.
+    init(uncooperative: Bool = false, sendDelay: Duration = .zero, closeDelay: Duration = .zero) {
         self.isUncooperative = uncooperative
         self.sendDelay = sendDelay
+        self.closeDelay = closeDelay
     }
 
     func connect() async throws {
@@ -83,8 +99,21 @@ actor InMemoryGatewayTransport: GatewayTransport {
     /// A no-op when never connected (`GatewayTransportError.notConnected`
     /// stays the reported state), otherwise marks the transport
     /// `.closedLocally`. Safe to call more than once.
+    ///
+    /// The very first call sleeps for `closeDelay` (if non-zero) before
+    /// marking the transport closed; `hasDelayedAClose` guards that so
+    /// every subsequent concurrent call — such as a second teardown path
+    /// racing the first — returns immediately instead of also sleeping.
+    /// See `init(uncooperative:sendDelay:closeDelay:)` for why that
+    /// asymmetry is the point.
     func close() async {
         guard hasConnected else { return }
+        if closeDelay > .zero, !hasDelayedAClose {
+            hasDelayedAClose = true
+            isDelayingAClose = true
+            try? await Task.sleep(for: closeDelay)
+            isDelayingAClose = false
+        }
         closedLocally = true
         wakeWaiters()
     }
@@ -111,6 +140,16 @@ actor InMemoryGatewayTransport: GatewayTransport {
     /// or too long to be fast.
     func isReceiverWaiting() -> Bool {
         !waiters.isEmpty || isWedged
+    }
+
+    /// Whether the first, delayed `close()` call is genuinely sleeping in
+    /// `closeDelay` right now — as opposed to merely queued to run. Lets a
+    /// test wait until that call has provably reached `transport.close()`
+    /// before starting a second, concurrent close, the same "act only once
+    /// provably parked" precedent `isReceiverWaiting()` sets for
+    /// `receive()`.
+    func isCloseInFlight() -> Bool {
+        isDelayingAClose
     }
 
     /// Simulates the **peer** closing the connection with `code` and

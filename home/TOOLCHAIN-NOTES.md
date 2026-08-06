@@ -115,3 +115,66 @@ reproduces, the workarounds can be retired together and this note deleted. If it
 does, this is occurrence three, and the evidence above is close to a filable
 Swift issue — runtime function, fatal-error path, source statement, caller,
 toolchain version, two independent triggers, three excluded causes.
+
+---
+
+## `AsyncThrowingStream` can rethrow the same error across more than one `next()` call (Swift 6.3.3)
+
+**Status: suspected toolchain quirk, not confirmed.** The upstream Swift issue
+tracker has **not been checked** — this is "we did not look", not "we looked
+and found nothing", the same standard the entry above holds itself to. Distinct
+from that entry: a different type (`AsyncThrowingStream.Continuation` here, vs.
+`Task` async-context frames there), a different signature (a repeated non-nil
+rethrow, not a fatal `abort`) — not the same defect, only adjacent in this
+file.
+
+### Signature
+
+A consumer task already suspended inside a `next()` call at the moment
+`AsyncThrowingStream.Continuation.finish(throwing:)` runs can have that
+awaited call rethrow the same `Error` again on a later, separate `next()`
+call, rather than that later call returning `nil` as the stream's terminal
+state would suggest it must. Observed on `Apple Swift version 6.3.3
+(swiftlang-6.3.3.1.3 clang-2100.1.1.101)`, `arm64-apple-macosx26.0`.
+
+### Observed
+
+- Once, incidentally, in this codebase, while writing
+  `aMismatchedWireVersionRefusesTheConnectionAndNeverDeliversTheFrameThatFollows`
+  in `home/Tests/GatewayClientTests/GatewayConnectionTests.swift`: a second
+  `iterator.next()` call, made after a first `next()` call already threw the
+  wire-version mismatch error, threw that same error again instead of
+  returning `nil`.
+- Independently and deterministically, 20/20 runs, in a standalone
+  reproduction outside this codebase entirely, sharing none of this
+  project's code — run by the engineer reviewing this block.
+
+Two independent reproductions, on two different pieces of code, is what earns
+this entry a place here rather than being dismissed as one test's fluke.
+Neither reproduction was run as a formal multi-trial series inside this
+repository the way the entry above was (3–5 runs per configuration); the
+20/20 figure belongs to the standalone reproduction, not to anything run
+against this codebase's own tests.
+
+### Cost
+
+A test that only asserts *a* `next()` call throws the expected error would
+still pass if a later `next()` call went on to deliver a frame that should
+never have been surfaced — the exact failure
+`aMismatchedWireVersionRefusesTheConnectionAndNeverDeliversTheFrameThatFollows`
+exists to catch. Because a second `next()` call cannot be trusted to settle
+that either way on this toolchain, that test does not make one: it inspects
+`InMemoryGatewayTransport` directly instead, checking that the event enqueued
+behind the bad `attached` frame is still sitting there unconsumed — proof the
+read loop tore itself down without calling `receive()` again, which is what
+"never delivers" actually depends on. See that test's own comment for the
+mechanics; it points here rather than restating this.
+
+### If you are here because it happened again
+
+Re-run `aMismatchedWireVersionRefusesTheConnectionAndNeverDeliversTheFrameThatFollows`
+a few times on the current toolchain, and if you have it, the standalone
+reproduction that produced the 20/20 figure above. If neither reproduces, this
+note and the caveat above may be retirable — check first whether anything
+still depends on the transport-inspection style this entry justifies before
+simplifying that test back to a plain second `next()` assertion.

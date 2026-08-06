@@ -62,11 +62,13 @@ public struct AttachedFrame: Hashable, Sendable {
     /// emitted yet.
     public var headSeq: Int64
 
-    /// The host's `Major.Minor` wire protocol version (task 6.6, landing
-    /// in a later block on the C# side). Optional because a gateway that
-    /// predates that field never sends it. This type only carries the
-    /// value decoded from the wire; what an absent value means is a later
-    /// block's policy decision, not this one's.
+    /// The host's `Major.Minor` wire protocol version, e.g. `"0.2"`.
+    /// Optional because a gateway that predates this field never sends
+    /// it. This type only carries the raw value decoded from the wire —
+    /// checking it against this client's own version is
+    /// `GatewayConnection`'s job, via
+    /// `WireVersion.checkCompatibility(advertised:)`, enforced in
+    /// `route(_:)` before an `attached` frame ever reaches a consumer.
     public var wire: String?
 
     public init(generation: Int64, headSeq: Int64, wire: String? = nil) {
