@@ -13,9 +13,10 @@ import GatewayClient
 /// iOS portability build (`make dmon-home-ios-check`) never has to build host-only code
 /// to prove it.
 ///
-/// This block (task 6.5's read path) defines only the operation it needs: loading a
-/// credential a prior run already holds. Generating a new one and persisting it is a
-/// separate, later concern.
+/// The read path (`loadCredential()`) defines only the operation it needs: loading a
+/// credential a prior run already holds. `store(_:)` is the write path's addition
+/// (`DeviceKeyProvisioner`) — persisting a freshly generated credential so a later
+/// `loadCredential()` call finds it.
 ///
 /// **Memory zeroing, considered and declined.** `DeviceCredential.secret` is a plain
 /// `String`, and nothing between a conformer's Keychain read and this protocol's callers
@@ -39,4 +40,10 @@ import GatewayClient
 public protocol DeviceCredentialStore: Sendable {
     /// This host's own device credential, or `nil` if none has been provisioned yet.
     func loadCredential() async throws -> DeviceCredential?
+
+    /// Persists `credential` as this host's own device credential. Called exactly once per
+    /// provisioning attempt, by `DeviceKeyProvisioner`, after it has already verified this
+    /// host holds none — conformers are not expected to merge with or reject an existing
+    /// item, only to store the one they are given.
+    func store(_ credential: DeviceCredential) async throws
 }

@@ -1,10 +1,11 @@
 import Foundation
 import Testing
+import GatewayClient
 @testable import DeviceKeys
 
-/// `KeychainCredentialCodec.decode` is the pure `Data → DeviceCredential` parsing that
-/// `KeychainDeviceCredentialStore` delegates to. These tests exercise it directly, without
-/// touching the real Keychain — `SecItemCopyMatching` and the `AnyObject → Data` cast
+/// `KeychainCredentialCodec.decode`/`encode` are the pure `Data ↔ DeviceCredential` parsing
+/// `KeychainDeviceCredentialStore` delegates to. These tests exercise both directly, without
+/// touching the real Keychain — `SecItemCopyMatching`, `SecItemAdd`, and `SecItemUpdate`
 /// remain the only untestable surface in that store.
 @Suite
 struct KeychainCredentialCodecTests {
@@ -36,5 +37,30 @@ struct KeychainCredentialCodecTests {
         #expect(throws: KeychainDeviceCredentialStoreError.unreadableItem) {
             try KeychainCredentialCodec.decode(data)
         }
+    }
+
+    @Test
+    func encodeThenDecodeRoundTripsToTheOriginalKeyIdAndSecret() throws {
+        let credential = DeviceCredential(keyId: "device-1", secret: "super-secret-token")
+
+        let data = try KeychainCredentialCodec.encode(credential)
+        let decoded = try KeychainCredentialCodec.decode(data)
+
+        #expect(decoded.keyId == credential.keyId)
+        #expect(decoded.secret == credential.secret)
+    }
+
+    /// `encode` produces exactly the `{"keyId":...,"secret":...}` shape `decode` above reads
+    /// — pinned directly, rather than only through the round trip, so a change to either
+    /// side's field names is caught even if it happened to change both consistently.
+    @Test
+    func encodeProducesTheKeyIdAndSecretFieldNamesDecodeExpects() throws {
+        let credential = DeviceCredential(keyId: "device-1", secret: "super-secret-token")
+
+        let data = try KeychainCredentialCodec.encode(credential)
+        let object = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+
+        #expect(object?["keyId"] as? String == "device-1")
+        #expect(object?["secret"] as? String == "super-secret-token")
     }
 }

@@ -18,8 +18,21 @@ import Security
 ///   secret out of config by construction, which is what the spec's "the secret is not
 ///   exposed" scenario asserts.
 ///
-/// This block implements the read side only (`loadCredential()`); writing a new item is
-/// separate, later work.
+/// `store(_:)` writes a new item with `SecItemAdd`, falling back to `SecItemUpdate` if one
+/// already exists (defensive only — `DeviceKeyProvisioner` never calls `store(_:)` without
+/// having first confirmed `loadCredential()` returned `nil`, and `loadCredential()` throws
+/// rather than returning `nil` for an item that exists but fails to decode, so an
+/// undecodable-but-present item cannot reach this path either).
+///
+/// The one window this leaves open: a genuine concurrent write landing between that
+/// `loadCredential()` check and this call. Only then can `SecItemAdd` see
+/// `errSecDuplicateItem` for an item this store never observed as absent — and the item
+/// that landed there in that race could be a perfectly usable credential, which
+/// `SecItemUpdate` then overwrites without any signal that it did. `store(_:)` does not
+/// detect or guard against this; it relies entirely on the precondition its caller
+/// establishes. `DeviceKeyProvisioner` has no call site yet, so the window is unreachable
+/// today — whoever wires one up is responsible for whether concurrent provisioning becomes
+/// possible, and for closing this window first if it does.
 ///
 /// Linking `Security` blocks nothing by itself — the framework and its Keychain APIs exist
 /// on iOS too. What actually keeps this type host-only is that it is simply not in
@@ -34,9 +47,11 @@ public struct KeychainDeviceCredentialStore: DeviceCredentialStore {
     private static let account = "default"
 
     /// The `security` invocation that deletes this store's Keychain item, returning this
-    /// host to "holds no credential" — the provisioning path (task 6.5's write side,
-    /// separate work). Derived from `service`/`account` above rather than duplicated as a
-    /// literal in `DeviceAuthPolicy`'s refusal messages, so the two cannot drift.
+    /// host to "holds no credential" — the operator's escape hatch after a revoked or
+    /// unknown-to-the-store credential, and the cleanup step named when `DeviceKeyProvisioner`
+    /// stores a credential but then fails to append it to `devices.json`. Derived from
+    /// `service`/`account` above rather than duplicated as a literal in `DeviceAuthPolicy`'s
+    /// refusal messages, so the two cannot drift.
     public static let deleteCommand = "security delete-generic-password -a \(account) -s \(service)"
 
     public init() {}
@@ -65,6 +80,32 @@ public struct KeychainDeviceCredentialStore: DeviceCredentialStore {
             throw KeychainDeviceCredentialStoreError.osStatus(status)
         }
     }
+
+    public func store(_ credential: DeviceCredential) async throws {
+        let data = try KeychainCredentialCodec.encode(credential)
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: Self.service,
+            kSecAttrAccount as String: Self.account
+        ]
+
+        let addQuery = query.merging([kSecValueData as String: data]) { _, new in new }
+        let addStatus = SecItemAdd(addQuery as CFDictionary, nil)
+        if addStatus == errSecSuccess {
+            return
+        }
+
+        // An item already exists (defensive path — see this type's doc comment): update it
+        // in place rather than deleting and re-adding, so a failure here can never leave the
+        // account with no item at all.
+        guard addStatus == errSecDuplicateItem else {
+            throw KeychainDeviceCredentialStoreError.osStatus(addStatus)
+        }
+        let updateStatus = SecItemUpdate(query as CFDictionary, [kSecValueData as String: data] as CFDictionary)
+        guard updateStatus == errSecSuccess else {
+            throw KeychainDeviceCredentialStoreError.osStatus(updateStatus)
+        }
+    }
 }
 
 /// Errors `KeychainDeviceCredentialStore` can raise. Never carries the secret itself — a
@@ -73,8 +114,13 @@ public struct KeychainDeviceCredentialStore: DeviceCredentialStore {
 public enum KeychainDeviceCredentialStoreError: Error, Sendable, Equatable {
     /// The Keychain item existed but its stored data did not decode as a credential.
     case unreadableItem
-    /// `SecItemCopyMatching` returned a status other than `errSecSuccess` or
-    /// `errSecItemNotFound`.
+    /// A credential could not be encoded to the `Data` a Keychain item stores. Not reachable
+    /// with today's `StoredCredential` (two plain `String` fields cannot fail to encode as
+    /// JSON), but `store(_:)` does not force-unwrap the encode, so a future field that could
+    /// fail has somewhere to surface rather than crashing.
+    case unencodableCredential
+    /// `SecItemCopyMatching`, `SecItemAdd`, or `SecItemUpdate` returned a status other than
+    /// `errSecSuccess` (or, for `SecItemCopyMatching`, `errSecItemNotFound`).
     case osStatus(OSStatus)
 }
 
@@ -85,9 +131,6 @@ public enum KeychainDeviceCredentialStoreError: Error, Sendable, Equatable {
 /// and the `AnyObject → Data` cast above are the only parts of this store a `swift test`
 /// run cannot exercise; everything else, including this codec, can and should be tested
 /// without touching the real Keychain.
-///
-/// `decode` only for now (this block is the read path); a symmetric `encode` for writing a
-/// new Keychain item is later work (task 6.5's write path) and belongs alongside it here.
 enum KeychainCredentialCodec {
     static func decode(_ data: Data) throws -> DeviceCredential {
         let stored: StoredCredential
@@ -97,6 +140,18 @@ enum KeychainCredentialCodec {
             throw KeychainDeviceCredentialStoreError.unreadableItem
         }
         return DeviceCredential(keyId: stored.keyId, secret: stored.secret)
+    }
+
+    /// The write side of `decode` above — used by `store(_:)` to produce the `Data` written
+    /// into `kSecValueData`. Symmetric with `decode`: the same `StoredCredential` shape, so a
+    /// value this encodes is guaranteed to be what `decode` reads back.
+    static func encode(_ credential: DeviceCredential) throws -> Data {
+        let stored = StoredCredential(keyId: credential.keyId, secret: credential.secret)
+        do {
+            return try JSONEncoder().encode(stored)
+        } catch {
+            throw KeychainDeviceCredentialStoreError.unencodableCredential
+        }
     }
 
     private struct StoredCredential: Codable {
