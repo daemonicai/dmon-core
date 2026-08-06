@@ -37,7 +37,8 @@ Debt that outlives a change needs somewhere that outlives a change.
 
 ### Tests
 - [`ChildSpawnerTests` readiness rests on a fixed sleep](childspawner-test-timing-assumption.md).
-- [`WizardEngineTests` intermittent failure](wizard-engine-intermittent-failure.md) — .NET side, unrelated to `home/`.
+- [`Dmon.Core.Tests` has a recurring intermittent failure](dmon-core-tests-intermittent-failure.md) — ~1 red run in 8; the failing test was not captured, so catch it with its name first.
+- [`WizardEngineTests` intermittent failure](wizard-engine-intermittent-failure.md) — .NET side, unrelated to `home/`; the one *identified* sighting.
 
 ### Docs and tooling
 - [`make clean` cleans neither Swift tree](make-clean-misses-swift-trees.md).

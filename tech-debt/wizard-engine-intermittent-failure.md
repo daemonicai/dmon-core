@@ -4,6 +4,7 @@
 **Where:** `test/Dmon.Core.Tests/Rpc/WizardEngineTests.cs` — `InvalidChooseOneAnswer_RePromptsStep`; exercises `core/Dmon.Core/Rpc/ProviderSetupHandler.cs`
 **Surfaced:** 2026-08-02, during `dmon-home-foundations` (unrelated to that change — no block touched .NET source)
 **Severity:** unknown, which is the reason to look
+**See also:** [`Dmon.Core.Tests` has a recurring intermittent failure](dmon-core-tests-intermittent-failure.md) — a second, **unidentified** sighting in the same assembly (2026-08-06). Same shape, but the failing test was not captured, so the two are **not** assumed to share a cause. If that one is ever identified as this test, merge the notes.
 
 ## What
 
