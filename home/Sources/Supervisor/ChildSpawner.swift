@@ -40,6 +40,47 @@ public struct ChildSpawner: Sendable {
         processGroupID == getpgrp()
     }
 
+    /// Which of `spawn`'s own four pipe descriptors should be explicitly
+    /// closed in the child. Never 0, 1, or 2: `posix_spawn_file_actions`
+    /// execute strictly in the order they were added, and 0 (stdin, wired to
+    /// `/dev/null`), 1 (stdout) and 2 (stderr) are each the target of their
+    /// own `adddup2`/`addopen` action elsewhere in `spawn`'s file-actions
+    /// list. Any of these four descriptors can land on exactly 0, 1, or 2 —
+    /// reachable whenever the host's own copy of that standard descriptor is
+    /// free at `Pipe()` time (confirmed by the reviewer with a standalone
+    /// repro mirroring `spawn`'s action order: a stdout read end landing on
+    /// descriptor 0 was closed by this list's old unconditional close for
+    /// it, undoing the `/dev/null` `addopen` installed for that same slot).
+    /// Excluding 0, 1, and 2 here sidesteps the ordering question entirely
+    /// rather than depending on getting the order right: nothing in this
+    /// list ever names those three numbers, so whichever `adddup2`/`addopen`
+    /// targets a given one of them is always the only action that touches
+    /// it. Nothing leaks by skipping these closes — `adddup2` closes its
+    /// target's previous occupant as part of duplicating onto it, and
+    /// `addopen` reaches the same outcome by the same mechanism rather than
+    /// by anything specific to `open(2)`: POSIX specifies it as opening the
+    /// file and then duplicating that description onto the named descriptor,
+    /// so it is `dup2`'s replacing semantics either way. By the time
+    /// `posix_spawn`'s file actions finish, a slot's prior content is
+    /// already gone whether or not this function named it.
+    ///
+    /// The `$0 > 2` filter also excludes negative values. That cannot arise
+    /// from `spawn`'s own call site — `Foundation.Pipe` traps internally on a
+    /// failed `pipe(2)`, so every descriptor reaching this function is valid —
+    /// but it is stated because the filter reads as "standard descriptors
+    /// only" and a future caller passing an unvalidated descriptor would get
+    /// silent exclusion rather than a signal.
+    ///
+    /// `internal`, not `private`, and tested directly against synthetic
+    /// descriptor numbers rather than real ones — the same reasoning as
+    /// `wouldSignalOurOwnGroup`: exercising the 0/1/2 collision with real
+    /// descriptors would mean deliberately closing this test process's own
+    /// stdin, stdout, or stderr, a hazard to every other test sharing this
+    /// process rather than a safe way to prove the decision.
+    func descriptorsToCloseInChild(stdoutWriteFD: Int32, stderrWriteFD: Int32, stdoutReadFD: Int32, stderrReadFD: Int32) -> [Int32] {
+        [stdoutWriteFD, stderrWriteFD, stdoutReadFD, stderrReadFD].filter { $0 > 2 }
+    }
+
     /// Spawns `executablePath arguments...` in a new process group, with its
     /// stdout and stderr wired to pipes this process can read.
     ///
@@ -58,9 +99,36 @@ public struct ChildSpawner: Sendable {
         var attr: posix_spawnattr_t? = nil
         posix_spawnattr_init(&attr)
         defer { posix_spawnattr_destroy(&attr) }
+        // Every descriptor this host holds — pipes, sockets, whatever a
+        // future gateway client or credential store has open — is otherwise
+        // inherited by every child it spawns. `Foundation.Pipe` sets no
+        // `FD_CLOEXEC` on its descriptors (confirmed directly with
+        // `fcntl(fd, F_GETFD)` against a fresh `Pipe()`), and this function's
+        // own `addclose` calls below only ever named its own four. A
+        // *sequentially* started child cannot inherit an earlier child's
+        // pipe write end this way — this function closes the parent's copy
+        // of its own write ends immediately after `posix_spawn` returns
+        // (below), so by the time a later `spawn` call runs, that fd no
+        // longer exists in the parent to be inherited. The exposure needs
+        // *concurrent* spawns: another `spawn` call's `posix_spawn` running
+        // inside the window between an in-flight `Pipe()` being created and
+        // that call's own parent-side write-end close. That window is
+        // reachable — a restart driven from `handleExit` can run
+        // concurrently with another child's start or restart — though today,
+        // with one child enabled, production impact is nil; `swift test`
+        // running suites as concurrent tasks in one process makes the window
+        // common, which is how the reviewer surfaced it (a stray descriptor
+        // stalling `stdoutIsCapturedThroughThePipe` for 30s).
+        // `POSIX_SPAWN_CLOEXEC_DEFAULT` (`sys/spawn.h`, verified exposed to
+        // Swift via `Darwin`) closes everything not named by a file action
+        // in the child at exec, closing that class of leak rather than one
+        // instance of it.
         posix_spawnattr_setflags(
             &attr,
-            Int16(POSIX_SPAWN_SETPGROUP | POSIX_SPAWN_SETSIGDEF | POSIX_SPAWN_SETSIGMASK)
+            Int16(
+                POSIX_SPAWN_SETPGROUP | POSIX_SPAWN_SETSIGDEF | POSIX_SPAWN_SETSIGMASK
+                    | POSIX_SPAWN_CLOEXEC_DEFAULT
+            )
         )
         posix_spawnattr_setpgroup(&attr, 0)
 
@@ -92,6 +160,8 @@ public struct ChildSpawner: Sendable {
         let stderrPipe = Pipe()
         let stdoutWriteFD = stdoutPipe.fileHandleForWriting.fileDescriptor
         let stderrWriteFD = stderrPipe.fileHandleForWriting.fileDescriptor
+        let stdoutReadFD = stdoutPipe.fileHandleForReading.fileDescriptor
+        let stderrReadFD = stderrPipe.fileHandleForReading.fileDescriptor
         posix_spawn_file_actions_adddup2(&fileActions, stdoutWriteFD, 1)
         posix_spawn_file_actions_adddup2(&fileActions, stderrWriteFD, 2)
         // Close every pipe fd the child would otherwise still hold open
@@ -99,10 +169,49 @@ public struct ChildSpawner: Sendable {
         // spare copy of the write end left open in the child means our read
         // end never observes EOF once the child's real stdout/stderr copies
         // are closed.
-        posix_spawn_file_actions_addclose(&fileActions, stdoutWriteFD)
-        posix_spawn_file_actions_addclose(&fileActions, stderrWriteFD)
-        posix_spawn_file_actions_addclose(&fileActions, stdoutPipe.fileHandleForReading.fileDescriptor)
-        posix_spawn_file_actions_addclose(&fileActions, stderrPipe.fileHandleForReading.fileDescriptor)
+        //
+        // These closes are now redundant with `POSIX_SPAWN_CLOEXEC_DEFAULT`
+        // above for any of the four that lands above descriptor 2 — none of
+        // those is named by a `dup2`/`addopen` action under its own number,
+        // so the flag alone would already close them at exec. Kept anyway,
+        // deliberately: these are the specific descriptors this function
+        // itself created and knows by number, closing them here does not
+        // depend on an Apple-specific flag being honoured by whatever OS
+        // version this runs on, and nothing is lost by stating explicitly,
+        // for the fds this code controls, what the flag also guarantees more
+        // broadly for everything else. `descriptorsToCloseInChild` excludes
+        // 0, 1, and 2 from this list even so — see its own doc comment for
+        // why closing one of those three would be actively harmful rather
+        // than merely redundant.
+        for descriptor in descriptorsToCloseInChild(
+            stdoutWriteFD: stdoutWriteFD,
+            stderrWriteFD: stderrWriteFD,
+            stdoutReadFD: stdoutReadFD,
+            stderrReadFD: stderrReadFD
+        ) {
+            posix_spawn_file_actions_addclose(&fileActions, descriptor)
+        }
+
+        // `POSIX_SPAWN_CLOEXEC_DEFAULT` above closes anything not named by a
+        // file action — including this process's own stdin, fd 0, which
+        // today the child inherits unchanged. Left unhandled, the child
+        // would start with no descriptor 0 at all, so the next file it opens
+        // silently lands on 0, and anything it writes believing it is
+        // writing to stdin corrupts that file instead. POSIX programs assume
+        // 0, 1 and 2 are open; wire fd 0 to `/dev/null` explicitly so the
+        // child gets a well-defined, harmless descriptor rather than an
+        // empty slot.
+        //
+        // Added last, after every `adddup2`/`addclose` above:
+        // `posix_spawn_file_actions` execute strictly in the order they were
+        // added, and `descriptorsToCloseInChild` already guarantees none of
+        // them ever names descriptor 0 — so nothing after this point can
+        // touch slot 0 again regardless. Ordering this last is a second,
+        // independent guard against the same class of mistake, not load-
+        // bearing on its own: even if a future change reintroduced an
+        // unconditional close somewhere in this file, this `addopen` being
+        // last still wins.
+        posix_spawn_file_actions_addopen(&fileActions, 0, "/dev/null", O_RDONLY, 0)
 
         let argv = [executablePath] + arguments
         var cArgs: [UnsafeMutablePointer<CChar>?] = argv.map { strdup($0) }

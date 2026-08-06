@@ -46,6 +46,129 @@ struct ChildSpawnerTests {
         #expect(String(data: stderrData, encoding: .utf8) == "to-stderr\n")
     }
 
+    /// `descriptorsToCloseInChild`'s whole reason to exist: a pipe
+    /// descriptor colliding with 0, 1, or 2 must never appear in its result,
+    /// regardless of which of the four roles (stdout/stderr, read/write) it
+    /// occupies. Exercised against synthetic numbers rather than real
+    /// descriptors — freeing this test process's own stdin/stdout/stderr to
+    /// force a real collision would be a hazard to every other test sharing
+    /// this process, the same reasoning `wouldSignalOurOwnGroup`'s own test
+    /// already relies on.
+    ///
+    /// The first case is the one the old, unconditional four-close list
+    /// already got right — ordinary descriptors, none near 0/1/2 — included
+    /// here as the control: the function must not over-exclude when nothing
+    /// is colliding. Each collision case afterwards is the one the old list
+    /// got wrong: before this fix, `[stdoutWriteFD, stderrWriteFD,
+    /// stdoutReadFD, stderrReadFD]` was returned unfiltered, so a collision
+    /// in any of the four positions put 0, 1, or 2 into the close list —
+    /// exactly the descriptor `spawn` had just wired on purpose.
+    @Test
+    func descriptorsToCloseInChildExcludesStandardDescriptorsRegardlessOfWhichRoleTheyLandOn() {
+        let spawner = ChildSpawner()
+
+        // No collision: every fd stays, same as the old unconditional list.
+        #expect(
+            Set(spawner.descriptorsToCloseInChild(stdoutWriteFD: 3, stderrWriteFD: 5, stdoutReadFD: 4, stderrReadFD: 6))
+                == [3, 4, 5, 6]
+        )
+
+        // stdout read end lands on 0 — the reviewer's own repro.
+        // Before: [3, 5, 0, 6]. After: [3, 5, 6].
+        #expect(
+            Set(spawner.descriptorsToCloseInChild(stdoutWriteFD: 3, stderrWriteFD: 5, stdoutReadFD: 0, stderrReadFD: 6))
+                == [3, 5, 6]
+        )
+
+        // stdout write end lands on 1 — same class, the stdout slot itself.
+        // Before: [1, 5, 4, 6]. After: [4, 5, 6].
+        #expect(
+            Set(spawner.descriptorsToCloseInChild(stdoutWriteFD: 1, stderrWriteFD: 5, stdoutReadFD: 4, stderrReadFD: 6))
+                == [4, 5, 6]
+        )
+
+        // stderr write end lands on 2 — same class, the stderr slot itself.
+        // Before: [3, 2, 4, 6]. After: [3, 4, 6].
+        #expect(
+            Set(spawner.descriptorsToCloseInChild(stdoutWriteFD: 3, stderrWriteFD: 2, stdoutReadFD: 4, stderrReadFD: 6))
+                == [3, 4, 6]
+        )
+
+        // stderr read end lands on 1.
+        // Before: [3, 5, 4, 1]. After: [3, 4, 5].
+        #expect(
+            Set(spawner.descriptorsToCloseInChild(stdoutWriteFD: 3, stderrWriteFD: 5, stdoutReadFD: 4, stderrReadFD: 1))
+                == [3, 4, 5]
+        )
+
+        // All three standard slots collide at once, across three different
+        // roles, with only the fourth descriptor genuinely needing a close.
+        // Before: [0, 1, 2, 7]. After: [7].
+        #expect(
+            spawner.descriptorsToCloseInChild(stdoutWriteFD: 0, stderrWriteFD: 1, stdoutReadFD: 2, stderrReadFD: 7)
+                == [7]
+        )
+    }
+
+    /// The defect this guards: without `POSIX_SPAWN_CLOEXEC_DEFAULT`,
+    /// `posix_spawn` inherits every descriptor this host process happens to
+    /// have open into the child, except the four the spawner's own file
+    /// actions explicitly close. `unrelatedPipe` here stands in for any
+    /// descriptor this host owns for reasons that have nothing to do with
+    /// the child being spawned — a socket, a credential store, another
+    /// pipe — and it is kept open across the whole spawn, not torn down by
+    /// `ChildSpawner` at all, so this reproduces on every run rather than
+    /// only under the narrow concurrent-spawn window described where
+    /// `spawn`'s flags are set.
+    ///
+    /// Probes the two specific descriptor numbers with `[ -e /dev/fd/N ]`
+    /// rather than listing the whole directory with `ls /dev/fd`: `ls`
+    /// itself opens the directory it lists, landing on a low fd number
+    /// that — with few other descriptors already open, as happens running
+    /// this test in isolation — coincidentally collides with
+    /// `unrelatedPipe`'s own low numbers, producing a false failure that
+    /// has nothing to do with inheritance. Confirmed directly: `/bin/sh -c
+    /// 'ls /dev/fd'` against a clean three-descriptor table (0/1/2 only)
+    /// reports `0 1 2 3 4` — `ls` itself already accounts for the extra
+    /// two. `[ -e /dev/fd/N ]` opens nothing to answer the question,
+    /// confirmed the same way: probing a genuinely-closed fd 3 reports
+    /// nothing, probing one the shell itself opened reports it.
+    ///
+    /// Falsified by removing `POSIX_SPAWN_CLOEXEC_DEFAULT` from `spawn`:
+    /// this test then fails because both probes report the descriptors as
+    /// open in the child.
+    @Test
+    func spawnedChildInheritsNoUnrelatedFileDescriptors() async throws {
+        let unrelatedPipe = Pipe()
+        defer {
+            unrelatedPipe.fileHandleForReading.closeFile()
+            unrelatedPipe.fileHandleForWriting.closeFile()
+        }
+        let unrelatedWriteFD = unrelatedPipe.fileHandleForWriting.fileDescriptor
+        let unrelatedReadFD = unrelatedPipe.fileHandleForReading.fileDescriptor
+
+        let spawner = ChildSpawner()
+        let script = """
+        [ -e /dev/fd/\(unrelatedWriteFD) ] && echo write-fd-open
+        [ -e /dev/fd/\(unrelatedReadFD) ] && echo read-fd-open
+        echo probe-done
+        """
+        let child = try await spawner.spawn(id: "fd-audit-child", executablePath: "/bin/sh", arguments: ["-c", script])
+        let data = child.standardOutput.readDataToEndOfFile()
+        _ = await awaitExit(of: child.pid)
+
+        let output = String(data: data, encoding: .utf8) ?? ""
+        #expect(output.contains("probe-done"), "the probe script did not run to completion: \(output)")
+        #expect(
+            !output.contains("write-fd-open"),
+            "child inherited this host's unrelated pipe write end (fd \(unrelatedWriteFD)): \(output)"
+        )
+        #expect(
+            !output.contains("read-fd-open"),
+            "child inherited this host's unrelated pipe read end (fd \(unrelatedReadFD)): \(output)"
+        )
+    }
+
     @Test
     func awaitExitReportsTheChildsRealExitCode() async throws {
         let spawner = ChildSpawner()
