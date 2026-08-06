@@ -38,24 +38,14 @@ public actor HostSupervisor {
         /// is — one pair per live generation — but never `await`ed: see
         /// `cancelLogReaders(_:_:)`.
         ///
-        /// Two named fields, not `[Task<Void, Never>]`. Bisection during
-        /// this block's development found that adding an
-        /// `[Task<Void, Never>]` array field to this struct — even left
-        /// completely unpopulated, with no code path ever writing to it —
-        /// made a real restart cycle with real stdout output reproducibly
-        /// crash with heap corruption (`malloc`: "freed pointer was not the
-        /// last allocation") under this toolchain (Swift 6.3.3); reverting
-        /// to two plain optionals, with no other change, made the crash
-        /// stop reproducing across repeated runs. **The cause is suspected,
-        /// not confirmed**: neither this block's reviewer nor its
-        /// supervisor could identify an actual overlapping-access bug in
-        /// the surrounding code (the `states[id]` read-await-writeback
-        /// pattern this struct is stored under predates this block and is
-        /// unchanged by it), so this may be a toolchain defect rather than
-        /// a defect here — logged as a fact pattern for whoever hits
-        /// something like it next, not as a settled root cause. The shipped
-        /// two-field shape needs no unproven cause to justify it: it works,
-        /// and reads naturally next to `supervisionTask`.
+        /// Two named fields, not `[Task<Void, Never>]`: an array field here
+        /// reproducibly crashes, even left entirely unpopulated. This is
+        /// trigger 1 of the suspected toolchain defect written up in
+        /// `home/TOOLCHAIN-NOTES.md` — signature, excluded causes and
+        /// reproduction recipe are all there, stated once, rather than
+        /// restated at each workaround site. The shipped shape needs no
+        /// unproven cause to justify it: it works, and reads naturally next
+        /// to `supervisionTask`.
         var stdoutReaderTask: Task<Void, Never>?
         var stderrReaderTask: Task<Void, Never>?
     }
@@ -69,15 +59,12 @@ public actor HostSupervisor {
     /// value instead of restating the literal — the same "derive, don't
     /// restate" rule `worstCaseShutdownDuration` enforces for shutdown
     /// timing, applied to the one place in this section that didn't yet
-    /// follow it. A computed property, not a stored `static let`: a stored
-    /// static constant here — tried first — reproducibly triggered this
-    /// package's known toolchain-sensitive heap corruption (`malloc`:
-    /// "freed pointer was not the last allocation"; see `ChildState
-    /// .stdoutReaderTask`'s own documentation for the same signature from
-    /// an unrelated cause), even though nothing about a `static let`
-    /// touches this actor's instance layout. Bisected the same way that
-    /// defect was: reverting to a computed property, with no other change,
-    /// made the crash stop reproducing across repeated runs.
+    /// follow it. A computed property, not a stored `static let`: the stored
+    /// form was tried first and reproducibly crashes. This is trigger 2 of
+    /// the suspected toolchain defect written up in
+    /// `home/TOOLCHAIN-NOTES.md`, which is also where the evidence that it
+    /// is the *same* defect as trigger 1 — an identical backtrace, not
+    /// merely an identical console message — is recorded.
     public static var defaultLogDrainGrace: TimeInterval { 2 }
 
     private let coordinator: ChildStartCoordinator
