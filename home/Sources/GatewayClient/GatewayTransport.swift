@@ -133,9 +133,9 @@ public protocol GatewayTransport: Sendable {
 /// The endpoint is configuration, not an assumption (design D2, PRD
 /// §7.4): `defaultURL` is a *default value* a caller may accept or
 /// override, never a loopback assumption baked into the transport's
-/// logic. `headers` exists so a later block can add
-/// `Authorization: Bearer …` without changing this type's shape; nothing
-/// populates it yet.
+/// logic. `headers` carries whatever the caller assembles — including,
+/// via `GatewayEndpoint.headers(for:additionalHeaders:)` below, an
+/// `Authorization: Bearer …` entry for a `DeviceCredential`.
 public struct GatewayEndpoint: Hashable, Sendable {
     public var url: URL
     public var headers: [String: String]
@@ -148,5 +148,38 @@ public struct GatewayEndpoint: Hashable, Sendable {
     public init(url: URL = GatewayEndpoint.defaultURL, headers: [String: String] = [:]) {
         self.url = url
         self.headers = headers
+    }
+
+    /// The one place that decides whether an `Authorization` header is
+    /// present at all: a `credential` contributes exactly one
+    /// `Authorization: Bearer <secret>` entry; `nil` contributes none —
+    /// not an empty or placeholder value, no key at all.
+    ///
+    /// The credential's entry always wins on a key collision. If
+    /// `additionalHeaders` already contains `Authorization` and a
+    /// `credential` is also supplied, the credential's `Bearer <secret>`
+    /// value overwrites it — the caller-supplied value is discarded, not
+    /// merged or preserved. Every other key in `additionalHeaders` is
+    /// carried through unchanged. A caller-supplied `Authorization` is
+    /// only meaningful when there is no credential, in which case it
+    /// passes through untouched like any other header.
+    ///
+    /// This client cannot see whether the gateway's device-key store is
+    /// populated or its bind address is loopback — it presents whatever
+    /// credential it holds, or none, and the host decides whether that is
+    /// acceptable (ADR-036). Under D13's self-provisioning the two
+    /// coincide by construction — the host holds its own store entry
+    /// exactly when it also holds a credential to present here — but that
+    /// is an invariant of how the credential came to exist, not a check
+    /// this function performs.
+    public static func headers(
+        for credential: DeviceCredential?,
+        additionalHeaders: [String: String] = [:]
+    ) -> [String: String] {
+        var headers = additionalHeaders
+        if let credential {
+            headers["Authorization"] = "Bearer \(credential.secret)"
+        }
+        return headers
     }
 }
