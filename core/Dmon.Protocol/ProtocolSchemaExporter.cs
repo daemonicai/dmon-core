@@ -67,6 +67,8 @@ public static class ProtocolSchemaExporter
             JsonNode stripped = StripDefs(frameSchema);
             string discriminatorValue = key["gw.".Length..]; // e.g. "gw.attach" → "attach"
             FixGwDiscriminator(stripped, discriminatorValue);
+            if (key == "gw.attached")
+                FixWireVersion(stripped);
             allDefs[key] = stripped;
         }
 
@@ -223,6 +225,43 @@ public static class ProtocolSchemaExporter
 
         if (!alreadyRequired)
             required.Add("gw");
+
+        obj["required"] = required;
+    }
+
+    // Replaces the "wire" property schema (present only on gw.attached) with a plain,
+    // non-nullable {"type":"string"} and ensures "wire" is in the "required" array. The
+    // exporter emits the computed get-only string property as {"type":["string","null"]},
+    // which is wrong: the host always sends a value. Unlike the "gw" discriminator this is
+    // not a {"const":...} — the value legitimately varies across host builds, so pinning it
+    // to a const would make the schema reject a different (but valid) host version as a
+    // malformed frame, which is exactly the confusion carrying this field is meant to avoid.
+    private static void FixWireVersion(JsonNode schema)
+    {
+        if (schema is not JsonObject obj)
+            return;
+
+        if (obj["properties"] is not JsonObject props)
+            return;
+
+        props["wire"] = new JsonObject { ["type"] = "string" };
+
+        JsonArray required = obj["required"] is JsonArray existing
+            ? existing
+            : new JsonArray();
+
+        bool alreadyRequired = false;
+        foreach (JsonNode? item in required)
+        {
+            if (item is JsonValue v && v.TryGetValue(out string? s) && s == "wire")
+            {
+                alreadyRequired = true;
+                break;
+            }
+        }
+
+        if (!alreadyRequired)
+            required.Add("wire");
 
         obj["required"] = required;
     }

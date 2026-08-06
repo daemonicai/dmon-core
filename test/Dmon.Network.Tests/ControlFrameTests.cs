@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Dmon.Network.Protocol;
+using Dmon.Protocol;
 using Dmon.Protocol.Gateway;
 
 namespace Dmon.Network.Tests;
@@ -39,6 +40,30 @@ public sealed class ControlFrameTests
         Assert.Equal("attached", doc.RootElement.GetProperty("gw").GetString());
         Assert.Equal(3, doc.RootElement.GetProperty("generation").GetInt64());
         Assert.Equal(7, doc.RootElement.GetProperty("headSeq").GetInt64());
+    }
+
+    [Fact]
+    public void AttachedFrame_Serializes_WithWireVersion_SourcedFromTheSingleConstant()
+    {
+        AttachedFrame frame = new() { Generation = 3, HeadSeq = 7 };
+        string json = ControlFrameSerializer.Serialize(frame);
+
+        using JsonDocument doc = JsonDocument.Parse(json);
+        string? wire = doc.RootElement.GetProperty("wire").GetString();
+
+        // Assert against the constant, not a "0.2" literal: the point of this test is that
+        // the field is present and sourced from ProtocolVersion.Current, not that the
+        // constant currently happens to equal a particular string.
+        Assert.Equal(ProtocolVersion.Current, wire);
+
+        // The value must parse as Major.Minor (two integer components) — the shape a
+        // client's compatibility check depends on, and the part of the claim a
+        // constant-to-constant comparison cannot falsify.
+        Assert.NotNull(wire);
+        string[] parts = wire!.Split('.');
+        Assert.Equal(2, parts.Length);
+        Assert.True(int.TryParse(parts[0], out _), $"major component '{parts[0]}' is not an integer");
+        Assert.True(int.TryParse(parts[1], out _), $"minor component '{parts[1]}' is not an integer");
     }
 
     [Fact]

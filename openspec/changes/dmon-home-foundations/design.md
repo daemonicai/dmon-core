@@ -398,9 +398,17 @@ as met, and deferring the whole thing to a later change leaves *both* dmon clien
 version mismatch from a malformed frame, which is the failure mode the requirement exists to prevent.
 The iOS client gets the same check for free from the same field.
 
-*Recording instrument.* No ADR moves. ADR-012 never enumerated the control-frame fields — the
-standing `remote-session-gateway` spec does, and that is what changes. The task lands as **6.6** and
-must precede 6.4.
+*Recording instrument.* The standing `remote-session-gateway` spec carries the change: it is what
+enumerates the control-frame fields normatively, and its "Connection-control sub-protocol"
+requirement gains the field and a scenario. **ADR-012 D3 also lists them** — "`attached`
+(gateway→client: `generation`, `headSeq`)" — so it takes an **in-place amendment note**, the same
+instrument ADR-034 takes for the Apple Silicon constraint. No ADR is superseded: the addition
+reverses no decision, and D3's subject is the sub-protocol's existence rather than its field list.
+The `adr-index` row is deliberately untouched — the rule that an ADR edit must touch its row fires on
+*adding or renumbering a decision*, and this does neither. (An earlier draft of this paragraph read
+"ADR-012 never enumerated the control-frame fields". That was false, and instructive: the check
+actually run was whether ADR-012 mentions *versioning* — it does not — and the negative was then
+widened to a field enumeration nobody had looked at.) The task lands as **6.6** and must precede 6.4.
 
 ## Known future topology — a split back-end
 

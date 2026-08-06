@@ -5,6 +5,8 @@
 
 > **Amendment (2026-06-25, change `gateway-packaging`) — terminology only:** the `Dmon.Gateway` host is renamed `Dmon.Network` (tool command `ndmon`); read "gateway"/"the gateway" as "the network host" throughout. No numbered decision changes — see ADR-033.
 
+> **Amendment (2026-08-06, change `dmon-home-foundations`) — one additive field:** the `attached` frame enumerated in Decision 3 also carries **`wire`**, the `Major.Minor` protocol version the network host implements, sourced from `Dmon.Protocol.ProtocolVersion.Current`. Read Decision 3's list as `attached` (gateway→client: `generation`, `headSeq`, `wire`). This ADR does not mention versioning at all, and nothing here reverses a decision: a client had no way to establish protocol compatibility on connect, so a mismatch could only surface later as a malformed frame or an unrecognised event. The normative shape lives in the `remote-session-gateway` spec's "Connection-control sub-protocol" requirement, which this change modifies. No numbered decision changes; the addition is backwards-compatible, and `ProtocolVersion.Current` is not bumped — it versions the unchanged ADR-003 contract.
+
 ## Context
 
 `dmoncore` speaks JSONL over stdio (ADR-003): the host writes commands `{"id","type",…}` to the core's stdin and reads events `{"id","event",…}` from its stdout. This is already a full-duplex, asynchronous, id-correlated message stream — stdin is an ordered, flow-controlled command channel; stdout is the event channel. Today the only consumer is a local host (`Dmon.Terminal`) that spawns the core as a child process via `Dmon.Runtime`'s `CoreProcessManager` (ADR-011).

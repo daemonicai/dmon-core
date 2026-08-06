@@ -48,8 +48,12 @@ A client should check `x-protocolVersion` when generating code from the schema. 
 generated against, the client and server are running incompatible wire contracts and the
 connection should be refused with an informative error shown to the user.
 
-There is no version-negotiation frame on the wire today; version compatibility is a
-deploy-time check.
+That schema check happens at build time, against whichever host generated the schema the
+client was built from. At runtime, the `attached` control frame carries the same
+`Major.Minor` version in its `wire` field (see [Section 3.3](#33-attaching-to-a-session--attach)),
+so a client can additionally check compatibility against the specific host it is talking to
+on every connect. This is advertisement, not negotiation: the host does not adjust its
+behaviour to match the client, and there is no round trip to agree a version.
 
 ---
 
@@ -128,12 +132,15 @@ fresh attach). The gateway uses this to replay any events you missed (see
 The gateway replies:
 
 ```json
-{"gw":"attached","generation":1,"headSeq":0}
+{"gw":"attached","generation":1,"headSeq":0,"wire":"0.2"}
 ```
 
 `generation` is a monotonically increasing counter for this session (explained in
 [Section 4.3](#43-generation-fencing)). `headSeq` is the highest sequence number assigned
-to any server→client event so far. On a brand-new session this is `0`.
+to any server→client event so far. On a brand-new session this is `0`. `wire` is the
+`Major.Minor` wire protocol version this host implements; compare it against the version
+your client supports on every attach, so a mismatch surfaces immediately as an explicit
+incompatibility instead of later as a malformed frame or an unrecognised event.
 
 After `attached`, the connection enters the live phase. Events from the core arrive as
 ADR-003 frames; commands you send are forwarded to the core and acknowledged with `ack`.
@@ -395,8 +402,9 @@ defined in `src/Dmon.Protocol/Delta/MessageDelta.cs`.
 // 5. Gateway → client: attach accepted
 //    generation:1 = first attach to this session
 //    headSeq:0 = no events yet; the first event will be seq 1
+//    wire:0.2 = the host's wire protocol version; client checks Major.Minor compatibility
 //    Client sets its lastSeq cursor to 0.
-← {"gw":"attached","generation":1,"headSeq":0}
+← {"gw":"attached","generation":1,"headSeq":0,"wire":"0.2"}
 
 // 6. Client → gateway: submit a turn
 → {"type":"turn.submit","id":"cmd-1","message":"What is 2 + 2?"}
@@ -448,8 +456,9 @@ but before `messageDelta`, `messageEnd`, and `turnEnd` are received.
 // 3. Gateway → client: attach accepted
 //    generation:2 = second attach to this session (generation incremented)
 //    headSeq:5 = five events have been assigned seqs in this session
+//    wire:0.2 = the host's wire protocol version; unchanged across attaches on the same host
 //    Client resets its cursor baseline to headSeq (5); replay will bring it to 5.
-← {"gw":"attached","generation":2,"headSeq":5}
+← {"gw":"attached","generation":2,"headSeq":5,"wire":"0.2"}
 
 // 4. Gateway replays events with seq > lastSeq (seq 3, 4, 5) in order.
 //    Replayed frames are byte-identical to the originals; no seq field is added.

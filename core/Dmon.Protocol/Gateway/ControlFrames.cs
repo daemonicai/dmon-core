@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using Dmon.Protocol;
 
 namespace Dmon.Protocol.Gateway;
 
@@ -15,7 +16,7 @@ namespace Dmon.Protocol.Gateway;
 //
 // Wire shapes:
 //   attach  (client → gateway): {"gw":"attach","sessionId":"...","lastSeq":N}
-//   attached (gateway → client): {"gw":"attached","generation":G,"headSeq":H}
+//   attached (gateway → client): {"gw":"attached","generation":G,"headSeq":H,"wire":"Major.Minor"}
 //   ack     (gateway → client): {"gw":"ack","id":"..."}
 //   ping    (either direction):  {"gw":"ping"}
 //   pong    (either direction):  {"gw":"pong"}
@@ -64,6 +65,15 @@ public sealed record AttachedFrame
     /// </summary>
     [JsonPropertyName("headSeq")]
     public required long HeadSeq { get; init; }
+
+    /// <summary>
+    /// The <c>Major.Minor</c> wire protocol version this host implements, sourced from
+    /// <see cref="ProtocolVersion.Current"/>. A client compares this against its own
+    /// supported version on attach, so a mismatch surfaces here rather than later as a
+    /// malformed frame or an unrecognised event.
+    /// </summary>
+    [JsonPropertyName("wire")]
+    public string Wire => ProtocolVersion.Current;
 }
 
 /// <summary>
