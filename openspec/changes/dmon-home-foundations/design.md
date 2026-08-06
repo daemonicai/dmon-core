@@ -348,6 +348,60 @@ requirement and changed a build manifest — so it is **ADR-037 Decision 5**, no
 normative content under a header that disclaims normative content is how a constraint becomes
 unfindable, which is precisely the failure that produced this decision in the first place.
 
+### D16 — `GatewayClient` is shaped for extraction, and the host advertises its wire version
+
+Three Product Owner decisions taken 2026-08-06, opening section 6. The first answers the question the
+section-3 supervisor parked as *"decide before task 6.1/6.2"*; the third answers a gap found while
+reading the wire for that same block.
+
+**`GatewayClient` is shaped as a shareable Swift client package — ADR-037 D2 rationale 4 is read as
+"same code", not merely "same protocol".** The module is written so that extraction into a shared
+package the personal iOS client can consume is a directory move plus a manifest, not a rewrite. Three
+constraints follow, and they are the whole content of the decision:
+
+1. **No dependency on the rest of `home/`.** `GatewayClient` depends on neither `Supervisor` nor
+   `Power` nor the `DmonHomeApp` target, and nothing in it may import AppKit or any other macOS-only
+   framework.
+2. **Host-only behaviour lives outside it.** Device-key *self-provisioning* (D13) reads and writes
+   `~/.dmon/network/devices.json`, which works only because the host shares a filesystem with the
+   gateway — it is co-located-only by construction and can never be shared with a phone. The portable
+   half (the `secretHash` computation, holding a credential, presenting it on connect) stays in
+   `GatewayClient`; the co-located half does not.
+3. **Extraction is deferred, and the module keeps its name.** Carving `home/Sources/GatewayClient/`
+   out into its own package is cheap in SPM terms and expensive in ADR terms — ADR-028 D5 left
+   `dmon-swift` an open question, and answering it is that change's job, not this one's. Renaming the
+   module now would churn section 2's landed artifacts for a cosmetic gain, so `GatewayClient` is the
+   name it keeps through extraction.
+
+**Portability is enforced by a build, not by convention.** `home/Package.swift` declares an iOS
+platform and a `make` target builds the `GatewayClient` target for a generic iOS destination; section
+10's CI job runs it. The reason is this change's own recurring lesson: *a claim of readiness the
+system does not actually make* is worth less than nothing, because it is believed. "Extractable to
+iOS" asserted in a doc comment is exactly that shape — the first macOS-only API to land would be
+found at extraction time, by the person doing the extraction. A build gate finds it the same day, and
+the task that adds the gate proves it bites rather than assuming it does.
+
+**The network host advertises its wire version on `attached`.** Task 6.4 and its requirement were
+written against a *negotiated* wire version. There was no negotiation. `protocolVersion` is carried
+only on the core's ADR-003 `agentReady` event, and `CoreLauncher.ReadAgentReadyAsync` **consumes** that
+event inside the gateway during the create handshake — the client never sees it. `/ws` is the only
+endpoint the network host exposes, no control frame or header carries a version, and ADR-012 does not
+mention versioning at all. So 6.4 as written could only have shipped a mechanism nothing could ever
+trigger: a version constant, a mismatch error type, unit tests, and no live check — the requirement
+satisfied on paper and absent in fact.
+
+The fix is one field: `attached` gains `wire`, sourced from `ProtocolVersion.Current`. It is .NET work
+inside a Swift-shaped change and it carries a MODIFIED delta on `remote-session-gateway`, which is why
+it was the Product Owner's call rather than the Architect's. It was taken because the alternatives
+both cost more than they save — shipping the unenforceable mechanism leaves a requirement that reads
+as met, and deferring the whole thing to a later change leaves *both* dmon clients unable to tell a
+version mismatch from a malformed frame, which is the failure mode the requirement exists to prevent.
+The iOS client gets the same check for free from the same field.
+
+*Recording instrument.* No ADR moves. ADR-012 never enumerated the control-frame fields — the
+standing `remote-session-gateway` spec does, and that is what changes. The task lands as **6.6** and
+must precede 6.4.
+
 ## Known future topology — a split back-end
 
 The Product Owner has flagged (2026-08-02) that `dmon-home` and the back-end may in future run on

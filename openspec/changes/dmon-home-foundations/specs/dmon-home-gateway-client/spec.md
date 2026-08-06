@@ -93,17 +93,31 @@ The client SHALL submit a turn as an ADR-003 command carrying a unique id, and S
 
 ### Requirement: Wire protocol compatibility is checked on connect
 
-The client SHALL declare the wire protocol version it implements and SHALL treat itself as compatible with the core only when the major and minor components match. An incompatibility SHALL be surfaced as a clear, actionable error rather than a silent failure or a malformed-frame error.
+The client SHALL declare the wire protocol version it implements and SHALL treat itself as compatible with the network host only when the major and minor components match. The peer's version is the one the host advertises on the `attached` frame; the client SHALL NOT assume compatibility from a version it did not receive. An incompatibility SHALL be surfaced as a clear, actionable error rather than a silent failure or a malformed-frame error.
 
 #### Scenario: Matching versions connect
 
-- **WHEN** the negotiated wire version's major and minor components match the client's
+- **WHEN** the wire version advertised on `attached` matches the client's in both major and minor components
 - **THEN** the client proceeds
 
 #### Scenario: A mismatched version is surfaced
 
-- **WHEN** the negotiated wire version's major or minor component differs from the client's
+- **WHEN** the wire version advertised on `attached` differs from the client's in its major or minor component
 - **THEN** the client refuses to proceed and surfaces the version mismatch, naming both versions
+
+### Requirement: The gateway client is portable to every dmon client platform
+
+The gateway client module SHALL be free of platform-specific dependencies so it can be lifted into a shared Swift package consumed by the iOS clients as well as the macOS host. It SHALL NOT depend on the host's other modules, on its application target, or on any macOS-only framework, and host-specific behaviour that cannot be shared SHALL live outside it. Portability SHALL be enforced by a build rather than by convention.
+
+#### Scenario: The module builds for a non-macOS platform
+
+- **WHEN** the gateway client module is built for an iOS destination
+- **THEN** it compiles, and a macOS-only dependency introduced into it fails that build
+
+#### Scenario: Host-only behaviour is kept out
+
+- **WHEN** the gateway client module's dependencies are inspected
+- **THEN** it references neither the host's supervision or power modules nor its application target
 
 ### Requirement: The client authenticates with a device key when the store requires it
 

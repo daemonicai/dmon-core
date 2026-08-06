@@ -80,6 +80,11 @@ its CI job, or its release artifact.
 - `continuous-integration`: The "Swift app is built and tested on macOS" requirement currently names
   `daemon/Daemon.App` as *the* Swift package and scopes the macOS job to `daemon/Daemon.App/**`. It
   generalises to cover every Swift package, each with its own independent path filter.
+- `remote-session-gateway`: The `attached` control frame gains a `wire` field carrying the network
+  host's `Major.Minor` protocol version. Without it there is no channel by which any client — this
+  host or the iOS one — can learn the host's version: `protocolVersion` rides only on the core's
+  `agentReady` event, which the gateway consumes during the create handshake and never forwards. See
+  design D16.
 
 ## Impact
 
@@ -91,7 +96,8 @@ requirements document (`home/PRD.md`).
 ones); `.github/workflows/ci.yml` (a second macOS Swift job with its own path filter);
 `.github/area-map.yml` (its comment currently asserts `daemon/Daemon.App/**` is the sole
 independently-filtered Swift path); `CLAUDE.md` and the `adr-index` skill (new ADR row);
-`core/Dmon.Protocol/Gateway/ControlFrames.cs` (stale comments only).
+`core/Dmon.Protocol/Gateway/ControlFrames.cs` (stale comments, plus the `attached` frame's new `wire`
+field) and the `Dmon.Network` code that constructs that frame.
 
 **New ADR:** ADR-037 — the `home/` bucket, the gateway-client-not-stdio-host stance, dmonium's
 supersession path and the new name/bundle id, and the speech sidecar. Amends ADR-025 (D2) and ADR-028
@@ -99,8 +105,9 @@ supersession path and the new name/bundle id, and the speech sidecar. Amends ADR
 
 **Untouched by design:** `daemon/Daemon.App` and its CI job and release artifact; `release.yml` — the
 new app is not yet a release artifact and gains one in a later change, once it does something worth
-shipping. No .NET runtime code changes beyond the comment fix, so `Everything.slnx` behaviour and the
-protocol-lockstep release train are unaffected.
+shipping. The only .NET runtime change is the additive `wire` field on `attached` (design D16) — a new
+optional field on one gateway control frame, no ADR-003 shape touched — so `Everything.slnx` behaviour
+and the protocol-lockstep release train are otherwise unaffected.
 
 **Requires a human:** verifying the microphone TCC prompt actually appears from the built bundle.
 There is no automated substitute, and every audio phase depends on it.
