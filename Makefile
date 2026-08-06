@@ -1,4 +1,4 @@
-.PHONY: all build build-terminal build-core build-core-pack build-memory test test-live pack smoke schema clean daemon-app daemon-app-test dmon-home dmon-home-test dmon-home-app network release-wave
+.PHONY: all build build-terminal build-core build-core-pack build-memory test test-live pack smoke schema clean daemon-app daemon-app-test dmon-home dmon-home-test dmon-home-app dmon-home-ios-check network release-wave
 
 CONFIG            ?= Release
 CORE_OUT          := build/dmoncore
@@ -88,6 +88,15 @@ dmon-home-app:
 		-derivedDataPath home/.build-xcode -destination 'platform=macOS,arch=arm64' -quiet build
 	lipo -archs home/.build-xcode/Build/Products/Release/DmonHomeApp.app/Contents/MacOS/DmonHomeApp | grep -qx arm64 \
 		|| { echo "dmon-home-app: expected arm64-only binary, got: $$(lipo -archs home/.build-xcode/Build/Products/Release/DmonHomeApp.app/Contents/MacOS/DmonHomeApp)"; exit 1; }
+
+# Portability gate (design D16, dmon-home-foundations 6.1): builds only the
+# GatewayClient target for a generic iOS destination, so a macOS-only
+# dependency creeping into that module fails a build rather than a review.
+# Separate derived-data path from dmon-home-app's home/.build-xcode, which
+# two Product Owner verification recipes depend on and must not be disturbed.
+dmon-home-ios-check:
+	cd home && xcodebuild -scheme GatewayClient -destination 'generic/platform=iOS' \
+		-derivedDataPath .build-ios -quiet build
 
 network:
 	dotnet pack frontends/Dmon.Network/Dmon.Network.csproj -c $(CONFIG) -o "$(PACK_OUT)"

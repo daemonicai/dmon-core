@@ -96,6 +96,9 @@ home/*.xcodeproj
 # xcodebuild derived data for `make dmon-home-app` (distinct from SwiftPM's home/.build/)
 home/.build-xcode/
 
+# xcodebuild derived data for `make dmon-home-ios-check` (distinct from both of the above)
+home/.build-ios/
+
 # macOS
 .DS_Store
 
