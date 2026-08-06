@@ -1,3 +1,4 @@
+import Foundation
 import GatewayClient
 
 /// A `GatewayTransport` conformer that never touches the network: a test
@@ -30,6 +31,28 @@ actor InMemoryGatewayTransport: GatewayTransport {
     private var inbox: [String] = []
     private var sent: [String] = []
     private var waiters: [CheckedContinuation<Void, Never>] = []
+    private var isWedged = false
+    private let isUncooperative: Bool
+    private let sendDelay: Duration
+
+    /// - Parameters:
+    ///   - uncooperative: When `true`, a `receive()` call that would
+    ///     otherwise suspend on an empty inbox suspends **forever**
+    ///     instead — not woken by `enqueue(_:)`, `close()`, or
+    ///     `simulateClose`. Reproduces, for `GatewayConnectionTests`, the
+    ///     reported `URLSessionWebSocketTask` behaviour this module cannot
+    ///     itself confirm on a live socket: cancelling the task that owns
+    ///     an outstanding async `receive()` does not guarantee it unblocks.
+    ///     Default `false` preserves every existing call site's
+    ///     cooperative behaviour.
+    ///   - sendDelay: An artificial delay `send(_:)` sleeps for before
+    ///     recording the frame, letting a test force the interleaving
+    ///     "close while the read loop is genuinely inside `route()`,
+    ///     rather than parked in `receive()`". Default `.zero`.
+    init(uncooperative: Bool = false, sendDelay: Duration = .zero) {
+        self.isUncooperative = uncooperative
+        self.sendDelay = sendDelay
+    }
 
     func connect() async throws {
         hasConnected = true
@@ -37,6 +60,9 @@ actor InMemoryGatewayTransport: GatewayTransport {
 
     func send(_ frame: String) async throws {
         try checkOperable()
+        if sendDelay > .zero {
+            try? await Task.sleep(for: sendDelay)
+        }
         sent.append(frame)
     }
 
@@ -45,7 +71,11 @@ actor InMemoryGatewayTransport: GatewayTransport {
         while inbox.isEmpty {
             if closedLocally { throw GatewayTransportError.closedLocally }
             if let peerCloseError { throw peerCloseError }
-            await suspendUntilActivity()
+            if isUncooperative {
+                await suspendForever()
+            } else {
+                await suspendUntilActivity()
+            }
         }
         return inbox.removeFirst()
     }
@@ -71,6 +101,18 @@ actor InMemoryGatewayTransport: GatewayTransport {
         sent
     }
 
+    /// Whether a `receive()` call is genuinely suspended right now, waiting
+    /// on an empty inbox — either in `suspendUntilActivity()`
+    /// (cooperative) or `suspendForever()` (`uncooperative: true`) — as
+    /// opposed to merely queued to run. Test-only observability: it lets a
+    /// caller force a specific interleaving (act only once a consumer's
+    /// read loop is provably parked) rather than approximating it with an
+    /// unconditional delay that would either be too short to be reliable
+    /// or too long to be fast.
+    func isReceiverWaiting() -> Bool {
+        !waiters.isEmpty || isWedged
+    }
+
     /// Simulates the **peer** closing the connection with `code` and
     /// `reason` — e.g. the network gateway's `4409` or `4500` — distinct
     /// from a **local** `close()`. Makes every subsequent
@@ -91,6 +133,27 @@ actor InMemoryGatewayTransport: GatewayTransport {
     private func suspendUntilActivity() async {
         await withCheckedContinuation { continuation in
             waiters.append(continuation)
+        }
+    }
+
+    /// Suspends and is never resumed, by anything — see
+    /// `init(uncooperative:sendDelay:)`. `withUnsafeContinuation`, not
+    /// `withCheckedContinuation`: `CheckedContinuation` documents a
+    /// leaked-continuation diagnostic (`SWIFT TASK CONTINUATION MISUSE`)
+    /// on deinit, escalating to `fatalError` in general use. Chosen
+    /// defensively against that documented behaviour, not because it was
+    /// observed here — tried with `withCheckedContinuation` against this
+    /// exact usage, it printed the misuse warning but did not abort: the
+    /// continuation is held by a `Task` that itself never completes, so
+    /// its `deinit` never runs in a single test process's lifetime. The
+    /// unsafe variant sidesteps the question entirely by performing no
+    /// such check, which is also the more honest match for what this mode
+    /// models: a `receive()` that is dropped and forgotten, not one that
+    /// gets to report its own misuse.
+    private func suspendForever() async {
+        isWedged = true
+        await withUnsafeContinuation { (_: UnsafeContinuation<Void, Never>) in
+            // Deliberately never resumed.
         }
     }
 

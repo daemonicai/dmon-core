@@ -26,6 +26,7 @@ Debt that outlives a change needs somewhere that outlives a change.
 - [`.process` health checks are unimplemented](process-health-checks-unimplemented.md) — `HealthChecker` returns `.unknown` without executing anything.
 
 ### Structural / by-convention-only
+- [`withTimeout` cannot bound work that ignores cancellation](timeout-race-cannot-bound-uncooperative-work.md) — mechanism proven by repro; the two `Supervisor` call sites are unaudited.
 - [The supervisor's shutdown walk is cancellable by construction](shutdown-walk-is-cancellable.md) — a future edit can skip children with no compiler or test signal.
 - [Observer single-construction is convention, not construction](observer-single-construction-by-convention.md) — two instances now; a third makes it worth closing.
 - [The termination path is load-bearing on process-scoped resources only](termination-path-process-scoped-only.md) — adding any other kind breaks it silently.
@@ -33,6 +34,7 @@ Debt that outlives a change needs somewhere that outlives a change.
 - [Three near-identical stores](store-duplication-trigger.md) — deliberately not collapsed; the trigger to revisit is recorded.
 
 ### Toolchain
+- [A closed `WebSocketGatewayTransport` can leave its read loop running forever](websocket-receive-cancellation-leak.md) — contained and tested; the residual leak needs a live socket to confirm or fix.
 - [Swift 6.3.3 async task-context crash, worked around twice](swift-task-dealloc-workarounds.md) — see also `home/TOOLCHAIN-NOTES.md`.
 
 ### Tests
