@@ -177,6 +177,20 @@ public actor HostRuntime {
         supervisor.worstCaseShutdownDuration
     }
 
+    /// Whether the descriptor set this runtime was constructed with enables
+    /// the network gateway (`ChildInventory.networkGateway.id`) — the fact
+    /// `Power`'s `GatewayActivityPolicy` is driven by (spec requirement "The
+    /// host holds an activity assertion while the gateway is enabled").
+    /// Derived from `supervisedIDs` (already `children.filter(\.isEnabled)`
+    /// at `init`, see above) rather than hard-coded, so a `HostRuntime`
+    /// constructed with a disabled — or absent — gateway descriptor answers
+    /// `false`. `nonisolated` for the same reason `worstCaseShutdownDuration`
+    /// is: the value is fixed at `init`, so a caller does not need to
+    /// `await` into the actor just to ask.
+    public nonisolated var isGatewayEnabled: Bool {
+        supervisedIDs.contains(ChildInventory.networkGateway.id)
+    }
+
     /// A live feed of every enabled child's merged status: the current
     /// snapshot immediately, then one per subsequent health or supervision
     /// change. Mirrors `ChildHealthStore.updates()`'s subscriber pattern.

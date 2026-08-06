@@ -35,7 +35,7 @@
 ## 5. Log pane and power assertion
 
 - [x] 5.1 Stream each supervised child's stdout and stderr into a log pane in the app, attributed by child and retained across a child restart. (Satisfies "Child process output is streamed to a log pane".)
-- [ ] 5.2 In the `Power` package, hold a `ProcessInfo.beginActivity` assertion covering user-initiated work and idle system sleep while the gateway is enabled, and release it when disabled. Do **not** use `LSAppNapIsDisabled`. (Satisfies "The host holds an activity assertion while the gateway is enabled".)
+- [x] 5.2 In the `Power` package, hold a `ProcessInfo.beginActivity` assertion covering user-initiated work and idle system sleep while the gateway is enabled, and release it when disabled. Do **not** use `LSAppNapIsDisabled`. (Satisfies "The host holds an activity assertion while the gateway is enabled".)
 
 ## 6. Gateway client — transport and frame codec
 

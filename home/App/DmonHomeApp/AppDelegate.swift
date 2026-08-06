@@ -1,4 +1,5 @@
 import AppKit
+import Power
 import Supervisor
 import os
 
@@ -24,6 +25,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// reason — see `ChildLogObserver`'s own doc comment.
     let logObserver: ChildLogObserver
 
+    /// The activity-assertion policy (spec: "The host holds an activity
+    /// assertion while the gateway is enabled"). Constructed alongside
+    /// `hostRuntime`; told the gateway's enablement in
+    /// `applicationDidFinishLaunching` and told `false` on the termination
+    /// path in `applicationShouldTerminate`. This is wiring only — the
+    /// policy values (the activity options, the reason string) live in
+    /// `GatewayActivityPolicy`, not here.
+    let activityPolicy: GatewayActivityPolicy
+
     private let logger = Logger(subsystem: "ai.daemonic.dmon-home", category: "AppDelegate")
 
     override init() {
@@ -31,6 +41,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         self.hostRuntime = hostRuntime
         self.statusObserver = ChildStatusObserver(hostRuntime: hostRuntime)
         self.logObserver = ChildLogObserver(hostRuntime: hostRuntime)
+        self.activityPolicy = GatewayActivityPolicy()
         self.terminationBudget = hostRuntime.worstCaseShutdownDuration + AppDelegate.terminationBudgetMargin
         super.init()
     }
@@ -88,11 +99,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         Task { await hostRuntime.start() }
+        Task { await activityPolicy.apply(gatewayEnabled: hostRuntime.isGatewayEnabled) }
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         Task { @MainActor in
             let refused = await hostRuntime.shutdownForTermination()
+            await activityPolicy.apply(gatewayEnabled: false)
             replyToTerminate(refused: refused)
         }
         Task { @MainActor in

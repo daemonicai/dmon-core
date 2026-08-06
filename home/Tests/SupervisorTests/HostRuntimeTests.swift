@@ -183,6 +183,51 @@ struct HostRuntimeTests {
         #expect(runtime.worstCaseShutdownDuration == 9)
     }
 
+    /// The positive case: `ChildInventory.networkGateway` is enabled, and a
+    /// `HostRuntime` constructed with it (directly, not via the `children`
+    /// default) reports the gateway as enabled.
+    @Test
+    func isGatewayEnabledIsTrueWhenTheNetworkGatewayDescriptorIsEnabled() {
+        let runtime = HostRuntime(children: [ChildInventory.networkGateway], monitors: [])
+
+        #expect(runtime.isGatewayEnabled)
+    }
+
+    /// The negative case this fact exists to answer correctly: a
+    /// `HostRuntime` built from a *disabled* gateway descriptor — same id,
+    /// `isEnabled: false` — must not report the gateway as enabled just
+    /// because a descriptor with that id exists in the set.
+    @Test
+    func isGatewayEnabledIsFalseWhenTheNetworkGatewayDescriptorIsDisabled() {
+        let disabledGateway = ChildDescriptor(
+            id: ChildInventory.networkGateway.id,
+            displayName: ChildInventory.networkGateway.displayName,
+            transport: ChildInventory.networkGateway.transport,
+            endpoint: ChildInventory.networkGateway.endpoint,
+            healthCheck: ChildInventory.networkGateway.healthCheck,
+            healthCheckTimeout: ChildInventory.networkGateway.healthCheckTimeout,
+            startupOrder: ChildInventory.networkGateway.startupOrder,
+            adoptionPolicy: ChildInventory.networkGateway.adoptionPolicy,
+            launch: ChildInventory.networkGateway.launch,
+            isEnabled: false
+        )
+        let runtime = HostRuntime(children: [disabledGateway], monitors: [])
+
+        #expect(!runtime.isGatewayEnabled)
+    }
+
+    /// Also false when the gateway descriptor is absent from the set
+    /// entirely — `isGatewayEnabled` derives from what this runtime was
+    /// actually constructed with, not a standing assumption that the
+    /// gateway is always present.
+    @Test
+    func isGatewayEnabledIsFalseWhenNoGatewayDescriptorIsPresent() {
+        let descriptor = Self.spawnableDescriptor(id: "child-a", displayName: "Child A")
+        let runtime = HostRuntime(children: [descriptor], monitors: [])
+
+        #expect(!runtime.isGatewayEnabled)
+    }
+
     // MARK: - Helpers
 
     private static func spawnableDescriptor(
