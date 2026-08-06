@@ -52,9 +52,11 @@ struct DevicesFileReaderTests {
 
     /// Mirrors `DeviceKeyStoreReader.Parse`'s own blank-`secretHash` exclusion
     /// (`string.IsNullOrWhiteSpace(dto.SecretHash)`): a non-revoked entry whose
-    /// `secretHash` is blank must not count as active — an empty hash would match any
-    /// constant-time comparison, so a devices.json in this shape must report the same
-    /// "no key required" outcome as an absent or all-revoked file.
+    /// `secretHash` is blank must not count as active. Not because a blank hash could ever
+    /// match a presented token — `CryptographicOperations.FixedTimeEquals` rejects it on
+    /// length alone before content is even compared — but because an entry that never
+    /// carried a real secret never vouched for anything, so a devices.json in this shape
+    /// must report the same "no key required" outcome as an absent or all-revoked file.
     @Test
     func aFileWithOnlyABlankSecretHashEntryReportsNoActiveEntries() throws {
         let dir = DevicesFileFixture.makeTempDirectory()
@@ -120,6 +122,104 @@ struct DevicesFileReaderTests {
         let reader = DevicesFileReader(directory: dir)
         #expect(throws: DevicesFileError.malformedJSON) {
             try reader.hasActiveEntries()
+        }
+    }
+
+    @Test
+    func statusOfKeyIdReportsActiveForAMatchingActiveEntryAmongSeveral() throws {
+        let dir = DevicesFileFixture.makeTempDirectory()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        try DevicesFileFixture.writeDevicesFile("""
+        {
+          "schemaVersion": 1,
+          "devices": [
+            \(DevicesFileFixture.deviceEntryJSON(keyId: "other-device")),
+            \(DevicesFileFixture.deviceEntryJSON(keyId: "this-host"))
+          ]
+        }
+        """, in: dir)
+
+        let reader = DevicesFileReader(directory: dir)
+        #expect(try reader.status(ofKeyId: "this-host") == .active)
+    }
+
+    @Test
+    func statusOfKeyIdReportsRevokedForAMatchingRevokedEntry() throws {
+        let dir = DevicesFileFixture.makeTempDirectory()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        try DevicesFileFixture.writeDevicesFile("""
+        {
+          "schemaVersion": 1,
+          "devices": [
+            \(DevicesFileFixture.deviceEntryJSON(keyId: "other-device")),
+            \(DevicesFileFixture.deviceEntryJSON(keyId: "this-host", revokedAt: "2026-06-01T00:00:00Z"))
+          ]
+        }
+        """, in: dir)
+
+        let reader = DevicesFileReader(directory: dir)
+        #expect(try reader.status(ofKeyId: "this-host") == .revoked)
+    }
+
+    @Test
+    func statusOfKeyIdReportsAbsentWhenNoEntryHasThatKeyId() throws {
+        let dir = DevicesFileFixture.makeTempDirectory()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        try DevicesFileFixture.writeDevicesFile("""
+        {
+          "schemaVersion": 1,
+          "devices": [
+            \(DevicesFileFixture.deviceEntryJSON(keyId: "other-device"))
+          ]
+        }
+        """, in: dir)
+
+        let reader = DevicesFileReader(directory: dir)
+        #expect(try reader.status(ofKeyId: "this-host") == .absent)
+    }
+
+    /// A matching, unrevoked entry whose `secretHash` is blank never vouched for anything
+    /// — it is folded into `.absent` rather than `.active` (it carries no real secret to
+    /// match against) or `.revoked` (`revokedAt` is nil; nothing was withdrawn). See
+    /// `status(ofKeyId:)`'s doc comment for the full reasoning.
+    @Test
+    func statusOfKeyIdReportsAbsentForAMatchingEntryWithABlankSecretHash() throws {
+        let dir = DevicesFileFixture.makeTempDirectory()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        try DevicesFileFixture.writeDevicesFile("""
+        {
+          "schemaVersion": 1,
+          "devices": [
+            \(DevicesFileFixture.deviceEntryJSON(keyId: "this-host", secretHash: ""))
+          ]
+        }
+        """, in: dir)
+
+        let reader = DevicesFileReader(directory: dir)
+        #expect(try reader.status(ofKeyId: "this-host") == .absent)
+    }
+
+    @Test
+    func statusOfKeyIdReportsAbsentForAnAbsentFile() throws {
+        let dir = DevicesFileFixture.makeTempDirectory()
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        let reader = DevicesFileReader(directory: dir)
+        #expect(try reader.status(ofKeyId: "this-host") == .absent)
+    }
+
+    /// `status(ofKeyId:)` must fail the same way `hasActiveEntries()` does — never folding
+    /// a parse failure into `.absent`, which would let a broken store look identical to a
+    /// store that legitimately never heard of this credential.
+    @Test
+    func statusOfKeyIdThrowsRatherThanReportingAbsentOnMalformedJSON() throws {
+        let dir = DevicesFileFixture.makeTempDirectory()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        try DevicesFileFixture.writeDevicesFile("{ not valid json", in: dir)
+
+        let reader = DevicesFileReader(directory: dir)
+        #expect(throws: DevicesFileError.malformedJSON) {
+            try reader.status(ofKeyId: "this-host")
         }
     }
 

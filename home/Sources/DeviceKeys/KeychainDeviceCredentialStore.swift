@@ -33,6 +33,12 @@ public struct KeychainDeviceCredentialStore: DeviceCredentialStore {
     private static let service = "ai.daemonic.dmon-home.device-credential"
     private static let account = "default"
 
+    /// The `security` invocation that deletes this store's Keychain item, returning this
+    /// host to "holds no credential" — the provisioning path (task 6.5's write side,
+    /// separate work). Derived from `service`/`account` above rather than duplicated as a
+    /// literal in `DeviceAuthPolicy`'s refusal messages, so the two cannot drift.
+    public static let deleteCommand = "security delete-generic-password -a \(account) -s \(service)"
+
     public init() {}
 
     public func loadCredential() async throws -> DeviceCredential? {

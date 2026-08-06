@@ -1,22 +1,34 @@
 import GatewayClient
 
 /// What a `dmon-home` client should do about device-key authentication when it next
-/// connects — the join of "does the store require a key" (`DevicesFileReader`) and "does
-/// this host hold one" (`DeviceCredentialStore`).
+/// connects — the join of "does the store require a key" (`DevicesFileReader`), "does
+/// this host hold one" (`DeviceCredentialStore`), and, when it does, "does the store still
+/// vouch for the one it holds" (`DevicesFileReader.status(ofKeyId:)`).
 ///
-/// Three states, not two. Collapsing the third into `.connectUnauthenticated` would
-/// produce a silent 401 at connect time with nothing naming why: the store requires a
-/// key and this host simply does not hold one yet. This type does not act on that case
-/// beyond naming it — provisioning a credential in response is separate, later work.
+/// Five states, not two. Collapsing every non-provisioning outcome into
+/// `.connectUnauthenticated` would produce a silent 401 at connect time with nothing
+/// naming why. This type does not act on any of them beyond naming it — provisioning a
+/// credential, and the two refusals' shared escape hatch (deleting the stored credential),
+/// are both separate, later or operator work.
 public enum DeviceAuthDecision: Sendable {
-    /// Present this credential on connect — the store has at least one active entry, and
-    /// this host holds a credential of its own.
+    /// Present this credential on connect — the store still lists this host's `keyId` as
+    /// active.
     case presentCredential(DeviceCredential)
     /// Connect without presenting a key — the store has no active entries.
     case connectUnauthenticated
     /// The store has at least one active entry, but this host holds no credential of its
-    /// own.
+    /// own. The only state that ever provisions one (separate, later work).
     case credentialRequiredButMissing
+    /// This host's held credential's `keyId` is in the store, but revoked — an operator
+    /// act, not something this client should route around by provisioning a new one.
+    /// `message` names the escape hatch: delete the stored credential to return to
+    /// `.credentialRequiredButMissing`.
+    case credentialRevoked(message: String)
+    /// This host's held credential's `keyId` does not appear in the store at all — the
+    /// store may have been replaced, restored, or copied from another machine. Refused for
+    /// the same reason as `.credentialRevoked`: this client must not silently re-provision
+    /// access the store does not currently record. `message` names the same escape hatch.
+    case credentialUnknownToStore(message: String)
 }
 
 extension DeviceAuthDecision: Equatable {
@@ -36,6 +48,10 @@ extension DeviceAuthDecision: Equatable {
             true
         case (.credentialRequiredButMissing, .credentialRequiredButMissing):
             true
+        case (.credentialRevoked(let left), .credentialRevoked(let right)):
+            left == right
+        case (.credentialUnknownToStore(let left), .credentialUnknownToStore(let right)):
+            left == right
         default:
             false
         }
@@ -54,9 +70,13 @@ public struct DeviceAuthPolicy: Sendable {
     }
 
     /// Reads the devices file and, only when it requires a key, this host's own
-    /// credential store, then returns the resulting `DeviceAuthDecision`. Propagates
-    /// whatever `fileReader.hasActiveEntries()` or `credentialStore.loadCredential()`
-    /// throw — neither is ever swallowed into `.connectUnauthenticated`.
+    /// credential store, then — only when this host holds a credential — where that
+    /// credential's `keyId` stands in the file, and returns the resulting
+    /// `DeviceAuthDecision`. Propagates whatever `fileReader.hasActiveEntries()`,
+    /// `credentialStore.loadCredential()`, or `fileReader.status(ofKeyId:)` throw — none of
+    /// the three is ever swallowed into `.connectUnauthenticated`. No `catch` appears
+    /// anywhere in this method; that absence, not a guard against any specific exception
+    /// type, is what guarantees a read failure can never present as "no key required".
     public func decide() async throws -> DeviceAuthDecision {
         guard try fileReader.hasActiveEntries() else {
             return .connectUnauthenticated
@@ -64,6 +84,24 @@ public struct DeviceAuthPolicy: Sendable {
         guard let credential = try await credentialStore.loadCredential() else {
             return .credentialRequiredButMissing
         }
-        return .presentCredential(credential)
+        switch try fileReader.status(ofKeyId: credential.keyId) {
+        case .active:
+            return .presentCredential(credential)
+        case .revoked:
+            return .credentialRevoked(message: """
+                This device's stored credential (keyId "\(credential.keyId)") has been \
+                revoked by the network host. Delete it with \
+                `\(KeychainDeviceCredentialStore.deleteCommand)` to let this host provision \
+                a new one on its next connection attempt.
+                """)
+        case .absent:
+            return .credentialUnknownToStore(message: """
+                This device's stored credential (keyId "\(credential.keyId)") is not \
+                recorded by the network host's device store (it may have been replaced, \
+                restored from backup, or copied from another machine). Delete it with \
+                `\(KeychainDeviceCredentialStore.deleteCommand)` to let this host \
+                provision a new one on its next connection attempt.
+                """)
+        }
     }
 }

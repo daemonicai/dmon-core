@@ -1,6 +1,8 @@
 import Foundation
 
-/// Reads `devices.json` and reports whether the store currently requires a device key.
+/// Reads `devices.json` and reports whether the store currently requires a device key, and
+/// (via `status(ofKeyId:)`) whether a specific credential is the one the store currently
+/// vouches for.
 ///
 /// Mirrors `Dmon.Network`'s own reader
 /// (`frontends/Dmon.Network/DeviceKeys/DeviceKeyStoreReader.cs`) on the four facts that
@@ -15,9 +17,14 @@ import Foundation
 /// - **An entry with a missing or blank `secretHash` is not active either.** The host's
 ///   `Parse` excludes an entry when `string.IsNullOrWhiteSpace(dto.SecretHash)` is true, in
 ///   addition to excluding revoked ones, before that same active set gates whether a key is
-///   required at all — an empty hash would match any constant-time comparison, so it must
-///   not count as "the store has a key". This reader excludes it too, on the same
-///   null-or-whitespace test.
+///   required at all. Not because a blank hash could ever match a presented token — it
+///   cannot: `DeviceKeyAuthenticator.Authenticate` always hashes the presented token to a
+///   32-byte SHA-256 digest, a blank hash hex-decodes to a zero-length array, and
+///   `CryptographicOperations.FixedTimeEquals` returns `false` whenever the two spans'
+///   lengths differ, so a blank-hash entry matches nothing. It is excluded because an entry
+///   that never carried a real secret never vouched for anything — counting it as active
+///   would claim the store enforces a key it cannot actually check. This reader excludes it
+///   too, on the same null-or-whitespace test.
 /// - **`schemaVersion` other than `1` throws, rather than being tolerated.** Matches the
 ///   host, which throws on any other value.
 ///
@@ -52,9 +59,55 @@ public struct DevicesFileReader: Sendable {
     /// content, malformed JSON, or an unsupported `schemaVersion`; never returns `false`
     /// for those.
     public func hasActiveEntries() throws -> Bool {
+        guard let envelope = try loadEnvelope() else {
+            return false
+        }
+        return envelope.devices.contains { $0.revokedAt == nil && !Self.isBlank($0.secretHash) }
+    }
+
+    /// Where a given `keyId` stands in `devices.json` — the question a client holding a
+    /// credential must answer before presenting it: is this the store's own record of that
+    /// credential, or has the ground under it shifted?
+    ///
+    /// - `.active`: an entry with this `keyId` exists, is unrevoked, and carries a
+    ///   non-blank `secretHash` — the store still vouches for this credential.
+    /// - `.revoked`: an entry with this `keyId` exists and carries a `revokedAt` — the
+    ///   store withdrew it deliberately.
+    /// - `.absent`: no entry with this `keyId` exists, **or** one does but its
+    ///   `secretHash` is blank. The two are folded together on purpose: an entry that never
+    ///   carried a real secret never vouched for anything, so a `keyId` match against it is
+    ///   not meaningfully different from no match at all — and it was never revoked, so
+    ///   `.revoked` would overstate what happened. An absent `devices.json` also answers
+    ///   `.absent` for any `keyId`, on the same "this store never recorded it" reasoning as
+    ///   `hasActiveEntries()` treating an absent file as no active entries.
+    ///
+    /// Throws `DevicesFileError` under the same conditions as `hasActiveEntries()` —
+    /// unreadable content, malformed JSON, or an unsupported `schemaVersion` — and never
+    /// folds those into `.absent`.
+    public func status(ofKeyId keyId: String) throws -> DeviceKeyIdStatus {
+        guard let envelope = try loadEnvelope() else {
+            return .absent
+        }
+        guard let entry = envelope.devices.first(where: { $0.keyId == keyId }) else {
+            return .absent
+        }
+        if entry.revokedAt != nil {
+            return .revoked
+        }
+        if Self.isBlank(entry.secretHash) {
+            return .absent
+        }
+        return .active
+    }
+
+    /// Reads and decodes `devices.json`, or `nil` if the file does not exist. Throws
+    /// `DevicesFileError` for unreadable content, malformed JSON, or an unsupported
+    /// `schemaVersion` — the one parse path `hasActiveEntries()` and `status(ofKeyId:)`
+    /// share, so both fail the same way on the same bad input.
+    private func loadEnvelope() throws -> DevicesFileEnvelope? {
         let path = directory.appendingPathComponent("devices.json")
         guard FileManager.default.fileExists(atPath: path.path) else {
-            return false
+            return nil
         }
 
         let data: Data
@@ -75,7 +128,7 @@ public struct DevicesFileReader: Sendable {
             throw DevicesFileError.unsupportedSchemaVersion(envelope.schemaVersion)
         }
 
-        return envelope.devices.contains { $0.revokedAt == nil && !Self.isBlank($0.secretHash) }
+        return envelope
     }
 
     /// Mirrors `string.IsNullOrWhiteSpace` (`DeviceKeyStoreReader.Parse`): `nil`, empty, or
@@ -96,10 +149,10 @@ public struct DevicesFileReader: Sendable {
     }
 }
 
-/// Errors `DevicesFileReader.hasActiveEntries()` can raise. `devices.json` itself never
-/// holds a raw secret (only key ids and hashes), but these carry nothing beyond what
-/// identifies the failure mode, matching the no-secret-leakage discipline the rest of
-/// `DeviceKeys` follows.
+/// Errors `DevicesFileReader.hasActiveEntries()` and `status(ofKeyId:)` can raise.
+/// `devices.json` itself never holds a raw secret (only key ids and hashes), but these
+/// carry nothing beyond what identifies the failure mode, matching the no-secret-leakage
+/// discipline the rest of `DeviceKeys` follows.
 public enum DevicesFileError: Error, Sendable, Equatable {
     /// The file exists but could not be read.
     case unreadable
@@ -110,12 +163,23 @@ public enum DevicesFileError: Error, Sendable, Equatable {
     case unsupportedSchemaVersion(Int)
 }
 
+/// Where a `keyId` stands relative to `devices.json`, as answered by
+/// `DevicesFileReader.status(ofKeyId:)`. See that method's doc comment for what each case
+/// means and why a blank-`secretHash` match is folded into `.absent` rather than treated
+/// as a fourth case.
+public enum DeviceKeyIdStatus: Sendable, Equatable {
+    case active
+    case revoked
+    case absent
+}
+
 private struct DevicesFileEnvelope: Decodable {
     let schemaVersion: Int
     let devices: [DevicesFileEntry]
 }
 
 private struct DevicesFileEntry: Decodable {
+    let keyId: String?
     let revokedAt: String?
     let secretHash: String?
 }
