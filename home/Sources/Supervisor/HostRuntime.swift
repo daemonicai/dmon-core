@@ -70,7 +70,7 @@ public actor HostRuntime {
         backoff: RestartBackoff = RestartBackoff(),
         repeatedFailureThreshold: Int = 5,
         gracefulShutdownTimeout: TimeInterval = 5,
-        logDrainGrace: TimeInterval = 2,
+        logDrainGrace: TimeInterval = HostSupervisor.defaultLogDrainGrace,
         healthStore: ChildHealthStore = ChildHealthStore(),
         supervisionStore: ChildSupervisionStore = ChildSupervisionStore(),
         logStore: ChildLogStore = ChildLogStore(),

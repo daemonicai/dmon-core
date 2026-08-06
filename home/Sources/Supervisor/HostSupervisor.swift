@@ -12,7 +12,7 @@ import Darwin
 ///
 /// **`awaitExit(of:)` single-ownership, enforced structurally rather than by
 /// convention:** the only call to the free function `awaitExit(of:)` for a
-/// *live* pid is inside `apply(_:id:state:)`'s `.spawned` case, which is
+/// *live* pid is inside `apply(_:id:)`'s `.spawned` case, which is
 /// `private` and reachable only from `startChild` and from `handleExit`'s own
 /// restart path — never from an external caller. Each generation of a
 /// child's process gets exactly one `Task` that awaits its pid; that `Task`
@@ -60,6 +60,26 @@ public actor HostSupervisor {
         var stderrReaderTask: Task<Void, Never>?
     }
 
+    /// Default for the `logDrainGrace` injection point below — see that
+    /// parameter's own documentation for what the grace period is for. 2s
+    /// specifically: a pipe that is genuinely still draining finishes in
+    /// milliseconds, so this is generous headroom for that, not a value
+    /// tuned against any particular child's behaviour. Named and `public`
+    /// so `HostRuntime`'s own matching default can reference this exact
+    /// value instead of restating the literal — the same "derive, don't
+    /// restate" rule `worstCaseShutdownDuration` enforces for shutdown
+    /// timing, applied to the one place in this section that didn't yet
+    /// follow it. A computed property, not a stored `static let`: a stored
+    /// static constant here — tried first — reproducibly triggered this
+    /// package's known toolchain-sensitive heap corruption (`malloc`:
+    /// "freed pointer was not the last allocation"; see `ChildState
+    /// .stdoutReaderTask`'s own documentation for the same signature from
+    /// an unrelated cause), even though nothing about a `static let`
+    /// touches this actor's instance layout. Bisected the same way that
+    /// defect was: reverting to a computed property, with no other change,
+    /// made the crash stop reproducing across repeated runs.
+    public static var defaultLogDrainGrace: TimeInterval { 2 }
+
     private let coordinator: ChildStartCoordinator
     private let spawner: ChildSpawner
     private let store: ChildSupervisionStore
@@ -88,17 +108,17 @@ public actor HostSupervisor {
         repeatedFailureThreshold: Int = 5,
         gracefulShutdownTimeout: TimeInterval = 5,
         // How long a crashed generation's orphaned reader tasks are left
-        // running before they are cancelled (task 5.1 remediation). A pipe
-        // that is genuinely still draining finishes in milliseconds, so 2s
-        // is generous headroom for that — not a value tuned against any
-        // particular child's behaviour. Exists so a sustained crash-restart
-        // loop with a grandchild holding a pipe's write end open (EOF never
-        // arrives) leaks a bounded amount per crash instead of one reader
-        // task and two fds *forever*. A policy value, so it lives here
-        // rather than as a literal buried in `handleExit`, and is
-        // injectable so tests can drive it down to make the grace itself
-        // fast to observe.
-        logDrainGrace: TimeInterval = 2,
+        // running before they are cancelled (task 5.1 remediation). Exists
+        // so a sustained crash-restart loop with a grandchild holding a
+        // pipe's write end open (EOF never arrives) leaks a bounded amount
+        // per crash instead of one reader task and two fds *forever*. A
+        // policy value, so it lives here rather than as a literal buried in
+        // `handleExit`, and is injectable so tests can drive it down to
+        // make the grace itself fast to observe. Defaults to
+        // `defaultLogDrainGrace` (see its own documentation for why 2s)
+        // rather than a second `2` literal here, so `HostRuntime`'s
+        // matching default cannot silently drift out of sync with it.
+        logDrainGrace: TimeInterval = HostSupervisor.defaultLogDrainGrace,
         sleep: @escaping @Sendable (TimeInterval) async -> Void = { seconds in
             try? await Task.sleep(nanoseconds: UInt64(max(seconds, 0) * 1_000_000_000))
         }
@@ -207,23 +227,38 @@ public actor HostSupervisor {
     /// function's own `await store.publish(...)` below — and this actor is
     /// reentrant at every `await`, so while this call was suspended there,
     /// nothing stopped a *second*, unrelated call into this actor for the
-    /// same `id` from running to completion first. In practice that second
-    /// call was the very child this call had just spawned, crashing before
-    /// this call ever got to publish: its own `handleExit` would re-enter,
-    /// read the *stale* stored entry (this call's spawn hadn't been written
-    /// back yet), and run an entire restart cycle — including spawning a
+    /// same `id` from running to completion first. **If** that second call
+    /// were the very child this call had just spawned, crashing before this
+    /// call ever got to publish, its own `handleExit` would re-enter, read
+    /// the *stale* stored entry (this call's spawn hadn't been written back
+    /// yet), and could run an entire restart cycle — including spawning a
     /// *third* generation — to completion. When this call finally resumed
-    /// and wrote its captured copy back, it silently overwrote that third
-    /// generation's freshly-recorded `SpawnedChild` with its own, second
-    /// generation's now-dead one. The third generation kept running with no
-    /// reference to it left anywhere in this actor — `shutdownChild` would
-    /// find the wrong, already-dead pid and return early, and the real,
-    /// live process would survive host shutdown entirely, re-parented to
-    /// launchd. That is requirement 5 (design D6) failing silently, for a
-    /// process this host itself spawned. Writing straight through
-    /// `states[id]?.field = ...` closes this by construction: there is no
-    /// local copy for a later write to go stale, so there is nothing left
-    /// for a reentrant call to have raced against.
+    /// and wrote its captured copy back, it would silently overwrite that
+    /// third generation's freshly-recorded `SpawnedChild` with its own,
+    /// second generation's now-dead one. The third generation would keep
+    /// running with no reference to it left anywhere in this actor —
+    /// `shutdownChild` would find the wrong, already-dead pid and return
+    /// early, and the real, live process would survive host shutdown
+    /// entirely, re-parented to launchd. That would be requirement 5
+    /// (design D6) failing silently, for a process this host itself
+    /// spawned.
+    ///
+    /// **This shape is real by static trace, not by observation.** Both
+    /// this block's reviewer and its supervisor independently confirmed the
+    /// race is structurally possible against the reverted `inout`-copy
+    /// code — but neither twenty solo repetitions of this exact
+    /// single-child scenario, nor this suite's own 40-concurrent-children
+    /// storm variant, run against that same reverted code, ever produced a
+    /// failure (see `HostSupervisorTests
+    /// .aCrashRestartStormEndsWithTheSupervisorTrackingTheNewestGenerationNotAStaleOne`'s
+    /// own "What this test actually is, stated plainly" for the full
+    /// account of what was and wasn't tried). So: closed **by construction,
+    /// not because it was reproduced**. Writing straight through
+    /// `states[id]?.field = ...` removes the local copy a later write could
+    /// go stale against, so there is nothing left for a reentrant call to
+    /// race against — whether the kernel's real exit-delivery timing could
+    /// ever actually win that race on this platform remains unverified
+    /// either way, and this fix does not depend on the answer.
     private func apply(_ outcome: ChildStartOutcome, id: ChildID) async {
         switch outcome {
         case .adopted:
@@ -665,10 +700,10 @@ public actor HostSupervisor {
         // `nextRestartDelay` mutates `backoff.currentDelay` in place, on
         // the stored entry itself (`states[id]?.backoff...`, not a local
         // copy of `backoff`) — the same reasoning as everywhere else in
-        // this function applies to it specifically: the delay sequence
-        // (`RestartBackoffTests`, and this suite's own
-        // `repeatedImmediateCrashesRequestAnEscalatingCappedDelaySequence`)
-        // is exactly the state a stale writeback used to corrupt.
+        // this function applies to it specifically: a local copy written
+        // back after an `await` would let a reentrant call's own write
+        // silently overwrite this delay sequence, exactly as it would
+        // `spawnedChild` above.
         guard let delay = states[id]?.backoff.nextRestartDelay(afterUptime: uptime) else { return }
         let surfacedState: ChildSupervisionState = consecutiveUnstableCrashes >= repeatedFailureThreshold
             ? .repeatedFailure(delay: delay)
@@ -708,8 +743,9 @@ public actor HostSupervisor {
     ///
     /// Like `apply` and `handleExit`, never captures `states[id]` into a
     /// local `ChildState` and writes it back wholesale after an `await` —
-    /// see `apply`'s doc comment for the failure that pattern caused
-    /// elsewhere in this file. `child`, `task`, and the two reader-task
+    /// see `apply`'s doc comment for the hazard that pattern carries
+    /// elsewhere in this file (real by inspection, not by observation).
+    /// `child`, `task`, and the two reader-task
     /// handles captured just below **are** held in locals across this
     /// function's several `await`s, and that is fine: they are this one
     /// generation's own resource handles (the pid to signal, the `Task` to

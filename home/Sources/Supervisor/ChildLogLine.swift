@@ -3,7 +3,7 @@ import Foundation
 /// Where one `ChildLogLine` came from: the child's stdout or stderr pipe, or
 /// a line the host itself synthesized about that child rather than
 /// something the child wrote (today, only the adoption notice — see
-/// `HostSupervisor.apply(_:id:state:)`'s `.adopted` case).
+/// `HostSupervisor.apply(_:id:)`'s `.adopted` case).
 public enum ChildLogSource: Hashable, Sendable {
     case standardOutput
     case standardError
