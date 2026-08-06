@@ -10,7 +10,8 @@ let package = Package(
     products: [
         .library(name: "Supervisor", targets: ["Supervisor"]),
         .library(name: "GatewayClient", targets: ["GatewayClient"]),
-        .library(name: "Power", targets: ["Power"])
+        .library(name: "Power", targets: ["Power"]),
+        .library(name: "DeviceKeys", targets: ["DeviceKeys"])
     ],
     targets: [
         .target(
@@ -44,6 +45,18 @@ let package = Package(
             name: "PowerTests",
             dependencies: ["Power"],
             path: "Tests/PowerTests",
+            swiftSettings: [.swiftLanguageMode(.v6)]
+        ),
+        .target(
+            name: "DeviceKeys",
+            dependencies: ["GatewayClient"],
+            path: "Sources/DeviceKeys",
+            swiftSettings: [.swiftLanguageMode(.v6)]
+        ),
+        .testTarget(
+            name: "DeviceKeysTests",
+            dependencies: ["DeviceKeys"],
+            path: "Tests/DeviceKeysTests",
             swiftSettings: [.swiftLanguageMode(.v6)]
         )
     ]
