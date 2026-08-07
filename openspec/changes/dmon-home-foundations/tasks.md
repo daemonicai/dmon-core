@@ -48,8 +48,8 @@
 
 ## 7. Gateway client — session lifecycle and turns
 
-- [ ] 7.1 Implement the create→attach handshake: send `create`, await `created`, send `attach` with the returned session id, and record `generation` and `headSeq` from `attached`. (Satisfies "A session is established by create then attach" — the create-then-attach scenario, and "The host reaches its session through the gateway, not through stdio".)
-- [ ] 7.2 Surface `createRejected` as an actionable error carrying its code and message, distinguishable from an ADR-003 error event, and do not attach after a rejection. (Satisfies the rejected-create scenario.)
+- [x] 7.1 Implement the create→attach handshake: send `create`, await `created`, send `attach` with the returned session id, and record `generation` and `headSeq` from `attached`. (Satisfies "A session is established by create then attach" — the create-then-attach scenario, and "The host reaches its session through the gateway, not through stdio".)
+- [x] 7.2 Surface `createRejected` as an actionable error carrying its code and message, distinguishable from an ADR-003 error event, and do not attach after a rejection. (Satisfies the rejected-create scenario.)
 - [ ] 7.3 Track the highest observed event sequence number and reattach with it after a dropped connection, rendering replayed events without duplicating already-rendered ones. (Satisfies "Reattach resumes from the last observed sequence" — both scenarios.)
 - [ ] 7.4 Implement turn submission as an ADR-003 command with a session-unique id, and incremental rendering of message deltas through to turn end. (Satisfies "Turns are submitted and streamed replies rendered incrementally" — both scenarios.)
 
