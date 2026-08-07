@@ -3,28 +3,28 @@ import Testing
 import GatewayClient
 @testable import DeviceKeys
 
-/// `KeychainCredentialCodec.decode`/`encode` are the pure `Data ↔ DeviceCredential` parsing
-/// `KeychainDeviceCredentialStore` delegates to. These tests exercise both directly, without
+/// `DeviceKeySecretCodec.decode`/`encode` are the pure `Data ↔ DeviceKeySecret` parsing
+/// `KeychainDeviceKeySecretStore` delegates to. These tests exercise both directly, without
 /// touching the real Keychain — `SecItemCopyMatching`, `SecItemAdd`, and `SecItemUpdate`
 /// remain the only untestable surface in that store.
 @Suite
-struct KeychainCredentialCodecTests {
+struct DeviceKeySecretCodecTests {
     @Test
     func aWellFormedPayloadRoundTripsToTheRightKeyIdAndSecret() throws {
         let data = Data(#"{"keyId":"device-1","secret":"super-secret-token"}"#.utf8)
 
-        let credential = try KeychainCredentialCodec.decode(data)
+        let secret = try DeviceKeySecretCodec.decode(data)
 
-        #expect(credential.keyId == "device-1")
-        #expect(credential.secret == "super-secret-token")
+        #expect(secret.keyId == "device-1")
+        #expect(secret.secret == "super-secret-token")
     }
 
     @Test
     func malformedJSONThrowsUnreadableItemRatherThanCrashing() {
         let data = Data("not json at all".utf8)
 
-        #expect(throws: KeychainDeviceCredentialStoreError.unreadableItem) {
-            try KeychainCredentialCodec.decode(data)
+        #expect(throws: KeychainDeviceKeySecretStoreError.unreadableItem) {
+            try DeviceKeySecretCodec.decode(data)
         }
     }
 
@@ -34,30 +34,33 @@ struct KeychainCredentialCodecTests {
     func aTruncatedPayloadThrowsUnreadableItemRatherThanCrashing() {
         let data = Data(#"{"keyId":"device-1","secret":"super"#.utf8)
 
-        #expect(throws: KeychainDeviceCredentialStoreError.unreadableItem) {
-            try KeychainCredentialCodec.decode(data)
+        #expect(throws: KeychainDeviceKeySecretStoreError.unreadableItem) {
+            try DeviceKeySecretCodec.decode(data)
         }
     }
 
     @Test
     func encodeThenDecodeRoundTripsToTheOriginalKeyIdAndSecret() throws {
-        let credential = DeviceCredential(keyId: "device-1", secret: "super-secret-token")
+        let secret = DeviceKeySecret(keyId: "device-1", secret: "super-secret-token")
 
-        let data = try KeychainCredentialCodec.encode(credential)
-        let decoded = try KeychainCredentialCodec.decode(data)
+        let data = try DeviceKeySecretCodec.encode(secret)
+        let decoded = try DeviceKeySecretCodec.decode(data)
 
-        #expect(decoded.keyId == credential.keyId)
-        #expect(decoded.secret == credential.secret)
+        #expect(decoded.keyId == secret.keyId)
+        #expect(decoded.secret == secret.secret)
     }
 
     /// `encode` produces exactly the `{"keyId":...,"secret":...}` shape `decode` above reads
     /// — pinned directly, rather than only through the round trip, so a change to either
-    /// side's field names is caught even if it happened to change both consistently.
+    /// side's field names is caught even if it happened to change both consistently. These
+    /// two field names are the literal JSON already sitting in every existing Keychain item
+    /// (see `DeviceKeySecretCodec.StoredSecret`'s doc comment) — this test is what catches a
+    /// future property rename in that private struct silently orphaning them.
     @Test
     func encodeProducesTheKeyIdAndSecretFieldNamesDecodeExpects() throws {
-        let credential = DeviceCredential(keyId: "device-1", secret: "super-secret-token")
+        let secret = DeviceKeySecret(keyId: "device-1", secret: "super-secret-token")
 
-        let data = try KeychainCredentialCodec.encode(credential)
+        let data = try DeviceKeySecretCodec.encode(secret)
         let object = try JSONSerialization.jsonObject(with: data) as? [String: Any]
 
         #expect(object?["keyId"] as? String == "device-1")

@@ -49,7 +49,7 @@ struct WebSocketGatewayTransportTests {
 
     @Test
     func theDefaultEndpointProducesARequestWithNoHeaders() {
-        let request = WebSocketGatewayTransport.request(for: GatewayEndpoint())
+        let request = WebSocketGatewayTransport.request(for: GatewayEndpoint(url: GatewayEndpoint.defaultURL))
 
         #expect(request.url == GatewayEndpoint.defaultURL)
         #expect(request.allHTTPHeaderFields?.isEmpty ?? true)
@@ -70,7 +70,7 @@ struct WebSocketGatewayTransportTests {
 
     @Test
     func sendBeforeConnectFailsWithNotConnected() async throws {
-        let transport = WebSocketGatewayTransport()
+        let transport = WebSocketGatewayTransport(endpoint: GatewayEndpoint(url: GatewayEndpoint.defaultURL))
         await #expect(throws: GatewayTransportError.notConnected) {
             try await transport.send("too early")
         }
@@ -78,7 +78,7 @@ struct WebSocketGatewayTransportTests {
 
     @Test
     func receiveBeforeConnectFailsWithNotConnected() async throws {
-        let transport = WebSocketGatewayTransport()
+        let transport = WebSocketGatewayTransport(endpoint: GatewayEndpoint(url: GatewayEndpoint.defaultURL))
         await #expect(throws: GatewayTransportError.notConnected) {
             try await transport.receive()
         }
@@ -86,7 +86,7 @@ struct WebSocketGatewayTransportTests {
 
     @Test
     func sendAfterALocalCloseFailsWithClosedLocallyNotNotConnected() async throws {
-        let transport = WebSocketGatewayTransport()
+        let transport = WebSocketGatewayTransport(endpoint: GatewayEndpoint(url: GatewayEndpoint.defaultURL))
         try await transport.connect()
         await transport.close()
 
@@ -97,7 +97,7 @@ struct WebSocketGatewayTransportTests {
 
     @Test
     func receiveAfterALocalCloseFailsWithClosedLocallyNotNotConnected() async throws {
-        let transport = WebSocketGatewayTransport()
+        let transport = WebSocketGatewayTransport(endpoint: GatewayEndpoint(url: GatewayEndpoint.defaultURL))
         try await transport.connect()
         await transport.close()
 
@@ -108,7 +108,7 @@ struct WebSocketGatewayTransportTests {
 
     @Test
     func closingATransportThatWasNeverConnectedLeavesItNotConnected() async throws {
-        let transport = WebSocketGatewayTransport()
+        let transport = WebSocketGatewayTransport(endpoint: GatewayEndpoint(url: GatewayEndpoint.defaultURL))
         await transport.close()
 
         await #expect(throws: GatewayTransportError.notConnected) {
@@ -118,7 +118,7 @@ struct WebSocketGatewayTransportTests {
 
     @Test
     func closeIsIdempotentAfterConnecting() async throws {
-        let transport = WebSocketGatewayTransport()
+        let transport = WebSocketGatewayTransport(endpoint: GatewayEndpoint(url: GatewayEndpoint.defaultURL))
         try await transport.connect()
         await transport.close()
         await transport.close()

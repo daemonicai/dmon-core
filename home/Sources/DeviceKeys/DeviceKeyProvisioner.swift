@@ -8,16 +8,16 @@ import Darwin
 /// The action half of task 6.5's self-provisioning (design D13): generates a token, stores
 /// it in the Keychain, then appends `{keyId, name, secretHash, createdAt}` to
 /// `devices.json`. `DeviceAuthPolicy` (B8) is the decision half — it names
-/// `.credentialRequiredButMissing` as the one state that warrants this; this type is the
+/// `.keyRequiredButMissing` as the one state that warrants this; this type is the
 /// thing that acts on it.
 ///
 /// **Provisioning is unreachable except from that one state, and this is checked here, not
 /// merely documented.** `provision()` takes no `DeviceAuthDecision` — `DeviceAuthDecision` is
-/// plain data whose cases (`.credentialRequiredButMissing` included) any caller can construct
+/// plain data whose cases (`.keyRequiredButMissing` included) any caller can construct
 /// without ever running `DeviceAuthPolicy.decide()`, so accepting one as "evidence" would
 /// prove nothing on its own. Instead `provision()` re-derives both halves of the precondition
-/// itself, against the same `directory` and `credentialStore` it was given —
-/// `DevicesFileReader.hasActiveEntries()` and `credentialStore.loadCredential()` — and refuses
+/// itself, against the same `directory` and `secretStore` it was given —
+/// `DevicesFileReader.hasActiveEntries()` and `secretStore.load()` — and refuses
 /// with `.notRequired`, touching neither the Keychain nor `devices.json`, when either does not
 /// hold. This is what makes writing into an empty or absent store — which would switch
 /// device-key auth on for every client, as a side effect of this host booting — unreachable
@@ -25,7 +25,7 @@ import Darwin
 /// of what any caller passes or believes the current state to be.
 ///
 /// **Single-writer assumption.** `provision()`'s two precondition checks
-/// (`hasActiveEntries()`, `loadCredential()`) and `appendEntry`'s own read-then-replace are
+/// (`hasActiveEntries()`, `load()`) and `appendEntry`'s own read-then-replace are
 /// three separate points in time against `devices.json`, with no locking or compare-and-swap
 /// tying them together. `appendEntry` re-reads the file itself immediately before writing, so
 /// there is no *stale-copy* bug — what it appends to is whatever the file most recently held,
@@ -43,70 +43,70 @@ public struct DeviceKeyProvisioner: Sendable {
     static let tokenByteCount = 32
 
     private let directory: URL
-    private let credentialStore: any DeviceCredentialStore
+    private let secretStore: any DeviceKeySecretStore
     private let now: @Sendable () -> Date
 
     public init(
         directory: URL = DevicesFileReader.defaultDirectory,
-        credentialStore: any DeviceCredentialStore,
+        secretStore: any DeviceKeySecretStore,
         now: @escaping @Sendable () -> Date = Date.init
     ) {
         self.directory = directory
-        self.credentialStore = credentialStore
+        self.secretStore = secretStore
         self.now = now
     }
 
-    /// Provisions a new device credential for this host and returns it. See this type's doc
+    /// Provisions a new device key secret for this host and returns it. See this type's doc
     /// comment for what makes this unreachable except from the state that warrants it.
     ///
     /// The Keychain write happens *before* the `devices.json` append, deliberately: either
     /// half can fail, and only this ordering leaves the failure visible. Keychain-write
     /// failure leaves both sides untouched — this host holds nothing new and the store gained
     /// no row, indistinguishable from never having attempted provisioning. An append failure
-    /// *after* a successful Keychain write leaves this host holding a credential the store has
+    /// *after* a successful Keychain write leaves this host holding a secret the store has
     /// no record of; `.devicesFileAppendFailed`'s message names the cleanup command
-    /// (`KeychainDeviceCredentialStore.deleteCommand`) so that state is recoverable rather than
+    /// (`KeychainDeviceKeySecretStore.deleteCommand`) so that state is recoverable rather than
     /// silently accumulating an orphaned Keychain item. The alternative ordering — append
     /// first — would instead leave an orphaned *row* in the operator's own `devices.json` on a
     /// Keychain failure, which nothing surfaces and every subsequent boot would attempt again.
-    public func provision() async throws -> DeviceCredential {
+    public func provision() async throws -> DeviceKeySecret {
         guard try DevicesFileReader(directory: directory).hasActiveEntries() else {
             throw DeviceKeyProvisioningError.notRequired
         }
-        guard try await credentialStore.loadCredential() == nil else {
+        guard try await secretStore.load() == nil else {
             throw DeviceKeyProvisioningError.notRequired
         }
 
-        let credential = DeviceCredential(keyId: UUID().uuidString, secret: try Self.generateToken())
+        let secret = DeviceKeySecret(keyId: UUID().uuidString, secret: try Self.generateToken())
 
         do {
-            try await credentialStore.store(credential)
+            try await secretStore.store(secret)
         } catch {
             throw DeviceKeyProvisioningError.keychainWriteFailed(message: String(describing: error))
         }
 
         do {
             try Self.appendEntry(
-                keyId: credential.keyId,
+                keyId: secret.keyId,
                 name: Self.deviceName(),
-                secretHash: credential.secretHash,
+                secretHash: secret.secretHash,
                 createdAt: Self.iso8601String(from: now()),
                 directory: directory
             )
         } catch {
             throw DeviceKeyProvisioningError.devicesFileAppendFailed(
-                keyId: credential.keyId,
+                keyId: secret.keyId,
                 message: """
-                This device's credential (keyId "\(credential.keyId)") was stored in the \
+                This device's key (keyId "\(secret.keyId)") was stored in the \
                 Keychain, but appending it to devices.json failed (\(error)). The network \
-                host's device store has no record of this credential. Remove the orphaned \
-                Keychain item with `\(KeychainDeviceCredentialStore.deleteCommand)` before \
-                retrying, or this host will hold a credential the store never vouches for.
+                host's device store has no record of this key. Remove the orphaned \
+                Keychain item with `\(KeychainDeviceKeySecretStore.deleteCommand)` before \
+                retrying, or this host will hold a key the store never vouches for.
                 """
             )
         }
 
-        return credential
+        return secret
     }
 
     /// A cryptographically secure, base64-encoded token. `SecRandomCopyBytes` is Apple's
@@ -277,23 +277,23 @@ public struct DeviceKeyProvisioner: Sendable {
 /// case's doc comment for exactly what feeds its message).
 public enum DeviceKeyProvisioningError: Error, Sendable, Equatable {
     /// The precondition for provisioning does not hold: `devices.json` has no active entries,
-    /// or this host already holds a credential. Neither the Keychain nor `devices.json` was
+    /// or this host already holds a key secret. Neither the Keychain nor `devices.json` was
     /// touched.
     case notRequired
     /// `SecRandomCopyBytes` returned a status other than `errSecSuccess`. Nothing was stored
     /// or appended.
     case tokenGenerationFailed(status: OSStatus)
     /// The Keychain write failed. `devices.json` was not touched — this host holds no
-    /// credential and the store gained no row, the same state as if provisioning had never
+    /// key secret and the store gained no row, the same state as if provisioning had never
     /// been attempted. `message` is `String(describing:)` of the underlying error thrown by
-    /// `DeviceCredentialStore.store(_:)`; both this module's own `KeychainDeviceCredentialStore`
+    /// `DeviceKeySecretStore.store(_:)`; both this module's own `KeychainDeviceKeySecretStore`
     /// and its test double never construct an error that embeds the secret, so this cannot
     /// leak one — but a future conformer's error type is not verified here, so it remains this
     /// conformer's obligation to uphold, not something this type enforces.
     case keychainWriteFailed(message: String)
     /// The Keychain write succeeded, but appending the entry to `devices.json` failed. This
-    /// host now holds a credential the store has no record of — `message` names the cleanup
-    /// command (`KeychainDeviceCredentialStore.deleteCommand`) and the affected `keyId`, never
+    /// host now holds a key secret the store has no record of — `message` names the cleanup
+    /// command (`KeychainDeviceKeySecretStore.deleteCommand`) and the affected `keyId`, never
     /// the secret itself.
     case devicesFileAppendFailed(keyId: String, message: String)
 }

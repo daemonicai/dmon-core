@@ -7,7 +7,7 @@ import GatewayClient
 struct DeviceKeyProvisionerTests {
     // MARK: - Call 4: unreachable except from the state that warrants it
 
-    /// The empty-store case: an absent `devices.json` can never reach `.credentialRequiredButMissing`
+    /// The empty-store case: an absent `devices.json` can never reach `.keyRequiredButMissing`
     /// through `DeviceAuthPolicy`, and `provision()` re-derives the same check itself rather
     /// than trusting a caller-supplied decision, so it must refuse here too — and touch
     /// neither the Keychain nor the file while doing so.
@@ -16,8 +16,8 @@ struct DeviceKeyProvisionerTests {
         let dir = DevicesFileFixture.makeTempDirectory()
         defer { try? FileManager.default.removeItem(at: dir) }
 
-        let store = InMemoryDeviceCredentialStore()
-        let provisioner = DeviceKeyProvisioner(directory: dir, credentialStore: store)
+        let store = InMemoryDeviceKeySecretStore()
+        let provisioner = DeviceKeyProvisioner(directory: dir, secretStore: store)
 
         await #expect(throws: DeviceKeyProvisioningError.notRequired) {
             _ = try await provisioner.provision()
@@ -41,8 +41,8 @@ struct DeviceKeyProvisionerTests {
         """
         try DevicesFileFixture.writeDevicesFile(content, in: dir)
 
-        let store = InMemoryDeviceCredentialStore()
-        let provisioner = DeviceKeyProvisioner(directory: dir, credentialStore: store)
+        let store = InMemoryDeviceKeySecretStore()
+        let provisioner = DeviceKeyProvisioner(directory: dir, secretStore: store)
 
         await #expect(throws: DeviceKeyProvisioningError.notRequired) {
             _ = try await provisioner.provision()
@@ -52,10 +52,10 @@ struct DeviceKeyProvisionerTests {
         #expect(after == content)
     }
 
-    /// This host already holding a credential is the other half of "not required" —
-    /// `.credentialRequiredButMissing` names holding *none* as part of the precondition.
+    /// This host already holding a key secret is the other half of "not required" —
+    /// `.keyRequiredButMissing` names holding *none* as part of the precondition.
     @Test
-    func provisioningWhenThisHostAlreadyHoldsACredentialThrowsNotRequired() async throws {
+    func provisioningWhenThisHostAlreadyHoldsAKeyThrowsNotRequired() async throws {
         let dir = DevicesFileFixture.makeTempDirectory()
         defer { try? FileManager.default.removeItem(at: dir) }
         let content = """
@@ -66,9 +66,9 @@ struct DeviceKeyProvisionerTests {
         """
         try DevicesFileFixture.writeDevicesFile(content, in: dir)
 
-        let held = DeviceCredential(keyId: "already-held", secret: "already-held-secret")
-        let store = InMemoryDeviceCredentialStore(credential: held)
-        let provisioner = DeviceKeyProvisioner(directory: dir, credentialStore: store)
+        let held = DeviceKeySecret(keyId: "already-held", secret: "already-held-secret")
+        let store = InMemoryDeviceKeySecretStore(secret: held)
+        let provisioner = DeviceKeyProvisioner(directory: dir, secretStore: store)
 
         await #expect(throws: DeviceKeyProvisioningError.notRequired) {
             _ = try await provisioner.provision()
@@ -82,11 +82,11 @@ struct DeviceKeyProvisionerTests {
 
     /// The strongest test available: provision against a temp directory, then read the
     /// result back with the existing `DevicesFileReader`/`DeviceAuthPolicy` and confirm the
-    /// decision is now `.presentCredential` carrying the credential `provision()` returned.
+    /// decision is now `.presentKey` carrying the key `provision()` returned.
     /// The file this test reads is the one the code under test wrote — not hand-rolled to
     /// match it.
     @Test
-    func provisioningThenDecidingPresentsTheGeneratedCredential() async throws {
+    func provisioningThenDecidingPresentsTheGeneratedKey() async throws {
         let dir = DevicesFileFixture.makeTempDirectory()
         defer { try? FileManager.default.removeItem(at: dir) }
         try DevicesFileFixture.writeDevicesFile("""
@@ -96,13 +96,13 @@ struct DeviceKeyProvisionerTests {
         }
         """, in: dir)
 
-        let store = InMemoryDeviceCredentialStore()
-        let provisioner = DeviceKeyProvisioner(directory: dir, credentialStore: store)
-        let credential = try await provisioner.provision()
+        let store = InMemoryDeviceKeySecretStore()
+        let provisioner = DeviceKeyProvisioner(directory: dir, secretStore: store)
+        let secret = try await provisioner.provision()
 
-        let policy = DeviceAuthPolicy(fileReader: DevicesFileReader(directory: dir), credentialStore: store)
+        let policy = DeviceAuthPolicy(fileReader: DevicesFileReader(directory: dir), secretStore: store)
         let decision = try await policy.decide()
-        #expect(decision == .presentCredential(credential))
+        #expect(decision == .presentKey(secret))
     }
 
     // MARK: - Shape of the appended entry
@@ -118,14 +118,14 @@ struct DeviceKeyProvisionerTests {
         }
         """, in: dir)
 
-        let store = InMemoryDeviceCredentialStore()
-        let provisioner = DeviceKeyProvisioner(directory: dir, credentialStore: store)
-        let credential = try await provisioner.provision()
+        let store = InMemoryDeviceKeySecretStore()
+        let provisioner = DeviceKeyProvisioner(directory: dir, secretStore: store)
+        let secret = try await provisioner.provision()
 
-        let entry = try Self.entry(forKeyId: credential.keyId, in: dir)
-        #expect(entry["keyId"] as? String == credential.keyId)
+        let entry = try Self.entry(forKeyId: secret.keyId, in: dir)
+        #expect(entry["keyId"] as? String == secret.keyId)
         #expect((entry["name"] as? String)?.isEmpty == false)
-        #expect(entry["secretHash"] as? String == credential.secretHash)
+        #expect(entry["secretHash"] as? String == secret.secretHash)
         #expect(entry["createdAt"] is String)
         // Per D13/spec: absent or null, never a real revocation timestamp for a fresh entry.
         if let revokedAt = entry["revokedAt"] {
@@ -141,7 +141,7 @@ struct DeviceKeyProvisionerTests {
     /// Wired, not recomputed: a second hashing site is exactly the divergence B6's pinned
     /// digests exist to prevent.
     @Test
-    func secretHashInTheFileEqualsDeviceCredentialSecretHashOfTheGeneratedToken() async throws {
+    func secretHashInTheFileEqualsDeviceKeySecretSecretHashOfTheGeneratedToken() async throws {
         let dir = DevicesFileFixture.makeTempDirectory()
         defer { try? FileManager.default.removeItem(at: dir) }
         try DevicesFileFixture.writeDevicesFile("""
@@ -151,12 +151,12 @@ struct DeviceKeyProvisionerTests {
         }
         """, in: dir)
 
-        let store = InMemoryDeviceCredentialStore()
-        let provisioner = DeviceKeyProvisioner(directory: dir, credentialStore: store)
-        let credential = try await provisioner.provision()
+        let store = InMemoryDeviceKeySecretStore()
+        let provisioner = DeviceKeyProvisioner(directory: dir, secretStore: store)
+        let secret = try await provisioner.provision()
 
-        let entry = try Self.entry(forKeyId: credential.keyId, in: dir)
-        #expect(entry["secretHash"] as? String == DeviceCredential.secretHash(ofToken: credential.secret))
+        let entry = try Self.entry(forKeyId: secret.keyId, in: dir)
+        #expect(entry["secretHash"] as? String == DeviceKeySecret.secretHash(ofToken: secret.secret))
     }
 
     /// Pins the exact form: `yyyy-MM-ddTHH:mm:ssZ`, the extended ISO-8601 form with an
@@ -183,11 +183,11 @@ struct DeviceKeyProvisionerTests {
         components.timeZone = TimeZone(identifier: "UTC")
         let fixedDate = Calendar(identifier: .gregorian).date(from: components)!
 
-        let store = InMemoryDeviceCredentialStore()
-        let provisioner = DeviceKeyProvisioner(directory: dir, credentialStore: store, now: { fixedDate })
-        let credential = try await provisioner.provision()
+        let store = InMemoryDeviceKeySecretStore()
+        let provisioner = DeviceKeyProvisioner(directory: dir, secretStore: store, now: { fixedDate })
+        let secret = try await provisioner.provision()
 
-        let entry = try Self.entry(forKeyId: credential.keyId, in: dir)
+        let entry = try Self.entry(forKeyId: secret.keyId, in: dir)
         #expect(entry["createdAt"] as? String == "2026-03-15T09:30:45Z")
     }
 
@@ -217,8 +217,8 @@ struct DeviceKeyProvisionerTests {
         }
         """, in: dir)
 
-        let store = InMemoryDeviceCredentialStore()
-        let provisioner = DeviceKeyProvisioner(directory: dir, credentialStore: store)
+        let store = InMemoryDeviceKeySecretStore()
+        let provisioner = DeviceKeyProvisioner(directory: dir, secretStore: store)
         _ = try await provisioner.provision()
 
         let envelope = try Self.envelope(in: dir)
@@ -248,8 +248,8 @@ struct DeviceKeyProvisionerTests {
         }
         """, in: dir)
 
-        let store = InMemoryDeviceCredentialStore()
-        let provisioner = DeviceKeyProvisioner(directory: dir, credentialStore: store)
+        let store = InMemoryDeviceKeySecretStore()
+        let provisioner = DeviceKeyProvisioner(directory: dir, secretStore: store)
         _ = try await provisioner.provision()
 
         let envelope = try Self.envelope(in: dir)
@@ -274,17 +274,17 @@ struct DeviceKeyProvisionerTests {
         try DevicesFileFixture.writeDevicesFile(seed, in: dirA)
         try DevicesFileFixture.writeDevicesFile(seed, in: dirB)
 
-        let credentialA = try await DeviceKeyProvisioner(
+        let secretA = try await DeviceKeyProvisioner(
             directory: dirA,
-            credentialStore: InMemoryDeviceCredentialStore()
+            secretStore: InMemoryDeviceKeySecretStore()
         ).provision()
-        let credentialB = try await DeviceKeyProvisioner(
+        let secretB = try await DeviceKeyProvisioner(
             directory: dirB,
-            credentialStore: InMemoryDeviceCredentialStore()
+            secretStore: InMemoryDeviceKeySecretStore()
         ).provision()
 
-        #expect(credentialA.keyId != credentialB.keyId)
-        #expect(credentialA.secret != credentialB.secret)
+        #expect(secretA.keyId != secretB.keyId)
+        #expect(secretA.secret != secretB.secret)
     }
 
     // MARK: - Token shape
@@ -305,14 +305,14 @@ struct DeviceKeyProvisionerTests {
         }
         """, in: dir)
 
-        let store = InMemoryDeviceCredentialStore()
-        let provisioner = DeviceKeyProvisioner(directory: dir, credentialStore: store)
-        let credential = try await provisioner.provision()
+        let store = InMemoryDeviceKeySecretStore()
+        let provisioner = DeviceKeyProvisioner(directory: dir, secretStore: store)
+        let secret = try await provisioner.provision()
 
-        #expect(!credential.secret.isEmpty)
-        #expect(credential.secret.rangeOfCharacter(from: .whitespacesAndNewlines) == nil)
+        #expect(!secret.secret.isEmpty)
+        #expect(secret.secret.rangeOfCharacter(from: .whitespacesAndNewlines) == nil)
         let standardBase64Alphabet = CharacterSet(charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=")
-        #expect(credential.secret.unicodeScalars.allSatisfy { standardBase64Alphabet.contains($0) })
+        #expect(secret.secret.unicodeScalars.allSatisfy { standardBase64Alphabet.contains($0) })
     }
 
     // MARK: - Call 1: the failure ordering
@@ -332,8 +332,8 @@ struct DeviceKeyProvisionerTests {
         """
         try DevicesFileFixture.writeDevicesFile(content, in: dir)
 
-        let store = InMemoryDeviceCredentialStore(storeError: StubStoreError.keychainDenied)
-        let provisioner = DeviceKeyProvisioner(directory: dir, credentialStore: store)
+        let store = InMemoryDeviceKeySecretStore(storeError: StubStoreError.keychainDenied)
+        let provisioner = DeviceKeyProvisioner(directory: dir, secretStore: store)
 
         await #expect(throws: DeviceKeyProvisioningError.self) {
             _ = try await provisioner.provision()
@@ -356,8 +356,8 @@ struct DeviceKeyProvisionerTests {
         }
         """, in: dir)
 
-        let store = InMemoryDeviceCredentialStore(storeError: StubStoreError.keychainDenied)
-        let provisioner = DeviceKeyProvisioner(directory: dir, credentialStore: store)
+        let store = InMemoryDeviceKeySecretStore(storeError: StubStoreError.keychainDenied)
+        let provisioner = DeviceKeyProvisioner(directory: dir, secretStore: store)
 
         do {
             _ = try await provisioner.provision()
@@ -371,7 +371,7 @@ struct DeviceKeyProvisionerTests {
 
     /// The other half of call 1: a `devices.json` append failure *after* a successful
     /// Keychain write must surface an error naming the cleanup command, because this host
-    /// now holds a credential the store has no record of.
+    /// now holds a key secret the store has no record of.
     @Test
     func anAppendFailureAfterAKeychainSuccessNamesTheCleanupCommand() async throws {
         let dir = DevicesFileFixture.makeTempDirectory()
@@ -391,15 +391,15 @@ struct DeviceKeyProvisionerTests {
         // the (in-memory, not-real) Keychain write above it has already succeeded.
         try FileManager.default.setAttributes([.posixPermissions: 0o500], ofItemAtPath: dir.path)
 
-        let store = InMemoryDeviceCredentialStore()
-        let provisioner = DeviceKeyProvisioner(directory: dir, credentialStore: store)
+        let store = InMemoryDeviceKeySecretStore()
+        let provisioner = DeviceKeyProvisioner(directory: dir, secretStore: store)
 
         do {
             _ = try await provisioner.provision()
             Issue.record("expected provision() to throw")
         } catch DeviceKeyProvisioningError.devicesFileAppendFailed(let keyId, let message) {
             #expect(!keyId.isEmpty)
-            #expect(message.contains(KeychainDeviceCredentialStore.deleteCommand))
+            #expect(message.contains(KeychainDeviceKeySecretStore.deleteCommand))
             #expect(message.contains(keyId))
         } catch {
             Issue.record("expected .devicesFileAppendFailed, got \(error)")
@@ -427,8 +427,8 @@ struct DeviceKeyProvisionerTests {
         }
         """, in: dir)
 
-        let store = InMemoryDeviceCredentialStore()
-        let provisioner = DeviceKeyProvisioner(directory: dir, credentialStore: store)
+        let store = InMemoryDeviceKeySecretStore()
+        let provisioner = DeviceKeyProvisioner(directory: dir, secretStore: store)
         _ = try await provisioner.provision()
 
         let path = dir.appendingPathComponent("devices.json").path

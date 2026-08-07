@@ -6,13 +6,13 @@ import Testing
 struct GatewayEndpointTests {
     @Test
     func defaultURLIsDmonNetworksLoopbackBindAddress() {
-        let endpoint = GatewayEndpoint()
+        let endpoint = GatewayEndpoint(url: GatewayEndpoint.defaultURL)
         #expect(endpoint.url == URL(string: "ws://127.0.0.1:5500/ws")!)
     }
 
     @Test
     func defaultHeadersAreEmpty() {
-        let endpoint = GatewayEndpoint()
+        let endpoint = GatewayEndpoint(url: GatewayEndpoint.defaultURL)
         #expect(endpoint.headers.isEmpty)
     }
 
@@ -41,7 +41,7 @@ struct GatewayEndpointTests {
 
     @Test
     func aCredentialProducesExactlyOneAuthorizationBearerHeader() {
-        let credential = DeviceCredential(keyId: "device-1", secret: "the-secret-token")
+        let credential = DeviceKeySecret(keyId: "device-1", secret: "the-secret-token")
         let headers = GatewayEndpoint.headers(for: credential)
         #expect(headers == ["Authorization": "Bearer the-secret-token"])
     }
@@ -57,8 +57,8 @@ struct GatewayEndpointTests {
 
     @Test
     func twoDifferentCredentialsProduceDifferentHeaders() {
-        let first = GatewayEndpoint.headers(for: DeviceCredential(keyId: "device-1", secret: "token-one"))
-        let second = GatewayEndpoint.headers(for: DeviceCredential(keyId: "device-2", secret: "token-two"))
+        let first = GatewayEndpoint.headers(for: DeviceKeySecret(keyId: "device-1", secret: "token-one"))
+        let second = GatewayEndpoint.headers(for: DeviceKeySecret(keyId: "device-2", secret: "token-two"))
         #expect(first != second)
     }
 
@@ -68,7 +68,7 @@ struct GatewayEndpointTests {
     /// for what happens when it does.
     @Test
     func explicitlySuppliedHeadersArePreservedAlongsideTheAuthorizationHeader() {
-        let credential = DeviceCredential(keyId: "device-1", secret: "the-secret-token")
+        let credential = DeviceKeySecret(keyId: "device-1", secret: "the-secret-token")
         let headers = GatewayEndpoint.headers(
             for: credential,
             additionalHeaders: ["X-Client-Version": "1.0"]
@@ -91,7 +91,7 @@ struct GatewayEndpointTests {
     /// preserved alongside it.
     @Test
     func aCallerSuppliedAuthorizationHeaderIsOverwrittenByACredential() {
-        let credential = DeviceCredential(keyId: "device-1", secret: "the-secret-token")
+        let credential = DeviceKeySecret(keyId: "device-1", secret: "the-secret-token")
         let headers = GatewayEndpoint.headers(
             for: credential,
             additionalHeaders: ["Authorization": "Bearer caller-supplied-value"]

@@ -131,21 +131,26 @@ public protocol GatewayTransport: Sendable {
 /// connecting.
 ///
 /// The endpoint is configuration, not an assumption (design D2, PRD
-/// §7.4): `defaultURL` is a *default value* a caller may accept or
-/// override, never a loopback assumption baked into the transport's
-/// logic. `headers` carries whatever the caller assembles — including,
-/// via `GatewayEndpoint.headers(for:additionalHeaders:)` below, an
-/// `Authorization: Bearer …` entry for a `DeviceCredential`.
+/// §7.4): a caller must always name a URL explicitly — `defaultURL`
+/// is an *opt-in* constant for a caller that wants `Dmon.Network`'s own
+/// default bind address, never an implicit fallback this initialiser
+/// supplies on its own. `headers` carries whatever the caller assembles
+/// — including, via `GatewayEndpoint.headers(for:additionalHeaders:)`
+/// below, an `Authorization: Bearer …` entry for a `DeviceKeySecret`.
 public struct GatewayEndpoint: Hashable, Sendable {
     public var url: URL
     public var headers: [String: String]
 
     /// `Dmon.Network`'s own default bind address and WebSocket path
     /// (`frontends/Dmon.Network/appsettings.json`'s `Network:BindAddress`,
-    /// `http://127.0.0.1:5500`, mapped to `/ws` in `Program.cs`).
+    /// `http://127.0.0.1:5500`, mapped to `/ws` in `Program.cs`) — a
+    /// constant a caller opts into by passing it explicitly, not a
+    /// fallback this module assumes on a caller's behalf. Co-location
+    /// with `Dmon.Network` is a call-site choice, not a default baked
+    /// into a module written to extract onto iOS unmodified (design D16).
     public static let defaultURL = URL(string: "ws://127.0.0.1:5500/ws")!
 
-    public init(url: URL = GatewayEndpoint.defaultURL, headers: [String: String] = [:]) {
+    public init(url: URL, headers: [String: String] = [:]) {
         self.url = url
         self.headers = headers
     }
@@ -173,7 +178,7 @@ public struct GatewayEndpoint: Hashable, Sendable {
     /// is an invariant of how the credential came to exist, not a check
     /// this function performs.
     public static func headers(
-        for credential: DeviceCredential?,
+        for credential: DeviceKeySecret?,
         additionalHeaders: [String: String] = [:]
     ) -> [String: String] {
         var headers = additionalHeaders

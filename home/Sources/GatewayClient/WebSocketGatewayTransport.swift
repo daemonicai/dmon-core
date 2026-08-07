@@ -34,7 +34,7 @@ public actor WebSocketGatewayTransport: GatewayTransport {
     private let session: URLSession
     private var state: ConnectionState = .notConnected
 
-    public init(endpoint: GatewayEndpoint = GatewayEndpoint(), session: URLSession = .shared) {
+    public init(endpoint: GatewayEndpoint, session: URLSession = .shared) {
         self.endpoint = endpoint
         self.session = session
     }
