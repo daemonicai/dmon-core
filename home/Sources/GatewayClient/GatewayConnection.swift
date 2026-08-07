@@ -112,6 +112,22 @@ public actor GatewayConnection {
         try await transport.send(ControlFrameCodec.encode(frame))
     }
 
+    /// Sends one already-encoded ADR-003 command frame — `raw` reaches the
+    /// transport byte-unchanged, with no `ControlFrameCodec` involvement at
+    /// all. Distinct from `send(_:)` deliberately, not as an overload of
+    /// it: an ADR-003 command carries no `gw` field (that absence is what
+    /// makes it an ADR-003 frame rather than a control frame — see
+    /// `ControlFrameCodec`'s own doc comment), so routing it through the
+    /// codec would be wrong, not merely redundant. `GatewayConnection`
+    /// models none of an ADR-003 command's content, matching
+    /// `ControlFrameCodec`'s own stance on ADR-003 *events* — encoding a
+    /// command into `raw` is the caller's job (`GatewaySession`, for
+    /// `turn.submit`), this method's only job is handing the already-built
+    /// string to the transport.
+    public func sendCommand(_ raw: String) async throws {
+        try await transport.send(raw)
+    }
+
     /// Closes the transport, cancels the read loop, and finishes the
     /// stream itself — deliberately not by waiting for the loop to notice
     /// and finish it. A previous version of this method awaited the

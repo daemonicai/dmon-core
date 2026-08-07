@@ -59,6 +59,18 @@ public enum GatewaySessionError: Error, Hashable, Sendable {
     /// `reattach()`'s own doc comment for why that is refused by
     /// construction rather than left to the caller's discipline.
     case reattachWhileAttached
+
+    /// `submitTurn(_:)` was called on a `GatewaySession` with no live,
+    /// completed attach — either none has ever succeeded, or the
+    /// connection it established has since dropped or been `close()`d.
+    /// There is no attach connection to send a `turn.submit` command on.
+    /// Deliberately placed here, on `GatewaySession`, rather than left for
+    /// a caller further up to check `isAttached` itself first — this is
+    /// the same attach-state gate `attach`/`reattach` already enforce on
+    /// themselves, and a second, independent copy of that check anywhere
+    /// else in the app is exactly the kind of drift this type exists to
+    /// prevent.
+    case notAttached
 }
 
 /// Establishes and holds one gateway session: the create→attach handshake
@@ -542,6 +554,41 @@ public actor GatewaySession {
         pumpTask = nil
         finishPump(throwing: nil, generation: generation)
         await closingConnection?.close()
+    }
+
+    /// Submits a turn as an ADR-003 `turn.submit` command on the current
+    /// attach connection, returning the id it was sent with.
+    ///
+    /// Refuses with `.notAttached` when this session has no live, completed
+    /// attach — checked first, before anything else, the same "refuse
+    /// before opening or sending anything" discipline `attach(sessionId:
+    /// lastSeq:)`'s own guards follow.
+    ///
+    /// The id is a fresh `UUID().uuidString` on every call — unique within
+    /// this session (the host dedups a `turn.submit` on exact id equality
+    /// against an unbounded set for the handler's lifetime, so a fresh id
+    /// per call is what keeps this submit from ever being mistaken for a
+    /// retry of an earlier one).
+    ///
+    /// Does not touch `lastObservedSeq`: that cursor counts *received*
+    /// ADR-003 events only (`routeFromPump(_:generation:)`'s own doc
+    /// comment), and sending a command is neither.
+    ///
+    /// `connection` is read once, into a local, before the `await` below —
+    /// `send`ing on that local rather than re-reading `self.connection`
+    /// keeps this call's behaviour tied to the connection that was live
+    /// when it started, not whatever `self.connection` happens to hold by
+    /// the time the send actually completes.
+    @discardableResult
+    public func submitTurn(_ message: String) async throws -> String {
+        guard isAttached, let connection else {
+            throw GatewaySessionError.notAttached
+        }
+        let id = UUID().uuidString
+        let command = TurnSubmitCommand(id: id, message: message)
+        let raw = try TurnCommandCodec.encode(command)
+        try await connection.sendCommand(raw)
+        return id
     }
 
     /// Consumes the attach connection's stream for as long as it runs,

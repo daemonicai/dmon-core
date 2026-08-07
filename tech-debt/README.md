@@ -24,6 +24,7 @@ Debt that outlives a change needs somewhere that outlives a change.
 - [Silent failure when a child's executable cannot be resolved](silent-failure-on-unresolved-launch.md) — the most likely real-world failure shows no signal in any of the three UI panes.
 - [A crashed child's descendants are never group-killed](crashed-child-descendants-not-group-killed.md) — survivors leak for the host's lifetime.
 - [`.process` health checks are unimplemented](process-health-checks-unimplemented.md) — `HealthChecker` returns `.unknown` without executing anything.
+- [A `turn.submit` can produce no event at all](turn-submit-can-produce-no-event-at-all.md) — cancellation before `turnStart` reaches the wire is swallowed silently, so a client cannot tell a wedged turn from a slow one.
 
 ### Structural / by-convention-only
 - [`withTimeout` cannot bound work that ignores cancellation](timeout-race-cannot-bound-uncooperative-work.md) — mechanism proven by repro; the two `Supervisor` call sites are unaudited.
