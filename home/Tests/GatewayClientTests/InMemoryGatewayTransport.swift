@@ -125,6 +125,23 @@ actor InMemoryGatewayTransport: GatewayTransport {
         wakeWaiters()
     }
 
+    /// Like `enqueue(_:)`, but appends every frame in `frames` within one
+    /// actor-isolated call instead of one `await` per frame. Exists for
+    /// `GatewaySessionTests
+    /// .aSupersededPumpsBufferedBacklogDoesNotCorruptTheStreamOrCursorAReattachJustInstalled`,
+    /// which needs a real backlog to have accumulated in the consuming
+    /// stream's buffer *before* anything starts draining it: `enqueue(_:)`
+    /// called in a loop gives the read loop a scheduling turn between every
+    /// single append, so it drains in near lock-step with the loop instead
+    /// of ever falling behind — observed directly while diagnosing that
+    /// test, not merely suspected. Batching removes those in-between turns,
+    /// so the read loop cannot start pulling any of `frames` until all of
+    /// them are already queued.
+    func enqueueBatch(_ frames: [String]) {
+        inbox.append(contentsOf: frames)
+        wakeWaiters()
+    }
+
     /// Every frame passed to `send(_:)` so far, in order.
     func sentFrames() -> [String] {
         sent
