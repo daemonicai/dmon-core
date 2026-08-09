@@ -22,26 +22,48 @@ public enum TurnEvent: Hashable, Sendable {
     /// Terminal in the sense that matters — no `TurnEvent` for the same
     /// turn follows it — but **not always the *only* `TurnEvent` the turn
     /// produces**, and a consumer must not assume it arrives before any
-    /// rendering state exists. Three real shapes reach this case, all
-    /// traced against `core/Dmon.Core/Rpc/TurnHandler.cs` and
-    /// `CommandDispatcher.cs`:
+    /// rendering state exists, **or even after `turnStart` at all.** Three
+    /// real shapes reach this case, all traced against
+    /// `core/Dmon.Core/Rpc/TurnHandler.cs` and `CommandDispatcher.cs`:
     ///
     /// - **`code: "turnInProgress"`** — a concurrent submit.
     ///   `TurnHandler.SubmitAsync` fails its gate and emits this *instead
     ///   of* `turnStart`/`turnEnd`; the turn produces this case alone.
+    /// - **A failure with no `turnStart` at all — the most likely outcome
+    ///   on a first run with no provider configured, not an exotic edge
+    ///   case.** `RunTurnAsync` calls `_providers.GetCurrentConfig()`
+    ///   (`TurnHandler.cs:256`) **35 lines before** it emits `TurnStartEvent`
+    ///   (`:291`); `GetCurrentConfig()` throws `InvalidOperationException`
+    ///   on an empty provider registry, pinned directly by
+    ///   `test/Dmon.Core.Tests/Providers/ProviderRegistryTests.cs:201-205`
+    ///   (`GetCurrentConfig_EmptyConfigs_ThrowsInvalidOperation`). Two more
+    ///   calls on the same path are the identical shape:
+    ///   `_assetProvisioner.Provision`/`_systemPromptBuilder.BuildAsync`
+    ///   (`:135-140`, inside `SubmitAsync`, running *before* `RunTurnAsync`
+    ///   is even called) and `_activeModelStore.SaveAsync` (`:279`, inside
+    ///   `RunTurnAsync` itself, but still before the `TurnStartEvent` emit
+    ///   at `:291`). Any of these throwing propagates the same way the
+    ///   mid-turn case below does — uncaught up through `SubmitAsync` to
+    ///   `CommandDispatcher.RunGuardedAsync`'s `catch (Exception ex)`,
+    ///   which emits `ErrorEvent{code: "internalError", recoverable:
+    ///   false}` — except here, no `TurnStartEvent` has been emitted yet,
+    ///   so this projection's `.turnStarted` never precedes it.
     /// - **A mid-turn failure** — any exception other than
     ///   `OperationCanceledException` escaping the streaming loop inside
-    ///   `RunTurnAsync`. That loop's own `try` catches only
-    ///   `OperationCanceledException`; anything else propagates up through
-    ///   `SubmitAsync` (whose `try` has a `finally` releasing the turn
-    ///   gate, but no `catch`) to `CommandDispatcher.RunGuardedAsync`'s
-    ///   `catch (Exception ex)`, which emits `ErrorEvent{code:
-    ///   "internalError", recoverable: false}` — **after** `turnStart`,
-    ///   and after any number of `.textDelta`s, have already gone out.
-    ///   `turnEnd` is never reached. A consumer that has already rendered
-    ///   partial text when this case arrives must finalise or discard that
-    ///   partial rendering itself — this projection does not, and cannot,
-    ///   retract what it has already yielded.
+    ///   `RunTurnAsync`, *after* `turnStart` has already gone out. That
+    ///   loop's own `try` catches only `OperationCanceledException`;
+    ///   anything else propagates the same way — up through `SubmitAsync`
+    ///   (whose `try` has a `finally` releasing the turn gate, but no
+    ///   `catch`) to `CommandDispatcher.RunGuardedAsync`'s `catch
+    ///   (Exception ex)`, emitting the same `internalError` — but here
+    ///   **after** `turnStart`, and after any number of `.textDelta`s, have
+    ///   already gone out. `turnEnd` is never reached either way. A
+    ///   consumer that has already rendered partial text when this case
+    ///   arrives must finalise or discard that partial rendering itself —
+    ///   this projection does not, and cannot, retract what it has already
+    ///   yielded; a consumer that has rendered nothing yet (the no-`turnStart`
+    ///   shape above) must not assume that absence means the turn is still
+    ///   running.
     /// - **A cancellation observed once `RunTurnAsync`'s loop is already
     ///   running** does not end here: that loop's own `try` catches
     ///   `OperationCanceledException` specifically, sets a "cancelled" stop

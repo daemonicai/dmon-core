@@ -159,6 +159,19 @@ actor InMemoryGatewayTransport: GatewayTransport {
         !waiters.isEmpty || isWedged
     }
 
+    /// Whether `close()` has ever marked this transport closed locally —
+    /// the observability a test needs to prove a caller actually tore a
+    /// stale connection down (`GatewayConnection.close()` →
+    /// `transport.close()`), rather than merely not crashing when it later
+    /// tries to use an orphaned one. `false` for a transport that was never
+    /// connected at all, matching `close()`'s own no-op guard — and `true`
+    /// even if a peer close (`simulateClose(code:reason:)`) already ended
+    /// this transport first: `close()` still runs its own body regardless
+    /// of `peerCloseError`, so both can be true on the same transport.
+    func isClosedLocally() -> Bool {
+        closedLocally
+    }
+
     /// Whether the first, delayed `close()` call is genuinely sleeping in
     /// `closeDelay` right now — as opposed to merely queued to run. Lets a
     /// test wait until that call has provably reached `transport.close()`

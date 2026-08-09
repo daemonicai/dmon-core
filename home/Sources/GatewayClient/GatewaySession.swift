@@ -88,7 +88,7 @@ public enum GatewaySessionError: Error, Hashable, Sendable {
 /// `attach`'s connection is kept alive for the life of the returned stream:
 /// a pump `Task` (`pumpTask`) consumes that `GatewayConnection`'s own
 /// stream and re-yields each item into this session's own continuation
-/// (`outputContinuation`) via the actor-isolated `routeFromPump(_:generation:)`
+/// (`outputContinuation`) via the actor-isolated `routeFromPump(_:generation:lastSeq:)`
 /// — the same "single named `Task` field plus a routing method it calls per
 /// item" shape `GatewayConnection` itself already uses for `readLoopTask` /
 /// `route(_:)`.
@@ -141,9 +141,10 @@ public actor GatewaySession {
     private var pumpTask: Task<Void, Never>?
     private var outputContinuation: AsyncThrowingStream<GatewayInboundItem, Error>.Continuation?
 
-    /// Resumed exactly once by `routeFromPump(_:)` on the `attached` frame
-    /// that answers the outstanding `attach`, or by `finishPump(throwing:)`
-    /// if the pump ends — normally or by throwing — before that frame ever
+    /// Resumed exactly once by `routeFromPump(_:generation:lastSeq:)` on the
+    /// `attached` frame that answers the outstanding `attach`, or by
+    /// `finishPump(throwing:generation:)` if the pump ends — normally or by
+    /// throwing — before that frame ever
     /// arrives. `nil`-ed at first use in both places, mirroring
     /// `GatewayConnection.finish(throwing:)`'s "clear the stored slot
     /// before it can be reached a second time" precedent: within one
@@ -187,8 +188,8 @@ public actor GatewaySession {
 
     /// Identifies the pump — the `(connection, pumpTask, outputContinuation,
     /// attachWaiter)` quadruple one call to `performAttach(sessionId:lastSeq:)`
-    /// installs — that `runPump(stream:generation:)`,
-    /// `routeFromPump(_:generation:)` and `finishPump(throwing:generation:)`
+    /// installs — that `runPump(stream:generation:lastSeq:)`,
+    /// `routeFromPump(_:generation:lastSeq:)` and `finishPump(throwing:generation:)`
     /// are each willing to act for. Bumped exactly twice: at the top of
     /// `close()` and at the top of `reattach()`, in both cases *before* the
     /// connection the previous generation was feeding is torn down or
@@ -207,11 +208,32 @@ public actor GatewaySession {
 
     /// The highest event sequence number this session has handed to its
     /// consumer so far, derived rather than received — `seq` never appears
-    /// on the wire (ADR-014: it is gateway-local). Seeded from `headSeq` on
-    /// `attached`, then incremented by one in `routeFromPump(_:generation:)`
-    /// for every `.event` item yielded, and *only* for that case: a control
-    /// frame (`ack`/`ping`/`pong`/`attached`) never advances it, matching
-    /// the host's own rule that only an event consumes a sequence number.
+    /// on the wire (ADR-014: it is gateway-local).
+    ///
+    /// **Seeded from the `lastSeq` this attach actually sent, clamped to
+    /// `attachedFrame.headSeq` — never from `headSeq` alone.** The host does
+    /// not send `headSeq` *instead of* a replay: `SessionHandler.Attach`
+    /// (`frontends/Dmon.Network/Sessions/SessionHandler.cs:251`) sets its
+    /// own delivery cursor to `Math.Clamp(lastSeq, 0, headSeq)` and still
+    /// returns the *current* `headSeq` on the `attached` reply
+    /// (`NetworkConnectionEndpoint.cs:296-297`), then the drain loop
+    /// delivers everything in `(lastSeq, headSeq]` after it. Seeding this
+    /// cursor to `headSeq` outright, regardless of what `lastSeq` this
+    /// attach sent, double-counts every one of those replayed events on top
+    /// of a cursor that already jumped to their upper bound — the next
+    /// reattach then sends a `lastSeq` above the host's own `headSeq`, which
+    /// `Math.Clamp` silently clips, and the entire gap between the two goes
+    /// unreplayed with no error anywhere. Mirroring the host's own clamp
+    /// here — `min(max(lastSeq, 0), attachedFrame.headSeq)` — is what keeps
+    /// this cursor meaning the same thing on both sides of the wire.
+    ///
+    /// Then incremented by one in `routeFromPump(_:generation:lastSeq:)` for
+    /// every `.event` item yielded — *including* one that races ahead of
+    /// the `attached` frame that answers this same attach (see that
+    /// method's own doc comment for why that race is ordinary, not a
+    /// defect) — and *only* for `.event`: a control frame
+    /// (`ack`/`ping`/`pong`/`attached`) never advances it, matching the
+    /// host's own rule that only an event consumes a sequence number.
     ///
     /// Counted at yield, never at receive, per the binding rule
     /// `GatewayConnection.close()`'s doc comment states for the connection
@@ -231,6 +253,20 @@ public actor GatewaySession {
     /// called before any attach ever completed (guarded against separately
     /// by `.reattachWithoutPriorAttach`).
     public private(set) var lastObservedSeq: Int64?
+
+    /// Events forwarded to `outputContinuation` while `attachWaiter` was
+    /// still set for the pump currently establishing — i.e. before the
+    /// `attached` frame that answers this same attach has arrived. Added
+    /// onto the seed `routeFromPump(_:generation:lastSeq:)` computes once
+    /// `attached` finally does arrive, so an event that raced ahead of it is
+    /// counted exactly once: neither dropped (see that method's doc
+    /// comment) nor double-counted by a seed that would otherwise assume it
+    /// already covers them. Reset to `0` synchronously at the top of every
+    /// `performAttach(sessionId:lastSeq:)` call, before that call's pump
+    /// starts — a handshake that fails after an event has already raced
+    /// ahead of it (the connection drops before `attached` arrives) would
+    /// otherwise leave this non-zero for the *next* attempt to inherit.
+    private var pendingReplayEventCount: Int64 = 0
 
     public init(makeTransport: @escaping @Sendable () async throws -> any GatewayTransport) {
         self.makeTransport = makeTransport
@@ -320,6 +356,23 @@ public actor GatewaySession {
     ///   since. The right call for that case is a reattach, not another
     ///   `attach` — this method does not silently replace a live
     ///   session's state to accommodate it.
+    ///
+    /// A **dropped-but-not-`close()`d** connection is legal to call this on
+    /// — only `isAttached` gates it, and a drop (a connection ending on its
+    /// own, outside of `close()`/`reattach()`) already clears that inside
+    /// `finishPump(throwing:generation:)` without touching `self.connection`
+    /// itself. This method therefore tears that stale connection down the
+    /// same way `reattach()` tears down the one it supersedes — capturing
+    /// it before `performAttach` installs its replacement and closing it
+    /// once the new one is settled, success or failure — rather than
+    /// overwriting `self.connection` out from under it and leaking its read
+    /// loop and transport (`tech-debt/websocket-receive-cancellation-leak.md`
+    /// is the shape this avoids repeating). `attach` and `reattach` are
+    /// sibling public entry points reachable from the exact same
+    /// post-drop state; they must not differ in this teardown discipline
+    /// just because one of them (this one) is also the state's first,
+    /// no-op case: `staleConnection` is `nil` here on a genuinely first-ever
+    /// attach, and `nil?.close()` is a no-op.
     public func attach(sessionId: String, lastSeq: Int64) async throws -> AsyncThrowingStream<GatewayInboundItem, Error> {
         guard !attachInFlight else {
             throw GatewaySessionError.attachAlreadyInFlight
@@ -330,7 +383,16 @@ public actor GatewaySession {
         attachInFlight = true
         defer { attachInFlight = false }
 
-        return try await performAttach(sessionId: sessionId, lastSeq: lastSeq)
+        let staleConnection = connection
+
+        do {
+            let stream = try await performAttach(sessionId: sessionId, lastSeq: lastSeq)
+            await staleConnection?.close()
+            return stream
+        } catch {
+            await staleConnection?.close()
+            throw error
+        }
     }
 
     /// The connect → send `attach` → await `attached` sequence itself:
@@ -350,8 +412,8 @@ public actor GatewaySession {
     /// has moved on.
     ///
     /// **The pump-generation gap this method used to leave open, and how
-    /// it is closed.** `runPump(stream:generation:)`,
-    /// `routeFromPump(_:generation:)` and `finishPump(throwing:generation:)`
+    /// it is closed.** `runPump(stream:generation:lastSeq:)`,
+    /// `routeFromPump(_:generation:lastSeq:)` and `finishPump(throwing:generation:)`
     /// each take the generation their own pump was started with, and act
     /// only when it still equals `self.pumpGeneration` — the generation
     /// *currently* live. Without that check, each of them would instead act
@@ -376,17 +438,31 @@ public actor GatewaySession {
     /// of how the prior pump's Task and this method happen to be
     /// scheduled relative to each other.
     ///
-    /// `sessionId`, `outputContinuation` and `connection` are all set on
-    /// `self` *before* `pumpTask` is created — deliberately, not merely as
-    /// an incidental ordering: `routeFromPump(_:generation:)` is the only
-    /// place that later reads `outputContinuation`, and it must never
-    /// observe it still `nil` for an item that arrives immediately after
-    /// `attached`. `generation` is read from `self.pumpGeneration`
-    /// immediately beforehand, for the same reason. Because nothing here
-    /// suspends between those assignments and the pump's creation, there
-    /// is no actor-reentrancy window in which the pump could run before
-    /// they are visible, or in which another call could bump
-    /// `pumpGeneration` again before this pump captures it.
+    /// `outputContinuation` and `connection` are set on `self` *before*
+    /// `pumpTask` is created — deliberately, not merely as an incidental
+    /// ordering: `routeFromPump(_:generation:lastSeq:)` is the only place
+    /// that later reads `outputContinuation`, and it must never observe it
+    /// still `nil` for an item that arrives immediately after `attached` —
+    /// including one that races ahead of `attached` itself. `generation` is
+    /// read from `self.pumpGeneration` immediately beforehand, for the same
+    /// reason. Because nothing here suspends between those assignments and
+    /// the pump's creation, there is no actor-reentrancy window in which the
+    /// pump could run before they are visible, or in which another call
+    /// could bump `pumpGeneration` again before this pump captures it.
+    ///
+    /// `sessionId` is deliberately **not** among them: it is assigned only
+    /// once the handshake below has actually succeeded, immediately before
+    /// `isAttached = true`. A first-ever `attach(sessionId:lastSeq:)` has
+    /// nothing to lose either way (`sessionId` is `nil` until it succeeds
+    /// regardless), but a `reattach()` calls into this same method over
+    /// state that already exists — and a failed handshake here (the
+    /// connection dropping before `attached` arrives, the ordinary
+    /// transient case `reattach()` exists to recover from) must leave that
+    /// existing `sessionId` alone. Assigning it only on success, rather
+    /// than assigning it early and then nilling it back out in the `catch`
+    /// below on failure, means there is no window in which a failure could
+    /// forget to roll it back: the assignment that would need undoing
+    /// simply has not happened yet.
     ///
     /// **B5's earlier suspension window, and what was verified — not merely assumed — about
     /// it.** `try await makeTransport()`, above, is this method's *first* suspension point,
@@ -427,8 +503,8 @@ public actor GatewaySession {
     /// `attached` — `GatewayConnection.route(_:)` already tears the
     /// connection down and throws that error through the stream before an
     /// incompatible `attached` frame would ever reach
-    /// `routeFromPump(_:generation:)`, so it is never wrapped here either);
-    /// a stream that ends without either throws
+    /// `routeFromPump(_:generation:lastSeq:)`, so it is never wrapped here
+    /// either); a stream that ends without either throws
     /// `GatewaySessionError.connectionClosedBeforeAttached`.
     private func performAttach(sessionId: String, lastSeq: Int64) async throws -> AsyncThrowingStream<GatewayInboundItem, Error> {
         let connection = GatewayConnection(transport: try await makeTransport())
@@ -446,15 +522,15 @@ public actor GatewaySession {
         )
 
         self.connection = connection
-        self.sessionId = sessionId
         self.outputContinuation = outputContinuation
+        pendingReplayEventCount = 0
         let generation = pumpGeneration
 
         do {
             try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
                 attachWaiter = continuation
                 pumpTask = Task { [weak self] in
-                    await self?.runPump(stream: stream, generation: generation)
+                    await self?.runPump(stream: stream, generation: generation, lastSeq: lastSeq)
                 }
             }
         } catch {
@@ -464,14 +540,18 @@ public actor GatewaySession {
             // error, and `finishPump` has already finished
             // `outputContinuation` (with that same error) by the time it
             // does so — see its doc comment.
+            //
+            // `sessionId` is untouched here — see this method's own doc
+            // comment (Blocker 3) for why it is assigned only on success,
+            // never assigned-then-rolled-back here.
             await connection.close()
             self.connection = nil
-            self.sessionId = nil
             self.outputContinuation = nil
             self.pumpTask = nil
             throw error
         }
 
+        self.sessionId = sessionId
         isAttached = true
         return outputStream
     }
@@ -612,7 +692,7 @@ public actor GatewaySession {
     /// retry of an earlier one).
     ///
     /// Does not touch `lastObservedSeq`: that cursor counts *received*
-    /// ADR-003 events only (`routeFromPump(_:generation:)`'s own doc
+    /// ADR-003 events only (`routeFromPump(_:generation:lastSeq:)`'s own doc
     /// comment), and sending a command is neither.
     ///
     /// `connection` is read once, into a local, before the `await` below —
@@ -633,7 +713,7 @@ public actor GatewaySession {
     }
 
     /// Consumes the attach connection's stream for as long as it runs,
-    /// handing each item to `routeFromPump(_:generation:)` in order. Ends
+    /// handing each item to `routeFromPump(_:generation:lastSeq:)` in order. Ends
     /// by calling `finishPump(throwing:generation:)` exactly once, with
     /// the stream's own error if it threw one or `nil` if it ended
     /// normally — never anything this type invents on its own.
@@ -643,11 +723,14 @@ public actor GatewaySession {
     /// the `Task` that runs this — and passed through unchanged to every
     /// item this loop routes and to the `finishPump` call that ends it.
     /// See `performAttach`'s doc comment for what that generation is
-    /// checked against and why.
-    private func runPump(stream: AsyncThrowingStream<GatewayInboundItem, Error>, generation: Int64) async {
+    /// checked against and why. `lastSeq` is likewise the exact value this
+    /// pump's own `attach`/`reattach` frame carried, fixed for its lifetime —
+    /// `routeFromPump(_:generation:lastSeq:)` needs it to seed
+    /// `lastObservedSeq` correctly once `attached` arrives.
+    private func runPump(stream: AsyncThrowingStream<GatewayInboundItem, Error>, generation: Int64, lastSeq: Int64) async {
         do {
             for try await item in stream {
-                routeFromPump(item, generation: generation)
+                routeFromPump(item, generation: generation, lastSeq: lastSeq)
             }
             finishPump(throwing: nil, generation: generation)
         } catch {
@@ -665,36 +748,61 @@ public actor GatewaySession {
     /// stream's `outputContinuation`, neither of which belongs to the pump
     /// that received it.
     ///
-    /// For a current-generation item: while `attachWaiter` is still set,
-    /// this is the handshake's own wait: the `attached` frame that answers
-    /// it records `generation`/`headSeq`/`lastObservedSeq` and resumes the
-    /// waiter, and is not itself forwarded to `outputContinuation` — it is
-    /// handshake protocol, not session content. Anything else arriving
-    /// before `attached` — an ADR-003 event or another control frame — is
-    /// skipped for the same robustness-net reason `createSession(agent:)`
-    /// skips one during `create`'s wait; `NetworkConnectionEndpoint`
-    /// always answers `attach` with `attached` first.
+    /// For a current-generation item: the `attached` frame that answers the
+    /// outstanding handshake records `generation`/`headSeq`/
+    /// `lastObservedSeq` and resumes `attachWaiter`, and is not itself
+    /// forwarded to `outputContinuation` — it is handshake protocol, not
+    /// session content.
     ///
-    /// Once `attachWaiter` has already been resumed (`nil`), every further
-    /// item is forwarded to `outputContinuation` unchanged, and — for a
-    /// `.event` only, never a control frame — advances `lastObservedSeq`
-    /// by one first. See `lastObservedSeq`'s own doc comment for why this
-    /// increments at yield rather than at receive.
+    /// **Everything else — including an item that arrives *before*
+    /// `attached` does — is forwarded to `outputContinuation` unchanged,
+    /// and, for a `.event` only, counted first.** An item racing ahead of
+    /// `attached` is not a malformed edge case to guard against: the host's
+    /// own reply path sends `attached` through the connection's *serialized
+    /// send funnel*, specifically because `Attach()`
+    /// (`frontends/Dmon.Network/Sessions/SessionHandler.cs:296` — its
+    /// `_wake.Release()`) has already
+    /// released the pump's wake before that reply goes out, so the first
+    /// buffered replay event can genuinely reach the wire first
+    /// (`NetworkConnectionEndpoint.cs:299-303`). That happens on any attach
+    /// with a non-empty replay window — i.e. on an ordinary reattach after a
+    /// drop — so silently discarding a pre-`attached` item here (as this
+    /// method used to) would lose real session content on the single case
+    /// `reattach()` exists to serve. `pendingReplayEventCount` (its own doc
+    /// comment) is what lets that early counting be added onto, rather than
+    /// overwritten by, the seed the `attached` branch below computes once it
+    /// finally arrives.
+    ///
+    /// See `lastObservedSeq`'s own doc comment for why counting happens at
+    /// yield rather than at receive, and for the clamp-to-`headSeq` seed
+    /// this method's `attached` branch computes.
     ///
     /// Not `async`: nothing here suspends, so a call to this method runs
     /// to completion without giving the actor up to any other queued call
     /// — there is no reentrancy window inside it to reason about.
-    private func routeFromPump(_ item: GatewayInboundItem, generation: Int64) {
+    private func routeFromPump(_ item: GatewayInboundItem, generation: Int64, lastSeq: Int64) {
         guard generation == pumpGeneration else {
             return
         }
         if let attachWaiter {
             guard case .control(.attached(let attachedFrame)) = item else {
+                // Racing ahead of `attached` — see this method's own doc
+                // comment for why that is ordinary, not a defect. Counted
+                // into `pendingReplayEventCount`, not `lastObservedSeq`
+                // directly: the seed below has not been computed yet, and
+                // writing into `lastObservedSeq` here would leave the
+                // `attached` branch overwriting it outright rather than
+                // adding on top of it.
+                if case .event = item {
+                    pendingReplayEventCount += 1
+                }
+                outputContinuation?.yield(item)
                 return
             }
             self.generation = attachedFrame.generation
             headSeq = attachedFrame.headSeq
-            lastObservedSeq = attachedFrame.headSeq
+            lastObservedSeq = min(max(lastSeq, 0), attachedFrame.headSeq) + pendingReplayEventCount
+            pendingReplayEventCount = 0
             self.attachWaiter = nil
             attachWaiter.resume()
             return

@@ -436,11 +436,20 @@ struct GatewaySessionTests {
     }
 
     /// Pins the exact arithmetic task 7.3 depends on: `lastSeq` is
-    /// exclusive, so a `headSeq` of `5` followed by three yielded events
-    /// must reattach with `lastSeq: 8`, not `5` (never advanced) and not
-    /// `7` (off by one — inclusive instead of exclusive). Asserting the
-    /// literal frame on the wire, not merely that *something* was sent, is
-    /// what pins this rather than merely gesturing at it.
+    /// exclusive, so a fresh session (`headSeq: 0`, matching the `lastSeq:
+    /// 0` this attach itself sends — a brand new session has nothing to
+    /// replay) followed by three yielded events must reattach with
+    /// `lastSeq: 3`, not `0` (never advanced) and not `2` (off by one —
+    /// inclusive instead of exclusive). Asserting the literal frame on the
+    /// wire, not merely that *something* was sent, is what pins this rather
+    /// than merely gesturing at it.
+    ///
+    /// The dedicated arithmetic for a reattach whose *own* `attached` frame
+    /// carries a `headSeq` above the `lastSeq` it sent — the double-count
+    /// bug (Blocker 1) this test's fixture used to mask by conflating
+    /// `headSeq` with the seed — is
+    /// `aReattachWhoseAttachedCarriesAHeadSeqAboveLastSeqReplaysExactlyThatManyEventsAndTheCursorLandsOnHeadSeq`
+    /// below.
     @Test
     func reattachSendsTheHighestObservedSequencePlusOneAsLastSeq() async throws {
         let factory = RecordingTransportFactory()
@@ -453,10 +462,10 @@ struct GatewaySessionTests {
         let firstTransport = try #require(await waitForTransport(factory, at: 0))
         let sent = await waitForSentFrames(firstTransport, atLeast: 1)
         #expect(sent)
-        await firstTransport.enqueue(#"{"gw":"attached","generation":1,"headSeq":5,"wire":"0.2"}"#)
+        await firstTransport.enqueue(#"{"gw":"attached","generation":1,"headSeq":0,"wire":"0.2"}"#)
 
         let stream = try await handshake.value
-        #expect(await session.lastObservedSeq == 5)
+        #expect(await session.lastObservedSeq == 0)
 
         await firstTransport.enqueue(#"{"type":"turn.delta","text":"one"}"#)
         await firstTransport.enqueue(#"{"type":"turn.delta","text":"two"}"#)
@@ -466,7 +475,7 @@ struct GatewaySessionTests {
         _ = try await iterator.next()
         _ = try await iterator.next()
         _ = try await iterator.next()
-        #expect(await session.lastObservedSeq == 8)
+        #expect(await session.lastObservedSeq == 3)
 
         await firstTransport.simulateClose(code: .supersededByNewerAttach, reason: "test drop")
         await #expect(throws: GatewayTransportError.self) {
@@ -481,23 +490,125 @@ struct GatewaySessionTests {
         let reattachSent = await waitForSentFrames(secondTransport, atLeast: 1)
         #expect(reattachSent)
         #expect(await secondTransport.sentFrames() == [
-            #"{"gw":"attach","lastSeq":8,"sessionId":"s1"}"#
+            #"{"gw":"attach","lastSeq":3,"sessionId":"s1"}"#
         ])
 
-        await secondTransport.enqueue(#"{"gw":"attached","generation":2,"headSeq":8,"wire":"0.2"}"#)
+        await secondTransport.enqueue(#"{"gw":"attached","generation":2,"headSeq":3,"wire":"0.2"}"#)
         _ = try await reattachTask.value
+
+        await session.close()
+    }
+
+    /// The scenario `reattachSendsTheHighestObservedSequencePlusOneAsLastSeq`
+    /// above cannot cover, because every fixture in this suite — that one
+    /// included — answers an attach with a `headSeq` equal to the `lastSeq`
+    /// it just sent: a reattach whose own `attached` reply carries a
+    /// `headSeq` genuinely *above* the `lastSeq` it sent, meaning the host
+    /// has real backlog to replay before this reattach is caught up.
+    ///
+    /// This is the exact shape of the bug Blocker 1 fixed: seeding
+    /// `lastObservedSeq` from `attachedFrame.headSeq` directly, rather than
+    /// from the `lastSeq` this attach actually sent (clamped to `headSeq`),
+    /// jumps the cursor to `headSeq` *before* the replay window's own events
+    /// are counted — so by the time all of them are yielded, the cursor sits
+    /// at `headSeq` plus the replay count, not at `headSeq`. The *next*
+    /// reattach then sends a `lastSeq` above the host's own `headSeq`, which
+    /// `SessionHandler.Attach`'s `Math.Clamp(lastSeq, 0, headSeq)`
+    /// (`frontends/Dmon.Network/Sessions/SessionHandler.cs:251`) silently
+    /// clips back down — silently dropping the entire gap between the two,
+    /// with no error anywhere.
+    ///
+    /// Asserts both halves: after replaying exactly `headSeq - lastSeq`
+    /// events, the cursor lands on `headSeq` (not `2 * headSeq - lastSeq`,
+    /// the double-counted value the bug produced) — and a *second* reattach,
+    /// immediately after, sends that same `headSeq` as its own `lastSeq`
+    /// (not `2 * headSeq - lastSeq`), proving the corruption did not merely
+    /// stay hidden in an unread property but would actually have desynced
+    /// the wire.
+    @Test
+    func aReattachWhoseAttachedCarriesAHeadSeqAboveLastSeqReplaysExactlyThatManyEventsAndTheCursorLandsOnHeadSeq() async throws {
+        let factory = RecordingTransportFactory()
+        let session = GatewaySession(makeTransport: factory.makeTransport)
+
+        let handshake = Task {
+            try await session.attach(sessionId: "s1", lastSeq: 0)
+        }
+
+        let firstTransport = try #require(await waitForTransport(factory, at: 0))
+        let sent = await waitForSentFrames(firstTransport, atLeast: 1)
+        #expect(sent)
+        await firstTransport.enqueue(#"{"gw":"attached","generation":1,"headSeq":0,"wire":"0.2"}"#)
+
+        let firstStream = try await handshake.value
+
+        await firstTransport.simulateClose(code: .supersededByNewerAttach, reason: "test drop")
+        var firstIterator = firstStream.makeAsyncIterator()
+        await #expect(throws: GatewayTransportError.self) {
+            _ = try await firstIterator.next()
+        }
+
+        // Reattach #1: sends `lastSeq: 0` (nothing observed yet), but the
+        // host's own `attached` reply reports `headSeq: 5` — five events
+        // this session missed while disconnected, still to be replayed.
+        let firstReattachTask = Task {
+            try await session.reattach()
+        }
+
+        let secondTransport = try #require(await waitForTransport(factory, at: 1))
+        let secondSent = await waitForSentFrames(secondTransport, atLeast: 1)
+        #expect(secondSent)
+        #expect(await secondTransport.sentFrames() == [
+            #"{"gw":"attach","lastSeq":0,"sessionId":"s1"}"#
+        ])
+        await secondTransport.enqueue(#"{"gw":"attached","generation":2,"headSeq":5,"wire":"0.2"}"#)
+
+        let secondStream = try await firstReattachTask.value
+
+        for index in 1...5 {
+            await secondTransport.enqueue(#"{"type":"turn.delta","text":"replay \#(index)"}"#)
+        }
+
+        var secondIterator = secondStream.makeAsyncIterator()
+        for _ in 1...5 {
+            _ = try await secondIterator.next()
+        }
+
+        // Lands on `headSeq` (5), not `2 * headSeq - lastSeq` (10) — the
+        // double-counted value the old, unfixed seed would have produced.
+        #expect(await session.lastObservedSeq == 5)
+
+        await secondTransport.simulateClose(code: .supersededByNewerAttach, reason: "test drop")
+        await #expect(throws: GatewayTransportError.self) {
+            _ = try await secondIterator.next()
+        }
+
+        // Reattach #2: must send `headSeq` (5) — not more.
+        let thirdReattachTask = Task {
+            try await session.reattach()
+        }
+
+        let thirdTransport = try #require(await waitForTransport(factory, at: 2))
+        let thirdSent = await waitForSentFrames(thirdTransport, atLeast: 1)
+        #expect(thirdSent)
+        #expect(await thirdTransport.sentFrames() == [
+            #"{"gw":"attach","lastSeq":5,"sessionId":"s1"}"#
+        ])
+
+        await thirdTransport.enqueue(#"{"gw":"attached","generation":3,"headSeq":5,"wire":"0.2"}"#)
+        _ = try await thirdReattachTask.value
 
         await session.close()
     }
 
     /// A control frame — `ack` here, standing in for anything with a `gw`
     /// field — must never advance `lastObservedSeq`: only a `.event` item
-    /// does. Interleaves one between two events so a bug that counted every
-    /// received frame, not just yielded events, would move the cursor to
-    /// `7` instead of the correct `6` (`5` + two events, no `gw` frame
-    /// counted) — pinned by then reattaching and reading the exact
-    /// `lastSeq` on the wire, the same falsification discipline as the
-    /// arithmetic test above.
+    /// does. Interleaves one between two events (against a fresh, `headSeq:
+    /// 0` session, so the seed itself contributes nothing to count) so a bug
+    /// that counted every received frame, not just yielded events, would
+    /// move the cursor to `3` instead of the correct `2` (two events, no
+    /// `gw` frame counted) — pinned by then reattaching and reading the
+    /// exact `lastSeq` on the wire, the same falsification discipline as
+    /// the arithmetic test above.
     @Test
     func controlFramesInterleavedAmongEventsDoNotAdvanceTheCursor() async throws {
         let factory = RecordingTransportFactory()
@@ -510,7 +621,7 @@ struct GatewaySessionTests {
         let firstTransport = try #require(await waitForTransport(factory, at: 0))
         let sent = await waitForSentFrames(firstTransport, atLeast: 1)
         #expect(sent)
-        await firstTransport.enqueue(#"{"gw":"attached","generation":1,"headSeq":5,"wire":"0.2"}"#)
+        await firstTransport.enqueue(#"{"gw":"attached","generation":1,"headSeq":0,"wire":"0.2"}"#)
 
         let stream = try await handshake.value
 
@@ -526,7 +637,7 @@ struct GatewaySessionTests {
         let third = try await iterator.next()
         #expect(third == .event(#"{"type":"turn.delta","text":"two"}"#))
 
-        #expect(await session.lastObservedSeq == 7)
+        #expect(await session.lastObservedSeq == 2)
 
         await firstTransport.simulateClose(code: .supersededByNewerAttach, reason: "test drop")
         await #expect(throws: GatewayTransportError.self) {
@@ -541,10 +652,10 @@ struct GatewaySessionTests {
         let reattachSent = await waitForSentFrames(secondTransport, atLeast: 1)
         #expect(reattachSent)
         #expect(await secondTransport.sentFrames() == [
-            #"{"gw":"attach","lastSeq":7,"sessionId":"s1"}"#
+            #"{"gw":"attach","lastSeq":2,"sessionId":"s1"}"#
         ])
 
-        await secondTransport.enqueue(#"{"gw":"attached","generation":2,"headSeq":7,"wire":"0.2"}"#)
+        await secondTransport.enqueue(#"{"gw":"attached","generation":2,"headSeq":2,"wire":"0.2"}"#)
         _ = try await reattachTask.value
 
         await session.close()
@@ -809,17 +920,31 @@ struct GatewaySessionTests {
     /// slower than the stale pump resuming an already-parked consumer, or
     /// than `close()`'s own synchronous prelude winning first).
     ///
-    /// **A real, newly-discovered wrinkle worth recording so it is not
-    /// re-derived:** even instrumented with the guard removed, a stale
-    /// item landing *before* the new generation's own `attached` frame
-    /// does briefly corrupt `lastObservedSeq` — but `routeFromPump`'s
-    /// handshake branch overwrites it unconditionally
-    /// (`lastObservedSeq = attachedFrame.headSeq`) once that frame
-    /// arrives, which in every observed run erased the corruption before
-    /// `reattach()` ever returned. An assertion taken only after
-    /// `reattach()` completes — the only point this actor exposes to a
-    /// caller — would not have caught that transient corruption even with
-    /// the guard removed. Flagged, not asserted around.
+    /// **A wrinkle recorded here when this test was first written, now
+    /// re-reasoned rather than left stale (Blocker 1's section-supervisor
+    /// remediation removed the exact mechanism this paragraph used to
+    /// credit):** `routeFromPump`'s handshake branch no longer overwrites
+    /// `lastObservedSeq` unconditionally on every `attached` frame — it now
+    /// seeds it from the `lastSeq` *this* attach actually sent, clamped to
+    /// `headSeq`, plus whatever this generation's own pre-`attached` replay
+    /// already counted (`pendingReplayEventCount`). That seed is no longer
+    /// an incidental reset that happens to erase *any* prior corruption on
+    /// every reattach, regardless of its source — it is now a
+    /// generation-local computation that only ever reads state this same
+    /// call already owns. Concretely, in this test: `reattach()` still
+    /// reads `lastSeq` from `self.lastObservedSeq` synchronously, before
+    /// its first `await` — the same atomic-prelude discipline `attach`'s
+    /// own doc comment describes — so a stale item from the *superseded*
+    /// generation 1 pump can only reach `self.lastObservedSeq` at all if it
+    /// is routed *before* that prelude runs; once `pumpGeneration` is
+    /// bumped, the guard this test is really about (`generation ==
+    /// pumpGeneration` in `routeFromPump`) is what keeps every later item
+    /// from generation 1's backlog from touching `self.lastObservedSeq` a
+    /// second time. In other words: the seed formula was never what made
+    /// this scenario safe, and now that it can no longer coincidentally
+    /// paper over a violation of the generation guard, the assertion below
+    /// is a more honest — not a weaker — proof that the guard, not a
+    /// convenient reset, is what this correctness actually rests on.
     ///
     /// This test is therefore a real, non-trivial regression check (a
     /// genuine backlog race against `close()`+`reattach()` leaves the
@@ -839,7 +964,7 @@ struct GatewaySessionTests {
         let firstTransport = try #require(await waitForTransport(factory, at: 0))
         let sent = await waitForSentFrames(firstTransport, atLeast: 1)
         #expect(sent)
-        await firstTransport.enqueue(#"{"gw":"attached","generation":1,"headSeq":5,"wire":"0.2"}"#)
+        await firstTransport.enqueue(#"{"gw":"attached","generation":1,"headSeq":0,"wire":"0.2"}"#)
 
         _ = try await handshake.value
 
@@ -862,14 +987,17 @@ struct GatewaySessionTests {
         let secondTransport = try #require(await waitForTransport(factory, at: 1))
         let reattachSent = await waitForSentFrames(secondTransport, atLeast: 1)
         #expect(reattachSent)
-        await secondTransport.enqueue(#"{"gw":"attached","generation":2,"headSeq":5,"wire":"0.2"}"#)
+        await secondTransport.enqueue(#"{"gw":"attached","generation":2,"headSeq":0,"wire":"0.2"}"#)
 
         let secondStream = try await reattachResult
         _ = await closeResult
 
         // Not over-advanced by any backlog item that reached
-        // `routeFromPump` after the generation bump.
-        #expect(await session.lastObservedSeq == 5)
+        // `routeFromPump` after the generation bump — the reattach's own
+        // `lastSeq` (0, nothing ever drained from the superseded stream)
+        // clamped to its own `headSeq` (0) is the whole seed; nothing here
+        // relies on a reset that also happens to erase corruption.
+        #expect(await session.lastObservedSeq == 0)
 
         // Not cross-contaminated: the first item this stream ever yields
         // must be the one explicitly sent to it, not a leaked backlog
@@ -1031,6 +1159,178 @@ struct GatewaySessionTests {
         #expect(await session.sessionId == "s1")
         #expect(await session.generation == 7)
         #expect(await session.headSeq == 11)
+
+        await session.close()
+    }
+
+    // MARK: - Section 7 supervisor remediation
+
+    /// Blocker 2: an event that reaches the wire *before* the `attached`
+    /// reply answering the same attach — the race
+    /// `NetworkConnectionEndpoint.cs:299-303` describes (`Attach()` has
+    /// already released the pump's wake before the connection's serialized
+    /// send funnel gets around to sending `attached`, so a buffered replay
+    /// event can genuinely drain first on the same socket) — must reach
+    /// this session's consumer, in order, and be counted, not silently
+    /// dropped as this type used to do while `attachWaiter` was still set.
+    ///
+    /// Asserts both halves: `lastObservedSeq` already reflects the
+    /// pre-`attached` event once `attach(sessionId:lastSeq:)` itself
+    /// returns (proving it was counted, not merely queued), and the first
+    /// item the returned stream ever yields is that event, not the
+    /// `attached` frame itself (which stays handshake protocol, never
+    /// session content — `theSessionStreamOutlivesTheHandshakeAndDeliversItemsThatArriveAfterAttached`
+    /// above already pins that `attached` is never yielded for the
+    /// ordinary, non-racing order; this pins the same thing for the racing
+    /// one).
+    @Test
+    func anEventEnqueuedBeforeTheAttachedFrameReachesTheConsumerInOrderAndIsCounted() async throws {
+        let factory = RecordingTransportFactory()
+        let session = GatewaySession(makeTransport: factory.makeTransport)
+
+        let handshake = Task {
+            try await session.attach(sessionId: "s1", lastSeq: 0)
+        }
+
+        let attachTransport = try #require(await waitForTransport(factory, at: 0))
+        let sent = await waitForSentFrames(attachTransport, atLeast: 1)
+        #expect(sent)
+
+        // Enqueued in this order — the racing event first, `attached`
+        // second — so the pump processes the event while `attachWaiter` is
+        // still set, exactly as `NetworkConnectionEndpoint.cs:299-303`
+        // describes.
+        let racingEvent = #"{"type":"turn.delta","text":"raced ahead of attached"}"#
+        await attachTransport.enqueue(racingEvent)
+        await attachTransport.enqueue(#"{"gw":"attached","generation":1,"headSeq":1,"wire":"0.2"}"#)
+
+        let stream = try await handshake.value
+        #expect(await session.lastObservedSeq == 1)
+
+        var iterator = stream.makeAsyncIterator()
+        let item = try await iterator.next()
+        #expect(item == .event(racingEvent))
+
+        await session.close()
+    }
+
+    /// Blocker 3: a `reattach()` whose own connection ends before its
+    /// `attached` reply ever arrives — the ordinary transient failure
+    /// `reattach()` exists to recover from, not a reason to forget which
+    /// session this actor was resuming — must leave `sessionId` intact so a
+    /// *later* `reattach()` can still succeed. The old behaviour nilled
+    /// `sessionId` on exactly this failure, which turned every subsequent
+    /// `reattach()` into `.reattachWithoutPriorAttach` — a permanent,
+    /// misdescribed dead end after one transient drop.
+    @Test
+    func aFailedReattachPreservesSessionIdSoALaterReattachCanStillSucceed() async throws {
+        let factory = RecordingTransportFactory()
+        let session = GatewaySession(makeTransport: factory.makeTransport)
+
+        let handshake = Task {
+            try await session.attach(sessionId: "s1", lastSeq: 0)
+        }
+
+        let firstTransport = try #require(await waitForTransport(factory, at: 0))
+        let sent = await waitForSentFrames(firstTransport, atLeast: 1)
+        #expect(sent)
+        await firstTransport.enqueue(#"{"gw":"attached","generation":1,"headSeq":0,"wire":"0.2"}"#)
+
+        let firstStream = try await handshake.value
+        await firstTransport.simulateClose(code: .supersededByNewerAttach, reason: "test drop")
+        var firstIterator = firstStream.makeAsyncIterator()
+        await #expect(throws: GatewayTransportError.self) {
+            _ = try await firstIterator.next()
+        }
+
+        // First reattach attempt: its connection ends before `attached`
+        // ever arrives.
+        let failedReattach = Task {
+            try await session.reattach()
+        }
+
+        let failedReattachTransport = try #require(await waitForTransport(factory, at: 1))
+        let failedSent = await waitForSentFrames(failedReattachTransport, atLeast: 1)
+        #expect(failedSent)
+        await failedReattachTransport.close()
+
+        await #expect(throws: GatewaySessionError.connectionClosedBeforeAttached) {
+            _ = try await failedReattach.value
+        }
+
+        // The regression this test exists for: under the old behaviour,
+        // this was already `nil`.
+        #expect(await session.sessionId == "s1")
+
+        let secondReattach = Task {
+            try await session.reattach()
+        }
+
+        let secondTransport = try #require(await waitForTransport(factory, at: 2))
+        let secondSent = await waitForSentFrames(secondTransport, atLeast: 1)
+        #expect(secondSent)
+        await secondTransport.enqueue(#"{"gw":"attached","generation":2,"headSeq":0,"wire":"0.2"}"#)
+
+        _ = try await secondReattach.value
+        #expect(await session.sessionId == "s1")
+
+        await session.close()
+    }
+
+    /// Blocker 4: `attach(sessionId:lastSeq:)`, not just `reattach()`, is
+    /// legal to call over a *dropped-but-not-`close()`d* connection — only
+    /// `isAttached` gates it, and a natural drop already clears that inside
+    /// `finishPump(throwing:generation:)` without ever touching
+    /// `self.connection` itself. Before this fix, only `reattach()` closed
+    /// the stale connection it was superseding; a plain `attach` overwrote
+    /// `self.connection` outright, orphaning the old connection's read loop
+    /// and transport — the same leak shape as
+    /// `tech-debt/websocket-receive-cancellation-leak.md`.
+    ///
+    /// Pins it directly against the stale transport's own observable
+    /// state, not merely "the call did not crash": `isClosedLocally()` must
+    /// be `true` once the second `attach` has completed.
+    @Test
+    func attachOverADroppedButNotNilConnectionClosesTheStaleOneRatherThanOrphaningIt() async throws {
+        let factory = RecordingTransportFactory()
+        let session = GatewaySession(makeTransport: factory.makeTransport)
+
+        let handshake = Task {
+            try await session.attach(sessionId: "s1", lastSeq: 0)
+        }
+
+        let firstTransport = try #require(await waitForTransport(factory, at: 0))
+        let sent = await waitForSentFrames(firstTransport, atLeast: 1)
+        #expect(sent)
+        await firstTransport.enqueue(#"{"gw":"attached","generation":1,"headSeq":0,"wire":"0.2"}"#)
+
+        let firstStream = try await handshake.value
+
+        // A natural drop: `isAttached` clears, but `self.connection` is
+        // left non-nil — `finishPump` never touches it; only `close()` and
+        // `reattach()` do.
+        await firstTransport.simulateClose(code: .supersededByNewerAttach, reason: "test drop")
+        var firstIterator = firstStream.makeAsyncIterator()
+        await #expect(throws: GatewayTransportError.self) {
+            _ = try await firstIterator.next()
+        }
+
+        #expect(await firstTransport.isClosedLocally() == false)
+
+        // A plain `attach`, not `reattach()`, over that same post-drop
+        // state.
+        let secondHandshake = Task {
+            try await session.attach(sessionId: "s1", lastSeq: 0)
+        }
+
+        let secondTransport = try #require(await waitForTransport(factory, at: 1))
+        let secondSent = await waitForSentFrames(secondTransport, atLeast: 1)
+        #expect(secondSent)
+        await secondTransport.enqueue(#"{"gw":"attached","generation":2,"headSeq":0,"wire":"0.2"}"#)
+
+        _ = try await secondHandshake.value
+
+        #expect(await firstTransport.isClosedLocally())
 
         await session.close()
     }
