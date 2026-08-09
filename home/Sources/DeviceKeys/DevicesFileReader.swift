@@ -69,8 +69,13 @@ public struct DevicesFileReader: Sendable {
     /// credential must answer before presenting it: is this the store's own record of that
     /// credential, or has the ground under it shifted?
     ///
-    /// - `.active`: an entry with this `keyId` exists, is unrevoked, and carries a
-    ///   non-blank `secretHash` — the store still vouches for this credential.
+    /// - `.active(secretHash:)`: an entry with this `keyId` exists, is unrevoked, and
+    ///   carries a non-blank `secretHash` — the store still vouches for this `keyId`.
+    ///   `secretHash` is that entry's own hex-encoded SHA-256 digest, verbatim from the file
+    ///   — this method does not compare it against anything; a caller holding a candidate
+    ///   secret (`DeviceAuthPolicy.decide()`) is the one that knows what to compare it to, so
+    ///   the comparison lives there, not here. This method answers only "what does the store
+    ///   currently record for this `keyId`", never "does a particular secret match it".
     /// - `.revoked`: an entry with this `keyId` exists and carries a `revokedAt` — the
     ///   store withdrew it deliberately.
     /// - `.absent`: no entry with this `keyId` exists, **or** one does but its
@@ -94,10 +99,10 @@ public struct DevicesFileReader: Sendable {
         if entry.revokedAt != nil {
             return .revoked
         }
-        if Self.isBlank(entry.secretHash) {
+        guard let secretHash = entry.secretHash, !Self.isBlank(secretHash) else {
             return .absent
         }
-        return .active
+        return .active(secretHash: secretHash)
     }
 
     /// Reads and decodes `devices.json`, or `nil` if the file does not exist. Throws
@@ -166,9 +171,11 @@ public enum DevicesFileError: Error, Sendable, Equatable {
 /// Where a `keyId` stands relative to `devices.json`, as answered by
 /// `DevicesFileReader.status(ofKeyId:)`. See that method's doc comment for what each case
 /// means and why a blank-`secretHash` match is folded into `.absent` rather than treated
-/// as a fourth case.
+/// as a fourth case. `secretHash` is never a secret itself — it is the store's own recorded
+/// digest, already public within `devices.json` — so carrying it here is not a new place
+/// anything sensitive can leak.
 public enum DeviceKeyIdStatus: Sendable, Equatable {
-    case active
+    case active(secretHash: String)
     case revoked
     case absent
 }

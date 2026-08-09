@@ -49,13 +49,13 @@ struct DeviceAuthPolicyTests {
     func activeEntriesWithAHeldKeyPresentsThatKey() async throws {
         let dir = DevicesFileFixture.makeTempDirectory()
         defer { try? FileManager.default.removeItem(at: dir) }
+        let secret = DeviceKeySecret(keyId: "host", secret: "super-secret")
         try DevicesFileFixture.writeDevicesFile("""
         {
           "schemaVersion": 1,
-          "devices": [ \(DevicesFileFixture.deviceEntryJSON(keyId: "host")) ]
+          "devices": [ \(DevicesFileFixture.deviceEntryJSON(keyId: "host", secretHash: secret.secretHash)) ]
         }
         """, in: dir)
-        let secret = DeviceKeySecret(keyId: "host", secret: "super-secret")
 
         let policy = DeviceAuthPolicy(
             fileReader: DevicesFileReader(directory: dir),
@@ -71,13 +71,13 @@ struct DeviceAuthPolicyTests {
     func thePresentedKeyIsTheOneGatewayEndpointPutsInTheHeader() async throws {
         let dir = DevicesFileFixture.makeTempDirectory()
         defer { try? FileManager.default.removeItem(at: dir) }
+        let secret = DeviceKeySecret(keyId: "host", secret: "super-secret")
         try DevicesFileFixture.writeDevicesFile("""
         {
           "schemaVersion": 1,
-          "devices": [ \(DevicesFileFixture.deviceEntryJSON(keyId: "host")) ]
+          "devices": [ \(DevicesFileFixture.deviceEntryJSON(keyId: "host", secretHash: secret.secretHash)) ]
         }
         """, in: dir)
-        let secret = DeviceKeySecret(keyId: "host", secret: "super-secret")
 
         let policy = DeviceAuthPolicy(
             fileReader: DevicesFileReader(directory: dir),
@@ -116,17 +116,17 @@ struct DeviceAuthPolicyTests {
     func aHeldKeyMatchingAnActiveEntryAmongSeveralPresentsIt() async throws {
         let dir = DevicesFileFixture.makeTempDirectory()
         defer { try? FileManager.default.removeItem(at: dir) }
+        let secret = DeviceKeySecret(keyId: "host", secret: "super-secret")
         try DevicesFileFixture.writeDevicesFile("""
         {
           "schemaVersion": 1,
           "devices": [
             \(DevicesFileFixture.deviceEntryJSON(keyId: "other-device")),
-            \(DevicesFileFixture.deviceEntryJSON(keyId: "host")),
+            \(DevicesFileFixture.deviceEntryJSON(keyId: "host", secretHash: secret.secretHash)),
             \(DevicesFileFixture.deviceEntryJSON(keyId: "revoked-device", revokedAt: "2026-06-01T00:00:00Z"))
           ]
         }
         """, in: dir)
-        let secret = DeviceKeySecret(keyId: "host", secret: "super-secret")
 
         let policy = DeviceAuthPolicy(
             fileReader: DevicesFileReader(directory: dir),
@@ -278,6 +278,169 @@ struct DeviceAuthPolicyTests {
         }
     }
 
+    // MARK: - The secretHash mismatch gap (B5)
+
+    /// The gap section 6's supervisor parked: this host's held `keyId` is still active in
+    /// the store, but the store's own `secretHash` for it no longer matches this held
+    /// secret's own — the secret was rotated, or the file was restored to a different
+    /// backup. Must not fall through to `.presentKey` (that would 401 with nothing naming
+    /// the cause) and must not be conflated with either existing refusal.
+    @Test
+    func aHeldKeyWhoseSecretHashNoLongerMatchesTheActiveEntryIsRefusedAsSecretMismatch() async throws {
+        let dir = DevicesFileFixture.makeTempDirectory()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let secret = DeviceKeySecret(keyId: "host", secret: "super-secret")
+        try DevicesFileFixture.writeDevicesFile("""
+        {
+          "schemaVersion": 1,
+          "devices": [
+            \(DevicesFileFixture.deviceEntryJSON(keyId: "other-device")),
+            \(DevicesFileFixture.deviceEntryJSON(keyId: "host"))
+          ]
+        }
+        """, in: dir)
+        // `deviceEntryJSON(keyId: "host")` above writes `DevicesFileFixture.plausibleSecretHash`
+        // — a fixed, plausible-shaped hash that is *not* `secret.secretHash` (the real SHA-256
+        // of "super-secret"). That mismatch is the entry's `keyId` genuinely active, its
+        // secret genuinely different — not a fixture bug to route around.
+        #expect(DevicesFileFixture.plausibleSecretHash != secret.secretHash)
+
+        let policy = DeviceAuthPolicy(
+            fileReader: DevicesFileReader(directory: dir),
+            secretStore: InMemoryDeviceKeySecretStore(secret: secret)
+        )
+        let decision = try await policy.decide()
+        #expect(decision != .presentKey(secret))
+        guard case .secretMismatch(let message) = decision else {
+            Issue.record("expected .secretMismatch, got \(decision.caseLabelForDiagnostics)")
+            return
+        }
+        #expect(message.contains(KeychainDeviceKeySecretStore.deleteCommand))
+        #expect(message.contains(secret.keyId))
+        #expect(!message.contains("super-secret"))
+    }
+
+    /// Distinguishable from `.keyRevoked`: a revoked entry and a hash-mismatched-but-active
+    /// entry are different operator situations ("you withdrew this deliberately" versus
+    /// "the store's record moved under this credential") and must read differently.
+    @Test
+    func theSecretMismatchAndRevokedRefusalMessagesDiffer() async throws {
+        let secret = DeviceKeySecret(keyId: "host", secret: "super-secret")
+
+        let mismatchDir = DevicesFileFixture.makeTempDirectory()
+        defer { try? FileManager.default.removeItem(at: mismatchDir) }
+        try DevicesFileFixture.writeDevicesFile("""
+        {
+          "schemaVersion": 1,
+          "devices": [ \(DevicesFileFixture.deviceEntryJSON(keyId: "host")) ]
+        }
+        """, in: mismatchDir)
+        let mismatchPolicy = DeviceAuthPolicy(
+            fileReader: DevicesFileReader(directory: mismatchDir),
+            secretStore: InMemoryDeviceKeySecretStore(secret: secret)
+        )
+        guard case .secretMismatch(let mismatchMessage) = try await mismatchPolicy.decide() else {
+            Issue.record("expected .secretMismatch")
+            return
+        }
+
+        let revokedDir = DevicesFileFixture.makeTempDirectory()
+        defer { try? FileManager.default.removeItem(at: revokedDir) }
+        try DevicesFileFixture.writeDevicesFile("""
+        {
+          "schemaVersion": 1,
+          "devices": [
+            \(DevicesFileFixture.deviceEntryJSON(keyId: "other-device")),
+            \(DevicesFileFixture.deviceEntryJSON(keyId: "host", revokedAt: "2026-06-01T00:00:00Z"))
+          ]
+        }
+        """, in: revokedDir)
+        let revokedPolicy = DeviceAuthPolicy(
+            fileReader: DevicesFileReader(directory: revokedDir),
+            secretStore: InMemoryDeviceKeySecretStore(secret: secret)
+        )
+        guard case .keyRevoked(let revokedMessage) = try await revokedPolicy.decide() else {
+            Issue.record("expected .keyRevoked")
+            return
+        }
+
+        #expect(mismatchMessage != revokedMessage)
+        #expect(revokedMessage.contains("revoked"))
+        #expect(!mismatchMessage.contains("revoked"))
+    }
+
+    /// The third pair this file's own convention requires (`theRevokedAndAbsentRefusalMessagesDiffer`
+    /// and `theSecretMismatchAndRevokedRefusalMessagesDiffer` are the other two): a
+    /// hash-mismatched-but-active entry and a `keyId` the store has no record of at all are
+    /// different operator situations too — "the store's record moved under this credential"
+    /// versus "the store never heard of this credential" — and must read differently, not
+    /// merely differ by construction because they are different enum cases.
+    @Test
+    func theSecretMismatchAndUnknownToStoreRefusalMessagesDiffer() async throws {
+        let secret = DeviceKeySecret(keyId: "host", secret: "super-secret")
+
+        let mismatchDir = DevicesFileFixture.makeTempDirectory()
+        defer { try? FileManager.default.removeItem(at: mismatchDir) }
+        try DevicesFileFixture.writeDevicesFile("""
+        {
+          "schemaVersion": 1,
+          "devices": [ \(DevicesFileFixture.deviceEntryJSON(keyId: "host")) ]
+        }
+        """, in: mismatchDir)
+        let mismatchPolicy = DeviceAuthPolicy(
+            fileReader: DevicesFileReader(directory: mismatchDir),
+            secretStore: InMemoryDeviceKeySecretStore(secret: secret)
+        )
+        guard case .secretMismatch(let mismatchMessage) = try await mismatchPolicy.decide() else {
+            Issue.record("expected .secretMismatch")
+            return
+        }
+
+        let unknownDir = DevicesFileFixture.makeTempDirectory()
+        defer { try? FileManager.default.removeItem(at: unknownDir) }
+        try DevicesFileFixture.writeDevicesFile("""
+        {
+          "schemaVersion": 1,
+          "devices": [ \(DevicesFileFixture.deviceEntryJSON(keyId: "other-device")) ]
+        }
+        """, in: unknownDir)
+        let unknownPolicy = DeviceAuthPolicy(
+            fileReader: DevicesFileReader(directory: unknownDir),
+            secretStore: InMemoryDeviceKeySecretStore(secret: secret)
+        )
+        guard case .keyUnknownToStore(let unknownMessage) = try await unknownPolicy.decide() else {
+            Issue.record("expected .keyUnknownToStore")
+            return
+        }
+
+        #expect(mismatchMessage != unknownMessage)
+        #expect(unknownMessage.contains("not recorded"))
+        #expect(!mismatchMessage.contains("not recorded"))
+    }
+
+    /// A matching, active entry whose `secretHash` happens to equal the held secret's own
+    /// must still present it — the mismatch check must not become a false positive against
+    /// the ordinary, correctly-provisioned case every other `.presentKey` test in this file
+    /// already exercises with a real matching hash.
+    @Test
+    func aHeldKeyWhoseSecretHashDoesMatchTheActiveEntryIsStillPresented() async throws {
+        let dir = DevicesFileFixture.makeTempDirectory()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let secret = DeviceKeySecret(keyId: "host", secret: "super-secret")
+        try DevicesFileFixture.writeDevicesFile("""
+        {
+          "schemaVersion": 1,
+          "devices": [ \(DevicesFileFixture.deviceEntryJSON(keyId: "host", secretHash: secret.secretHash)) ]
+        }
+        """, in: dir)
+
+        let policy = DeviceAuthPolicy(
+            fileReader: DevicesFileReader(directory: dir),
+            secretStore: InMemoryDeviceKeySecretStore(secret: secret)
+        )
+        #expect(try await policy.decide() == .presentKey(secret))
+    }
+
     @Test
     func anUnsupportedSchemaVersionPropagatesAsAnErrorThroughThePolicy() async throws {
         let dir = DevicesFileFixture.makeTempDirectory()
@@ -356,6 +519,7 @@ extension DeviceAuthDecision {
         case .keyRequiredButMissing: "keyRequiredButMissing"
         case .keyRevoked: "keyRevoked"
         case .keyUnknownToStore: "keyUnknownToStore"
+        case .secretMismatch: "secretMismatch"
         }
     }
 }

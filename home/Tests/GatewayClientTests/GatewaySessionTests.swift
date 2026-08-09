@@ -43,6 +43,57 @@ private final class DelayedFirstTransportFactory: Sendable {
     }
 }
 
+/// A transport factory whose `makeTransport` closure genuinely suspends — parking on a
+/// `CheckedContinuation` until a test explicitly calls `release()` — rather than merely
+/// *converting* a synchronous closure to `GatewaySession`'s widened `async throws` signature
+/// the way `RecordingTransportFactory` and `DelayedFirstTransportFactory` both do. B5 widened
+/// `GatewaySession.init(makeTransport:)` specifically so a caller can suspend inside it
+/// (resolving a device-key credential — Keychain and file I/O — before returning a
+/// transport); this is the one double in this suite built to actually exercise that
+/// suspension rather than merely type-check against it.
+private final class GatedTransportFactory: Sendable {
+    private let parkedContinuation = OSAllocatedUnfairLock<CheckedContinuation<Void, Never>?>(initialState: nil)
+    private let createdTransports = OSAllocatedUnfairLock(initialState: [InMemoryGatewayTransport]())
+
+    /// `true` once a `makeTransport()` call is genuinely parked awaiting `release()` — the
+    /// condition a test polls for (via `waitUntil`) before racing a second call against the
+    /// suspension. `false` again the instant `release()` runs.
+    func hasEnteredAndIsParked() -> Bool {
+        parkedContinuation.withLock { $0 != nil }
+    }
+
+    /// Resumes whichever `makeTransport()` call is currently parked, letting it build and
+    /// return a fresh transport. A no-op if none is parked.
+    func release() {
+        let continuation = parkedContinuation.withLock { box -> CheckedContinuation<Void, Never>? in
+            defer { box = nil }
+            return box
+        }
+        continuation?.resume()
+    }
+
+    func transport(at index: Int) -> InMemoryGatewayTransport? {
+        createdTransports.withLock { transports in
+            transports.indices.contains(index) ? transports[index] : nil
+        }
+    }
+
+    func transports() -> [InMemoryGatewayTransport] {
+        createdTransports.withLock { $0 }
+    }
+
+    var makeTransport: @Sendable () async throws -> any GatewayTransport {
+        {
+            await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+                self.parkedContinuation.withLock { $0 = continuation }
+            }
+            let transport = InMemoryGatewayTransport()
+            self.createdTransports.withLock { $0.append(transport) }
+            return transport
+        }
+    }
+}
+
 /// Polls `condition` until it is true or `timeout` elapses. Local to this
 /// suite rather than shared, matching `GatewayConnectionTests`' own
 /// precedent (its doc comment on `waitUntil` explains why a one-off
@@ -66,6 +117,13 @@ private func waitForTransport(_ factory: RecordingTransportFactory, at index: In
 /// The `DelayedFirstTransportFactory` counterpart to the overload above.
 private func waitForTransport(_ factory: DelayedFirstTransportFactory, at index: Int) async -> InMemoryGatewayTransport? {
     let appeared = await waitUntil { factory.count() > index }
+    guard appeared else { return nil }
+    return factory.transport(at: index)
+}
+
+/// The `GatedTransportFactory` counterpart to the overloads above.
+private func waitForTransport(_ factory: GatedTransportFactory, at index: Int) async -> InMemoryGatewayTransport? {
+    let appeared = await waitUntil { factory.transports().count > index }
     guard appeared else { return nil }
     return factory.transport(at: index)
 }
@@ -821,6 +879,158 @@ struct GatewaySessionTests {
         var secondIterator = secondStream.makeAsyncIterator()
         let secondEvent = try await secondIterator.next()
         #expect(secondEvent == .event(secondEventRaw))
+
+        await session.close()
+    }
+
+    // MARK: - B5: a genuine suspension inside makeTransport()
+
+    /// Review blocker: every test above this section races timing against a `makeTransport`
+    /// that *type-checks* as `async throws` (`RecordingTransportFactory`,
+    /// `DelayedFirstTransportFactory`) but never actually suspends inside its body — so none
+    /// of them exercise the one behaviour B5's widened signature exists to permit: a caller
+    /// genuinely awaiting something (Keychain/file I/O in the real
+    /// `AuthenticatedTransportFactory`) before a transport, or even a `GatewayConnection`,
+    /// exists at all. `GatedTransportFactory` forces that suspension for real.
+    ///
+    /// This test proves `attachInFlight`'s guard does not depend on the old suspension point
+    /// (inside `connection.connect()`/awaiting `attached`, after a `GatewayConnection`
+    /// already existed): `attachInFlight` is set synchronously at the top of
+    /// `attach(sessionId:lastSeq:)`, *before* `performAttach` — and therefore before
+    /// `makeTransport()` — is ever reached, so a second concurrent `attach` is refused here
+    /// exactly as it was before B5, only now while the first call is parked earlier than any
+    /// pre-B5 test could park it.
+    @Test(.timeLimit(.minutes(1)))
+    func aSecondAttachIsRefusedWhileTheFirstIsGenuinelySuspendedInsideMakeTransport() async throws {
+        let factory = GatedTransportFactory()
+        let session = GatewaySession(makeTransport: factory.makeTransport)
+
+        let first = Task {
+            try await session.attach(sessionId: "s1", lastSeq: 0)
+        }
+
+        let parked = await waitUntil { factory.hasEnteredAndIsParked() }
+        #expect(parked)
+
+        // Refused inside `attach`'s own synchronous prelude, before `makeTransport()` is ever
+        // called for this second attempt — no second transport is created by this refusal.
+        await #expect(throws: GatewaySessionError.attachAlreadyInFlight) {
+            _ = try await session.attach(sessionId: "s2", lastSeq: 0)
+        }
+        #expect(factory.transports().isEmpty)
+
+        factory.release()
+
+        let attachTransport = try #require(await waitForTransport(factory, at: 0))
+        let sent = await waitForSentFrames(attachTransport, atLeast: 1)
+        #expect(sent)
+        await attachTransport.enqueue(#"{"gw":"attached","generation":1,"headSeq":5,"wire":"0.2"}"#)
+
+        _ = try await first.value
+        #expect(await session.sessionId == "s1")
+        #expect(await session.generation == 1)
+        #expect(factory.transports().count == 1)
+
+        await session.close()
+    }
+
+    /// The `reattach()` counterpart to the test above: `reattach()` checks `attachInFlight`
+    /// *before* it ever inspects `sessionId` or `isAttached` (its own doc comment states this
+    /// ordering), so it must be refused here for the same reason a second `attach` is — not
+    /// merely because `sessionId` happens to still be `nil` while the first `attach` is
+    /// parked inside `makeTransport()`.
+    @Test(.timeLimit(.minutes(1)))
+    func aReattachIsRefusedWhileAnAttachIsGenuinelySuspendedInsideMakeTransport() async throws {
+        let factory = GatedTransportFactory()
+        let session = GatewaySession(makeTransport: factory.makeTransport)
+
+        let first = Task {
+            try await session.attach(sessionId: "s1", lastSeq: 0)
+        }
+
+        let parked = await waitUntil { factory.hasEnteredAndIsParked() }
+        #expect(parked)
+
+        await #expect(throws: GatewaySessionError.attachAlreadyInFlight) {
+            _ = try await session.reattach()
+        }
+        #expect(factory.transports().isEmpty)
+
+        factory.release()
+
+        let attachTransport = try #require(await waitForTransport(factory, at: 0))
+        let sent = await waitForSentFrames(attachTransport, atLeast: 1)
+        #expect(sent)
+        await attachTransport.enqueue(#"{"gw":"attached","generation":1,"headSeq":5,"wire":"0.2"}"#)
+
+        _ = try await first.value
+
+        await session.close()
+    }
+
+    /// The other half of the review blocker: `performAttach` reads `pumpGeneration` into its
+    /// own `generation` local *after* `makeTransport()` returns — reached only once
+    /// `self.connection`/`self.outputContinuation` are already set, both of which happen
+    /// after the `try await makeTransport()` line — never before that suspension. This test
+    /// forces a `close()` to land *during* that suspension, while `connection`, `pumpTask`,
+    /// `outputContinuation`, and `attachWaiter` are all still `nil` (traced directly from
+    /// `close()`'s own body: with all four `nil`, its only real effect is the `pumpGeneration`
+    /// bump itself), and confirms the attach that was parked there still completes correctly
+    /// once released — proof it picks up the *already-bumped* generation on resume rather than
+    /// a value that went stale underneath it while it was suspended.
+    ///
+    /// **Falsified directly, not merely reasoned about — and the result narrows this test's
+    /// own claim.** Reading `generation` from a local captured *before* `try await
+    /// makeTransport()` instead of after was tried by hand: the interleaved `close()`'s bump
+    /// then leaves that captured value stale by the time this method resumes, the pump it
+    /// starts carries the stale generation, `routeFromPump(_:generation:)`'s guard silently
+    /// discards the `attached` frame this test enqueues (`generation == pumpGeneration` is
+    /// false), `attachWaiter` never resumes, and `first.value` below genuinely never returns
+    /// — confirmed for real: the process sat parked, under 0.2% CPU, for over three and a
+    /// half minutes (60+ times this test's normal ~0.01s) before being killed by hand, with
+    /// no assertion failure and no output ever reaching the run log.
+    ///
+    /// **`.timeLimit(.minutes(1))` did not end that hang.** Both suspensions on the broken
+    /// path — `GatedTransportFactory.makeTransport`'s plain `withCheckedContinuation`, and
+    /// `first`'s own unstructured `Task` inside `attach`'s `withCheckedThrowingContinuation`
+    /// — are un-cancellable: nothing calls `.resume()` on either, and Swift's cooperative
+    /// cancellation cannot force a plain, non-cancellation-aware continuation to return, nor
+    /// does cancelling one task reach into an unrelated `Task { … }` it merely happens to be
+    /// awaiting the value of. Testing's time-limit trait cancels the *test's* task; it cannot
+    /// reach either of those. So this test's guarantee is narrower than the trait's presence
+    /// suggests: it genuinely diverges on the broken variant (fast pass vs. indefinite hang),
+    /// which makes it a real regression check, but a real regression here would hang
+    /// `dmon-home-test`'s run rather than fail it within a minute — the same gap likely
+    /// applies to `aSecondConcurrentAttachIsRefusedWhileTheFirstIsStillInFlightAndTheFirstStillCompletesCorrectly`'s
+    /// own `.timeLimit` claim above, not verified here, flagged for the Architect rather than
+    /// silently corrected on a test outside this block's scope.
+    @Test(.timeLimit(.minutes(1)))
+    func aCloseDuringASuspendedAttachBumpsGenerationSafelyAndTheAttachStillCompletes() async throws {
+        let factory = GatedTransportFactory()
+        let session = GatewaySession(makeTransport: factory.makeTransport)
+
+        let first = Task {
+            try await session.attach(sessionId: "s1", lastSeq: 0)
+        }
+
+        let parked = await waitUntil { factory.hasEnteredAndIsParked() }
+        #expect(parked)
+
+        // `close()` does not check `attachInFlight` — nothing before B5 ever needed it to,
+        // since there was no suspension this early for a concurrent call to land inside.
+        await session.close()
+
+        factory.release()
+
+        let attachTransport = try #require(await waitForTransport(factory, at: 0))
+        let sent = await waitForSentFrames(attachTransport, atLeast: 1)
+        #expect(sent)
+        await attachTransport.enqueue(#"{"gw":"attached","generation":7,"headSeq":11,"wire":"0.2"}"#)
+
+        _ = try await first.value
+        #expect(await session.sessionId == "s1")
+        #expect(await session.generation == 7)
+        #expect(await session.headSeq == 11)
 
         await session.close()
     }

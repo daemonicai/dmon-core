@@ -140,7 +140,31 @@ struct DevicesFileReaderTests {
         """, in: dir)
 
         let reader = DevicesFileReader(directory: dir)
-        #expect(try reader.status(ofKeyId: "this-host") == .active)
+        #expect(try reader.status(ofKeyId: "this-host") == .active(secretHash: DevicesFileFixture.plausibleSecretHash))
+    }
+
+    /// Pins that `.active`'s `secretHash` is the matched entry's own field, read verbatim —
+    /// not merely a value of the right shape (`statusOfKeyIdReportsActiveForAMatchingActiveEntryAmongSeveral`,
+    /// above, would still pass if this were hard-coded to `plausibleSecretHash`). This is the
+    /// field `DeviceAuthPolicy.decide()` compares against a held secret's own `secretHash` to
+    /// close the B5 mismatch gap — it must be the file's value, not a placeholder.
+    @Test
+    func statusOfKeyIdReportsTheMatchedEntrysOwnSecretHashNotAPlaceholder() throws {
+        let dir = DevicesFileFixture.makeTempDirectory()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let distinctHash = String(repeating: "fedcba9876543210", count: 4)
+        try DevicesFileFixture.writeDevicesFile("""
+        {
+          "schemaVersion": 1,
+          "devices": [
+            \(DevicesFileFixture.deviceEntryJSON(keyId: "other-device")),
+            \(DevicesFileFixture.deviceEntryJSON(keyId: "this-host", secretHash: distinctHash))
+          ]
+        }
+        """, in: dir)
+
+        let reader = DevicesFileReader(directory: dir)
+        #expect(try reader.status(ofKeyId: "this-host") == .active(secretHash: distinctHash))
     }
 
     @Test

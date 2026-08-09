@@ -5,14 +5,14 @@ import GatewayClient
 /// this host hold one" (`DeviceKeySecretStore`), and, when it does, "does the store still
 /// vouch for the one it holds" (`DevicesFileReader.status(ofKeyId:)`).
 ///
-/// Five states, not two. Collapsing every non-provisioning outcome into
+/// Six states, not two. Collapsing every non-provisioning outcome into
 /// `.connectUnauthenticated` would produce a silent 401 at connect time with nothing
 /// naming why. This type does not act on any of them beyond naming it — provisioning a
-/// key, and the two refusals' shared escape hatch (deleting the stored secret),
+/// key, and the three refusals' shared escape hatch (deleting the stored secret),
 /// are both separate, later or operator work.
 public enum DeviceAuthDecision: Sendable {
     /// Present this key secret on connect — the store still lists this host's `keyId` as
-    /// active.
+    /// active, with a `secretHash` that matches this held secret's own.
     case presentKey(DeviceKeySecret)
     /// Connect without presenting a key — the store has no active entries.
     case connectUnauthenticated
@@ -29,6 +29,15 @@ public enum DeviceAuthDecision: Sendable {
     /// the same reason as `.keyRevoked`: this client must not silently re-provision
     /// access the store does not currently record. `message` names the same escape hatch.
     case keyUnknownToStore(message: String)
+    /// This host's held key's `keyId` is in the store and active, but the entry's
+    /// `secretHash` no longer matches this held secret's own — the store's record of this
+    /// credential was rotated or restored to a value that predates or postdates what this
+    /// host holds. Distinct from `.keyRevoked` (the operator withdrew the key deliberately)
+    /// and `.keyUnknownToStore` (the store has no record of the `keyId` at all): here the
+    /// `keyId` is still active, only the secret behind it has moved. Refused for the same
+    /// reason as the other two — presenting a secret the store no longer vouches for would
+    /// 401 with nothing naming the cause — and `message` names the same escape hatch.
+    case secretMismatch(message: String)
 }
 
 extension DeviceAuthDecision: Equatable {
@@ -52,6 +61,8 @@ extension DeviceAuthDecision: Equatable {
             left == right
         case (.keyUnknownToStore(let left), .keyUnknownToStore(let right)):
             left == right
+        case (.secretMismatch(let left), .secretMismatch(let right)):
+            left == right
         default:
             false
         }
@@ -71,8 +82,9 @@ public struct DeviceAuthPolicy: Sendable {
 
     /// Reads the devices file and, only when it requires a key, this host's own
     /// key secret store, then — only when this host holds a secret — where that
-    /// secret's `keyId` stands in the file, and returns the resulting
-    /// `DeviceAuthDecision`. Propagates whatever `fileReader.hasActiveEntries()`,
+    /// secret's `keyId` stands in the file and, when it is active there, whether the
+    /// file's own `secretHash` for it still matches this held secret's own — and returns
+    /// the resulting `DeviceAuthDecision`. Propagates whatever `fileReader.hasActiveEntries()`,
     /// `secretStore.load()`, or `fileReader.status(ofKeyId:)` throw — none of
     /// the three is ever swallowed into `.connectUnauthenticated`. No `catch` appears
     /// anywhere in this method; that absence, not a guard against any specific exception
@@ -85,7 +97,17 @@ public struct DeviceAuthPolicy: Sendable {
             return .keyRequiredButMissing
         }
         switch try fileReader.status(ofKeyId: secret.keyId) {
-        case .active:
+        case .active(let storedSecretHash):
+            guard storedSecretHash == secret.secretHash else {
+                return .secretMismatch(message: """
+                    This device's stored key (keyId "\(secret.keyId)") no longer matches \
+                    the credential the network host's device store records for it (the \
+                    store's secret was rotated, or restored from a backup that predates or \
+                    postdates this one). Delete it with \
+                    `\(KeychainDeviceKeySecretStore.deleteCommand)` to let this host \
+                    provision a new one on its next connection attempt.
+                    """)
+            }
             return .presentKey(secret)
         case .revoked:
             return .keyRevoked(message: """

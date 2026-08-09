@@ -9,10 +9,14 @@ import os
 /// recording every transport `GatewaySession` asks for, a test could only
 /// inspect whichever single transport it happened to hold a reference to.
 ///
-/// `GatewaySession.init(makeTransport:)` takes a plain, non-`async`
-/// `@Sendable` closure (design D1), so recording cannot go through an
-/// actor call — `makeTransport` itself must return synchronously.
-/// `OSAllocatedUnfairLock` guards the recorded list instead: the same
+/// `GatewaySession.init(makeTransport:)` accepts `@Sendable () async throws
+/// -> any GatewayTransport` (widened from a plain, non-`async`, non-`throws`
+/// closure by block B5, to let a caller resolve a device-key credential
+/// before connecting) — but a synchronous, non-throwing closure like this
+/// one still converts to that type implicitly, so this factory has no need
+/// to go through an actor call itself: `makeTransport` here returns
+/// synchronously by this type's own choice, not because `GatewaySession`
+/// requires it. `OSAllocatedUnfairLock` guards the recorded list instead: the same
 /// real-synchronisation-primitive choice `Supervisor/ProcessExit.swift`'s
 /// `ExitWaitBox` documents, over `@unchecked Sendable` /
 /// `nonisolated(unsafe)` (design D14 reserves those for the audio ring

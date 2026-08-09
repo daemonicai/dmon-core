@@ -17,7 +17,7 @@ struct DeviceKeyProvisionerTests {
         defer { try? FileManager.default.removeItem(at: dir) }
 
         let store = InMemoryDeviceKeySecretStore()
-        let provisioner = DeviceKeyProvisioner(directory: dir, secretStore: store)
+        let provisioner = DeviceKeyProvisioner(fileReader: DevicesFileReader(directory: dir), secretStore: store)
 
         await #expect(throws: DeviceKeyProvisioningError.notRequired) {
             _ = try await provisioner.provision()
@@ -42,7 +42,7 @@ struct DeviceKeyProvisionerTests {
         try DevicesFileFixture.writeDevicesFile(content, in: dir)
 
         let store = InMemoryDeviceKeySecretStore()
-        let provisioner = DeviceKeyProvisioner(directory: dir, secretStore: store)
+        let provisioner = DeviceKeyProvisioner(fileReader: DevicesFileReader(directory: dir), secretStore: store)
 
         await #expect(throws: DeviceKeyProvisioningError.notRequired) {
             _ = try await provisioner.provision()
@@ -68,7 +68,7 @@ struct DeviceKeyProvisionerTests {
 
         let held = DeviceKeySecret(keyId: "already-held", secret: "already-held-secret")
         let store = InMemoryDeviceKeySecretStore(secret: held)
-        let provisioner = DeviceKeyProvisioner(directory: dir, secretStore: store)
+        let provisioner = DeviceKeyProvisioner(fileReader: DevicesFileReader(directory: dir), secretStore: store)
 
         await #expect(throws: DeviceKeyProvisioningError.notRequired) {
             _ = try await provisioner.provision()
@@ -97,7 +97,7 @@ struct DeviceKeyProvisionerTests {
         """, in: dir)
 
         let store = InMemoryDeviceKeySecretStore()
-        let provisioner = DeviceKeyProvisioner(directory: dir, secretStore: store)
+        let provisioner = DeviceKeyProvisioner(fileReader: DevicesFileReader(directory: dir), secretStore: store)
         let secret = try await provisioner.provision()
 
         let policy = DeviceAuthPolicy(fileReader: DevicesFileReader(directory: dir), secretStore: store)
@@ -119,7 +119,7 @@ struct DeviceKeyProvisionerTests {
         """, in: dir)
 
         let store = InMemoryDeviceKeySecretStore()
-        let provisioner = DeviceKeyProvisioner(directory: dir, secretStore: store)
+        let provisioner = DeviceKeyProvisioner(fileReader: DevicesFileReader(directory: dir), secretStore: store)
         let secret = try await provisioner.provision()
 
         let entry = try Self.entry(forKeyId: secret.keyId, in: dir)
@@ -152,7 +152,7 @@ struct DeviceKeyProvisionerTests {
         """, in: dir)
 
         let store = InMemoryDeviceKeySecretStore()
-        let provisioner = DeviceKeyProvisioner(directory: dir, secretStore: store)
+        let provisioner = DeviceKeyProvisioner(fileReader: DevicesFileReader(directory: dir), secretStore: store)
         let secret = try await provisioner.provision()
 
         let entry = try Self.entry(forKeyId: secret.keyId, in: dir)
@@ -184,7 +184,7 @@ struct DeviceKeyProvisionerTests {
         let fixedDate = Calendar(identifier: .gregorian).date(from: components)!
 
         let store = InMemoryDeviceKeySecretStore()
-        let provisioner = DeviceKeyProvisioner(directory: dir, secretStore: store, now: { fixedDate })
+        let provisioner = DeviceKeyProvisioner(fileReader: DevicesFileReader(directory: dir), secretStore: store, now: { fixedDate })
         let secret = try await provisioner.provision()
 
         let entry = try Self.entry(forKeyId: secret.keyId, in: dir)
@@ -218,7 +218,7 @@ struct DeviceKeyProvisionerTests {
         """, in: dir)
 
         let store = InMemoryDeviceKeySecretStore()
-        let provisioner = DeviceKeyProvisioner(directory: dir, secretStore: store)
+        let provisioner = DeviceKeyProvisioner(fileReader: DevicesFileReader(directory: dir), secretStore: store)
         _ = try await provisioner.provision()
 
         let envelope = try Self.envelope(in: dir)
@@ -249,7 +249,7 @@ struct DeviceKeyProvisionerTests {
         """, in: dir)
 
         let store = InMemoryDeviceKeySecretStore()
-        let provisioner = DeviceKeyProvisioner(directory: dir, secretStore: store)
+        let provisioner = DeviceKeyProvisioner(fileReader: DevicesFileReader(directory: dir), secretStore: store)
         _ = try await provisioner.provision()
 
         let envelope = try Self.envelope(in: dir)
@@ -275,11 +275,11 @@ struct DeviceKeyProvisionerTests {
         try DevicesFileFixture.writeDevicesFile(seed, in: dirB)
 
         let secretA = try await DeviceKeyProvisioner(
-            directory: dirA,
+            fileReader: DevicesFileReader(directory: dirA),
             secretStore: InMemoryDeviceKeySecretStore()
         ).provision()
         let secretB = try await DeviceKeyProvisioner(
-            directory: dirB,
+            fileReader: DevicesFileReader(directory: dirB),
             secretStore: InMemoryDeviceKeySecretStore()
         ).provision()
 
@@ -306,7 +306,7 @@ struct DeviceKeyProvisionerTests {
         """, in: dir)
 
         let store = InMemoryDeviceKeySecretStore()
-        let provisioner = DeviceKeyProvisioner(directory: dir, secretStore: store)
+        let provisioner = DeviceKeyProvisioner(fileReader: DevicesFileReader(directory: dir), secretStore: store)
         let secret = try await provisioner.provision()
 
         #expect(!secret.secret.isEmpty)
@@ -333,7 +333,7 @@ struct DeviceKeyProvisionerTests {
         try DevicesFileFixture.writeDevicesFile(content, in: dir)
 
         let store = InMemoryDeviceKeySecretStore(storeError: StubStoreError.keychainDenied)
-        let provisioner = DeviceKeyProvisioner(directory: dir, secretStore: store)
+        let provisioner = DeviceKeyProvisioner(fileReader: DevicesFileReader(directory: dir), secretStore: store)
 
         await #expect(throws: DeviceKeyProvisioningError.self) {
             _ = try await provisioner.provision()
@@ -357,7 +357,7 @@ struct DeviceKeyProvisionerTests {
         """, in: dir)
 
         let store = InMemoryDeviceKeySecretStore(storeError: StubStoreError.keychainDenied)
-        let provisioner = DeviceKeyProvisioner(directory: dir, secretStore: store)
+        let provisioner = DeviceKeyProvisioner(fileReader: DevicesFileReader(directory: dir), secretStore: store)
 
         do {
             _ = try await provisioner.provision()
@@ -392,7 +392,7 @@ struct DeviceKeyProvisionerTests {
         try FileManager.default.setAttributes([.posixPermissions: 0o500], ofItemAtPath: dir.path)
 
         let store = InMemoryDeviceKeySecretStore()
-        let provisioner = DeviceKeyProvisioner(directory: dir, secretStore: store)
+        let provisioner = DeviceKeyProvisioner(fileReader: DevicesFileReader(directory: dir), secretStore: store)
 
         do {
             _ = try await provisioner.provision()
@@ -428,7 +428,7 @@ struct DeviceKeyProvisionerTests {
         """, in: dir)
 
         let store = InMemoryDeviceKeySecretStore()
-        let provisioner = DeviceKeyProvisioner(directory: dir, secretStore: store)
+        let provisioner = DeviceKeyProvisioner(fileReader: DevicesFileReader(directory: dir), secretStore: store)
         _ = try await provisioner.provision()
 
         let path = dir.appendingPathComponent("devices.json").path

@@ -125,7 +125,17 @@ public enum GatewaySessionError: Error, Hashable, Sendable {
 /// so it is not reached for here. That residual is accepted, not
 /// overlooked.
 public actor GatewaySession {
-    private let makeTransport: @Sendable () -> any GatewayTransport
+    /// `async throws`, not a plain `@Sendable () -> any GatewayTransport` (B5 widened it from
+    /// that): a caller that needs to resolve a device-key credential before connecting — read
+    /// `devices.json`, read the Keychain, provision, or refuse outright — cannot do any of
+    /// that from a synchronous, non-throwing closure. `GatewaySession` itself makes no
+    /// decision about what a caller's `makeTransport` does with that room; it only calls it,
+    /// on every fresh connection (`createSession`, `performAttach`), never once and cached —
+    /// so a closure that re-resolves its credential each time sees a revocation on the very
+    /// next connection attempt rather than only after some later, separate check. A
+    /// synchronous, non-throwing closure still converts to this type implicitly, so no
+    /// existing test double in this suite needed a signature change to keep compiling.
+    private let makeTransport: @Sendable () async throws -> any GatewayTransport
 
     private var connection: GatewayConnection?
     private var pumpTask: Task<Void, Never>?
@@ -222,7 +232,7 @@ public actor GatewaySession {
     /// by `.reattachWithoutPriorAttach`).
     public private(set) var lastObservedSeq: Int64?
 
-    public init(makeTransport: @escaping @Sendable () -> any GatewayTransport) {
+    public init(makeTransport: @escaping @Sendable () async throws -> any GatewayTransport) {
         self.makeTransport = makeTransport
     }
 
@@ -249,7 +259,7 @@ public actor GatewaySession {
     /// or a thrown error throws `GatewaySessionError
     /// .connectionClosedBeforeCreated`.
     public func createSession(agent: String? = nil) async throws -> String {
-        let connection = GatewayConnection(transport: makeTransport())
+        let connection = GatewayConnection(transport: try await makeTransport())
         let stream = try await connection.connect()
 
         do {
@@ -378,6 +388,37 @@ public actor GatewaySession {
     /// they are visible, or in which another call could bump
     /// `pumpGeneration` again before this pump captures it.
     ///
+    /// **B5's earlier suspension window, and what was verified — not merely assumed — about
+    /// it.** `try await makeTransport()`, above, is this method's *first* suspension point,
+    /// earlier than every one the paragraphs above already cover: it runs before any
+    /// `GatewayConnection` exists, so `connection`, `pumpTask`, `outputContinuation`, and
+    /// `attachWaiter` are all still `nil` for as long as it takes. Two things were confirmed
+    /// by hand about a call landing on this actor during that window, not merely reasoned
+    /// about (`GatewaySessionTests`, `aSecondAttachIsRefusedWhileTheFirstIsGenuinelySuspendedInsideMakeTransport`,
+    /// `aReattachIsRefusedWhileAnAttachIsGenuinelySuspendedInsideMakeTransport`,
+    /// `aCloseDuringASuspendedAttachBumpsGenerationSafelyAndTheAttachStillCompletes` — each
+    /// forces a real suspension here via a double whose `makeTransport` genuinely parks on an
+    /// uncompleted continuation, not one that merely type-checks as `async throws`):
+    ///
+    /// - A concurrent `attach`/`reattach` is refused correctly, because `attachInFlight` is
+    ///   set synchronously by the caller *before* this method — and therefore before
+    ///   `makeTransport()` — is ever reached; nothing about that guard depended on the old,
+    ///   later suspension point.
+    /// - A concurrent `close()` landing here is a near no-op beyond its own `pumpGeneration`
+    ///   bump: with all four fields above still `nil`, `finishPump` finds no `attachWaiter`
+    ///   or `outputContinuation` to touch and `await closingConnection?.close()` is `nil`.
+    ///   Because `generation` (below) is read *after* this suspension returns, not before it,
+    ///   the value this method's own pump captures is already the bumped one — the attach
+    ///   this method was in the middle of still completes correctly once released.
+    ///
+    /// A third fact was checked and is recorded honestly rather than assumed to hold: reading
+    /// `generation` from a value captured *before* this suspension instead of after was tried
+    /// by hand, and it does make the interleaved-`close()` case above hang — but
+    /// `.timeLimit(.minutes(1))` did not end that hang within several minutes of observation
+    /// (see that test's own doc comment for the mechanism). So the two bullets above are
+    /// confirmed correct for the shipped ordering; they are not proven to fail loudly, only
+    /// to fail visibly-if-watched, should this ordering ever regress.
+    ///
     /// The same handshake-error handling `createSession(agent:)` documents
     /// applies here unchanged: a peer close surfaces as
     /// `GatewayTransportError.closed(code:reason:)`, propagated exactly as
@@ -390,7 +431,7 @@ public actor GatewaySession {
     /// a stream that ends without either throws
     /// `GatewaySessionError.connectionClosedBeforeAttached`.
     private func performAttach(sessionId: String, lastSeq: Int64) async throws -> AsyncThrowingStream<GatewayInboundItem, Error> {
-        let connection = GatewayConnection(transport: makeTransport())
+        let connection = GatewayConnection(transport: try await makeTransport())
         let stream = try await connection.connect()
 
         do {

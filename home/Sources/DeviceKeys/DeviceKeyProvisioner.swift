@@ -16,13 +16,21 @@ import Darwin
 /// plain data whose cases (`.keyRequiredButMissing` included) any caller can construct
 /// without ever running `DeviceAuthPolicy.decide()`, so accepting one as "evidence" would
 /// prove nothing on its own. Instead `provision()` re-derives both halves of the precondition
-/// itself, against the same `directory` and `secretStore` it was given —
-/// `DevicesFileReader.hasActiveEntries()` and `secretStore.load()` — and refuses
+/// itself, against the same `fileReader` and `secretStore` it was given —
+/// `fileReader.hasActiveEntries()` and `secretStore.load()` — and refuses
 /// with `.notRequired`, touching neither the Keychain nor `devices.json`, when either does not
 /// hold. This is what makes writing into an empty or absent store — which would switch
 /// device-key auth on for every client, as a side effect of this host booting — unreachable
 /// through this type: an empty or absent store always fails `hasActiveEntries()`, regardless
 /// of what any caller passes or believes the current state to be.
+///
+/// **`fileReader`, injected — same as `DeviceAuthPolicy`.** This type held its own `directory:
+/// URL` and constructed a fresh `DevicesFileReader` from it internally until B5 (the connect
+/// flow, `AuthenticatedTransportFactory`) became this module's second consumer of both types
+/// side by side — at which point holding the same fact two different ways was worth unifying
+/// on the one `DeviceAuthPolicy` already used. `fileReader.directory` is still what `provision()`
+/// hands `appendEntry` to locate `devices.json`; nothing about *where* the file lives changed,
+/// only how this type is told.
 ///
 /// **Single-writer assumption.** `provision()`'s two precondition checks
 /// (`hasActiveEntries()`, `load()`) and `appendEntry`'s own read-then-replace are
@@ -42,16 +50,16 @@ public struct DeviceKeyProvisioner: Sendable {
     /// a stored hash — far beyond what a length-extension or brute-force attempt could reach.
     static let tokenByteCount = 32
 
-    private let directory: URL
+    private let fileReader: DevicesFileReader
     private let secretStore: any DeviceKeySecretStore
     private let now: @Sendable () -> Date
 
     public init(
-        directory: URL = DevicesFileReader.defaultDirectory,
+        fileReader: DevicesFileReader,
         secretStore: any DeviceKeySecretStore,
         now: @escaping @Sendable () -> Date = Date.init
     ) {
-        self.directory = directory
+        self.fileReader = fileReader
         self.secretStore = secretStore
         self.now = now
     }
@@ -70,7 +78,7 @@ public struct DeviceKeyProvisioner: Sendable {
     /// first — would instead leave an orphaned *row* in the operator's own `devices.json` on a
     /// Keychain failure, which nothing surfaces and every subsequent boot would attempt again.
     public func provision() async throws -> DeviceKeySecret {
-        guard try DevicesFileReader(directory: directory).hasActiveEntries() else {
+        guard try fileReader.hasActiveEntries() else {
             throw DeviceKeyProvisioningError.notRequired
         }
         guard try await secretStore.load() == nil else {
@@ -91,7 +99,7 @@ public struct DeviceKeyProvisioner: Sendable {
                 name: Self.deviceName(),
                 secretHash: secret.secretHash,
                 createdAt: Self.iso8601String(from: now()),
-                directory: directory
+                directory: fileReader.directory
             )
         } catch {
             throw DeviceKeyProvisioningError.devicesFileAppendFailed(

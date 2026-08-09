@@ -39,6 +39,7 @@ Debt that outlives a change needs somewhere that outlives a change.
 - [Swift 6.3.3 async task-context crash, worked around twice](swift-task-dealloc-workarounds.md) — see also `home/TOOLCHAIN-NOTES.md`.
 
 ### Tests
+- [`.timeLimit` does not bound a hang on an un-cancellable continuation](swift-testing-timelimit-does-not-bound-continuation-hangs.md) — two hang-shaped regression tests carry a trait that cannot bound them; reproduced twice, and only an external timeout can work.
 - [`ChildSpawnerTests` readiness rests on a fixed sleep](childspawner-test-timing-assumption.md).
 - [`Dmon.Core.Tests` has a recurring intermittent failure](dmon-core-tests-intermittent-failure.md) — ~1 red run in 8; the failing test was not captured, so catch it with its name first.
 - [`WizardEngineTests` intermittent failure](wizard-engine-intermittent-failure.md) — .NET side, unrelated to `home/`; the one *identified* sighting.
