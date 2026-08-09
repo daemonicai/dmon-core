@@ -285,8 +285,48 @@ struct SessionCoordinatorTests {
         await firstRetryTask.value
 
         // Second reattach, from `.connectFailed`: must be a genuine retry
-        // — a new connection, not a silent no-op.
+        // — a new connection, not a silent no-op. Proved below via a
+        // bounded poll (`waitUntil`, which cannot hang — it returns
+        // `false` past its deadline) on facts that can't lie about a
+        // no-op: the factory opened a new transport, and the connection
+        // state moved off `.connectFailed`. This runs *before* the
+        // `await iterator.next()` calls that follow, deliberately: if the
+        // guard this test exists to protect (`reattach()`'s `.dropped`
+        // check) regresses back to `.connectFailed`-excluding, the second
+        // `reattach()` above becomes a no-op, `coordinator.updates()` never
+        // emits again, and `await iterator.next()` would hang rather than
+        // fail — `.timeLimit` cannot bound that hang (it cancels
+        // cooperatively; nothing here is cancellation-aware), see
+        // tech-debt/swift-testing-timelimit-does-not-bound-continuation-hangs.md.
+        // `try #require` (not `#expect`) on the bounded poll below is
+        // deliberate too: `#require` stops the test on failure, so a
+        // regression fails here in well under 2s instead of merely
+        // recording an issue and then wedging on the `iterator.next()`
+        // below anyway.
+        //
+        // Verified by hand, not just reasoned: temporarily narrowing the
+        // `reattach()` guard above back to `.dropped`-only (the exact
+        // pre-fix shape) and running this test alone made it fail at the
+        // `secondConnectionOpened` requirement in 2.018s, not hang — the
+        // guard change was reverted immediately after (`git diff
+        // home/Sources/` confirmed empty) and the full suite re-run green
+        // at 372/43 before this comment was written. That same pass also
+        // caught a real bug in an earlier draft of this check: comparing
+        // `factory.count()` against the literal `2` rather than its value
+        // just before this second `reattach()` call, which was already 3
+        // by this point (create + first attach + the first, failed,
+        // reattach) — so the check was vacuously true and the regression
+        // was only caught by `movedOffConnectFailed`. `countBeforeSecondReattach`
+        // below fixes that; forcing the regression is what surfaced it.
+        let countBeforeSecondReattach = factory.count()
         let secondRetryTask = Task { await coordinator.reattach() }
+
+        let secondConnectionOpened = await waitUntil { factory.count() > countBeforeSecondReattach }
+        try #require(secondConnectionOpened, "reattach() from .connectFailed must open a new connection, not no-op")
+
+        let movedOffConnectFailed = await waitUntil { await coordinator.snapshot().connection != afterFailedReattach.connection }
+        try #require(movedOffConnectFailed, "reattach() from .connectFailed must change the connection state, not leave it stuck")
+
         let afterConnecting = try #require(await iterator.next())
         #expect(afterConnecting.connection == .connecting)
 

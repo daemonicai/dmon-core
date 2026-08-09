@@ -108,22 +108,31 @@ private func waitUntil(timeout: TimeInterval = 2, condition: @escaping @Sendable
 }
 
 /// Waits for `factory` to have created a transport at `index`.
-private func waitForTransport(_ factory: RecordingTransportFactory, at index: Int) async -> InMemoryGatewayTransport? {
-    let appeared = await waitUntil { factory.count() > index }
+///
+/// `timeout` is a *readiness* deadline — "has the transport appeared yet" —
+/// not a bound under test. Widening it (the default stays 2s) loosens
+/// nothing any test asserts; it only affects how long a genuine failure
+/// takes to surface. Contrast with a bound that discriminates (e.g. a
+/// health-check timeout the test is specifically about), which must never
+/// be widened to make a flake go away.
+private func waitForTransport(_ factory: RecordingTransportFactory, at index: Int, timeout: TimeInterval = 2) async -> InMemoryGatewayTransport? {
+    let appeared = await waitUntil(timeout: timeout) { factory.count() > index }
     guard appeared else { return nil }
     return factory.transport(at: index)
 }
 
 /// The `DelayedFirstTransportFactory` counterpart to the overload above.
-private func waitForTransport(_ factory: DelayedFirstTransportFactory, at index: Int) async -> InMemoryGatewayTransport? {
-    let appeared = await waitUntil { factory.count() > index }
+/// See that overload's doc comment for what `timeout` is (and is not) for.
+private func waitForTransport(_ factory: DelayedFirstTransportFactory, at index: Int, timeout: TimeInterval = 2) async -> InMemoryGatewayTransport? {
+    let appeared = await waitUntil(timeout: timeout) { factory.count() > index }
     guard appeared else { return nil }
     return factory.transport(at: index)
 }
 
 /// The `GatedTransportFactory` counterpart to the overloads above.
-private func waitForTransport(_ factory: GatedTransportFactory, at index: Int) async -> InMemoryGatewayTransport? {
-    let appeared = await waitUntil { factory.transports().count > index }
+/// See the first overload's doc comment for what `timeout` is (and is not) for.
+private func waitForTransport(_ factory: GatedTransportFactory, at index: Int, timeout: TimeInterval = 2) async -> InMemoryGatewayTransport? {
+    let appeared = await waitUntil(timeout: timeout) { factory.transports().count > index }
     guard appeared else { return nil }
     return factory.transport(at: index)
 }
@@ -135,8 +144,11 @@ private func waitForTransport(_ factory: GatedTransportFactory, at index: Int) a
 /// (`hasConnected`), and `send(_:)` only ever completes after `connect()`
 /// has — so a sent frame is proof `connect()` has already happened, which
 /// polling `count()` alone (the transport exists) is not.
-private func waitForSentFrames(_ transport: InMemoryGatewayTransport, atLeast count: Int) async -> Bool {
-    await waitUntil { await transport.sentFrames().count >= count }
+///
+/// `timeout` is a readiness deadline, not a bound under test — see
+/// `waitForTransport`'s doc comment on the same parameter.
+private func waitForSentFrames(_ transport: InMemoryGatewayTransport, atLeast count: Int, timeout: TimeInterval = 2) async -> Bool {
+    await waitUntil(timeout: timeout) { await transport.sentFrames().count >= count }
 }
 
 /// Exercises `GatewaySession`'s create→attach handshake (tasks 7.1/7.2):
@@ -952,10 +964,36 @@ struct GatewaySessionTests {
     /// scoped to *this* manifestation only — not a falsifying one: removing
     /// `routeFromPump`'s generation guard does not make it fail, for the
     /// same reason the `finishPump` door's removal does not.
+    ///
+    /// Flaky under a full suite run at roughly 1-in-3: the two waits after
+    /// `enqueueBatch` below race the reattach connection's *appearance*
+    /// against the pump draining the 50,000-frame backlog concurrently with
+    /// `close()`/`reattach()`, under whatever load the rest of the suite
+    /// (~41 other suites in parallel) puts on the machine. `waitUntil`'s
+    /// default 2s readiness deadline is not enough headroom for that under
+    /// load. The backlog is the actual stress this test exists to apply and
+    /// stays exactly as sized; `backlogDrainReadinessTimeout` below only
+    /// widens how long the two post-backlog waits are willing to give the
+    /// reattach connection to appear, which the assertions this test makes
+    /// (cursor correctness, no leaked backlog frame) do not depend on.
     @Test
     func aSupersededPumpsBufferedBacklogDoesNotCorruptTheStreamOrCursorAReattachJustInstalled() async throws {
         let factory = DelayedFirstTransportFactory(firstCloseDelay: .milliseconds(300))
         let session = GatewaySession(makeTransport: factory.makeTransport)
+
+        // Readiness deadline for the two waits below, taken after the
+        // 50,000-frame backlog is enqueued while `close()`/`reattach()` race
+        // it. Unloaded this test completes in ~0.35s. 30s was chosen (not
+        // the 15s floor) after direct evidence that 15s did not have
+        // comfortable margin here: the first full-suite run taken right
+        // after this file was recompiled failed exactly at the 15s mark
+        // (a full-suite recompile plus 42 other suites competing for the
+        // scheduler is worse than the recorded ~1-in-3 baseline, which was
+        // measured against an already-built binary). Widening this costs
+        // only how long a genuine failure takes to surface — it is a
+        // readiness deadline ("has the transport appeared"), not a bound
+        // this test's assertions depend on.
+        let backlogDrainReadinessTimeout: TimeInterval = 30
 
         let handshake = Task {
             try await session.attach(sessionId: "s1", lastSeq: 0)
@@ -984,8 +1022,8 @@ struct GatewaySessionTests {
         async let closeResult: Void = session.close()
         async let reattachResult = session.reattach()
 
-        let secondTransport = try #require(await waitForTransport(factory, at: 1))
-        let reattachSent = await waitForSentFrames(secondTransport, atLeast: 1)
+        let secondTransport = try #require(await waitForTransport(factory, at: 1, timeout: backlogDrainReadinessTimeout))
+        let reattachSent = await waitForSentFrames(secondTransport, atLeast: 1, timeout: backlogDrainReadinessTimeout)
         #expect(reattachSent)
         await secondTransport.enqueue(#"{"gw":"attached","generation":2,"headSeq":0,"wire":"0.2"}"#)
 
