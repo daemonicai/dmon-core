@@ -391,52 +391,76 @@ struct HostSupervisorTests {
     /// — the naive version of that fix always published `.normal` there,
     /// which meant the state cycled `.repeatedFailure` → `.normal` →
     /// `.repeatedFailure` on every single iteration of an ongoing crash
-    /// loop. This polls the *raw* published state (not just "was
-    /// `.repeatedFailure` ever seen", which the test above already covers)
-    /// across many restart attempts and asserts `.normal` never reappears
-    /// once the streak has been surfaced.
+    /// loop.
+    ///
+    /// This used to poll `currentSupervisionState` on a 2ms timer against a
+    /// fixed 0.6s wall-clock window — sampling, not forcing: on a slow CI
+    /// runner the loop could fail at its own guard (never observing even
+    /// the *first* `.repeatedFailure` within the window) before ever
+    /// exercising the flicker property, and even when it did keep up, a
+    /// sample taken every 2ms can step clean over a state that is published
+    /// and immediately overwritten between two ticks.
+    ///
+    /// Forces the mechanism instead, the same way
+    /// `HealthMonitorTests.runRepeatsCheckOnceAndStopsOnCancellation` does
+    /// for the sibling health-check store: `ChildSupervisionStore.updates()`
+    /// is an unbounded-buffered `AsyncStream` that yields once per
+    /// `publish(_:for:)` call, including a no-op republish — so consuming it
+    /// misses no transition regardless of runner speed, unlike polling on an
+    /// interval clock. `sleep: { _ in }` (the same injection point
+    /// `repeatedImmediateCrashesRequestAnEscalatingCappedDelaySequence` and
+    /// the crash-restart-storm test already use) makes each restart attempt
+    /// run back-to-back rather than waiting out `RestartBackoff`'s real,
+    /// exponentially growing delay — so a fixed, small number of restart
+    /// cycles is reachable quickly on any runner, fast or slow.
     @Test
     func repeatedFailureDoesNotFlickerBackToNormalBetweenRestartAttempts() async throws {
         let descriptor = Self.descriptor(id: "flicker-child", command: "exit 1")
+        let store = ChildSupervisionStore()
         let supervisor = HostSupervisor(
             descriptors: [descriptor],
-            store: ChildSupervisionStore(),
+            store: store,
             backoff: RestartBackoff(initial: 0.02, maximum: 1000, stabilityThreshold: 999),
-            repeatedFailureThreshold: 2
+            repeatedFailureThreshold: 2,
+            sleep: { _ in }
         )
 
+        // Subscribed before `start()`, so the unbounded buffer holds every
+        // publish from this child's very first start onward — nothing
+        // between subscribing and the first `iterator.next()` call below can
+        // be missed.
+        let updates = await store.updates()
         await supervisor.start()
 
-        // Breaks out once the invariant has had a solid run of consecutive
-        // confirmations, rather than always sampling to the end of a fixed
-        // window: `consecutiveUnstableCrashes` is monotonically
-        // non-decreasing for an always-crashing child with
-        // `stabilityThreshold` this far out of reach, so once
-        // `.repeatedFailure` has held for many samples in a row there is
-        // nothing further polling could learn — it cannot un-flicker later
-        // if it hasn't already. The `Issue.record` below (for the window
-        // elapsing before even the *first* `.repeatedFailure`) still applies
-        // unchanged — this only shortens the happy path.
-        var observed: [ChildSupervisionState] = []
-        var consecutiveRepeatedFailureSamples = 0
-        let requiredConsecutiveSamples = 20
-        let deadline = Date().addingTimeInterval(0.6)
-        while Date() < deadline {
-            let state = await supervisor.currentSupervisionState(for: descriptor.id)
-            observed.append(state)
-            if case .repeatedFailure = state {
-                consecutiveRepeatedFailureSamples += 1
-                if consecutiveRepeatedFailureSamples >= requiredConsecutiveSamples {
-                    break
+        // Drives a definite number of restart *cycles* (real published
+        // transitions), not a sampling count: the loop only advances on an
+        // actual `publish(_:for:)` call, so it cannot finish early having
+        // observed nothing, and cannot skip a transition that occurred
+        // between two iterations — there is no "between", every one is
+        // delivered. `withTimeout` here is purely a hang guard against a
+        // genuine production regression (e.g. restarts stopping
+        // altogether), not a substitute for the property assertion below.
+        let observed: [ChildSupervisionState]? = await withTimeout(10) {
+            var iterator = updates.makeAsyncIterator()
+            var states: [ChildSupervisionState] = []
+            var repeatedFailureCount = 0
+            while repeatedFailureCount < 15 {
+                guard let snapshot = await iterator.next() else { break }
+                guard let state = snapshot[descriptor.id] else { continue }
+                states.append(state)
+                if case .repeatedFailure = state {
+                    repeatedFailureCount += 1
                 }
-            } else {
-                consecutiveRepeatedFailureSamples = 0
             }
-            try? await Task.sleep(nanoseconds: 2_000_000)
+            return states
         }
 
         _ = await supervisor.shutdown()
 
+        guard let observed else {
+            Issue.record("timed out waiting for 15 .repeatedFailure cycles")
+            return
+        }
         guard let firstRepeatedFailureIndex = observed.firstIndex(where: {
             if case .repeatedFailure = $0 { return true }
             return false

@@ -7,19 +7,30 @@ struct HealthMonitorTests {
     /// The scenario's other half: a hung check must not block *other*
     /// children. One descriptor's probe hangs well past its own timeout; two
     /// others take real, non-trivial latency (not "instant") before
-    /// resolving. Serially this would take at least the hung check's own
-    /// bound plus both healthy latencies — concurrently it takes close to
-    /// the slowest single check. The asserted bound sits strictly between
-    /// the two, so a regression to sequential fan-out fails this test rather
-    /// than merely running slower than expected.
+    /// resolving.
+    ///
+    /// Concurrency is observed directly, not inferred from wall-clock
+    /// duration: a slow CI runner can inflate elapsed time past even the
+    /// *serial* bound, at which point no threshold — however wide — could
+    /// still distinguish concurrent fan-out from sequential fan-out, and
+    /// widening it further would only convert this into a test that can
+    /// never fail for its own reason. `inFlight` is incremented on entry to
+    /// every probe and decremented on exit, so its peak is a property of
+    /// `checkOnce`'s own implementation, not of how fast the machine
+    /// happens to be: serial fan-out can never raise it above 1, while
+    /// concurrent fan-out across three descriptors raises it to 3.
     @Test
     func aHungCheckPublishesFailureWithoutBlockingOtherChildren() async {
+        let inFlight = InFlightTracker()
         let checker = HealthChecker(httpProbe: { url in
+            await inFlight.enter()
             if url.absoluteString.contains("hangs") {
                 try? await Task.sleep(nanoseconds: 3_600_000_000_000)
+                await inFlight.exit()
                 return true
             }
             try? await Task.sleep(nanoseconds: 150_000_000) // 150ms of real latency
+            await inFlight.exit()
             return true
         })
         let store = ChildHealthStore()
@@ -31,14 +42,13 @@ struct HealthMonitorTests {
             ChildDescriptor.stub(id: "healthy-b", timeout: 5)
         ]
 
-        let clock = ContinuousClock()
-        let start = clock.now
         await monitor.checkOnce(entities)
-        let elapsed = start.duration(to: clock.now)
 
-        // Serial: >= 0.05s (hung check's own bound) + 0.15s + 0.15s = 0.35s.
-        // Concurrent: close to the slowest single check, ~0.15s.
-        #expect(elapsed < .milliseconds(300))
+        let peakConcurrentChecks = await inFlight.peak
+        #expect(
+            peakConcurrentChecks > 1,
+            "expected checkOnce to run checks concurrently; saw a peak of \(peakConcurrentChecks) in flight at once"
+        )
         #expect(await store.health(for: "hangs") == .unhealthy)
         #expect(await store.health(for: "healthy-a") == .healthy)
         #expect(await store.health(for: "healthy-b") == .healthy)
@@ -98,6 +108,26 @@ struct HealthMonitorTests {
         // completion without falling into the same trap `withTimeout` itself
         // exists to avoid.
         await task.value
+    }
+}
+
+/// Counts probes currently in flight, tracking the high-water mark. An
+/// `actor` because `HealthChecker`'s `httpProbe` closure is `@Sendable` and
+/// called concurrently from `checkOnce`'s `withTaskGroup` — a plain counter
+/// mutated from multiple tasks without synchronization would itself be the
+/// data race this test exists to avoid introducing while testing for
+/// concurrency.
+private actor InFlightTracker {
+    private var current = 0
+    private(set) var peak = 0
+
+    func enter() {
+        current += 1
+        peak = max(peak, current)
+    }
+
+    func exit() {
+        current -= 1
     }
 }
 
