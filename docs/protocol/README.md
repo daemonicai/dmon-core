@@ -248,8 +248,9 @@ the core to finish processing it):
 ```
 
 An ack therefore implies the core received the command. If the write to the core fails, the
-gateway sends no ack and closes the connection (`4500`) instead — treat a missing ack as
-"the core never got this command" and resend it on reconnect.
+gateway sends no ack and closes the connection (`4500`) instead. A missing ack means the
+command may not have reached the core — resend it on reconnect regardless; deduplication
+makes the resend safe either way.
 
 ### 5.2 Receiving a result
 
@@ -271,7 +272,7 @@ reconnect: you may resend a command that was already delivered before the discon
 gateway deduplicates commands by `id` within a session: if the original reached the core, a
 resent command with the same `id` is not forwarded a second time and the gateway re-acks it
 so a client that missed the first ack still learns the command was received; if the original
-did not reach the core (no ack was ever sent), the resend is admitted and forwarded normally
+did not reach the core, the resend is admitted and forwarded normally
 (GW-REQ: Command idempotency across reconnects).
 
 ### 5.3 Streaming events
