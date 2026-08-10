@@ -61,7 +61,7 @@
 
 ## 9. Protocol comment correction
 
-- [ ] 9.1 In `core/Dmon.Protocol/Gateway/ControlFrames.cs`, correct the stale annotations: `AttachedFrame`'s "issued here but not enforced until Group 6" and `AckFrame`'s "dedup logic is Group 5". Both are implemented — `CommandAdmission { Accepted, Duplicate }` backs `SessionHandler.TryAdmitCommand`, and `SessionHandler.Attach` evicts, fences and aborts the prior connection. Re-verify against the code before editing. **Comments only** — no behaviour change and no spec delta. Run `env -u MEKO_API_KEY make test` (the live-Meko smoke test hangs ~90s when `MEKO_API_KEY` is set).
+- [x] 9.1 In `core/Dmon.Protocol/Gateway/ControlFrames.cs`, correct the stale annotations: `AttachedFrame`'s "issued here but not enforced until Group 6" and `AckFrame`'s "dedup logic is Group 5". Both are implemented — `CommandAdmission { Accepted, Duplicate }` backs `SessionHandler.TryAdmitCommand`, and `SessionHandler.Attach` evicts, fences and aborts the prior connection. Re-verify against the code before editing. **Comments only** — no behaviour change and no spec delta. Run `env -u MEKO_API_KEY make test` (the live-Meko smoke test hangs ~90s when `MEKO_API_KEY` is set).
 
 ## 10. CI, and doc/spec sync
 

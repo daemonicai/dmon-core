@@ -53,8 +53,9 @@ public sealed record AttachedFrame
     public string Gw => "attached";
 
     /// <summary>
-    /// Monotonically increasing counter incremented on each Attach. Group 6 uses this
-    /// to fence stale connections; issued here but not enforced until Group 6.
+    /// Monotonically increasing counter incremented on each Attach. The gateway fences stale
+    /// connections by this value: attaching a new connection for the session evicts and aborts
+    /// the prior one, so only the connection holding the current generation may keep sending.
     /// </summary>
     [JsonPropertyName("generation")]
     public required long Generation { get; init; }
@@ -77,7 +78,11 @@ public sealed record AttachedFrame
 }
 
 /// <summary>
-/// Gateway → client: command acknowledged. Defined here; generation/dedup logic is Group 5.
+/// Gateway → client: command acknowledged. A client may safely resend a command whose ack
+/// it never saw: if the original reached core, the gateway recognises the resend by
+/// <c>id</c> and does not forward it again; if it did not, the resend is admitted and
+/// forwarded as normal. Either way the command is delivered to core at most once and never
+/// silently dropped.
 /// </summary>
 public sealed record AckFrame
 {
