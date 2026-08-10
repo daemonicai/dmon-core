@@ -32,3 +32,5 @@ targets:
         product: GatewayClient
       - package: DmonHome
         product: Power
+      - package: DmonHome
+        product: DeviceKeys

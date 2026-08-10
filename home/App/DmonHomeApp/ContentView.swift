@@ -9,13 +9,9 @@ struct ContentView: View {
     private let wireVersion = WireVersion.current
 
     /// Owned by `AppDelegate` and handed down by reference — `ContentView`
-    /// never constructs one itself. See `ChildStatusObserver`'s doc comment
-    /// for why that matters.
-    let statusObserver: ChildStatusObserver
-
-    /// Same ownership rule as `statusObserver` — see `ChildLogObserver`'s
-    /// doc comment.
-    let logObserver: ChildLogObserver
+    /// never constructs one itself. See `AppObservers`' doc comment for why
+    /// that matters.
+    let observers: AppObservers
     @State private var microphoneAuthorization = MicrophoneAuthorizationModel()
     @Environment(\.scenePhase) private var scenePhase
 
@@ -30,12 +26,17 @@ struct ContentView: View {
             Divider()
                 .padding(.vertical, 4)
 
-            SupervisedChildrenView(statuses: statusObserver.statuses)
+            SupervisedChildrenView(statuses: observers.status.statuses)
 
             Divider()
                 .padding(.vertical, 4)
 
-            ChildLogPaneView(statuses: statusObserver.statuses, buffers: logObserver.buffers)
+            ChildLogPaneView(statuses: observers.status.statuses, buffers: observers.log.buffers)
+
+            Divider()
+                .padding(.vertical, 4)
+
+            GatewaySessionView(snapshot: observers.session.snapshot)
 
             Divider()
                 .padding(.vertical, 4)
@@ -154,6 +155,106 @@ private struct ChildLogSectionView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+/// The gateway connection's own state — not connected / connecting / attached (with session
+/// id) / dropped (with its cause) / connect failed (with its reason), the "Health is visible"
+/// scenario's counterpart for the gateway session itself. Pure rendering only, same as
+/// `SupervisedChildrenView`: `snapshot` already arrives decided by `SessionCoordinator`, this
+/// view only labels it.
+///
+/// No connect/reconnect controls here — B4's job, and deliberately not a single "reconnect"
+/// button even then: from `.dropped`, `connect()` and `reattach()` are two different verbs
+/// (`GatewayConnectionState.dropped`'s own doc comment), and a control added now would collapse
+/// that distinction before B4 gets to draw it.
+private struct GatewaySessionView: View {
+    let snapshot: SessionSnapshot?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Gateway")
+                .font(.headline)
+            Text(connectionLabel)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var connectionLabel: String {
+        (snapshot?.connection ?? .idle).dmonHomeLabel
+    }
+}
+
+extension GatewayConnectionState {
+    var dmonHomeLabel: String {
+        switch self {
+        case .idle:
+            "not connected"
+        case .connecting:
+            "connecting…"
+        case .attached(let sessionId):
+            "attached (session \(sessionId))"
+        case .dropped(let cause):
+            "dropped — \(cause.dmonHomeLabel)"
+        case .connectFailed(let failure):
+            "connect failed — \(failure.dmonHomeLabel)"
+        }
+    }
+}
+
+extension GatewayConnectionState.DisconnectCause {
+    var dmonHomeLabel: String {
+        switch self {
+        case .closedByPeer(let code, let reason):
+            "closed by peer (\(code.dmonHomeLabel)): \(reason)"
+        case .closedLocally:
+            "closed locally"
+        case .streamEnded:
+            "stream ended"
+        case .other(let message):
+            message
+        }
+    }
+}
+
+extension GatewayConnectionState.ConnectFailure {
+    var dmonHomeLabel: String {
+        switch self {
+        case .createRejected(let code, let message):
+            "rejected (\(code)): \(message)"
+        case .wireVersionMismatch(let message):
+            message
+        case .closedByPeer(let code, let reason):
+            "closed by peer (\(code.dmonHomeLabel)): \(reason)"
+        case .other(let message):
+            message
+        }
+    }
+}
+
+/// Distinguishes the gateway's close codes rather than collapsing every peer close into
+/// "disconnected" — 4409 (superseded by a newer attach), 4404 (unknown session), and 4500
+/// (core failure) mean genuinely different things to whoever is reading this.
+extension GatewayCloseCode {
+    var dmonHomeLabel: String {
+        switch self {
+        case .normal:
+            "normal closure"
+        case .messageTooBig:
+            "message too big"
+        case .protocolViolation:
+            "protocol violation"
+        case .unknownSession:
+            "unknown session"
+        case .supersededByNewerAttach:
+            "superseded by a newer attach"
+        case .coreFailure:
+            "core failure"
+        case .other(let code):
+            "code \(code)"
+        }
     }
 }
 

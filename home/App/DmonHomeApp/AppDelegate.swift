@@ -1,10 +1,12 @@
 import AppKit
+import DeviceKeys
+import GatewayClient
 import Power
 import Supervisor
 import os
 
-/// Owns the app's `HostRuntime` for its whole lifetime, and is the one place
-/// that can bound app-exit correctly.
+/// Owns the app's `HostRuntime` and `SessionCoordinator` for its whole
+/// lifetime, and is the one place that can bound app-exit correctly.
 ///
 /// `applicationWillTerminate` is synchronous and cannot `await` an actor —
 /// calling into `HostRuntime.shutdownForTermination()` from there would
@@ -16,14 +18,18 @@ import os
 final class AppDelegate: NSObject, NSApplicationDelegate {
     let hostRuntime: HostRuntime
 
-    /// Constructed exactly once here, alongside `hostRuntime`, and handed to
-    /// `ContentView` by reference — see `ChildStatusObserver`'s own doc
-    /// comment for why that single-construction guarantee matters.
-    let statusObserver: ChildStatusObserver
+    /// Owns the create→attach handshake and its inbound stream (`GatewayClient`'s
+    /// `SessionCoordinator`) over the real device-key-authenticated transport
+    /// (`DeviceKeys`' `AuthenticatedTransportFactory`). Passes no `agent:` — the
+    /// host picks its own default; naming one here would be a policy value this
+    /// app target has no business inventing.
+    let coordinator: SessionCoordinator
 
-    /// Same single-construction guarantee as `statusObserver`, for the same
-    /// reason — see `ChildLogObserver`'s own doc comment.
-    let logObserver: ChildLogObserver
+    /// Constructed exactly once here, alongside `hostRuntime` and
+    /// `coordinator`, and handed to `ContentView` by reference — see
+    /// `AppObservers`' own doc comment for why that single-construction
+    /// guarantee matters and how it is enforced.
+    let observers: AppObservers
 
     /// The activity-assertion policy (spec: "The host holds an activity
     /// assertion while the gateway is enabled"). Constructed alongside
@@ -36,11 +42,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private let logger = Logger(subsystem: "ai.daemonic.dmon-home", category: "AppDelegate")
 
+    /// Watches for the network gateway child's first `.healthy` report and calls
+    /// `coordinator.connect()` exactly once — see `connectOnceNetworkGatewayIsHealthy()`.
+    /// Cancelled synchronously at the top of `applicationShouldTerminate`, before that method
+    /// does anything else — see that method's own comment for why cancelling this alone is
+    /// not sufficient by itself, and `connectOnceNetworkGatewayIsHealthy()`'s for the loop-body
+    /// check this cancellation is paired with.
+    private var connectTriggerTask: Task<Void, Never>?
+
     override init() {
         let hostRuntime = HostRuntime()
         self.hostRuntime = hostRuntime
-        self.statusObserver = ChildStatusObserver(hostRuntime: hostRuntime)
-        self.logObserver = ChildLogObserver(hostRuntime: hostRuntime)
+
+        let endpoint = GatewayEndpoint(url: GatewayEndpoint.defaultURL)
+        let fileReader = DevicesFileReader()
+        let secretStore = KeychainDeviceKeySecretStore()
+        let policy = DeviceAuthPolicy(fileReader: fileReader, secretStore: secretStore)
+        let provisioner = DeviceKeyProvisioner(fileReader: fileReader, secretStore: secretStore)
+        let transportFactory = AuthenticatedTransportFactory(endpoint: endpoint, policy: policy, provisioner: provisioner)
+        let session = GatewaySession(makeTransport: transportFactory.makeTransport)
+        let coordinator = SessionCoordinator(session: session)
+        self.coordinator = coordinator
+
+        self.observers = AppObservers(hostRuntime: hostRuntime, coordinator: coordinator)
         self.activityPolicy = GatewayActivityPolicy()
         self.terminationBudget = hostRuntime.worstCaseShutdownDuration + AppDelegate.terminationBudgetMargin
         super.init()
@@ -100,10 +124,72 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         Task { await hostRuntime.start() }
         Task { await activityPolicy.apply(gatewayEnabled: hostRuntime.isGatewayEnabled) }
+        connectTriggerTask = Task { [weak self] in
+            await self?.connectOnceNetworkGatewayIsHealthy()
+        }
+    }
+
+    /// Product Owner decision, 2026-08-09: auto-connect once, manual reconnect. Watches
+    /// `hostRuntime.statusUpdates()` and calls `coordinator.connect()` the first time the
+    /// network gateway child (`ChildInventory.networkGateway.id`, matched by id, never by
+    /// display name) reports `.healthy`, then stops watching.
+    ///
+    /// Not at launch: a cold-spawned gateway takes up to `HostRuntime`'s health-check
+    /// interval (default 30s) to answer, and attaching before that fails for a reason that
+    /// tells nobody anything.
+    ///
+    /// This at-most-once guard is the only decision made here — a policy would not be
+    /// permitted in the app target, but deciding *when* to call a package's own method once
+    /// is. Everything about what `connect()` itself does — the handshake, its retry
+    /// discipline (there is none; a second, later reconnect is a distinct, manual verb) —
+    /// stays entirely `SessionCoordinator`'s.
+    ///
+    /// **This loop stays live for the whole span of a shutdown, not just before one starts —
+    /// checked, not assumed.** `statusUpdates()` is fed by two forwarding tasks
+    /// `HostRuntime.shutdownForTermination()` cancels only as its *last* step, after
+    /// `supervisor.shutdown()` has already completed; until then a stale `.healthy` from just
+    /// before the kill can still arrive here. The `Task.isCancelled` check below, paired with
+    /// `applicationShouldTerminate` cancelling `connectTriggerTask` synchronously before it
+    /// does anything else, is what keeps that from calling `coordinator.connect()` mid-shutdown
+    /// — every value that arrives after cancellation is set now returns instead of connecting.
+    /// That still leaves one gap neither app-target fix can reach: a call to `connect()` that
+    /// was already past this check — genuinely suspended inside it — when `close()` runs
+    /// concurrently on `SessionCoordinator`'s own actor. `SessionCoordinator.isClosed` is the
+    /// structural fix for that gap; see its own doc comment.
+    private func connectOnceNetworkGatewayIsHealthy() async {
+        for await statuses in await hostRuntime.statusUpdates() {
+            guard !Task.isCancelled else {
+                return
+            }
+            guard let gateway = statuses.first(where: { $0.id == ChildInventory.networkGateway.id }) else {
+                continue
+            }
+            guard gateway.health == .healthy else {
+                continue
+            }
+            await coordinator.connect()
+            return
+        }
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        // Cancelled synchronously, before either `Task` below is even created, so the flag is
+        // already set for `connectOnceNetworkGatewayIsHealthy()`'s own `Task.isCancelled` check
+        // no matter how the two happen to be scheduled relative to each other — see that
+        // method's doc comment for why cancellation alone is not sufficient.
+        connectTriggerTask?.cancel()
         Task { @MainActor in
+            // Closed *before* `shutdownForTermination()`, not after — task 4.5's own
+            // reverse-startup-order rule, applied consistently: `networkGateway` is
+            // `startupOrder: 0`, the session is established after it and depends on it, so
+            // reverse-dependency order tears the session down before that child, exactly as it
+            // would for a sibling child. This is also the quieter sequence, not a slower one —
+            // `WebSocketGatewayTransport.close()` bottoms out in a non-blocking
+            // `task.cancel(with: .normalClosure, reason: nil)` that never waits on the peer, so
+            // closing first costs nothing extra; it only changes whether `ndmon` sees an orderly
+            // client disconnect while it is still alive, instead of its process being killed out
+            // from under a connection this app never told it was ending.
+            await coordinator.close()
             let refused = await hostRuntime.shutdownForTermination()
             await activityPolicy.apply(gatewayEnabled: false)
             replyToTerminate(refused: refused)

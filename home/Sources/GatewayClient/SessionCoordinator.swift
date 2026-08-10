@@ -123,12 +123,53 @@ public actor SessionCoordinator {
     /// that end and run concurrently with `close()` still in progress. This
     /// flag is what keeps that branch from publishing `.dropped(.streamEnded)`
     /// over the top of the `.closedLocally` `close()` is about to publish
-    /// itself: it is set synchronously, before `close()`'s only suspension
-    /// point, so every actor-isolated caller that could observe it —
-    /// including `consume(_:)`, running as its own `Task` — sees it as
-    /// `true` for the entire window in which the stream could end as a
-    /// side effect of this call.
+    /// itself.
+    ///
+    /// **Being set before `close()`'s own suspension point is necessary but not
+    /// sufficient — `close()` also awaits `consume(_:)`'s own task to actually finish
+    /// before this flag is cleared, and that second half is what this actually depends
+    /// on.** Actor isolation serializes *execution*, not the order in which two
+    /// independent tasks' suspended continuations happen to be rescheduled — there is no
+    /// language guarantee that `consume(_:)`'s continuation (resumed the moment
+    /// `session.close()` finishes the stream, partway through its own body) reaches this
+    /// actor and runs its `guard !isClosing` check *before* `close()`'s own continuation
+    /// resumes and reaches the code that clears this flag. Forced by hand: adding an
+    /// unrelated actor call immediately after `close()` returns (B3 review round 1,
+    /// `connectAfterCloseIsANoOpAndOpensNoConnection`) made the *other* ordering observable
+    /// at roughly even odds in isolation — `consume(_:)`'s check running late, after this
+    /// flag had already been cleared, and overwriting `.dropped(.closedLocally)` with
+    /// `.dropped(.streamEnded)`. `close()` closes that gap not by hoping for a favourable
+    /// race but by `await`ing `consume(_:)`'s task directly before clearing this flag — see
+    /// `close()`'s own doc comment.
     private var isClosing = false
+
+    /// `true` from the moment `close()` is called, for the rest of this actor's lifetime —
+    /// what makes `close()` **terminal**, not merely another state transition. Set
+    /// synchronously at the top of `close()`, before that method's first `await`, the same
+    /// placement discipline `attachInFlight`/`isClosing` already use elsewhere in this actor
+    /// so that every call scheduled on this actor after that point observes it.
+    ///
+    /// `connect()` and `reattach()` both check this twice: once at entry (catching a call that
+    /// starts after `close()` has already run, the ordinary case) and once more immediately
+    /// after their own handshake `await` returns (catching a call that was already past its
+    /// entry check — genuinely suspended inside `session.start()`/`session.reattach()` — when
+    /// `close()` ran concurrently on this actor during that suspension; actor isolation
+    /// serializes execution, not suspension, so `close()` can and does run to completion in
+    /// that window). The second check is what keeps a handshake that raced past `close()` from
+    /// resurrecting a connection `close()` already ended: on that path this coordinator tears
+    /// the session back down (`session.close()`) rather than publishing `.attached`.
+    ///
+    /// **This is a deliberate one-way door, not an oversight to work around.** `close()` is
+    /// called from exactly one place today — `AppDelegate.applicationShouldTerminate`, the
+    /// app's own shutdown path — and nothing else calls it. A coordinator that could still
+    /// `connect()`/`reattach()` after `close()` would need to answer what "closed, but
+    /// reconnectable" means for `isClosing`, `pumpGeneration`-equivalent bookkeeping, and every
+    /// caller of `close()` that currently relies on it being the end of this session's story;
+    /// nothing in this change needs that answered. If a future UI wants a disconnect-then-
+    /// reconnect affordance, that is a **distinct verb** to add then (e.g. `disconnect()`,
+    /// leaving `connect()`/`reattach()` legal afterwards) — not a reinterpretation of what
+    /// `close()` means today.
+    private var isClosed = false
 
     private var subscribers: [Int: AsyncStream<SessionSnapshot>.Continuation] = [:]
     private var nextSubscriberToken = 0
@@ -168,6 +209,30 @@ public actor SessionCoordinator {
         subscribers.count
     }
 
+    /// Test-only hook, called (if set) at the one point `connect()`/`reattach()` name in their
+    /// own doc comments: immediately after reading `session.sessionId`, immediately before the
+    /// `isClosed` recheck that guards `connectionState = .attached(...)`. `nil` in production,
+    /// which is what keeps this from adding any timing behaviour to the real path —
+    /// `raceWindowHookForTesting?()` short-circuits without suspending when there is nothing to
+    /// call. Exists to let a test genuinely park a `connect()`/`reattach()` call in that exact
+    /// window (a `CheckedContinuation`-based double, the same technique
+    /// `GatewaySessionTests.GatedTransportFactory` uses to force its own reentrancy windows —
+    /// see `SessionCoordinatorTests.GatedRaceWindowHook` and its two callers,
+    /// `closeWinsAConnectThatRacesPastTheEntryCheckIntoThePostHandshakeWindow` and
+    /// `closeWinsAReattachThatRacesPastTheEntryCheckIntoThePostHandshakeWindow`), rather than
+    /// reasoning about whether the window is reachable or hand-timing a flaky reproduction.
+    /// Set only through `setRaceWindowHookForTesting(_:)` — see that method's doc comment for
+    /// why a plain property assignment from outside this actor is not an option.
+    private var raceWindowHookForTesting: (@Sendable () async -> Void)?
+
+    /// The only way to set `raceWindowHookForTesting` from outside this actor. A method rather
+    /// than direct property assignment: actor isolation permits an external caller to *read* an
+    /// actor's stored property through an `await`-prefixed access (as `subscriberCountForTesting`
+    /// above already does), but not to *write* one directly — only through an isolated method.
+    func setRaceWindowHookForTesting(_ hook: (@Sendable () async -> Void)?) {
+        raceWindowHookForTesting = hook
+    }
+
     private func publish() {
         let current = snapshot()
         for subscriber in subscribers.values {
@@ -179,14 +244,37 @@ public actor SessionCoordinator {
     /// `.connectFailed`, and `.dropped` — every other state is a no-op,
     /// deliberately silent rather than thrown: a duplicate call from an app
     /// target status trigger (§B3) must be harmless, not something a caller
-    /// has to guard against itself.
+    /// has to guard against itself. Also a silent no-op once `close()` has
+    /// ever been called on this coordinator — see `isClosed`'s own doc
+    /// comment for why that is a one-way door, and for the `isClosed`
+    /// recheck below that makes it hold against a call already in flight
+    /// when `close()` runs.
     ///
     /// `connectionState = .connecting` is set, and published, synchronously
     /// before this method's first `await` — so a second, concurrent call
     /// to this same method, once it is scheduled on this actor, always
     /// observes `.connecting` and no-ops, regardless of how the two calls
     /// happen to be interleaved by the scheduler.
+    ///
+    /// **Every `await` between the entry guard and `connectionState = .attached(...)`
+    /// is a window a concurrent `close()` can run to completion in — actor isolation
+    /// serializes execution, not suspension.** Both of this method's own suspensions —
+    /// `session.start(agent:)` (the whole handshake) and `session.sessionId` (a genuine
+    /// cross-actor read: `GatewaySession.sessionId` is `public private(set)`, not
+    /// `nonisolated`) — are downstream of exactly one `isClosed` recheck, placed
+    /// immediately after the *later* of the two with nothing that suspends between it
+    /// and the mutation it guards. That ordering — read `sessionId` first, recheck
+    /// once, right before the mutation — is deliberately preferred over rechecking after
+    /// each suspension individually: two checks would still leave the `sessionId` read
+    /// itself unguarded (the exact gap review round 2 found in an earlier version of
+    /// this method, one suspension past a check that looked sufficient), where this
+    /// shape cannot regress that way again — there is structurally only one place left
+    /// for a suspension to reopen the window, and it is checked. Proved by forcing the
+    /// window open, not by this reasoning alone — see `raceWindowHookForTesting`'s own
+    /// doc comment and this module's test suite,
+    /// `closeWinsAConnectThatRacesPastTheEntryCheckIntoThePostHandshakeWindow`.
     public func connect() async {
+        guard !isClosed else { return }
         switch connectionState {
         case .connecting, .attached:
             return
@@ -197,22 +285,41 @@ public actor SessionCoordinator {
         connectionState = .connecting
         publish()
 
+        let stream: AsyncThrowingStream<GatewayInboundItem, Error>
         do {
-            let stream = try await session.start(agent: agent)
-            guard let sessionId = await session.sessionId else {
-                connectionState = .connectFailed(
-                    .other(message: "GatewaySession.start(agent:) returned a stream without recording a session id")
-                )
-                publish()
-                return
-            }
-            connectionState = .attached(sessionId: sessionId)
-            publish()
-            startConsuming(stream)
+            stream = try await session.start(agent: agent)
         } catch {
+            guard !isClosed else { return }
             connectionState = .connectFailed(classifyConnectFailure(error))
             publish()
+            return
         }
+
+        let sessionId = await session.sessionId
+        await raceWindowHookForTesting?()
+
+        // `close()` may have run to completion on this actor during either suspension
+        // above — see `isClosed`'s own doc comment, and this method's own doc comment
+        // for why one check here, with nothing that suspends between it and the
+        // mutation below, is enough. A handshake that raced past it must not resurrect
+        // a connection `close()` already ended; tear the freshly-established session
+        // back down instead of publishing `.attached` over `close()`'s own
+        // `.dropped(.closedLocally)`.
+        guard !isClosed else {
+            await session.close()
+            return
+        }
+
+        guard let sessionId else {
+            connectionState = .connectFailed(
+                .other(message: "GatewaySession.start(agent:) returned a stream without recording a session id")
+            )
+            publish()
+            return
+        }
+        connectionState = .attached(sessionId: sessionId)
+        publish()
+        startConsuming(stream)
     }
 
     /// Submits `message` on the current attach connection. Never checks
@@ -260,7 +367,14 @@ public actor SessionCoordinator {
     /// `.connectFailed` reaches `GatewaySession.reattach()` with
     /// `sessionId != nil` and `!isAttached`, exactly the state that gate
     /// accepts.
+    ///
+    /// **Same shape as `connect()`, deliberately not diverging** — see that method's own
+    /// doc comment for why exactly one `isClosed` recheck, placed after both of this
+    /// method's suspensions (`session.reattach()`, then `session.sessionId`) with nothing
+    /// that suspends between it and `connectionState = .attached(...)`, is what closes the
+    /// window a concurrent `close()` could otherwise win into.
     public func reattach() async {
+        guard !isClosed else { return }
         switch connectionState {
         case .idle, .connecting, .attached:
             return
@@ -271,28 +385,55 @@ public actor SessionCoordinator {
         connectionState = .connecting
         publish()
 
+        let stream: AsyncThrowingStream<GatewayInboundItem, Error>
         do {
-            let stream = try await session.reattach()
-            guard let sessionId = await session.sessionId else {
-                connectionState = .connectFailed(
-                    .other(message: "GatewaySession.reattach() returned a stream without recording a session id")
-                )
-                publish()
-                return
-            }
-            connectionState = .attached(sessionId: sessionId)
-            publish()
-            startConsuming(stream)
+            stream = try await session.reattach()
         } catch {
+            guard !isClosed else { return }
             connectionState = .connectFailed(classifyConnectFailure(error))
             publish()
+            return
         }
+
+        let sessionId = await session.sessionId
+        await raceWindowHookForTesting?()
+
+        // See `connect()`'s own comment at the equivalent point — same race, same reason,
+        // same fix: `close()` may have run to completion on this actor during either
+        // suspension above.
+        guard !isClosed else {
+            await session.close()
+            return
+        }
+
+        guard let sessionId else {
+            connectionState = .connectFailed(
+                .other(message: "GatewaySession.reattach() returned a stream without recording a session id")
+            )
+            publish()
+            return
+        }
+        connectionState = .attached(sessionId: sessionId)
+        publish()
+        startConsuming(stream)
     }
 
     /// Closes the underlying session and publishes `.dropped(.closedLocally)`
     /// — always, regardless of what state this coordinator was in
     /// beforehand, matching `GatewaySession.close()`'s own "safe to call
-    /// any time" discipline.
+    /// any time" discipline. **Terminal**: once this method is called,
+    /// `connect()` and `reattach()` are permanently no-ops on this
+    /// coordinator — see `isClosed`'s own doc comment for why that is a
+    /// deliberate one-way door, not an oversight.
+    ///
+    /// `isClosed = true` is the first thing this method does, synchronously,
+    /// before its own first `await` — the same placement discipline
+    /// `isClosing` below uses, and for the same reason: every call scheduled
+    /// on this actor from this point on, including one already suspended
+    /// mid-handshake inside `connect()`/`reattach()`, observes it as `true`
+    /// once it next runs on this actor (see those methods' own comments at
+    /// their post-handshake `isClosed` check for what "observes it" means
+    /// for a call that was already in flight).
     ///
     /// `consumingTask?.cancel()` is defensive, not what actually ends
     /// `consume(_:)`'s loop: a closure-based `AsyncThrowingStream` does not
@@ -303,14 +444,27 @@ public actor SessionCoordinator {
     /// teardown (`GatewaySession.close()`'s own doc comment) — so
     /// `consume(_:)` takes its **normal end-of-stream branch, not its
     /// `catch` branch**, exactly as if the peer had simply stopped sending.
-    /// See `isClosing`'s own doc comment for how that branch is kept from
-    /// publishing `.dropped(.streamEnded)` over the top of this method's
-    /// own `.closedLocally`.
+    ///
+    /// **`await priorConsumingTask?.value` is what actually makes `isClosing`'s
+    /// guarantee true, not merely likely.** `session.close()` returning only proves the
+    /// stream has been *finished*; it says nothing about whether `consume(_:)`'s own
+    /// task — an independent `Task`, not something this call is nested inside — has
+    /// gotten as far as its own `guard !isClosing` check yet (see `isClosing`'s own doc
+    /// comment for the race this closes and how forcing it, not merely reasoning about
+    /// it, is what surfaced this gap). Awaiting it here cannot hang: by this point
+    /// `session.close()` has already finished the stream `consume(_:)` is reading, so
+    /// its `for try await` loop is guaranteed to end promptly, whatever the scheduler's
+    /// timing. This is what lets `isClosing` be cleared, and `.dropped(.closedLocally)`
+    /// published, only *after* `consume(_:)` has already made its own decision — never
+    /// concurrently with it.
     public func close() async {
+        isClosed = true
         isClosing = true
-        consumingTask?.cancel()
+        let priorConsumingTask = consumingTask
+        priorConsumingTask?.cancel()
         consumingTask = nil
         await session.close()
+        await priorConsumingTask?.value
         connectionState = .dropped(.closedLocally)
         isClosing = false
         publish()

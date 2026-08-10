@@ -11,6 +11,18 @@ public struct DeviceAuthConnectionRefused: Error, Sendable, Equatable {
     public let message: String
 }
 
+/// `SessionCoordinator.describe(_:)` (`GatewayClient`) prefers a `CustomStringConvertible`
+/// description over `String(describing:)` for exactly this reason: without this conformance,
+/// this module's caller-facing refusal renders as a type-name-and-fields dump instead of the
+/// operator-actionable `message` above. `description` returns `message` unchanged — this type
+/// never rewrites, prefixes, or decorates it, the same discipline this type's own doc comment
+/// states for `message` itself.
+extension DeviceAuthConnectionRefused: CustomStringConvertible {
+    public var description: String {
+        message
+    }
+}
+
 /// Resolves what to present on connect (`DeviceAuthPolicy`), provisioning a fresh credential
 /// when one is required and this host holds none (`DeviceKeyProvisioner`), and returns a
 /// `GatewayTransport` carrying the right `Authorization` header — or throws

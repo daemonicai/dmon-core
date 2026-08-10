@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+import os
 @testable import GatewayClient
 
 /// Polls `condition` until it is true or `timeout` elapses. Duplicated
@@ -43,6 +44,40 @@ private struct BareUnrecognisedError: Error {}
 /// path from inside this module.
 private struct DescribableConnectFailure: Error, CustomStringConvertible {
     let description: String
+}
+
+/// A hook double that genuinely suspends inside `SessionCoordinator.raceWindowHookForTesting`
+/// — parking on a `CheckedContinuation` until `release()` is called — mirroring
+/// `GatewaySessionTests.GatedTransportFactory`'s own "park for real, don't hand-time it"
+/// technique (that type's own doc comment explains why forcing is preferred over reasoning),
+/// applied to the different suspension point B3 review round 2 named: between
+/// `SessionCoordinator.connect()`/`reattach()` reading `session.sessionId` and their own
+/// `isClosed` recheck.
+private final class GatedRaceWindowHook: Sendable {
+    private let parkedContinuation = OSAllocatedUnfairLock<CheckedContinuation<Void, Never>?>(initialState: nil)
+
+    /// `true` once the hook is genuinely parked awaiting `release()` — the condition a test
+    /// polls for (via `waitUntil`) before racing a `close()` against the suspension.
+    func hasEnteredAndIsParked() -> Bool {
+        parkedContinuation.withLock { $0 != nil }
+    }
+
+    /// Resumes the parked call. A no-op if nothing is parked.
+    func release() {
+        let continuation = parkedContinuation.withLock { box -> CheckedContinuation<Void, Never>? in
+            defer { box = nil }
+            return box
+        }
+        continuation?.resume()
+    }
+
+    var hook: @Sendable () async -> Void {
+        {
+            await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+                self.parkedContinuation.withLock { $0 = continuation }
+            }
+        }
+    }
 }
 
 /// Exercises the package half of tasks 8.1/8.2/8.3: `SessionCoordinator`
@@ -411,6 +446,142 @@ struct SessionCoordinatorTests {
         await coordinator.close()
 
         #expect(await coordinator.snapshot().connection == .dropped(.closedLocally))
+    }
+
+    /// B3 review round 1, blocker 2: `close()` is terminal — nothing calls `connect()` or
+    /// `reattach()` on this coordinator again after it, so a call that reaches this coordinator
+    /// once `close()` has already run must not open a connection. Asserted the strongest way
+    /// available, the same discipline `submittingWhileNeverConnectedRefusesAndKeepsTheTypedTextWithoutOpeningATurn`
+    /// and `aSecondConnectCallIsANoOpAndOpensNoSecondConnection` already use: against the
+    /// factory's own transport count, not merely the published connection state.
+    @Test
+    func connectAfterCloseIsANoOpAndOpensNoConnection() async throws {
+        let factory = RecordingTransportFactory()
+        let session = GatewaySession(makeTransport: factory.makeTransport)
+        let coordinator = SessionCoordinator(session: session)
+
+        var iterator = await coordinator.updates().makeAsyncIterator()
+        _ = await iterator.next()
+
+        _ = try await connectCoordinator(coordinator, factory: factory, iterator: &iterator)
+        #expect(factory.count() == 2)
+
+        await coordinator.close()
+        let countAfterClose = factory.count()
+
+        await coordinator.connect()
+
+        #expect(factory.count() == countAfterClose, "connect() after close() must not open a connection")
+        #expect(await coordinator.snapshot().connection == .dropped(.closedLocally), "close()'s own outcome must survive a later connect()")
+    }
+
+    /// Same guarantee as `connectAfterCloseIsANoOpAndOpensNoConnection`, for `reattach()` —
+    /// the sibling entry point `close()` must lock out identically.
+    @Test
+    func reattachAfterCloseIsANoOpAndOpensNoConnection() async throws {
+        let factory = RecordingTransportFactory()
+        let session = GatewaySession(makeTransport: factory.makeTransport)
+        let coordinator = SessionCoordinator(session: session)
+
+        var iterator = await coordinator.updates().makeAsyncIterator()
+        _ = await iterator.next()
+
+        _ = try await connectCoordinator(coordinator, factory: factory, iterator: &iterator)
+        #expect(factory.count() == 2)
+
+        await coordinator.close()
+        let countAfterClose = factory.count()
+
+        await coordinator.reattach()
+
+        #expect(factory.count() == countAfterClose, "reattach() after close() must not open a connection")
+        #expect(await coordinator.snapshot().connection == .dropped(.closedLocally), "close()'s own outcome must survive a later reattach()")
+    }
+
+    /// B3 review round 2: the one blocker left after round 1's `isClosed` fix. `connect()`'s
+    /// entry check happens before its handshake even starts, but `await session.sessionId` —
+    /// a genuine cross-actor suspension (`GatewaySession.sessionId` is `public private(set)`,
+    /// not `nonisolated`) — used to sit *after* the only recheck, unguarded. The reviewer
+    /// forced a `close()` into exactly that window by temporarily instrumenting `connect()`
+    /// and reverting; this test makes that forcing permanent via `setRaceWindowHookForTesting`,
+    /// parking `connect()` at the real suspension point the fix now rechecks after, and racing
+    /// a `close()` into it for real, rather than trusting the reasoning that the window is
+    /// closed.
+    @Test
+    func closeWinsAConnectThatRacesPastTheEntryCheckIntoThePostHandshakeWindow() async throws {
+        let factory = RecordingTransportFactory()
+        let session = GatewaySession(makeTransport: factory.makeTransport)
+        let coordinator = SessionCoordinator(session: session)
+        let gate = GatedRaceWindowHook()
+        await coordinator.setRaceWindowHookForTesting(gate.hook)
+
+        var iterator = await coordinator.updates().makeAsyncIterator()
+        _ = await iterator.next()
+
+        let connectTask = Task { await coordinator.connect() }
+        _ = try #require(await iterator.next())
+
+        let createTransport = try #require(await waitForTransport(factory, at: 0))
+        await createTransport.enqueue(#"{"gw":"created","sessionId":"s1"}"#)
+        let attachTransport = try #require(await waitForTransport(factory, at: 1))
+        await attachTransport.enqueue(#"{"gw":"attached","generation":1,"headSeq":0,"wire":"0.2"}"#)
+
+        // `connect()` has now completed the handshake, read `sessionId`, and is genuinely
+        // parked in the hook — past its entry check, inside the window round 2 found
+        // unguarded. Proved, not assumed: a bounded poll, not a fixed sleep.
+        let parked = await waitUntil { gate.hasEnteredAndIsParked() }
+        try #require(parked, "connect() must have reached the post-handshake hook before this test can race it")
+
+        await coordinator.close()
+        #expect(await coordinator.snapshot().connection == .dropped(.closedLocally))
+
+        gate.release()
+        await connectTask.value
+
+        #expect(
+            await coordinator.snapshot().connection == .dropped(.closedLocally),
+            "close() must win a connect() that raced past the entry check into the post-handshake window"
+        )
+    }
+
+    /// Same window as `closeWinsAConnectThatRacesPastTheEntryCheckIntoThePostHandshakeWindow`,
+    /// for `reattach()` — the sibling method must not diverge in this shape either.
+    @Test
+    func closeWinsAReattachThatRacesPastTheEntryCheckIntoThePostHandshakeWindow() async throws {
+        let factory = RecordingTransportFactory()
+        let session = GatewaySession(makeTransport: factory.makeTransport)
+        let coordinator = SessionCoordinator(session: session)
+
+        var iterator = await coordinator.updates().makeAsyncIterator()
+        _ = await iterator.next()
+
+        _ = try await connectCoordinator(coordinator, factory: factory, iterator: &iterator)
+        let firstAttachTransport = try #require(factory.transport(at: 1))
+        await firstAttachTransport.simulateClose(code: .normal, reason: "went away")
+        _ = try #require(await iterator.next())
+
+        let gate = GatedRaceWindowHook()
+        await coordinator.setRaceWindowHookForTesting(gate.hook)
+
+        let reattachTask = Task { await coordinator.reattach() }
+        _ = try #require(await iterator.next())
+
+        let secondAttachTransport = try #require(await waitForTransport(factory, at: 2))
+        await secondAttachTransport.enqueue(#"{"gw":"attached","generation":2,"headSeq":0,"wire":"0.2"}"#)
+
+        let parked = await waitUntil { gate.hasEnteredAndIsParked() }
+        try #require(parked, "reattach() must have reached the post-handshake hook before this test can race it")
+
+        await coordinator.close()
+        #expect(await coordinator.snapshot().connection == .dropped(.closedLocally))
+
+        gate.release()
+        await reattachTask.value
+
+        #expect(
+            await coordinator.snapshot().connection == .dropped(.closedLocally),
+            "close() must win a reattach() that raced past the entry check into the post-handshake window"
+        )
     }
 
     @Test

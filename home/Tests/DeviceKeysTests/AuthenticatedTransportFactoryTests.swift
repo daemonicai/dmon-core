@@ -307,4 +307,16 @@ struct AuthenticatedTransportFactoryTests {
 
         _ = GatewaySession(makeTransport: factory.makeTransport)
     }
+
+    /// The B3 gap this pins: `SessionCoordinator.describe(_:)` (`GatewayClient`) renders an
+    /// unrecognised error via `String(describing:)` unless it conforms to
+    /// `CustomStringConvertible`, in which case that description wins. Without this
+    /// conformance a refusal would reach the UI as a struct dump; with it, `description` must
+    /// equal `message` exactly — not merely contain it.
+    @Test
+    func descriptionIsTheMessageUnchanged() {
+        let refusal = DeviceAuthConnectionRefused(message: "delete the stored secret to reprovision")
+        #expect(refusal.description == refusal.message)
+        #expect((refusal as any CustomStringConvertible).description == refusal.message)
+    }
 }
