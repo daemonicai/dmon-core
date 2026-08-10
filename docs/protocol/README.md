@@ -150,6 +150,34 @@ ADR-003 frames; commands you send are forwarded to the core and acknowledged wit
 The gateway accepts `attach` or `create` as the first frame on a connection. Any other
 first frame closes the connection.
 
+### 3.5 Close codes
+
+When the gateway closes a connection itself *with a code*, it is one of the codes below.
+These are part of the wire contract: switch on the numeric code, not on the reason string,
+which is free text for logs.
+
+| Code | Meaning | What to do |
+|------|---------|------------|
+| `4400` | Protocol violation — the first frame was neither `attach` nor `create`, a frame failed to parse, or a binary message was sent (this protocol is text JSONL only). | Fix the client; this is not retryable without a code change on your side. |
+| `4404` | `attach` named a `sessionId` the gateway has no handler for. | Do not retry the same `sessionId`. Start a new session with `create`, or confirm the id with whatever created it. |
+| `4409` | This connection was fenced out by a newer `attach` to the same session ([§4.3](#43-generation-fencing)). | Treat the closed connection as evicted, not as an error to retry on. Open a fresh connection and `attach` again if you still want this session. |
+| `4500` | Either a `create` failed to spawn or hand shake with the core, or — on an already-attached session — a command write to the core failed ([§5.1](#51-sending-a-command)). | On a failed `create`, retry the `create`. On an established session, reconnect and resend the unacknowledged command; deduplication makes the resend safe either way. |
+| `1009` | The standard RFC 6455 code for a message exceeding the gateway's size limit. | Fix the client to stay under the limit; this is not retryable without a code change on your side. |
+
+**A coded close is not the only way a connection ends.** A heartbeat-detected dead connection
+([§4.4](#44-heartbeat)) ends the socket with **no close code at all** — the gateway abandons
+it rather than performing a coded close handshake, so this is not a gap in the table above,
+it is a real third outcome alongside "coded close" and "still connected". (The [§3.2](#32-starting-a-new-session--create)
+`createRejected`/`created` responses also end the transport uncoded, but each is preceded by
+that reply frame, so there is no diagnostic gap there — heartbeat death is the case with
+nothing preceding it.) Treat any drop that
+carries no code, or a code you don't recognise, the same way: reattach with your current
+`lastSeq` rather than assume every disconnect carries a diagnosable cause. Resend-on-reconnect
+is safe regardless of whether the connection that dropped ever told you why.
+
+A close you initiate yourself carries whatever code your client sends when calling `close()` —
+that is your choice, not the gateway's.
+
 ---
 
 ## 4. Reliability — seq, replay, and fencing
