@@ -134,6 +134,83 @@ struct TurnTranscriptTests {
     }
 
     @Test
+    func convertOpenTurnToRefusalReplacesTheOpenAssistantEntryWithARefusedNoticeInTheSameShapeAsRecordSubmissionRefused() {
+        var transcript = TurnTranscript()
+        let assistantID = transcript.recordSubmittedTurn("what's the plan?")
+
+        transcript.convertOpenTurnToRefusal(reason: "no session is attached")
+
+        #expect(transcript.entries.count == 2)
+        #expect(transcript.entries[0].role == .user)
+        #expect(transcript.entries[0].text == "what's the plan?")
+        #expect(transcript.entries[1].id == assistantID, "the entry's id is kept, not minted fresh")
+        #expect(transcript.entries[1].role == .notice)
+        #expect(transcript.entries[1].text == "no session is attached")
+        #expect(transcript.entries[1].state == .refused(reason: "no session is attached"))
+        #expect(transcript.openTurn == nil)
+    }
+
+    @Test
+    func convertOpenTurnToRefusalWithNoOpenTurnIsAHarmlessNoOp() {
+        var transcript = TurnTranscript()
+        transcript.recordSubmissionRefused("hi", reason: "no session is attached")
+        let before = transcript
+
+        transcript.convertOpenTurnToRefusal(reason: "irrelevant")
+
+        #expect(transcript == before)
+    }
+
+    @Test
+    func abandonOpenTurnMarksTheOpenTurnAbandonedKeepsPartialTextAndClearsOpenTurn() {
+        var transcript = TurnTranscript()
+        let assistantID = transcript.recordSubmittedTurn("hi")
+
+        transcript.apply(.turnStarted)
+        transcript.apply(.textDelta("partial"))
+        transcript.abandonOpenTurn()
+
+        let entry = transcript.entries.first { $0.id == assistantID }
+        #expect(entry?.state == .abandoned)
+        #expect(entry?.text == "partial")
+        #expect(transcript.openTurn == nil)
+    }
+
+    @Test
+    func abandonOpenTurnWithNoOpenTurnIsAHarmlessNoOp() {
+        var transcript = TurnTranscript()
+        transcript.recordSubmissionRefused("hi", reason: "no session is attached")
+        let before = transcript
+
+        transcript.abandonOpenTurn()
+
+        #expect(transcript == before)
+    }
+
+    /// Finding 1's own constraint, made concrete: `.abandoned` is a decision only
+    /// `abandonOpenTurn()` may reach — the reducer itself must never conclude, from any event or
+    /// combination of events, that an open turn is over on its own. Every `TurnEvent` variant is
+    /// driven here against a freshly opened turn; none may leave `.abandoned` anywhere in
+    /// `entries`.
+    @Test
+    func applyNeverProducesTheAbandonedStateForAnyEventVariant() {
+        let events: [TurnEvent] = [
+            .textDelta("x"),
+            .turnStarted,
+            .turnEnded,
+            .failed(code: "internalError", message: "boom", recoverable: false),
+        ]
+        for event in events {
+            var transcript = TurnTranscript()
+            transcript.recordSubmittedTurn("hi")
+            transcript.apply(event)
+            for entry in transcript.entries {
+                #expect(entry.state != .abandoned, "apply(\(event)) must never produce .abandoned")
+            }
+        }
+    }
+
+    @Test
     func recordSubmissionRefusedKeepsTheTypedTextRecordsTheReasonAndLeavesNoOpenTurn() {
         var transcript = TurnTranscript()
 

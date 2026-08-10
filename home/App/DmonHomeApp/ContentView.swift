@@ -64,6 +64,7 @@ struct ContentView: View {
             TranscriptView(entries: observers.session.snapshot?.transcript.entries ?? [])
 
             TurnInputView(coordinator: coordinator)
+            AbandonTurnControl(openTurn: observers.session.snapshot?.transcript.openTurn, coordinator: coordinator)
 
             Divider()
                 .padding(.vertical, 4)
@@ -363,6 +364,28 @@ private struct TurnInputView: View {
     }
 }
 
+/// The wiring half of the "Abandon turn" affordance: shown only while there is something for
+/// `SessionCoordinator.abandonOpenTurn()` to act on, wired straight to it. Labelled to make clear
+/// this only stops **this host's own tracking** of the turn — there is no `turn.abort` command in
+/// this change's scope, so the core (if it is still running the turn) keeps running it either way.
+/// Pure rendering + wiring only, the same restraint every other view in this file keeps: whether a
+/// turn is open, and what abandoning it means, are decided by `SessionCoordinator`/
+/// `TurnTranscript`, not here.
+private struct AbandonTurnControl: View {
+    let openTurn: TranscriptEntry?
+    let coordinator: SessionCoordinator
+
+    var body: some View {
+        if openTurn != nil {
+            Button("Abandon Turn") {
+                Task { await coordinator.abandonOpenTurn() }
+            }
+            .font(.caption)
+            .help("Stops this host's own tracking of the open turn. Does not cancel it on the core.")
+        }
+    }
+}
+
 extension GatewayConnectionState {
     var dmonHomeLabel: String {
         switch self {
@@ -457,6 +480,7 @@ extension TranscriptEntry.State {
         case .ended: "done"
         case .failed: "failed"
         case .refused: "refused"
+        case .abandoned: "abandoned"
         }
     }
 }

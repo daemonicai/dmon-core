@@ -965,34 +965,56 @@ struct GatewaySessionTests {
     /// `routeFromPump`'s generation guard does not make it fail, for the
     /// same reason the `finishPump` door's removal does not.
     ///
-    /// Flaky under a full suite run at roughly 1-in-3: the two waits after
-    /// `enqueueBatch` below race the reattach connection's *appearance*
-    /// against the pump draining the 50,000-frame backlog concurrently with
-    /// `close()`/`reattach()`, under whatever load the rest of the suite
-    /// (~41 other suites in parallel) puts on the machine. `waitUntil`'s
-    /// default 2s readiness deadline is not enough headroom for that under
-    /// load. The backlog is the actual stress this test exists to apply and
-    /// stays exactly as sized; `backlogDrainReadinessTimeout` below only
-    /// widens how long the two post-backlog waits are willing to give the
-    /// reattach connection to appear, which the assertions this test makes
-    /// (cursor correctness, no leaked backlog frame) do not depend on.
+    /// **⚠️ CORRECTED (§8 supervisor remediation) — the "flaky under a full suite run" framing
+    /// two paragraphs above, and every widening that followed it, treated this as a *slow*
+    /// operation under load. It is not. Forced directly (not sampled): calling `reattach()`
+    /// while the session is still attached — with no backlog, no load, no racing at all —
+    /// throws `GatewaySessionError.reattachWhileAttached` synchronously and creates no second
+    /// transport (`reattachWhileTheConnectionIsStillLiveIsRefused` above proves exactly this,
+    /// deterministically). That is the *other* legal outcome of the race this test used to run:
+    /// `close()` and `reattach()` were launched concurrently via `async let`, and Swift gives no
+    /// ordering guarantee for which one's actor job runs first. When `close()`'s synchronous
+    /// prelude (`pumpGeneration += 1`, `connection = nil`, `finishPump` clearing `isAttached`) won
+    /// that race, `reattach()` proceeded normally and this test measured what it was written to
+    /// measure. When `reattach()`'s own prelude won instead — `isAttached` still `true`, because
+    /// `close()` had not yet run at all — `reattach()` threw before ever calling `performAttach`,
+    /// so `factory.transport(at: 1)` could never appear, and `waitForTransport(factory, at: 1,
+    /// timeout: backlogDrainReadinessTimeout)` burned the *entire* readiness budget polling for a
+    /// transport that could not exist. That is exactly the bimodal shape every widening
+    /// observed — instant pass or a hang to the deadline, never something in between — and no
+    /// deadline, however wide, fixes a wait for something the losing branch never creates.**
+    ///
+    /// **The fix: sequence `close()` to completion before `reattach()` is even called**, rather
+    /// than racing them. `GatewaySession` is an actor, so `close()`'s state-mutating synchronous
+    /// prelude always completes atomically before any later actor call can observe it — awaiting
+    /// `close()` fully therefore reproduces *exactly* the state `reattach()` would see in the
+    /// race's "close wins" branch (the branch this test exists to exercise), deterministically,
+    /// every time. It does not weaken the backlog stress this test is about: the prelude that
+    /// stops the stale pump (`finishPump`, run synchronously inside `close()`, before its own
+    /// only `await`) fires at the same relative moment either way — governed by when `close()`'s
+    /// job gets its turn on the actor, not by whether a concurrent `reattach()` call happens to
+    /// be racing it — so precisely as much of the 50,000-frame backlog remains outstanding at the
+    /// generation bump as before. The refusal branch this used to sometimes (nondeterministically)
+    /// exercise instead already has its own dedicated, deterministic test —
+    /// `reattachWhileTheConnectionIsStillLiveIsRefused` above — so sequencing here does not drop
+    /// coverage; it removes an accidental, flaky duplicate of it. The 50,000-frame backlog is
+    /// untouched, per standing instruction not to shrink it.
     @Test
     func aSupersededPumpsBufferedBacklogDoesNotCorruptTheStreamOrCursorAReattachJustInstalled() async throws {
         let factory = DelayedFirstTransportFactory(firstCloseDelay: .milliseconds(300))
         let session = GatewaySession(makeTransport: factory.makeTransport)
 
-        // Readiness deadline for the two waits below, taken after the
-        // 50,000-frame backlog is enqueued while `close()`/`reattach()` race
-        // it. Unloaded this test completes in ~0.35s. 30s was chosen (not
-        // the 15s floor) after direct evidence that 15s did not have
-        // comfortable margin here: the first full-suite run taken right
-        // after this file was recompiled failed exactly at the 15s mark
-        // (a full-suite recompile plus 42 other suites competing for the
-        // scheduler is worse than the recorded ~1-in-3 baseline, which was
-        // measured against an already-built binary). Widening this costs
-        // only how long a genuine failure takes to surface — it is a
-        // readiness deadline ("has the transport appeared"), not a bound
-        // this test's assertions depend on.
+        // Readiness deadline for the wait below, taken after the
+        // 50,000-frame backlog is enqueued and `close()` runs. Unloaded this
+        // test completes in well under 1s. Kept at the 30s this test earned
+        // while it was still racing `close()`/`reattach()` — a genuinely
+        // loaded machine can still make the backlog drain and `close()`'s
+        // own 300ms teardown take a while — even though sequencing removed
+        // the specific failure mode (a losing `reattach()` throwing
+        // synchronously) that widening was chasing. It is a readiness
+        // deadline ("has the transport appeared"), not a bound this test's
+        // assertions depend on, so widening it further costs nothing but how
+        // long a genuine failure takes to surface.
         let backlogDrainReadinessTimeout: TimeInterval = 30
 
         let handshake = Task {
@@ -1015,20 +1037,20 @@ struct GatewaySessionTests {
         let backlog = (0..<50_000).map { #"{"type":"turn.delta","text":"backlog \#($0)"}"# }
         await firstTransport.enqueueBatch(backlog)
 
-        // `close()` and `reattach()` raced concurrently, immediately after
-        // the backlog lands, rather than sequenced — the configuration the
-        // sweep above found most likely (among many tried) to still have
-        // backlog outstanding when the generation bump happens.
-        async let closeResult: Void = session.close()
-        async let reattachResult = session.reattach()
+        // `close()` sequenced to completion *before* `reattach()` starts — see this test's own
+        // doc comment for why that deterministically selects the "close wins" branch of the
+        // race this test used to run, without changing when the generation bump (and the stale
+        // pump's stop) actually happens relative to the backlog still draining.
+        await session.close()
+
+        let reattachTask = Task { try await session.reattach() }
 
         let secondTransport = try #require(await waitForTransport(factory, at: 1, timeout: backlogDrainReadinessTimeout))
         let reattachSent = await waitForSentFrames(secondTransport, atLeast: 1, timeout: backlogDrainReadinessTimeout)
         #expect(reattachSent)
         await secondTransport.enqueue(#"{"gw":"attached","generation":2,"headSeq":0,"wire":"0.2"}"#)
 
-        let secondStream = try await reattachResult
-        _ = await closeResult
+        let secondStream = try await reattachTask.value
 
         // Not over-advanced by any backlog item that reached
         // `routeFromPump` after the generation bump — the reattach's own

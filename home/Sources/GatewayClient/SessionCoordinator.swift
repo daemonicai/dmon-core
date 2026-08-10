@@ -346,23 +346,68 @@ public actor SessionCoordinator {
         startConsuming(stream)
     }
 
-    /// Submits `message` on the current attach connection. Never checks
-    /// attach state itself first — `GatewaySession.submitTurn(_:)`'s
-    /// `.notAttached` gate is the only one; its own doc comment explains why
-    /// that check lives there rather than being left for a caller further
-    /// up, and a second, independent copy of it here would be exactly the
-    /// kind of drift that reasoning warns against.
+    /// Submits `message` on the current attach connection — refusing outright, before touching
+    /// `session` at all, when a turn is already open (`transcript.openTurn != nil`). This is the
+    /// enforcement point `TurnTranscript`'s own module doc comment names for its positional
+    /// attribution to actually depend on: the core's own `turnInProgress` refusal carries no
+    /// correlation id, so this client could never tell which of two outstanding turns a stray
+    /// event belonged to even if this method let a second submit through. Refusing here, before
+    /// a second `turn.submit` frame is ever written, is what keeps "at most one open turn" true
+    /// on this side, regardless of what the core's own gate does.
     ///
-    /// On success, records the submission; on **any** throw — `.notAttached`
-    /// or otherwise — records a refusal with a human-readable reason and
-    /// keeps the typed text. Either way, exactly one `publish()` follows.
+    /// **Opens the turn before awaiting the write, not after — deliberately.** An earlier shape
+    /// of this method called `recordSubmittedTurn(_:)` only once `session.submitTurn(_:)` had
+    /// already returned, which left a real window open: that method's own `await` (the socket
+    /// write) can suspend past an inbound event for the very turn being submitted, delivered by
+    /// `consume(_:)` — a different, concurrently-scheduled task on this same actor — before this
+    /// method's continuation resumes. `TurnTranscript.apply(_:)` has no open turn to fold that
+    /// event into yet in that shape, so it synthesises a fresh entry (its own no-open-turn
+    /// branch) that `recordSubmittedTurn(_:)` then silently displaces the moment it finally
+    /// runs — the entry the event actually belonged to. Calling `recordSubmittedTurn(_:)` first,
+    /// synchronously, before the `await` below can ever suspend, closes that window the same way
+    /// it closes the concurrent-submit one above: by the time anything else can run on this
+    /// actor, the entry this turn's events belong to already exists and is already `openTurn`.
+    ///
+    /// That means a **write failure** — `.notAttached`, or the write itself throwing — has to
+    /// unwind an already-open turn, not merely skip opening one:
+    /// `TurnTranscript.convertOpenTurnToRefusal(reason:)` turns the entry `recordSubmittedTurn(_:)`
+    /// just created back into exactly the shape `recordSubmissionRefused(_:reason:)` would have
+    /// produced directly, so a renderer sees one shape for "never reached the wire" regardless of
+    /// which path produced it. Never checks attach state itself first — `GatewaySession
+    /// .submitTurn(_:)`'s `.notAttached` gate is the only one; its own doc comment explains why
+    /// that check lives there rather than being duplicated here.
+    ///
+    /// Exactly one `publish()` follows every outcome: the open-turn refusal, a successful submit,
+    /// and a submit that opened a turn and then failed to write.
     public func submit(_ message: String) async {
+        guard transcript.openTurn == nil else {
+            transcript.recordSubmissionRefused(
+                message,
+                reason: "a turn is still open — wait for it to finish, or abandon it"
+            )
+            publish()
+            return
+        }
+
+        transcript.recordSubmittedTurn(message)
         do {
             try await session.submitTurn(message)
-            transcript.recordSubmittedTurn(message)
         } catch {
-            transcript.recordSubmissionRefused(message, reason: refusalReason(for: error))
+            transcript.convertOpenTurnToRefusal(reason: refusalReason(for: error))
         }
+        publish()
+    }
+
+    /// The coordinator half of the "Abandon turn" control (`ContentView`'s wiring): stops this
+    /// host's own tracking of the open turn by a person's explicit choice, forwarding straight
+    /// to `TurnTranscript.abandonOpenTurn()` — see that method's own doc comment, and
+    /// `TranscriptEntry.State.abandoned`'s, for why this is a decision this coordinator only
+    /// ever relays, never infers on its own. Touches nothing on `session` or the wire: there is
+    /// no `turn.abort` command in this change's scope, so a turn the core is still running keeps
+    /// running — this only ever changes what this client displays, and whether `submit(_:)` will
+    /// accept another message. A harmless no-op if no turn is open.
+    public func abandonOpenTurn() {
+        transcript.abandonOpenTurn()
         publish()
     }
 

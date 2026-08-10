@@ -27,6 +27,45 @@ private func waitForSentFrames(_ transport: InMemoryGatewayTransport, atLeast co
     await waitUntil { await transport.sentFrames().count >= count }
 }
 
+/// Hands out transports exactly like `RecordingTransportFactory`, except the transport at index
+/// 1 — the attach connection `submit(_:)` sends `turn.submit` frames over — is built with
+/// `sendDelay`, so a test can force `session.submitTurn(_:)`'s own `transport.send` call to
+/// still be genuinely suspended while an inbound event is delivered on the same connection. This
+/// is the exact ordering `SessionCoordinator.submit(_:)`'s open-before-await fix (B3, §8
+/// supervisor remediation) exists to get right — see
+/// `anEventArrivingWhileTheSubmitWriteIsStillInFlightFoldsIntoTheEntrySubmitAlreadyOpened`.
+/// Every other index is undecorated, matching `RecordingTransportFactory`.
+private final class DelayedAttachSendTransportFactory: Sendable {
+    private let state = OSAllocatedUnfairLock(initialState: [InMemoryGatewayTransport]())
+    private let attachSendDelay: Duration
+
+    init(attachSendDelay: Duration) {
+        self.attachSendDelay = attachSendDelay
+    }
+
+    var makeTransport: @Sendable () -> any GatewayTransport {
+        { [self] in
+            state.withLock { transports in
+                let transport = transports.count == 1
+                    ? InMemoryGatewayTransport(sendDelay: attachSendDelay)
+                    : InMemoryGatewayTransport()
+                transports.append(transport)
+                return transport
+            }
+        }
+    }
+
+    func count() -> Int {
+        state.withLock { $0.count }
+    }
+
+    func transport(at index: Int) -> InMemoryGatewayTransport? {
+        state.withLock { transports in
+            transports.indices.contains(index) ? transports[index] : nil
+        }
+    }
+}
+
 /// A bare `Error` that conforms to nothing beyond `Error` itself — the
 /// double `describe(_:)`'s `String(describing:)` fallback needs, since
 /// every other error this suite exercises either short-circuits before
@@ -165,6 +204,177 @@ struct SessionCoordinatorTests {
         }
         #expect(reason == "no session is attached")
         #expect(factory.count() == 0)
+    }
+
+    /// Finding 1 (§8 supervisor remediation): the double-submit gate `submit(_:)` itself
+    /// enforces, proved the strongest way available — driving two real submits, not merely
+    /// asserting `openTurn == nil` would have refused. The second submit must not disturb the
+    /// first turn's open entry in any way: its id survives, and every one of its later events
+    /// (`turnStart`, a delta, `turnEnd`) still folds into it, never into the refusal notice.
+    @Test
+    func aSecondSubmitWhileATurnIsStillOpenRefusesWithoutDisturbingTheFirst() async throws {
+        let factory = RecordingTransportFactory()
+        let session = GatewaySession(makeTransport: factory.makeTransport)
+        let coordinator = SessionCoordinator(session: session)
+
+        var iterator = await coordinator.updates().makeAsyncIterator()
+        _ = await iterator.next()
+
+        _ = try await connectCoordinator(coordinator, factory: factory, iterator: &iterator)
+
+        await coordinator.submit("a")
+        let afterFirstSubmit = try #require(await iterator.next())
+        #expect(afterFirstSubmit.transcript.entries.map(\.role) == [.user, .assistant])
+        let firstEntryID = try #require(afterFirstSubmit.transcript.openTurn?.id)
+
+        await coordinator.submit("b")
+        let afterSecondSubmit = try #require(await iterator.next())
+        #expect(afterSecondSubmit.transcript.entries.map(\.role) == [.user, .assistant, .user, .notice])
+        #expect(
+            afterSecondSubmit.transcript.openTurn?.id == firstEntryID,
+            "the refused second submit must not disturb the first turn's open entry"
+        )
+        guard case .refused(let reason) = afterSecondSubmit.transcript.entries.last?.state else {
+            Issue.record("expected a refused notice entry for the second submit")
+            return
+        }
+        #expect(reason == "a turn is still open — wait for it to finish, or abandon it")
+        #expect(factory.count() == 2, "a refused submit must never open a connection")
+
+        let attachTransport = try #require(factory.transport(at: 1))
+        await attachTransport.enqueue(#"{"type":"turnStart"}"#)
+        let afterStart = try #require(await iterator.next())
+        #expect(afterStart.transcript.openTurn?.id == firstEntryID)
+        #expect(afterStart.transcript.openTurn?.state == .streaming)
+
+        await attachTransport.enqueue(
+            #"{"type":"messageDelta","message":{},"delta":{"type":"textDelta","delta":"hi","partial":true}}"#
+        )
+        let afterDelta = try #require(await iterator.next())
+        #expect(afterDelta.transcript.entries.first { $0.id == firstEntryID }?.text == "hi")
+
+        await attachTransport.enqueue(#"{"type":"turnEnd","message":{},"toolResults":[]}"#)
+        let afterEnd = try #require(await iterator.next())
+        let firstEntry = afterEnd.transcript.entries.first { $0.id == firstEntryID }
+        #expect(firstEntry?.state == .ended)
+        #expect(firstEntry?.text == "hi")
+        #expect(afterEnd.transcript.openTurn == nil)
+
+        await coordinator.close()
+    }
+
+    /// `abandonOpenTurn()` releases `submit(_:)`'s gate: a message typed after abandoning must
+    /// open a genuinely new turn, not be refused as if the old one were still open.
+    @Test
+    func abandonOpenTurnAllowsANewSubmitToOpenAFreshTurn() async throws {
+        let factory = RecordingTransportFactory()
+        let session = GatewaySession(makeTransport: factory.makeTransport)
+        let coordinator = SessionCoordinator(session: session)
+
+        var iterator = await coordinator.updates().makeAsyncIterator()
+        _ = await iterator.next()
+
+        _ = try await connectCoordinator(coordinator, factory: factory, iterator: &iterator)
+
+        await coordinator.submit("a")
+        let afterFirstSubmit = try #require(await iterator.next())
+        let firstEntryID = try #require(afterFirstSubmit.transcript.openTurn?.id)
+
+        await coordinator.abandonOpenTurn()
+        let afterAbandon = try #require(await iterator.next())
+        #expect(afterAbandon.transcript.openTurn == nil)
+        #expect(afterAbandon.transcript.entries.first { $0.id == firstEntryID }?.state == .abandoned)
+
+        await coordinator.submit("b")
+        let afterSecondSubmit = try #require(await iterator.next())
+        #expect(afterSecondSubmit.transcript.entries.map(\.role) == [.user, .assistant, .user, .assistant])
+        let secondEntryID = try #require(afterSecondSubmit.transcript.openTurn?.id)
+        #expect(secondEntryID != firstEntryID)
+
+        await coordinator.close()
+    }
+
+    /// `abandonOpenTurn()` with nothing open must not publish a spurious change or otherwise
+    /// disturb the snapshot — mirrors `TurnTranscriptTests.abandonOpenTurnWithNoOpenTurnIsA
+    /// HarmlessNoOp` at the coordinator layer.
+    @Test
+    func abandonOpenTurnWithNoOpenTurnOnTheCoordinatorIsAHarmlessNoOp() async throws {
+        let factory = RecordingTransportFactory()
+        let session = GatewaySession(makeTransport: factory.makeTransport)
+        let coordinator = SessionCoordinator(session: session)
+
+        await coordinator.abandonOpenTurn()
+
+        let snapshot = await coordinator.snapshot()
+        #expect(snapshot.transcript.entries.isEmpty)
+        #expect(snapshot.connection == .idle)
+    }
+
+    /// Finding 1's smaller race window, forced rather than reasoned about: `session.submitTurn
+    /// (_:)`'s own write can still be suspended inside `transport.send` (an artificial
+    /// `sendDelay`, mirroring the technique `GatewaySessionTests` already uses for the same
+    /// purpose) when an inbound event for the very turn being submitted is delivered on
+    /// `consume(_:)` — a different, concurrently-scheduled task on this same actor. Before B3's
+    /// fix, that event had no open turn to fold into yet (`recordSubmittedTurn(_:)` had not run)
+    /// and was rendered as a fresh, orphaned entry that the eventual `recordSubmittedTurn(_:)`
+    /// call then silently displaced. Opening the turn *before* awaiting the write closes that
+    /// window: the entry already exists, and is already `openTurn`, the instant `submit(_:)`'s
+    /// own synchronous prelude finishes — before anything else can run on this actor at all.
+    @Test
+    func anEventArrivingWhileTheSubmitWriteIsStillInFlightFoldsIntoTheEntrySubmitAlreadyOpened() async throws {
+        let factory = DelayedAttachSendTransportFactory(attachSendDelay: .milliseconds(200))
+        let session = GatewaySession(makeTransport: factory.makeTransport)
+        let coordinator = SessionCoordinator(session: session)
+
+        var iterator = await coordinator.updates().makeAsyncIterator()
+        _ = await iterator.next()
+
+        let connectTask = Task { await coordinator.connect() }
+        _ = try #require(await iterator.next())
+
+        let created = await waitUntil { factory.count() > 0 }
+        try #require(created)
+        let createTransport = try #require(factory.transport(at: 0))
+        await createTransport.enqueue(#"{"gw":"created","sessionId":"s1"}"#)
+
+        let attached = await waitUntil { factory.count() > 1 }
+        try #require(attached)
+        let attachTransport = try #require(factory.transport(at: 1))
+        await attachTransport.enqueue(#"{"gw":"attached","generation":1,"headSeq":0,"wire":"0.2"}"#)
+
+        _ = try #require(await iterator.next())
+        await connectTask.value
+
+        // The `attach` control frame itself already went out over this same transport, delayed
+        // by the same `sendDelay` — captured here, not assumed to be `0`, so the check below
+        // proves "no *new* frame yet" rather than a wrong "no frame at all".
+        let sentCountAfterAttach = await attachTransport.sentFrames().count
+
+        let submitTask = Task { await coordinator.submit("say hello") }
+
+        // Proved, not assumed: the write must still be genuinely in flight — sleeping inside
+        // `attachTransport`'s artificial `sendDelay` — when the event below is enqueued, or this
+        // test would not be forcing the window it exists to force.
+        try await Task.sleep(for: .milliseconds(20))
+        #expect(
+            await attachTransport.sentFrames().count == sentCountAfterAttach,
+            "the turn.submit write must still be in flight"
+        )
+
+        await attachTransport.enqueue(#"{"type":"turnStart"}"#)
+
+        let afterStart = try #require(await iterator.next())
+        #expect(
+            afterStart.transcript.entries.map(\.role) == [.user, .assistant],
+            "the event must fold into the entry submit(_:) already opened, not a second, orphaned one"
+        )
+        #expect(afterStart.transcript.openTurn?.state == .streaming)
+
+        await submitTask.value
+        let final = await coordinator.snapshot()
+        #expect(final.transcript.entries.count == 2, "the write completing afterwards must not append a further entry")
+
+        await coordinator.close()
     }
 
     @Test
