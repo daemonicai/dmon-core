@@ -46,5 +46,19 @@ they happened to walk past. A deliberate pass — read the guide against
 `ControlFrames.cs` and `NetworkConnectionEndpoint.cs` end to end — is the thing that would
 actually close this out, and it is unowned.
 
+## A second member of the same sweep
+
+**Nothing verifies `docs/protocol/schema.json` still matches the DTOs** — `make schema`
+runs in no workflow. Found by the §10 supervisor of `dmon-home-foundations`, which noted it
+is the *identical* failure mode to the `profile`/`agent` drift above: a generated artifact
+that was true when produced and has no gate telling anyone when it stops being true.
+
+It is **not** stale because of `dmon-home-foundations` — that change altered no frame shape
+(the one wire addition, `AttachedFrame.Wire`, is additive and was covered by tests). The
+point is that nobody would know either way, which is the whole problem.
+
+Recorded here rather than as its own note, deliberately: the fix is the same sweep, and a
+second note would split one piece of work across two files.
+
 See also the existing [`docs-drift-pass.md`](docs-drift-pass.md) note, which tracks a
 separate set of documentation drift items.
