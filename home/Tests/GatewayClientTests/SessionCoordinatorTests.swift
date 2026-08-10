@@ -43,22 +43,37 @@ private func waitForSentFrames(_ transport: InMemoryGatewayTransport, atLeast co
 /// `aTurnClosedAndReplacedWhileTheSubmitWriteIsInFlightThenFailingRecordsAStandaloneRefusalWithoutDisturbingTheReplacement`
 /// needs.
 ///
+/// `sendFailureGate`, when given alongside `attachSendFailsFromCall`, is threaded straight
+/// through to `InMemoryGatewayTransport`'s own parameter of the same name: the failing call
+/// parks on it for real instead of racing a fixed delay against other work — see that
+/// initializer's doc comment, and `GatedSendFailure`'s, for why.
+///
 /// Every other index is undecorated, matching `RecordingTransportFactory`.
 private final class DelayedAttachSendTransportFactory: Sendable {
     private let state = OSAllocatedUnfairLock(initialState: [InMemoryGatewayTransport]())
     private let attachSendDelay: Duration
     private let attachSendFailsFromCall: Int?
+    private let sendFailureGate: (@Sendable () async -> Void)?
 
-    init(attachSendDelay: Duration, attachSendFailsFromCall: Int? = nil) {
+    init(
+        attachSendDelay: Duration,
+        attachSendFailsFromCall: Int? = nil,
+        sendFailureGate: (@Sendable () async -> Void)? = nil
+    ) {
         self.attachSendDelay = attachSendDelay
         self.attachSendFailsFromCall = attachSendFailsFromCall
+        self.sendFailureGate = sendFailureGate
     }
 
     var makeTransport: @Sendable () -> any GatewayTransport {
         { [self] in
             state.withLock { transports in
                 let transport = transports.count == 1
-                    ? InMemoryGatewayTransport(sendDelay: attachSendDelay, failSendCallsFrom: attachSendFailsFromCall)
+                    ? InMemoryGatewayTransport(
+                        sendDelay: attachSendDelay,
+                        failSendCallsFrom: attachSendFailsFromCall,
+                        sendFailureGate: sendFailureGate
+                    )
                     : InMemoryGatewayTransport()
                 transports.append(transport)
                 return transport
@@ -73,6 +88,47 @@ private final class DelayedAttachSendTransportFactory: Sendable {
     func transport(at index: Int) -> InMemoryGatewayTransport? {
         state.withLock { transports in
             transports.indices.contains(index) ? transports[index] : nil
+        }
+    }
+}
+
+/// A hook double that lets a test control precisely *when* a `send(_:)` call that is going to
+/// fail actually fails — parking for real on a continuation until `release()` is called, rather
+/// than racing a fixed `sendDelay` against unrelated, concurrently-scheduled actor work. Mirrors
+/// `GatedRaceWindowHook`'s own "park for real, don't hand-time it" technique below, applied to
+/// `InMemoryGatewayTransport.send(_:)`'s failure path instead of
+/// `SessionCoordinator.raceWindowHookForTesting`'s suspension point.
+///
+/// Built for `aTurnClosedAndReplacedWhileTheSubmitWriteIsInFlightThenFailingRecordsAStandalone
+/// RefusalWithoutDisturbingTheReplacement`: that test's own doc comment explains why a fixed
+/// delay has no ordering guarantee against the four frames it enqueues on the same actor —
+/// forcing that delay down to 1 millisecond proved directly that the write can fail before any
+/// of them land. This gate removes the race entirely: the write stays suspended until the test
+/// itself has deterministically observed the frames land, and only then chooses to release it.
+private final class GatedSendFailure: Sendable {
+    private let parkedContinuation = OSAllocatedUnfairLock<CheckedContinuation<Void, Never>?>(initialState: nil)
+
+    /// `true` once a `send(_:)` call is genuinely parked here awaiting `release()` — the
+    /// condition a test polls for (via `waitUntil`) before proceeding, the same discipline
+    /// `GatedRaceWindowHook.hasEnteredAndIsParked()` uses for its own suspension point.
+    func hasEnteredAndIsParked() -> Bool {
+        parkedContinuation.withLock { $0 != nil }
+    }
+
+    /// Resumes the parked call, if any. A no-op if nothing is parked.
+    func release() {
+        let continuation = parkedContinuation.withLock { box -> CheckedContinuation<Void, Never>? in
+            defer { box = nil }
+            return box
+        }
+        continuation?.resume()
+    }
+
+    var hook: @Sendable () async -> Void {
+        {
+            await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+                self.parkedContinuation.withLock { $0 = continuation }
+            }
         }
     }
 }
@@ -408,19 +464,46 @@ struct SessionCoordinatorTests {
     /// DifferentOpenTurnLeavesTheReplacementUntouched` already covers that half deterministically
     /// and without any transport at all). Here, `submit(_:)`'s own write is genuinely suspended
     /// (`attachSendFailsFromCall: 1` — the `attach` handshake frame, call `0`, succeeds; the
-    /// `turn.submit` sent afterwards, call `1`, fails only once its own `sendDelay` elapses),
-    /// while — during that exact suspension — a real event sequence closes the turn `submit(_:)`
-    /// opened and a further event replaces it with a different one, all delivered by `consume(_:)`
-    /// running concurrently on the same actor. When the write's failure is finally discovered,
-    /// `convertOpenTurnToRefusal(_:reason:)` must record a standalone refusal without disturbing
-    /// the replacement — the unscoped shape this whole block replaced would have overwritten it.
+    /// `turn.submit` sent afterwards, call `1`, parks at `sendFailureGate` instead of failing on
+    /// a fixed delay — see below for why), while — during that exact suspension — a real event
+    /// sequence closes the turn `submit(_:)` opened and a further event replaces it with a
+    /// different one, all delivered by `consume(_:)` running concurrently on the same actor. When
+    /// the write's failure is finally released, `convertOpenTurnToRefusal(_:reason:)` must record
+    /// a standalone refusal without disturbing the replacement — the unscoped shape this whole
+    /// block replaced would have overwritten it.
+    ///
+    /// **Why a gate, not a delay.** An earlier version of this test raced the write's fixed-delay
+    /// failure against the four frames below, polling `coordinator.snapshot()` for an exact
+    /// `entries.count == 3` and widening the poll's timeout from 2s to 8s when CI flaked on it.
+    /// That theory — "the runner is merely slow" — is false: forcing the delay down to 1
+    /// millisecond (to make the race maximally unfavourable) proved directly that the write can
+    /// discover its failure and call `convertOpenTurnToRefusal(_:reason:)` on the still-open,
+    /// not-yet-replaced turn *before any of the four frames below are even applied* — there is no
+    /// ordering guarantee between a fixed-delay write and unrelated, concurrently-scheduled actor
+    /// work at all. When that happens, a refusal notice becomes the *second* entry instead of the
+    /// real streamed reply, and the subsequent count trajectory (2 → 3 → 3 → 4, in the wrong
+    /// shape) only ever rests at 3 for less time than a 5ms-granularity poll can reliably observe
+    /// — exactly the "consumed the whole 8s budget and never matched" failure seen in CI. `Gated
+    /// SendFailure` removes the race instead of tolerating it: the write stays parked,
+    /// indefinitely, until this test has confirmed the closed-and-replaced shape by reading every
+    /// published snapshot from the update stream (`waitForSnapshot`, not a poll against a racing
+    /// value), and only then calls `release()`.
     @Test
     func aTurnClosedAndReplacedWhileTheSubmitWriteIsInFlightThenFailingRecordsAStandaloneRefusalWithoutDisturbingTheReplacement() async throws {
-        let factory = DelayedAttachSendTransportFactory(attachSendDelay: .milliseconds(200), attachSendFailsFromCall: 1)
+        let sendFailureGate = GatedSendFailure()
+        let factory = DelayedAttachSendTransportFactory(
+            attachSendDelay: .milliseconds(200),
+            attachSendFailsFromCall: 1,
+            sendFailureGate: sendFailureGate.hook
+        )
         let session = GatewaySession(makeTransport: factory.makeTransport)
         let coordinator = SessionCoordinator(session: session)
 
-        var iterator = await coordinator.updates().makeAsyncIterator()
+        // Kept alongside `iterator`, not only the iterator itself — same reason as the sibling
+        // test above: `waitForSnapshot` reads from this same stream later, sharing `iterator`'s
+        // exact underlying buffer and subscription.
+        let updates = await coordinator.updates()
+        var iterator = updates.makeAsyncIterator()
         _ = await iterator.next()
 
         let connectTask = Task { await coordinator.connect() }
@@ -439,19 +522,20 @@ struct SessionCoordinatorTests {
         _ = try #require(await iterator.next())
         await connectTask.value
 
-        let sentCountAfterAttach = await attachTransport.sentFrames().count
         let submitTask = Task { await coordinator.submit("say hello") }
 
-        // Proved, not assumed — same discipline as the sibling test above: the `turn.submit`
-        // write must still be genuinely in flight when the events below arrive.
-        try await Task.sleep(for: .milliseconds(20))
-        #expect(await attachTransport.sentFrames().count == sentCountAfterAttach, "the turn.submit write must still be in flight")
+        // Proved, not assumed: the write must have genuinely reached `sendFailureGate` and be
+        // parked there — not merely "probably still sleeping", the exact assumption the fixed
+        // delay this replaces turned out not to hold — before the frames below are enqueued.
+        let parked = await waitUntil { sendFailureGate.hasEnteredAndIsParked() }
+        try #require(parked, "the turn.submit write must be parked at its failure gate")
 
         // Close the turn `submit(_:)` opened, entirely, with real streamed content —
         // `turnStart` → a delta → `turnEnd` — then replace it with a *different* open turn via a
         // further delta that arrives with nothing open to fold into (`apply(_:)`'s documented
-        // no-open-turn synthesis branch). All of this lands on the actor while the write above is
-        // still sleeping inside its artificial `sendDelay`.
+        // no-open-turn synthesis branch). All of this lands on the actor while the write above
+        // stays genuinely parked at `sendFailureGate`, unable to resume until this test releases
+        // it — not racing a fixed delay against this sequence.
         await attachTransport.enqueue(#"{"type":"turnStart"}"#)
         await attachTransport.enqueue(
             #"{"type":"messageDelta","message":{},"delta":{"type":"textDelta","delta":"real reply","partial":true}}"#
@@ -461,22 +545,32 @@ struct SessionCoordinatorTests {
             #"{"type":"messageDelta","message":{},"delta":{"type":"textDelta","delta":"unrelated replayed content","partial":true}}"#
         )
 
-        // `timeout: 8`, not the local default of 2: this poll is a hang guard on real actor
-        // work (four sequential enqueued frames plus the write's own 200ms `sendDelay`), not a
-        // discriminator on how fast that work should complete — the observed CI flake at this
-        // exact `#require` was the 2s default timing out under runner load, not a wrong-state bug.
-        let replacementAppeared = await waitUntil(timeout: 8) { await coordinator.snapshot().transcript.entries.count == 3 }
-        try #require(replacementAppeared, "the closed-and-replaced sequence must have landed before the write fails")
+        // Read every published snapshot from the update stream itself, not a poll against
+        // `coordinator.snapshot()`: `publish()` yields to this stream on every mutation, so
+        // waiting for one that already matches the full closed-and-replaced shape cannot step
+        // over a transient in-between count the way a fixed-interval poll against a racing value
+        // can. The predicate names the whole shape, not just the count, so this cannot be
+        // satisfied by some other, differently-shaped 3-entry snapshot either.
+        let replaced = try #require(
+            await waitForSnapshot(
+                from: updates,
+                description: "the closed-and-replaced sequence to land while the write stays parked"
+            ) { snapshot in
+                snapshot.transcript.entries.count == 3
+                    && snapshot.transcript.entries.dropFirst().first?.state == .ended
+                    && snapshot.transcript.entries.dropFirst().first?.text == "real reply"
+                    && snapshot.transcript.openTurn?.state == .streaming
+            }
+        )
 
-        let beforeFailure = await coordinator.snapshot()
-        let firstEntryID = try #require(beforeFailure.transcript.entries.dropFirst().first?.id)
-        let replacementID = try #require(beforeFailure.transcript.openTurn?.id)
+        let firstEntryID = try #require(replaced.transcript.entries.dropFirst().first?.id)
+        let replacementID = try #require(replaced.transcript.openTurn?.id)
         #expect(replacementID != firstEntryID)
-        #expect(beforeFailure.transcript.entries.first { $0.id == firstEntryID }?.state == .ended)
-        #expect(beforeFailure.transcript.entries.first { $0.id == firstEntryID }?.text == "real reply")
 
-        // Now let the write's `sendDelay` elapse and fail — `convertOpenTurnToRefusal(_:reason:)`
-        // is called with `firstEntryID`, which is no longer `openTurnID` at all.
+        // Only now release the write's failure gate — the closed-and-replaced sequence above is
+        // deterministically confirmed to have landed first, so `convertOpenTurnToRefusal(_:reason:)`
+        // is guaranteed to be called with `firstEntryID`, which is no longer `openTurnID` at all.
+        sendFailureGate.release()
         await submitTask.value
 
         let final = await coordinator.snapshot()

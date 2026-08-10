@@ -35,6 +35,7 @@ actor InMemoryGatewayTransport: GatewayTransport {
     private let isUncooperative: Bool
     private let sendDelay: Duration
     private let failSendCallsFrom: Int?
+    private let sendFailureGate: (@Sendable () async -> Void)?
     private var sendCallCount = 0
     private let closeDelay: Duration
     private var hasDelayedAClose = false
@@ -66,6 +67,21 @@ actor InMemoryGatewayTransport: GatewayTransport {
     ///     the `turn.submit` sent over that same connection later does not". `nil` (default)
     ///     never fails, so every existing call site's "delay, then succeed" behaviour is
     ///     unchanged.
+    ///   - sendFailureGate: When set, a `send(_:)` call that `failSendCallsFrom` marks for
+    ///     failure `await`s this closure instead of sleeping `sendDelay` — parking for as long as
+    ///     the closure takes to return, rather than a fixed duration — before throwing
+    ///     `GatewayTransportError.closedLocally`. Exists because a fixed `sendDelay` has no
+    ///     ordering guarantee whatsoever against unrelated, concurrently-scheduled actor work a
+    ///     test wants to land first: forcing `sendDelay` down to `1` millisecond against
+    ///     `SessionCoordinatorTests
+    ///     .aTurnClosedAndReplacedWhileTheSubmitWriteIsInFlightThenFailingRecordsAStandalone
+    ///     RefusalWithoutDisturbingTheReplacement` proved directly that the write can fail before
+    ///     any of that other work has happened at all, not merely "occasionally too early under
+    ///     load" — a duration long enough to "usually" leave room is a race, not a guarantee.
+    ///     A caller passes `SessionCoordinatorTests.GatedSendFailure.hook` to park the failing
+    ///     call for real until the test itself calls `release()`. Calls that `failSendCallsFrom`
+    ///     does not mark for failure are unaffected — they still only ever sleep `sendDelay`.
+    ///     `nil` (default) preserves every existing call site's fixed-delay failure behaviour.
     ///   - closeDelay: An artificial delay the **first** call to `close()`
     ///     sleeps for before completing; every later concurrent call
     ///     returns immediately. Lets a test force "two teardown paths
@@ -82,11 +98,13 @@ actor InMemoryGatewayTransport: GatewayTransport {
         uncooperative: Bool = false,
         sendDelay: Duration = .zero,
         failSendCallsFrom: Int? = nil,
+        sendFailureGate: (@Sendable () async -> Void)? = nil,
         closeDelay: Duration = .zero
     ) {
         self.isUncooperative = uncooperative
         self.sendDelay = sendDelay
         self.failSendCallsFrom = failSendCallsFrom
+        self.sendFailureGate = sendFailureGate
         self.closeDelay = closeDelay
     }
 
@@ -98,10 +116,15 @@ actor InMemoryGatewayTransport: GatewayTransport {
         try checkOperable()
         let callIndex = sendCallCount
         sendCallCount += 1
+        let willFail = failSendCallsFrom.map { callIndex >= $0 } ?? false
+        if willFail, let sendFailureGate {
+            await sendFailureGate()
+            throw GatewayTransportError.closedLocally
+        }
         if sendDelay > .zero {
             try? await Task.sleep(for: sendDelay)
         }
-        if let failSendCallsFrom, callIndex >= failSendCallsFrom {
+        if willFail {
             throw GatewayTransportError.closedLocally
         }
         sent.append(frame)
