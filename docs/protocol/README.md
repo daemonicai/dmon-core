@@ -240,11 +240,16 @@ Commands flow client → gateway → core. Each command must carry a unique `id`
 {"type":"turn.submit","id":"cmd-1","message":"Explain monads"}
 ```
 
-The gateway sends `ack` immediately on receipt (before the core has processed it):
+The gateway sends `ack` only after the core has received the command (it does not wait for
+the core to finish processing it):
 
 ```json
 {"gw":"ack","id":"cmd-1"}
 ```
+
+An ack therefore implies the core received the command. If the write to the core fails, the
+gateway sends no ack and closes the connection (`4500`) instead — treat a missing ack as
+"the core never got this command" and resend it on reconnect.
 
 ### 5.2 Receiving a result
 
@@ -263,9 +268,11 @@ There is **no** generic `{"type":"response",...}` envelope. Failures are:
 
 Correlate responses to commands using the `id` field. This is especially important on
 reconnect: you may resend a command that was already delivered before the disconnect. The
-gateway deduplicates commands by `id` within a session, so a resent command that was
-already forwarded to the core is silently dropped (GW-REQ: Command idempotency across
-reconnects).
+gateway deduplicates commands by `id` within a session: if the original reached the core, a
+resent command with the same `id` is not forwarded a second time and the gateway re-acks it
+so a client that missed the first ack still learns the command was received; if the original
+did not reach the core (no ack was ever sent), the resend is admitted and forwarded normally
+(GW-REQ: Command idempotency across reconnects).
 
 ### 5.3 Streaming events
 

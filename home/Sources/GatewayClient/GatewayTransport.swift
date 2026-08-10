@@ -24,7 +24,8 @@ public enum GatewayCloseCode: Hashable, Sendable {
     /// 4409: this connection was fenced out by a newer `attach` to the
     /// same session.
     case supersededByNewerAttach
-    /// 4500: the gateway failed to spawn or hand shake with the core.
+    /// 4500: the gateway failed to spawn or hand shake with the core, or — on an
+    /// already-established session — a write of a command to a running core failed.
     case coreFailure
     /// Any other close code, preserved verbatim.
     case other(Int)
