@@ -12,9 +12,11 @@
 # The remaining keys correspond 1:1 with the leaf `*.slnx` files at the repo
 # root (core.slnx is intentionally excluded as a leaf -- it always widens).
 #
-# `daemon/Daemon.App/**` (the Swift app) is intentionally NOT mapped here: it
-# carries no .NET ProjectReference into this graph and is scoped by its own
-# macOS CI job with an independent path filter.
+# Non-.NET paths are intentionally NOT mapped here: they carry no .NET
+# ProjectReference into this graph, and each is instead scoped by its own
+# CI job with an independent path filter (Swift packages get their own
+# macOS job; see ci.yml). Current members: `daemon/Daemon.App/**` (the
+# dmonium menu-bar app) and `home/**` (the dmon-home macOS host).
 
 root-config:
   - 'Directory.*.props'
