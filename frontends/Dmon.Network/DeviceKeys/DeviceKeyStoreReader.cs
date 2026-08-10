@@ -79,8 +79,12 @@ internal static class DeviceKeyStoreReader
         ImmutableArray<DeviceCredential>.Builder active = ImmutableArray.CreateBuilder<DeviceCredential>();
         foreach (DeviceEntryDto dto in envelope.Devices)
         {
-            // Skip revoked entries and entries with a missing/blank secretHash — an empty hash
-            // would match any constant-time comparison and must not enter the active set.
+            // Skip revoked entries and entries with a missing/blank secretHash. Not because a
+            // blank hash could ever match a presented token's FixedTimeEquals comparison (it
+            // can't — the hashed token is always 32 bytes and a blank hash decodes to zero
+            // bytes, so length alone rejects it) but because an entry that never carried a
+            // real secret never vouched for anything and must not enter the active set that
+            // gates whether a key is required at all.
             if (dto.RevokedAt is null && !string.IsNullOrWhiteSpace(dto.SecretHash))
             {
                 active.Add(new DeviceCredential(

@@ -24,7 +24,7 @@ See [`coding-agent-brief.md`](./coding-agent-brief.md) for the full vision and a
 
 ADRs in [`docs/adrs/`](./docs/adrs/) are **binding**. Accepted ADRs must not be contradicted by code or proposals. If new information warrants reconsidering a decision, write a new ADR with status **Supersedes: ADR-NNN** and get it accepted before implementing the change.
 
-Summaries of all 35 accepted ADRs — what each decided, and what it amends or
+Summaries of all 32 accepted ADRs — what each decided, and what it amends or
 supersedes — are in the **`adr-index` skill** (`.claude/skills/adr-index/`).
 Load it when you need to know what a given ADR decided or which ADR governs a
 subsystem. The ADR files themselves remain the source of truth.

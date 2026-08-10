@@ -73,6 +73,27 @@ public sealed class ProtocolSchemaExporterTests
         Assert.True(gwIsRequired, $"{defKey}: 'gw' must be in the required array");
     }
 
+    // ── gw.attached: "wire" is a non-nullable required string, not a const ──
+
+    [Fact]
+    public void GwAttached_WireProperty_IsNonNullableStringAndRequired()
+    {
+        JsonObject defs = GetDefs();
+        JsonObject frame = (JsonObject)defs["gw.attached"]!;
+        JsonObject props = (JsonObject)frame["properties"]!;
+        JsonObject wireProp = (JsonObject)props["wire"]!;
+
+        // Must be a plain non-nullable string: {"type":"string"}, no "null" admitted.
+        JsonValue typeNode = (JsonValue)wireProp["type"]!;
+        Assert.Equal("string", typeNode.GetValue<string>());
+        Assert.Null(wireProp["const"]);
+
+        JsonArray required = (JsonArray)frame["required"]!;
+        bool wireIsRequired = required.Any(n =>
+            n is JsonValue v && v.TryGetValue(out string? s) && s == "wire");
+        Assert.True(wireIsRequired, "gw.attached: 'wire' must be in the required array");
+    }
+
     [Fact]
     public void GwPing_And_GwPong_AreDistinguishable()
     {

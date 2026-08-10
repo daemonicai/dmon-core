@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using Dmon.Protocol;
 
 namespace Dmon.Protocol.Gateway;
 
@@ -15,7 +16,7 @@ namespace Dmon.Protocol.Gateway;
 //
 // Wire shapes:
 //   attach  (client → gateway): {"gw":"attach","sessionId":"...","lastSeq":N}
-//   attached (gateway → client): {"gw":"attached","generation":G,"headSeq":H}
+//   attached (gateway → client): {"gw":"attached","generation":G,"headSeq":H,"wire":"Major.Minor"}
 //   ack     (gateway → client): {"gw":"ack","id":"..."}
 //   ping    (either direction):  {"gw":"ping"}
 //   pong    (either direction):  {"gw":"pong"}
@@ -52,8 +53,9 @@ public sealed record AttachedFrame
     public string Gw => "attached";
 
     /// <summary>
-    /// Monotonically increasing counter incremented on each Attach. Group 6 uses this
-    /// to fence stale connections; issued here but not enforced until Group 6.
+    /// Monotonically increasing counter incremented on each Attach. The gateway fences stale
+    /// connections by this value: attaching a new connection for the session evicts and aborts
+    /// the prior one, so only the connection holding the current generation may keep sending.
     /// </summary>
     [JsonPropertyName("generation")]
     public required long Generation { get; init; }
@@ -64,10 +66,23 @@ public sealed record AttachedFrame
     /// </summary>
     [JsonPropertyName("headSeq")]
     public required long HeadSeq { get; init; }
+
+    /// <summary>
+    /// The <c>Major.Minor</c> wire protocol version this host implements, sourced from
+    /// <see cref="ProtocolVersion.Current"/>. A client compares this against its own
+    /// supported version on attach, so a mismatch surfaces here rather than later as a
+    /// malformed frame or an unrecognised event.
+    /// </summary>
+    [JsonPropertyName("wire")]
+    public string Wire => ProtocolVersion.Current;
 }
 
 /// <summary>
-/// Gateway → client: command acknowledged. Defined here; generation/dedup logic is Group 5.
+/// Gateway → client: command acknowledged. A client may safely resend a command whose ack
+/// it never saw: if the original reached core, the gateway recognises the resend by
+/// <c>id</c> and does not forward it again; if it did not, the resend is admitted and
+/// forwarded as normal. Either way the command is delivered to core at most once and never
+/// silently dropped.
 /// </summary>
 public sealed record AckFrame
 {

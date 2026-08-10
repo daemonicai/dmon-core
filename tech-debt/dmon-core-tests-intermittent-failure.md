@@ -1,0 +1,76 @@
+# `Dmon.Core.Tests` has a recurring intermittent failure
+
+**Status:** open — recurrence established, cause unknown, failing test **not identified**
+**Where:** the `Dmon.Core.Tests` assembly, under a full parallel `env -u MEKO_API_KEY make test`
+**Surfaced:** 2026-08-06, during `dmon-home-foundations` section 6 (unrelated to that change — block 6.2 touches no .NET source, and the same tree passed the full suite twice earlier the same day)
+**Severity:** unknown, which is the reason to look
+
+## What was observed
+
+One full-suite run reported `Failed: 1, Passed: 612, Skipped: 1` in `Dmon.Core.Tests`.
+The immediate re-run passed, as did **three further dedicated full-suite runs** — roughly
+**one failure in eight full runs** that day.
+
+**The failing test's name was not captured.** The gate command grepped for the per-assembly
+summary line, so the xunit `[FAIL]` line went nowhere, and it has not fired since. That is a
+process defect on the observing side, not a property of the failure, and it is fixed below.
+
+## Why this is its own note
+
+There is a separate, *identified* sighting — [`WizardEngineTests` intermittent
+failure](wizard-engine-intermittent-failure.md), 2026-08-02, same assembly, same
+"failed once under a full run, passed on rerun" shape.
+
+**Whether the two share a cause is unknown**, and this note exists precisely so that
+they are not merged into one story on the strength of resemblance. The wizard test is
+the obvious candidate; a plausible mechanism that predicts an observed failure is not
+thereby its cause, and this change has already paid once for making that inference.
+Folding this sighting into that note would have silently upgraded "something in
+`Dmon.Core.Tests` failed" into "the wizard test failed again".
+
+What the second sighting **does** establish, independent of identity: an intermittent
+failure in this assembly is **recurring rather than a one-off**. That is what moves it
+from a curiosity to something worth a session.
+
+## Why it deserves a look rather than a shrug
+
+`Dmon.Core.Tests` is the agent core's suite — 614 tests over the RPC surface, session
+storage, tool dispatch and the permission model. A ~12% chance of a red run is already
+enough to erode the gate's meaning: the habit it teaches is "rerun it", and that habit
+is indistinguishable from the habit that ships a real intermittent defect. It will also
+fire in CI, where a rerun is not free and the failure lands on someone who did not
+cause it.
+
+It may well be a test artifact. That is a finding to reach, not to assume.
+
+## What to do
+
+**First, catch it with its name attached.** The failure only appears under the full
+parallel run, so a targeted single-assembly loop is unlikely to reproduce it. Loop the
+full suite, preserving output, and stop on the first red run:
+
+```sh
+for i in $(seq 1 20); do
+  echo "=== run $i ==="
+  env -u MEKO_API_KEY make test 2>&1 | tee "/tmp/dmon-test-$i.log" | grep -qE '^Failed!' \
+    && { echo "FAILED on run $i"; grep -E '\[FAIL\]' "/tmp/dmon-test-$i.log"; break; }
+done
+```
+
+**Then force the mechanism rather than sampling it.** The approach that worked twice on
+the `home/` flakes in this change: find the suspected interleaving, inject a delay that
+makes it deterministic, and check whether the failure reproduces 100%. A clean run of
+*n* proves almost nothing at a ~12% base rate — that underpowered comparison is exactly
+what section 5 demonstrated before converting a rare flake into a demonstrated mechanism.
+
+**If it turns out to be `InvalidChooseOneAnswer_RePromptsStep`**, merge this note into the
+wizard one and inherit its reasoning about why a swallowed re-prompt would be a real
+user-facing defect. **If it is a different test**, this note stays and the wizard note's
+"observed once" status is still accurate.
+
+## Provenance
+
+Observed and measured by the Architect during section 6 of `dmon-home-foundations`
+(block B2's gate run). The run counts above are **verified**; the attribution to any
+particular test is **not attempted**. Detail in that change's `DEVLOG.md` while it
+remains unarchived.

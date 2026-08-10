@@ -2064,12 +2064,16 @@
         },
         "headSeq": {
           "type": "integer"
+        },
+        "wire": {
+          "type": "string"
         }
       },
       "required": [
         "generation",
         "headSeq",
-        "gw"
+        "gw",
+        "wire"
       ]
     },
     "gw.create": {

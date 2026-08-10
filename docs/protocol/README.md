@@ -48,8 +48,12 @@ A client should check `x-protocolVersion` when generating code from the schema. 
 generated against, the client and server are running incompatible wire contracts and the
 connection should be refused with an informative error shown to the user.
 
-There is no version-negotiation frame on the wire today; version compatibility is a
-deploy-time check.
+That schema check happens at build time, against whichever host generated the schema the
+client was built from. At runtime, the `attached` control frame carries the same
+`Major.Minor` version in its `wire` field (see [Section 3.3](#33-attaching-to-a-session--attach)),
+so a client can additionally check compatibility against the specific host it is talking to
+on every connect. This is advertisement, not negotiation: the host does not adjust its
+behaviour to match the client, and there is no round trip to agree a version.
 
 ---
 
@@ -128,12 +132,15 @@ fresh attach). The gateway uses this to replay any events you missed (see
 The gateway replies:
 
 ```json
-{"gw":"attached","generation":1,"headSeq":0}
+{"gw":"attached","generation":1,"headSeq":0,"wire":"0.2"}
 ```
 
 `generation` is a monotonically increasing counter for this session (explained in
 [Section 4.3](#43-generation-fencing)). `headSeq` is the highest sequence number assigned
-to any server→client event so far. On a brand-new session this is `0`.
+to any server→client event so far. On a brand-new session this is `0`. `wire` is the
+`Major.Minor` wire protocol version this host implements; compare it against the version
+your client supports on every attach, so a mismatch surfaces immediately as an explicit
+incompatibility instead of later as a malformed frame or an unrecognised event.
 
 After `attached`, the connection enters the live phase. Events from the core arrive as
 ADR-003 frames; commands you send are forwarded to the core and acknowledged with `ack`.
@@ -142,6 +149,34 @@ ADR-003 frames; commands you send are forwarded to the core and acknowledged wit
 
 The gateway accepts `attach` or `create` as the first frame on a connection. Any other
 first frame closes the connection.
+
+### 3.5 Close codes
+
+When the gateway closes a connection itself *with a code*, it is one of the codes below.
+These are part of the wire contract: switch on the numeric code, not on the reason string,
+which is free text for logs.
+
+| Code | Meaning | What to do |
+|------|---------|------------|
+| `4400` | Protocol violation — the first frame was neither `attach` nor `create`, a frame failed to parse, or a binary message was sent (this protocol is text JSONL only). | Fix the client; this is not retryable without a code change on your side. |
+| `4404` | `attach` named a `sessionId` the gateway has no handler for. | Do not retry the same `sessionId`. Start a new session with `create`, or confirm the id with whatever created it. |
+| `4409` | This connection was fenced out by a newer `attach` to the same session ([§4.3](#43-generation-fencing)). | Treat the closed connection as evicted, not as an error to retry on. Open a fresh connection and `attach` again if you still want this session. |
+| `4500` | Either a `create` failed to spawn or hand shake with the core, or — on an already-attached session — a command write to the core failed ([§5.1](#51-sending-a-command)). | On a failed `create`, retry the `create`. On an established session, reconnect and resend the unacknowledged command; deduplication makes the resend safe either way. |
+| `1009` | The standard RFC 6455 code for a message exceeding the gateway's size limit. | Fix the client to stay under the limit; this is not retryable without a code change on your side. |
+
+**A coded close is not the only way a connection ends.** A heartbeat-detected dead connection
+([§4.4](#44-heartbeat)) ends the socket with **no close code at all** — the gateway abandons
+it rather than performing a coded close handshake, so this is not a gap in the table above,
+it is a real third outcome alongside "coded close" and "still connected". (The [§3.2](#32-starting-a-new-session--create)
+`createRejected`/`created` responses also end the transport uncoded, but each is preceded by
+that reply frame, so there is no diagnostic gap there — heartbeat death is the case with
+nothing preceding it.) Treat any drop that
+carries no code, or a code you don't recognise, the same way: reattach with your current
+`lastSeq` rather than assume every disconnect carries a diagnosable cause. Resend-on-reconnect
+is safe regardless of whether the connection that dropped ever told you why.
+
+A close you initiate yourself carries whatever code your client sends when calling `close()` —
+that is your choice, not the gateway's.
 
 ---
 
@@ -233,11 +268,17 @@ Commands flow client → gateway → core. Each command must carry a unique `id`
 {"type":"turn.submit","id":"cmd-1","message":"Explain monads"}
 ```
 
-The gateway sends `ack` immediately on receipt (before the core has processed it):
+The gateway sends `ack` only after the core has received the command (it does not wait for
+the core to finish processing it):
 
 ```json
 {"gw":"ack","id":"cmd-1"}
 ```
+
+An ack therefore implies the core received the command. If the write to the core fails, the
+gateway sends no ack and closes the connection (`4500`) instead. A missing ack means the
+command may not have reached the core — resend it on reconnect regardless; deduplication
+makes the resend safe either way.
 
 ### 5.2 Receiving a result
 
@@ -256,9 +297,11 @@ There is **no** generic `{"type":"response",...}` envelope. Failures are:
 
 Correlate responses to commands using the `id` field. This is especially important on
 reconnect: you may resend a command that was already delivered before the disconnect. The
-gateway deduplicates commands by `id` within a session, so a resent command that was
-already forwarded to the core is silently dropped (GW-REQ: Command idempotency across
-reconnects).
+gateway deduplicates commands by `id` within a session: if the original reached the core, a
+resent command with the same `id` is not forwarded a second time and the gateway re-acks it
+so a client that missed the first ack still learns the command was received; if the original
+did not reach the core, the resend is admitted and forwarded normally
+(GW-REQ: Command idempotency across reconnects).
 
 ### 5.3 Streaming events
 
@@ -395,8 +438,9 @@ defined in `src/Dmon.Protocol/Delta/MessageDelta.cs`.
 // 5. Gateway → client: attach accepted
 //    generation:1 = first attach to this session
 //    headSeq:0 = no events yet; the first event will be seq 1
+//    wire:0.2 = the host's wire protocol version; client checks Major.Minor compatibility
 //    Client sets its lastSeq cursor to 0.
-← {"gw":"attached","generation":1,"headSeq":0}
+← {"gw":"attached","generation":1,"headSeq":0,"wire":"0.2"}
 
 // 6. Client → gateway: submit a turn
 → {"type":"turn.submit","id":"cmd-1","message":"What is 2 + 2?"}
@@ -448,8 +492,9 @@ but before `messageDelta`, `messageEnd`, and `turnEnd` are received.
 // 3. Gateway → client: attach accepted
 //    generation:2 = second attach to this session (generation incremented)
 //    headSeq:5 = five events have been assigned seqs in this session
+//    wire:0.2 = the host's wire protocol version; unchanged across attaches on the same host
 //    Client resets its cursor baseline to headSeq (5); replay will bring it to 5.
-← {"gw":"attached","generation":2,"headSeq":5}
+← {"gw":"attached","generation":2,"headSeq":5,"wire":"0.2"}
 
 // 4. Gateway replays events with seq > lastSeq (seq 3, 4, 5) in order.
 //    Replayed frames are byte-identical to the originals; no seq field is added.
