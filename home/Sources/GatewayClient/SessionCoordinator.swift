@@ -369,13 +369,17 @@ public actor SessionCoordinator {
     /// actor, the entry this turn's events belong to already exists and is already `openTurn`.
     ///
     /// That means a **write failure** — `.notAttached`, or the write itself throwing — has to
-    /// unwind an already-open turn, not merely skip opening one:
-    /// `TurnTranscript.convertOpenTurnToRefusal(reason:)` turns the entry `recordSubmittedTurn(_:)`
-    /// just created back into exactly the shape `recordSubmissionRefused(_:reason:)` would have
-    /// produced directly, so a renderer sees one shape for "never reached the wire" regardless of
-    /// which path produced it. Never checks attach state itself first — `GatewaySession
-    /// .submitTurn(_:)`'s `.notAttached` gate is the only one; its own doc comment explains why
-    /// that check lives there rather than being duplicated here.
+    /// unwind an already-open turn, not merely skip opening one — but by the time that `catch`
+    /// runs, `session.submitTurn(_:)`'s own `await` has already given `consume(_:)` a window to
+    /// run on this actor too, so the turn `recordSubmittedTurn(_:)` opened may no longer be
+    /// `transcript.openTurn` at all (replay draining after a `reattach()` is a realistic source —
+    /// see `TurnTranscript.convertOpenTurnToRefusal(_:reason:)`'s own doc comment for exactly how
+    /// that happens and why it matters). The id `recordSubmittedTurn(_:)` returns is what lets
+    /// that method tell "still the same turn" apart from "something else happened to it while the
+    /// write was in flight" — passing the id back here, not discarding it, is what makes this
+    /// call correct rather than merely usually correct. Never checks attach state itself first —
+    /// `GatewaySession.submitTurn(_:)`'s `.notAttached` gate is the only one; its own doc comment
+    /// explains why that check lives there rather than being duplicated here.
     ///
     /// Exactly one `publish()` follows every outcome: the open-turn refusal, a successful submit,
     /// and a submit that opened a turn and then failed to write.
@@ -389,11 +393,11 @@ public actor SessionCoordinator {
             return
         }
 
-        transcript.recordSubmittedTurn(message)
+        let assistantID = transcript.recordSubmittedTurn(message)
         do {
             try await session.submitTurn(message)
         } catch {
-            transcript.convertOpenTurnToRefusal(reason: refusalReason(for: error))
+            transcript.convertOpenTurnToRefusal(assistantID, reason: refusalReason(for: error))
         }
         publish()
     }

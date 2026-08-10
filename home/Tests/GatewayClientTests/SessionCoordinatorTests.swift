@@ -34,20 +34,31 @@ private func waitForSentFrames(_ transport: InMemoryGatewayTransport, atLeast co
 /// is the exact ordering `SessionCoordinator.submit(_:)`'s open-before-await fix (B3, §8
 /// supervisor remediation) exists to get right — see
 /// `anEventArrivingWhileTheSubmitWriteIsStillInFlightFoldsIntoTheEntrySubmitAlreadyOpened`.
+///
+/// `attachSendFailsFromCall` optionally makes the attach transport's *n*th `send(_:)` call fail
+/// after the delay (see `InMemoryGatewayTransport`'s own `failSendCallsFrom` doc comment) —
+/// `nil` (default) never fails, matching every call site that only needs the reorder window, not
+/// a failing write. Pass `1` to let the `attach` handshake frame (call `0`) succeed normally and
+/// fail only the `turn.submit` sent afterwards over that same connection — the shape
+/// `aTurnClosedAndReplacedWhileTheSubmitWriteIsInFlightThenFailingRecordsAStandaloneRefusalWithoutDisturbingTheReplacement`
+/// needs.
+///
 /// Every other index is undecorated, matching `RecordingTransportFactory`.
 private final class DelayedAttachSendTransportFactory: Sendable {
     private let state = OSAllocatedUnfairLock(initialState: [InMemoryGatewayTransport]())
     private let attachSendDelay: Duration
+    private let attachSendFailsFromCall: Int?
 
-    init(attachSendDelay: Duration) {
+    init(attachSendDelay: Duration, attachSendFailsFromCall: Int? = nil) {
         self.attachSendDelay = attachSendDelay
+        self.attachSendFailsFromCall = attachSendFailsFromCall
     }
 
     var makeTransport: @Sendable () -> any GatewayTransport {
         { [self] in
             state.withLock { transports in
                 let transport = transports.count == 1
-                    ? InMemoryGatewayTransport(sendDelay: attachSendDelay)
+                    ? InMemoryGatewayTransport(sendDelay: attachSendDelay, failSendCallsFrom: attachSendFailsFromCall)
                     : InMemoryGatewayTransport()
                 transports.append(transport)
                 return transport
@@ -373,6 +384,102 @@ struct SessionCoordinatorTests {
         await submitTask.value
         let final = await coordinator.snapshot()
         #expect(final.transcript.entries.count == 2, "the write completing afterwards must not append a further entry")
+
+        await coordinator.close()
+    }
+
+    /// The §8 supervisor's second remediation finding, forced through the real actor — not just
+    /// the pure reducer (`TurnTranscriptTests.convertOpenTurnToRefusalOnAnIdThatWasReplacedByA
+    /// DifferentOpenTurnLeavesTheReplacementUntouched` already covers that half deterministically
+    /// and without any transport at all). Here, `submit(_:)`'s own write is genuinely suspended
+    /// (`attachSendFailsFromCall: 1` — the `attach` handshake frame, call `0`, succeeds; the
+    /// `turn.submit` sent afterwards, call `1`, fails only once its own `sendDelay` elapses),
+    /// while — during that exact suspension — a real event sequence closes the turn `submit(_:)`
+    /// opened and a further event replaces it with a different one, all delivered by `consume(_:)`
+    /// running concurrently on the same actor. When the write's failure is finally discovered,
+    /// `convertOpenTurnToRefusal(_:reason:)` must record a standalone refusal without disturbing
+    /// the replacement — the unscoped shape this whole block replaced would have overwritten it.
+    @Test
+    func aTurnClosedAndReplacedWhileTheSubmitWriteIsInFlightThenFailingRecordsAStandaloneRefusalWithoutDisturbingTheReplacement() async throws {
+        let factory = DelayedAttachSendTransportFactory(attachSendDelay: .milliseconds(200), attachSendFailsFromCall: 1)
+        let session = GatewaySession(makeTransport: factory.makeTransport)
+        let coordinator = SessionCoordinator(session: session)
+
+        var iterator = await coordinator.updates().makeAsyncIterator()
+        _ = await iterator.next()
+
+        let connectTask = Task { await coordinator.connect() }
+        _ = try #require(await iterator.next())
+
+        let created = await waitUntil { factory.count() > 0 }
+        try #require(created)
+        let createTransport = try #require(factory.transport(at: 0))
+        await createTransport.enqueue(#"{"gw":"created","sessionId":"s1"}"#)
+
+        let attached = await waitUntil { factory.count() > 1 }
+        try #require(attached)
+        let attachTransport = try #require(factory.transport(at: 1))
+        await attachTransport.enqueue(#"{"gw":"attached","generation":1,"headSeq":0,"wire":"0.2"}"#)
+
+        _ = try #require(await iterator.next())
+        await connectTask.value
+
+        let sentCountAfterAttach = await attachTransport.sentFrames().count
+        let submitTask = Task { await coordinator.submit("say hello") }
+
+        // Proved, not assumed — same discipline as the sibling test above: the `turn.submit`
+        // write must still be genuinely in flight when the events below arrive.
+        try await Task.sleep(for: .milliseconds(20))
+        #expect(await attachTransport.sentFrames().count == sentCountAfterAttach, "the turn.submit write must still be in flight")
+
+        // Close the turn `submit(_:)` opened, entirely, with real streamed content —
+        // `turnStart` → a delta → `turnEnd` — then replace it with a *different* open turn via a
+        // further delta that arrives with nothing open to fold into (`apply(_:)`'s documented
+        // no-open-turn synthesis branch). All of this lands on the actor while the write above is
+        // still sleeping inside its artificial `sendDelay`.
+        await attachTransport.enqueue(#"{"type":"turnStart"}"#)
+        await attachTransport.enqueue(
+            #"{"type":"messageDelta","message":{},"delta":{"type":"textDelta","delta":"real reply","partial":true}}"#
+        )
+        await attachTransport.enqueue(#"{"type":"turnEnd","message":{},"toolResults":[]}"#)
+        await attachTransport.enqueue(
+            #"{"type":"messageDelta","message":{},"delta":{"type":"textDelta","delta":"unrelated replayed content","partial":true}}"#
+        )
+
+        let replacementAppeared = await waitUntil { await coordinator.snapshot().transcript.entries.count == 3 }
+        try #require(replacementAppeared, "the closed-and-replaced sequence must have landed before the write fails")
+
+        let beforeFailure = await coordinator.snapshot()
+        let firstEntryID = try #require(beforeFailure.transcript.entries.dropFirst().first?.id)
+        let replacementID = try #require(beforeFailure.transcript.openTurn?.id)
+        #expect(replacementID != firstEntryID)
+        #expect(beforeFailure.transcript.entries.first { $0.id == firstEntryID }?.state == .ended)
+        #expect(beforeFailure.transcript.entries.first { $0.id == firstEntryID }?.text == "real reply")
+
+        // Now let the write's `sendDelay` elapse and fail — `convertOpenTurnToRefusal(_:reason:)`
+        // is called with `firstEntryID`, which is no longer `openTurnID` at all.
+        await submitTask.value
+
+        let final = await coordinator.snapshot()
+        let firstEntry = try #require(final.transcript.entries.first { $0.id == firstEntryID })
+        #expect(firstEntry.state == .ended, "the original entry's real, delivered content must survive untouched")
+        #expect(firstEntry.text == "real reply")
+
+        let replacementEntry = try #require(final.transcript.entries.first { $0.id == replacementID })
+        #expect(
+            replacementEntry.role == .assistant,
+            "the replacement entry must not be overwritten by a refusal for a different, already-failed write"
+        )
+        #expect(replacementEntry.text == "unrelated replayed content")
+        #expect(replacementEntry.state == .streaming)
+        #expect(final.transcript.openTurn?.id == replacementID, "the genuinely open turn must stay open")
+
+        #expect(final.transcript.entries.count == 4, "a standalone refusal notice must be appended, not silently dropped")
+        let notice = try #require(final.transcript.entries.last)
+        #expect(notice.role == .notice)
+        let expectedReason = String(describing: GatewayTransportError.closedLocally)
+        #expect(notice.text == expectedReason)
+        #expect(notice.state == .refused(reason: expectedReason))
 
         await coordinator.close()
     }

@@ -138,7 +138,7 @@ struct TurnTranscriptTests {
         var transcript = TurnTranscript()
         let assistantID = transcript.recordSubmittedTurn("what's the plan?")
 
-        transcript.convertOpenTurnToRefusal(reason: "no session is attached")
+        transcript.convertOpenTurnToRefusal(assistantID, reason: "no session is attached")
 
         #expect(transcript.entries.count == 2)
         #expect(transcript.entries[0].role == .user)
@@ -151,14 +151,94 @@ struct TurnTranscriptTests {
     }
 
     @Test
-    func convertOpenTurnToRefusalWithNoOpenTurnIsAHarmlessNoOp() {
+    func convertOpenTurnToRefusalWithNoOpenTurnAtAllStillAppendsAStandaloneRefusalNotice() throws {
         var transcript = TurnTranscript()
         transcript.recordSubmissionRefused("hi", reason: "no session is attached")
         let before = transcript
 
-        transcript.convertOpenTurnToRefusal(reason: "irrelevant")
+        transcript.convertOpenTurnToRefusal(999, reason: "the write itself failed")
 
-        #expect(transcript == before)
+        // The mismatch branch must never be a silent no-op — see this method's own doc comment
+        // on why: a message that never reached the wire must always record a refusal somewhere.
+        #expect(transcript.entries.count == before.entries.count + 1)
+        let appended = try #require(transcript.entries.last)
+        #expect(appended.role == .notice)
+        #expect(appended.text == "the write itself failed")
+        #expect(appended.state == .refused(reason: "the write itself failed"))
+        #expect(transcript.openTurn == nil)
+    }
+
+    /// The regression the §8 supervisor's remediation exists for, forced deterministically
+    /// against the *pure reducer* (no transport, no actor, no timing): the turn `id` names has
+    /// already closed with nothing reopened before the write's failure is discovered — e.g. a
+    /// replayed `turnEnd` draining during a `reattach()` while `submitTurn(_:)`'s own write is
+    /// still suspended. The old, unscoped `convertOpenTurnToRefusal(reason:)` would have no-opped
+    /// here (`openTurnIndex` finds nothing, since `openTurnID` is already `nil`) — silently
+    /// discarding the fact that this message never reached the wire. Falsified against that shape
+    /// before this test was written: reverting to `guard let index = openTurnIndex else { return
+    /// }` with no `id` parameter left `entries.count` unchanged and dropped the refusal entirely.
+    @Test
+    func convertOpenTurnToRefusalOnAnIdThatAlreadyClosedWithNothingReopenedAppendsAStandaloneRefusalRatherThanSilentlyDoingNothing() throws {
+        var transcript = TurnTranscript()
+        let assistantID = transcript.recordSubmittedTurn("what's the plan?")
+        transcript.apply(.turnStarted)
+        transcript.apply(.textDelta("real reply"))
+        transcript.apply(.turnEnded)
+        #expect(transcript.openTurn == nil)
+
+        transcript.convertOpenTurnToRefusal(assistantID, reason: "the write itself failed")
+
+        // The already-ended entry must survive untouched — its real, delivered content must
+        // never be overwritten by a refusal for a *different* write that failed afterwards.
+        let endedEntry = try #require(transcript.entries.first { $0.id == assistantID })
+        #expect(endedEntry.state == .ended)
+        #expect(endedEntry.text == "real reply")
+
+        #expect(transcript.entries.count == 3, "a standalone refusal notice must be appended, not silently dropped")
+        let notice = try #require(transcript.entries.last)
+        #expect(notice.role == .notice)
+        #expect(notice.text == "the write itself failed")
+        #expect(notice.state == .refused(reason: "the write itself failed"))
+        #expect(transcript.openTurn == nil)
+    }
+
+    /// The other regression shape the supervisor named: the turn `id` names closed *and* a
+    /// different entry opened in its place (a replayed `turnStart`/delta arriving after the
+    /// original closed, synthesising a fresh open turn — `apply(_:)`'s no-open-turn branches) —
+    /// all before the write's failure is discovered. The unscoped version would have overwritten
+    /// that second, unrelated, already-streaming entry with the refusal — destroying its real
+    /// content and misattributing the failure to the wrong turn. Falsified the same way as the
+    /// sibling test above: the unscoped shape converts `entries[1]` (the replacement) instead of
+    /// leaving it alone.
+    @Test
+    func convertOpenTurnToRefusalOnAnIdThatWasReplacedByADifferentOpenTurnLeavesTheReplacementUntouched() throws {
+        var transcript = TurnTranscript()
+        let firstID = transcript.recordSubmittedTurn("what's the plan?")
+        transcript.apply(.turnStarted)
+        transcript.apply(.textDelta("real reply"))
+        transcript.apply(.turnEnded)
+        // A replayed delta with no open turn to fold into synthesises a fresh entry and becomes
+        // the new `openTurn` — exactly `apply(_:)`'s documented no-open-turn behaviour.
+        transcript.apply(.textDelta("unrelated replayed content"))
+        let replacementID = try #require(transcript.openTurn?.id)
+        #expect(replacementID != firstID)
+
+        transcript.convertOpenTurnToRefusal(firstID, reason: "the write itself failed")
+
+        let firstEntry = try #require(transcript.entries.first { $0.id == firstID })
+        #expect(firstEntry.state == .ended)
+        #expect(firstEntry.text == "real reply")
+
+        let replacementEntry = try #require(transcript.entries.first { $0.id == replacementID })
+        #expect(replacementEntry.role == .assistant, "the replacement entry must not be overwritten by an unrelated write's refusal")
+        #expect(replacementEntry.text == "unrelated replayed content")
+        #expect(replacementEntry.state == .streaming)
+        #expect(transcript.openTurn?.id == replacementID, "the genuinely open turn must stay open")
+
+        let notice = try #require(transcript.entries.last)
+        #expect(notice.role == .notice)
+        #expect(notice.text == "the write itself failed")
+        #expect(notice.state == .refused(reason: "the write itself failed"))
     }
 
     @Test

@@ -45,18 +45,21 @@ public struct TranscriptEntry: Identifiable, Hashable, Sendable {
         /// person's own choice to stop this host's tracking of it, not this
         /// reducer inferring the turn is over on its own. Terminal.
         ///
-        /// **Never produced by `apply(_:)`.** This type's own module doc
-        /// comment explains why it must never conclude, on its own, that an
+        /// **Not produced by `apply(_:)` today — held by review discipline,
+        /// not by the compiler.** This type's own module doc comment
+        /// explains why `apply(_:)` must never conclude, on its own, that an
         /// open turn is over — an unanswered `turnStart`/delta/`turnEnd`
         /// stays honestly `.awaitingResponse`/`.streaming` forever rather
         /// than guessing at an outcome the wire never confirmed. A person
         /// choosing to abandon a turn is a different kind of fact than that
         /// guess would be — which is exactly why this needs its own case
         /// rather than folding into `.failed` (a wire-reported outcome) or
-        /// `.refused` (never reached the wire at all), and why
-        /// `abandonOpenTurn()` — a distinct method `apply(_:)` never calls
-        /// and is never called from — is the one and only place allowed to
-        /// produce it.
+        /// `.refused` (never reached the wire at all). But `markAbandoned()`
+        /// is only `fileprivate`, not something narrower `apply(_:)` is
+        /// structurally barred from calling — it lives in this same file, a
+        /// few lines above `apply(_:)`'s own switch. Nothing enforces the
+        /// separation except that `apply(_:)` never calls it: a reviewer's
+        /// job, not the type system's, every time either method changes.
         case abandoned
     }
 
@@ -175,9 +178,10 @@ public struct TurnTranscript: Hashable, Sendable {
     /// Set by `recordSubmittedTurn(_:)` and by the no-open-turn synthesis
     /// branches of `apply(_:)` (`.textDelta`, `.turnStarted`) to the entry
     /// they just appended; cleared to `nil` by the terminal folds
-    /// (`.turnEnded`, `.failed` onto an open turn) and by the two
-    /// caller-driven terminations, `convertOpenTurnToRefusal(reason:)` and
-    /// `abandonOpenTurn()`. An entry that the wire simply falls silent on —
+    /// (`.turnEnded`, `.failed` onto an open turn), by `abandonOpenTurn()`,
+    /// and by `convertOpenTurnToRefusal(_:reason:)` **only on its matching
+    /// path** — its own doc comment covers the mismatch path, which leaves
+    /// this untouched by design. An entry that the wire simply falls silent on —
     /// never closed by any of those — is not transitioned to any other
     /// state; it is simply left named here forever. Rendering it as
     /// permanently awaiting is the honest thing: this type never learns
@@ -211,10 +215,13 @@ public struct TurnTranscript: Hashable, Sendable {
     /// synthesising an orphaned one. That means this call can be followed
     /// either by a successful write (nothing further needed — the entry
     /// already reads as submitted) or by `submitTurn(_:)` throwing, in which
-    /// case the caller's job is `convertOpenTurnToRefusal(reason:)`, not
-    /// silence: the entry this call just opened must not linger as
-    /// `.awaitingResponse` for a message that never reached the wire at
-    /// all.
+    /// case the caller's job is passing the id returned here to
+    /// `convertOpenTurnToRefusal(_:reason:)`, not silence: the entry this
+    /// call just opened must not linger as `.awaitingResponse` for a message
+    /// that never reached the wire at all — and the id is what lets that
+    /// call tell this exact turn apart from whatever else may have happened
+    /// to `openTurn` while the write was in flight (see that method's own
+    /// doc comment).
     @discardableResult
     public mutating func recordSubmittedTurn(_ message: String) -> TranscriptEntry.ID {
         let userEntry = TranscriptEntry(id: makeID(), role: .user, text: message, state: .complete)
@@ -244,22 +251,41 @@ public struct TurnTranscript: Hashable, Sendable {
         entries.append(noticeEntry)
     }
 
-    /// Converts the entry `recordSubmittedTurn(_:)` opened moments earlier into the same
-    /// `.notice`/`.refused(reason:)` shape `recordSubmissionRefused(_:reason:)` would have
-    /// produced directly, and clears `openTurnID` — used by `SessionCoordinator.submit(_:)`
-    /// when the write that turn's own `recordSubmittedTurn(_:)` call was opened ahead of
-    /// itself throws: the message never reached the wire, so there is nothing left to await a
-    /// reply to, and the entry must not linger as `.awaitingResponse` forever. A renderer sees
-    /// one shape for "this message never reached the wire" regardless of which of the two call
-    /// sites produced it — the entry's `id` is kept rather than minted fresh, but nothing reads
-    /// meaning into that beyond "some entry occupies this position in `entries`".
+    /// Converts the entry named by `id` — which must still be the *currently open* turn — into
+    /// the same `.notice`/`.refused(reason:)` shape `recordSubmissionRefused(_:reason:)` would
+    /// have produced directly, and clears `openTurnID`. `id` is the value `recordSubmittedTurn
+    /// (_:)` returned moments earlier; `SessionCoordinator.submit(_:)` passes it back here from
+    /// `session.submitTurn(_:)`'s `catch` when that write throws: the message never reached the
+    /// wire, so there is nothing left to await a reply to, and the entry must not linger as
+    /// `.awaitingResponse` forever. A renderer sees one shape for "this message never reached
+    /// the wire" regardless of which of the two call sites produced it — the entry's `id` is
+    /// kept rather than minted fresh on the matching path, but nothing reads meaning into that
+    /// beyond "some entry occupies this position in `entries`".
     ///
-    /// A no-op if there is no open turn: defensive only. `SessionCoordinator.submit(_:)` never
-    /// calls this without one, since it only reaches `session.submitTurn(_:)`'s `catch` after
-    /// `recordSubmittedTurn(_:)` has just opened one moments before, and nothing between the two
-    /// calls can close it (this reducer is not reentered while a caller is mid-call).
-    public mutating func convertOpenTurnToRefusal(reason: String) {
-        guard let index = openTurnIndex else {
+    /// **The `id` check is load-bearing, not defensive.** `recordSubmittedTurn(_:)` and this call
+    /// straddle `session.submitTurn(_:)`'s own `await` — a genuine actor suspension, during which
+    /// `consume(_:)` can run `apply(_:)` as an *independent caller* on the same actor (this
+    /// reducer being an unreentrant value type says nothing about that — the two calls into it
+    /// are sequential, but the actor code that makes them is not). A realistic source: replay
+    /// draining after a `reattach()`, which this module cannot observe a seam for and must
+    /// forward regardless (`SessionCoordinator`'s own doc comments), can close the turn this
+    /// call meant to unwind (`turnEnded`) and a following item can then open a *different* entry
+    /// as the new open turn (`apply(_:)`'s no-open-turn synthesis branches). Converting by
+    /// `openTurnIndex` alone — with no identity check — would silently overwrite whatever that
+    /// second, unrelated entry has already streamed and misattribute this write's refusal to it,
+    /// or, if nothing reopened one, do nothing at all: a message that never reached the wire
+    /// would then record no refusal anywhere, exactly the silent failure task 8.2 exists to rule
+    /// out.
+    ///
+    /// **On a mismatch — `id` is no longer `openTurnID`, whether because it closed with no
+    /// replacement or a different turn opened in its place — this appends a standalone `.notice`
+    /// in `.refused(reason:)` instead of doing nothing**, leaving whatever *is* currently open
+    /// (if anything) untouched. The write still failed and the user's message still never
+    /// reached the wire; that must be visible regardless of what else happened to `entries` while
+    /// it was in flight.
+    public mutating func convertOpenTurnToRefusal(_ id: TranscriptEntry.ID, reason: String) {
+        guard openTurnID == id, let index = entries.firstIndex(where: { $0.id == id }) else {
+            entries.append(TranscriptEntry(id: makeID(), role: .notice, text: reason, state: .refused(reason: reason)))
             return
         }
         entries[index] = TranscriptEntry(id: entries[index].id, role: .notice, text: reason, state: .refused(reason: reason))
@@ -270,7 +296,8 @@ public struct TurnTranscript: Hashable, Sendable {
     /// (`SessionCoordinator.abandonOpenTurn()`, wired to an "Abandon turn" control) to stop this
     /// host's tracking of it, never this reducer inferring the turn is over on its own. See
     /// `TranscriptEntry.State.abandoned`'s own doc comment for why that distinction needs its
-    /// own case, and for why nothing in `apply(_:)` may ever reach it.
+    /// own case, and for why `apply(_:)` never reaches it in practice today — a fact held by
+    /// review, not by anything the compiler enforces.
     ///
     /// Whatever text the entry has already streamed is kept — the same "never retract what has
     /// already been rendered" discipline `apply(_:)`'s `.failed` case follows for a mid-stream

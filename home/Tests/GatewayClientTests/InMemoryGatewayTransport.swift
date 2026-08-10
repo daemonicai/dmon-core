@@ -34,6 +34,8 @@ actor InMemoryGatewayTransport: GatewayTransport {
     private var isWedged = false
     private let isUncooperative: Bool
     private let sendDelay: Duration
+    private let failSendCallsFrom: Int?
+    private var sendCallCount = 0
     private let closeDelay: Duration
     private var hasDelayedAClose = false
     private var isDelayingAClose = false
@@ -52,6 +54,18 @@ actor InMemoryGatewayTransport: GatewayTransport {
     ///     recording the frame, letting a test force the interleaving
     ///     "close while the read loop is genuinely inside `route()`,
     ///     rather than parked in `receive()`". Default `.zero`.
+    ///   - failSendCallsFrom: When set, the *n*th `send(_:)` call on this transport (0-based,
+    ///     so `0` fails every call and `1` lets the first succeed) throws `GatewayTransportError
+    ///     .closedLocally` once `sendDelay` elapses, instead of recording the frame — a write
+    ///     that was genuinely in flight (past `checkOperable()`'s synchronous gate, which only
+    ///     ever runs *before* the delay) and then failed, as opposed to one refused before it
+    ///     ever started. Counted per call, not per transport, because one transport instance
+    ///     carries both a handshake's control frame (which a test may need to succeed) and later
+    ///     ADR-003 command frames sent over the same established connection (which a test may
+    ///     need to fail) — `1` is what lets a test force "the `attach` frame goes out fine, but
+    ///     the `turn.submit` sent over that same connection later does not". `nil` (default)
+    ///     never fails, so every existing call site's "delay, then succeed" behaviour is
+    ///     unchanged.
     ///   - closeDelay: An artificial delay the **first** call to `close()`
     ///     sleeps for before completing; every later concurrent call
     ///     returns immediately. Lets a test force "two teardown paths
@@ -64,9 +78,15 @@ actor InMemoryGatewayTransport: GatewayTransport {
     ///     resume in the same order they started, which never exercises
     ///     the "second entrant resumes first" case this exists to force.
     ///     Default `.zero`.
-    init(uncooperative: Bool = false, sendDelay: Duration = .zero, closeDelay: Duration = .zero) {
+    init(
+        uncooperative: Bool = false,
+        sendDelay: Duration = .zero,
+        failSendCallsFrom: Int? = nil,
+        closeDelay: Duration = .zero
+    ) {
         self.isUncooperative = uncooperative
         self.sendDelay = sendDelay
+        self.failSendCallsFrom = failSendCallsFrom
         self.closeDelay = closeDelay
     }
 
@@ -76,8 +96,13 @@ actor InMemoryGatewayTransport: GatewayTransport {
 
     func send(_ frame: String) async throws {
         try checkOperable()
+        let callIndex = sendCallCount
+        sendCallCount += 1
         if sendDelay > .zero {
             try? await Task.sleep(for: sendDelay)
+        }
+        if let failSendCallsFrom, callIndex >= failSendCallsFrom {
+            throw GatewayTransportError.closedLocally
         }
         sent.append(frame)
     }

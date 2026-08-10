@@ -1004,18 +1004,18 @@ struct GatewaySessionTests {
         let factory = DelayedFirstTransportFactory(firstCloseDelay: .milliseconds(300))
         let session = GatewaySession(makeTransport: factory.makeTransport)
 
-        // Readiness deadline for the wait below, taken after the
-        // 50,000-frame backlog is enqueued and `close()` runs. Unloaded this
-        // test completes in well under 1s. Kept at the 30s this test earned
-        // while it was still racing `close()`/`reattach()` — a genuinely
-        // loaded machine can still make the backlog drain and `close()`'s
-        // own 300ms teardown take a while — even though sequencing removed
-        // the specific failure mode (a losing `reattach()` throwing
-        // synchronously) that widening was chasing. It is a readiness
-        // deadline ("has the transport appeared"), not a bound this test's
-        // assertions depend on, so widening it further costs nothing but how
-        // long a genuine failure takes to surface.
-        let backlogDrainReadinessTimeout: TimeInterval = 30
+        // Readiness deadline for the wait below, taken after the 50,000-frame backlog is
+        // enqueued and `close()` runs. Unloaded this test completes in well under 1s. Brought
+        // back down from the 30s this test carried while it was still racing `close()`/
+        // `reattach()` — every widening that produced that value was chasing a `reattach()` that
+        // threw synchronously and so could never make a second transport appear (this test's own
+        // doc comment above), not genuine slowness; sequencing removed that failure mode
+        // entirely, so there is no longer a reason to budget for it. 5s leaves real headroom
+        // above the unloaded baseline for `close()`'s own 300ms teardown plus the backlog
+        // draining under a loaded parallel suite run, without resurrecting a timeout sized for a
+        // hang this test can no longer produce. A readiness deadline ("has the transport
+        // appeared"), not a bound this test's assertions depend on.
+        let backlogDrainReadinessTimeout: TimeInterval = 5
 
         let handshake = Task {
             try await session.attach(sessionId: "s1", lastSeq: 0)
