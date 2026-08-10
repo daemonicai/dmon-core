@@ -173,6 +173,9 @@ jobs:
       - name: Test dmon-home
         run: make dmon-home-test
 
+      - name: iOS portability gate
+        run: make dmon-home-ios-check
+
   ci-gate:
     name: CI gate
     needs: [changes, build-test, daemon-app-changes, daemon-app, dmon-home-changes, dmon-home]
