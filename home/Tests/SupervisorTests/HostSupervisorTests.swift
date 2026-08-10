@@ -44,7 +44,16 @@ struct HostSupervisorTests {
         await supervisor.start()
         let sawSixCrashes = await waitUntilTrue(timeout: 5) { await recorder.count >= 6 }
         #expect(sawSixCrashes, "expected 6 recorded restart delays")
-        #expect(await recorder.delays == [2, 4, 8, 16, 32, 60])
+
+        // Gated on `sawSixCrashes`, same reasoning as the drain-completion
+        // gate in `HostSupervisorChildOutputTests`: if the sixth crash never
+        // arrived, asserting on the (necessarily short) recorded sequence
+        // would report a second, confusing failure about the wrong delay
+        // values for the same root cause. When it does arrive, this still
+        // checks the real sequence, not just the count.
+        if sawSixCrashes {
+            #expect(await recorder.delays == [2, 4, 8, 16, 32, 60])
+        }
 
         _ = await supervisor.shutdown()
     }

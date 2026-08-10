@@ -152,13 +152,28 @@ struct HostSupervisorChildOutputTests {
         }
         #expect(completed, "a child writing more than one pipe buffer's worth of output must run to completion, not block forever in write(2) with nothing draining its pipe")
 
-        let fullyDrained = await waitUntilTrue(timeout: 5) {
+        // 30s, not 5s: this budget is a hang guard, not the test's teeth — a
+        // drain that drops, truncates, or corrupts lines can never reach
+        // `lineCount` at any budget, so widening it costs the test nothing
+        // while giving a loaded runner room to actually finish the drain.
+        let fullyDrained = await waitUntilTrue(timeout: 30) {
             await logStore.buffer(for: descriptor.id).lines.count == lineCount
         }
         #expect(fullyDrained, "expected every emitted line to land in the store")
 
-        let lines = await logStore.buffer(for: descriptor.id).lines
-        #expect(lines.allSatisfy { $0.text == payload })
+        // Gated on `fullyDrained`: if the drain never completed, asserting on
+        // its (necessarily partial) content would report a second, confusing
+        // failure about payload text for the same root cause. When the drain
+        // does complete, this still checks real content, not just the count —
+        // a store that unblocked the pipe by reading-and-discarding would
+        // pass the count check by coincidence only if discarded lines were
+        // replaced with something else, but a store that corrupted or
+        // truncated lines while still reaching `lineCount` would be caught
+        // here, not by the count alone.
+        if fullyDrained {
+            let lines = await logStore.buffer(for: descriptor.id).lines
+            #expect(lines.allSatisfy { $0.text == payload })
+        }
 
         _ = await supervisor.shutdown()
     }
