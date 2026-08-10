@@ -45,6 +45,7 @@ Debt that outlives a change needs somewhere that outlives a change.
 - [`WizardEngineTests` intermittent failure](wizard-engine-intermittent-failure.md) — .NET side, unrelated to `home/`; the one *identified* sighting.
 
 ### Docs and tooling
+- [The protocol guide still says `profile` where the wire says `agent`](protocol-guide-uses-profile-not-agent.md) — client-facing guide; a client written from §3.2 fails at its first `create`. The real fix is an end-to-end sweep of the guide against the wire, which is unowned.
 - [Stale `Group 5` placeholder comment on a populated Desktop view](stale-group-placeholder-in-desktop-conversation-view.md) — same defect class `dmon-home-foundations` §9 removed from the protocol DTOs; the locative-vs-temporal test for `Group N` comments is recorded there.
 - [`make clean` cleans neither Swift tree](make-clean-misses-swift-trees.md).
 - [Documentation drift pass](docs-drift-pass.md) — hard-coded ADR count, ADR-013 status mismatch, an orphaned ADR summary.
