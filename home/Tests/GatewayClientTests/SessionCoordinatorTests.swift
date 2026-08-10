@@ -337,7 +337,12 @@ struct SessionCoordinatorTests {
         let session = GatewaySession(makeTransport: factory.makeTransport)
         let coordinator = SessionCoordinator(session: session)
 
-        var iterator = await coordinator.updates().makeAsyncIterator()
+        // Kept alongside `iterator`, not only the iterator itself: `waitForSnapshot` takes the
+        // stream (see its own doc comment for why the iterator can't cross into the detached task
+        // it races internally). Every direct `iterator.next()` call below still shares the exact
+        // same underlying buffer and subscription as `waitForSnapshot`'s own reads.
+        let updates = await coordinator.updates()
+        var iterator = updates.makeAsyncIterator()
         _ = await iterator.next()
 
         let connectTask = Task { await coordinator.connect() }
@@ -374,7 +379,17 @@ struct SessionCoordinatorTests {
 
         await attachTransport.enqueue(#"{"type":"turnStart"}"#)
 
-        let afterStart = try #require(await iterator.next())
+        // Not "the next snapshot the stream yields" — that assumes nothing else can be published
+        // into that exact slot while `submitTask`'s own write is still genuinely in flight, which
+        // is precisely the assumption this test's forced race is designed to violate. Waiting
+        // until a snapshot actually reaches `.streaming` is what makes this robust to an unrelated
+        // snapshot (e.g. from the write's own eventual completion) landing first under load.
+        let afterStart = try #require(
+            await waitForSnapshot(
+                from: updates,
+                description: "the submitted turn to reach .streaming after turnStart"
+            ) { $0.transcript.openTurn?.state == .streaming }
+        )
         #expect(
             afterStart.transcript.entries.map(\.role) == [.user, .assistant],
             "the event must fold into the entry submit(_:) already opened, not a second, orphaned one"
@@ -446,7 +461,11 @@ struct SessionCoordinatorTests {
             #"{"type":"messageDelta","message":{},"delta":{"type":"textDelta","delta":"unrelated replayed content","partial":true}}"#
         )
 
-        let replacementAppeared = await waitUntil { await coordinator.snapshot().transcript.entries.count == 3 }
+        // `timeout: 8`, not the local default of 2: this poll is a hang guard on real actor
+        // work (four sequential enqueued frames plus the write's own 200ms `sendDelay`), not a
+        // discriminator on how fast that work should complete — the observed CI flake at this
+        // exact `#require` was the 2s default timing out under runner load, not a wrong-state bug.
+        let replacementAppeared = await waitUntil(timeout: 8) { await coordinator.snapshot().transcript.entries.count == 3 }
         try #require(replacementAppeared, "the closed-and-replaced sequence must have landed before the write fails")
 
         let beforeFailure = await coordinator.snapshot()
