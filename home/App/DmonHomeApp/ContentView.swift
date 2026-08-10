@@ -5,7 +5,9 @@ import SwiftUI
 /// The app's one window: supervised-child status (task 4.6/4.7's health
 /// surface), the gateway session's connection state and transcript (tasks
 /// 8.1/8.2), plus the microphone-authorisation placeholder from an earlier
-/// block.
+/// block. Task 8.3 orders and labels the first three of those as one
+/// diagnostic story — see `DiagnosticLayerLabel` — rather than four stacked,
+/// unrelated lists.
 struct ContentView: View {
     private let wireVersion = WireVersion.current
 
@@ -33,21 +35,32 @@ struct ContentView: View {
             Divider()
                 .padding(.vertical, 4)
 
+            // Task 8.3: the three layers a failed turn can be attributed to,
+            // labelled and ordered so a person can walk them top to bottom —
+            // is the child even running, are we attached to it over the
+            // gateway (and if not, why — the close code), and only then did
+            // the turn itself fail mid-flight. `ChildLogPaneView` sits with
+            // `SupervisedChildrenView` rather than off on its own: it is the
+            // detail view for "is the child running" (this is exactly what
+            // Part 1's new host-attributed lines land in), not a fourth,
+            // unrelated list.
+            DiagnosticLayerLabel(text: "Supervised child — is the process running?")
             SupervisedChildrenView(statuses: observers.status.statuses)
-
-            Divider()
-                .padding(.vertical, 4)
-
             ChildLogPaneView(statuses: observers.status.statuses, buffers: observers.log.buffers)
 
             Divider()
                 .padding(.vertical, 4)
 
+            DiagnosticLayerLabel(text: "Gateway connection — are we attached, and if not, why?")
             GatewaySessionView(snapshot: observers.session.snapshot, coordinator: coordinator)
 
             Divider()
                 .padding(.vertical, 4)
 
+            // The primary surface — what a user actually watches while a turn is in flight —
+            // placed last in the walk, since it is the layer a failure is *seen* at before
+            // being attributed to one of the two above it.
+            DiagnosticLayerLabel(text: "Turn — did the core fail mid-turn?")
             TranscriptView(entries: observers.session.snapshot?.transcript.entries ?? [])
 
             TurnInputView(coordinator: coordinator)
@@ -67,12 +80,29 @@ struct ContentView: View {
             .disabled(microphoneAuthorization.status != .notDetermined)
         }
         .padding()
-        .frame(minWidth: 320, minHeight: 200)
+        .frame(minWidth: 320, minHeight: 480)
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .active {
                 microphoneAuthorization.refresh()
             }
         }
+    }
+}
+
+/// A one-line caption naming which of task 8.3's three attribution layers —
+/// "supervised child", "gateway connection", or "turn" — the view(s)
+/// immediately below it belong to. Purely a label: it derives nothing and
+/// decides nothing, and deliberately stops short of collapsing the three
+/// layers into one combined verdict — that inference is exactly what
+/// letting a person read all three, in order, is supposed to replace.
+private struct DiagnosticLayerLabel: View {
+    let text: String
+
+    var body: some View {
+        Text(text)
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 

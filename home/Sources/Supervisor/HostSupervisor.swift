@@ -308,7 +308,7 @@ public actor HostSupervisor {
                 await store.publish(.normal, for: id)
             }
 
-        case .launchNotDecided, .executableNotResolved, .spawnFailed:
+        case .launchNotDecided:
             // Not a crash: there was never a process to exit, so this does
             // not feed `backoff` at all. Nothing enabled in this change's
             // scope (only the network gateway, task 4.7) takes this path
@@ -318,6 +318,80 @@ public actor HostSupervisor {
             states[id]?.supervisionTask = nil
             states[id]?.stdoutReaderTask = nil
             states[id]?.stderrReaderTask = nil
+            // Distinct wording from `.executableNotResolved` below, on
+            // purpose — `ChildStartOutcome.launchNotDecided`'s own doc
+            // comment draws this line and it must survive into what a
+            // person reads: an empty `candidates` list is a configuration
+            // state this change has not reached yet (true today for both
+            // mlx runtimes and the speech sidecar), not a misconfiguration
+            // to fix.
+            await logStore.append(
+                "launch path not decided yet for this child — no launch candidates are declared (expected today for the mlx runtimes and the speech sidecar); this is a configuration state, not a fault",
+                source: .host,
+                for: id
+            )
+
+        case .executableNotResolved:
+            // Same non-crash reasoning as `.launchNotDecided` above.
+            let candidates = states[id]?.descriptor.launch.candidates ?? []
+            states[id]?.spawnedChild = nil
+            states[id]?.startedAt = nil
+            states[id]?.supervisionTask = nil
+            states[id]?.stdoutReaderTask = nil
+            states[id]?.stderrReaderTask = nil
+            // Unlike `.launchNotDecided`, candidates *were* declared — this
+            // is the misconfiguration `ChildStartOutcome.executableNotResolved`'s
+            // own doc comment exists to make unmissable, so name exactly
+            // what was tried rather than just the case.
+            await logStore.append(
+                "none of this child's declared launch candidates resolved to an executable file — tried, in order: \(Self.describe(candidates)); check that the expected binary is installed and executable at one of those locations",
+                source: .host,
+                for: id
+            )
+
+        case .spawnFailed(let error):
+            // Same non-crash reasoning as `.launchNotDecided` above.
+            states[id]?.spawnedChild = nil
+            states[id]?.startedAt = nil
+            states[id]?.supervisionTask = nil
+            states[id]?.stdoutReaderTask = nil
+            states[id]?.stderrReaderTask = nil
+            await logStore.append(
+                "failed to launch: \(Self.describe(error))",
+                source: .host,
+                for: id
+            )
+        }
+    }
+
+    /// Renders `candidates` in the order they were tried, e.g.
+    /// `$MLX_REASONER_PATH, ~/.dotnet/tools/ndmon, /usr/local/bin/ndmon` —
+    /// the same order `ChildLaunch.candidates`' own doc comment says they
+    /// are attempted in, so the `.executableNotResolved` log line names
+    /// exactly what a person would need to check.
+    private static func describe(_ candidates: [ExecutableSource]) -> String {
+        candidates.map { candidate in
+            switch candidate {
+            case .environmentVariable(let name):
+                "$\(name)"
+            case .homeRelativePath(let path):
+                "~/\(path)"
+            case .absolutePath(let path):
+                path
+            }
+        }.joined(separator: ", ")
+    }
+
+    /// `SpawnError` carries no `CustomStringConvertible` conformance of its
+    /// own (nothing outside this one log line has needed a human-readable
+    /// rendering of it) — this stays local rather than becoming a new
+    /// public API surface for a single caller.
+    private static func describe(_ error: SpawnError) -> String {
+        switch error {
+        case .posixSpawnFailed(let errno):
+            "posix_spawn failed (errno \(errno): \(String(cString: strerror(errno))))"
+        case .childInheritedOurProcessGroup(let pid):
+            "child (pid \(pid)) came up in this host's own process group instead of a new one; it was killed and reaped"
         }
     }
 

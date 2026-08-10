@@ -374,6 +374,102 @@ struct HostSupervisorChildOutputTests {
         _ = await supervisor.shutdown()
     }
 
+    // MARK: - Launch-failure attribution (task 8.3)
+
+    /// Task 8.3's whole point: today, none of `.launchNotDecided`,
+    /// `.executableNotResolved`, `.spawnFailed` wrote anything to the log
+    /// pane, so a person watching a failed turn had no way to attribute it
+    /// to "this child never even started, and here is why" — the pane just
+    /// read "No output yet". `ChildStartOutcome.launchNotDecided`'s own doc
+    /// comment distinguishes this from a misconfiguration; the line must say
+    /// so, not just report the case name.
+    @Test
+    func aChildWithNoDecidedLaunchPathGetsAHostAttributedExplanationLine() async throws {
+        let descriptor = Self.descriptor(id: "not-decided-child", launch: ChildLaunch())
+        let logStore = ChildLogStore()
+        let supervisor = HostSupervisor(
+            descriptors: [descriptor],
+            store: ChildSupervisionStore(),
+            logStore: logStore
+        )
+
+        await supervisor.start()
+
+        let lines = await logStore.buffer(for: descriptor.id).lines
+        #expect(lines.count == 1, "an undecided launch path should produce exactly one host-attributed line")
+        #expect(lines.first?.source == .host)
+        #expect(lines.first?.childID == descriptor.id)
+        #expect(lines.first?.text.contains("not decided") == true)
+        #expect(lines.first?.text.contains("fault") == true, "must read as a configuration state, not a fault — see ChildStartOutcome.launchNotDecided")
+
+        _ = await supervisor.shutdown()
+    }
+
+    /// The misconfiguration case `ChildStartOutcome.executableNotResolved`'s
+    /// own doc comment exists to make unmissable: candidates *were*
+    /// declared, but none resolved. The host line must name what was tried,
+    /// not just say "failed" — that is the difference between an actionable
+    /// message and a dead end.
+    @Test
+    func aChildWhoseDeclaredCandidatesNoneResolveGetsAHostAttributedExplanationNamingThem() async throws {
+        let missingPath = "/definitely/does/not/exist/\(UUID().uuidString)"
+        let descriptor = Self.descriptor(id: "unresolved-child", launch: ChildLaunch(candidates: [.absolutePath(missingPath)]))
+        let logStore = ChildLogStore()
+        let supervisor = HostSupervisor(
+            descriptors: [descriptor],
+            store: ChildSupervisionStore(),
+            logStore: logStore
+        )
+
+        await supervisor.start()
+
+        let lines = await logStore.buffer(for: descriptor.id).lines
+        #expect(lines.count == 1, "an unresolved set of candidates should produce exactly one host-attributed line")
+        #expect(lines.first?.source == .host)
+        #expect(lines.first?.childID == descriptor.id)
+        #expect(lines.first?.text.contains(missingPath) == true, "the host line should name the candidate that was tried")
+
+        _ = await supervisor.shutdown()
+    }
+
+    /// A candidate resolved, but `posix_spawn` itself failed — the host
+    /// line must carry `SpawnError`'s own detail (here, the real errno
+    /// `posix_spawn` returns for a directory: `EACCES`), not merely say
+    /// "spawn failed". A directory is used as the "executable" deliberately:
+    /// it passes `ExecutableResolver`'s own `isExecutableFile` check (a
+    /// directory has the search/execute bit) but `posix_spawn` refuses it —
+    /// a real, reachable-through-the-real-coordinator failure, not a mocked
+    /// one.
+    @Test
+    func aChildWhosePosixSpawnFailsGetsAHostAttributedExplanationCarryingTheUnderlyingError() async throws {
+        let unexecutableDirectory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: unexecutableDirectory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: unexecutableDirectory) }
+        #expect(
+            FileManager.default.isExecutableFile(atPath: unexecutableDirectory.path),
+            "a directory must pass the resolver's own executable check for this fixture to reach posix_spawn at all"
+        )
+
+        let descriptor = Self.descriptor(id: "spawn-fail-child", launch: ChildLaunch(candidates: [.absolutePath(unexecutableDirectory.path)]))
+        let logStore = ChildLogStore()
+        let supervisor = HostSupervisor(
+            descriptors: [descriptor],
+            store: ChildSupervisionStore(),
+            logStore: logStore
+        )
+
+        await supervisor.start()
+
+        let lines = await logStore.buffer(for: descriptor.id).lines
+        #expect(lines.count == 1, "a failed posix_spawn should produce exactly one host-attributed line")
+        #expect(lines.first?.source == .host)
+        #expect(lines.first?.childID == descriptor.id)
+        #expect(lines.first?.text.contains("posix_spawn failed") == true)
+        #expect(lines.first?.text.contains("13") == true, "should carry SpawnError's own errno detail (EACCES, 13)")
+
+        _ = await supervisor.shutdown()
+    }
+
     // MARK: - Helpers
 
     private static func descriptor(
@@ -382,6 +478,22 @@ struct HostSupervisorChildOutputTests {
         policy: AdoptionPolicy = .spawnOnly,
         endpoint: URL = URL(string: "http://127.0.0.1:9999/unused")!,
         command: String
+    ) -> ChildDescriptor {
+        descriptor(
+            id: id,
+            startupOrder: startupOrder,
+            policy: policy,
+            endpoint: endpoint,
+            launch: ChildLaunch(candidates: [.absolutePath("/bin/sh")], arguments: ["-c", command])
+        )
+    }
+
+    private static func descriptor(
+        id: ChildID,
+        startupOrder: Int = 0,
+        policy: AdoptionPolicy = .spawnOnly,
+        endpoint: URL = URL(string: "http://127.0.0.1:9999/unused")!,
+        launch: ChildLaunch
     ) -> ChildDescriptor {
         ChildDescriptor(
             id: id,
@@ -392,7 +504,7 @@ struct HostSupervisorChildOutputTests {
             healthCheckTimeout: 1,
             startupOrder: startupOrder,
             adoptionPolicy: policy,
-            launch: ChildLaunch(candidates: [.absolutePath("/bin/sh")], arguments: ["-c", command]),
+            launch: launch,
             isEnabled: true
         )
     }

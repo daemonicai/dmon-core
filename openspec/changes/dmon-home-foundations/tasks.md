@@ -57,7 +57,7 @@
 
 - [x] 8.1 Add a text input that submits a turn to the attached session and a transcript view that renders the streamed reply incrementally. (Satisfies "The host accepts typed turn input and renders streamed replies" — the rendered-reply scenario.)
 - [x] 8.2 Refuse submission when no session is attached, surfacing the unattached state rather than failing silently. (Satisfies the not-attached scenario.)
-- [ ] 8.3 Surface supervised-child health and the gateway connection state in the UI alongside the transcript, so a failed turn can be attributed to the right layer.
+- [x] 8.3 Surface supervised-child health and the gateway connection state in the UI alongside the transcript, so a failed turn can be attributed to the right layer.
 
 ## 9. Protocol comment correction
 
