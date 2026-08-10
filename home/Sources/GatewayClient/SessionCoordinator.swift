@@ -28,6 +28,34 @@ public enum GatewayConnectionState: Hashable, Sendable {
     /// `.attached` at all.
     case connectFailed(ConnectFailure)
 
+    /// Whether `SessionCoordinator.connect()` will actually run a handshake from this state,
+    /// rather than silently no-op. **The single source of truth for that legality** —
+    /// `connect()` guards on this property directly rather than repeating its own switch, so a
+    /// caller (a view deciding whether to show a "New Session" control, a test) reads the same
+    /// fact `connect()` itself acts on instead of a second, independently-maintained copy of it.
+    public var allowsConnect: Bool {
+        switch self {
+        case .idle, .connectFailed, .dropped:
+            true
+        case .connecting, .attached:
+            false
+        }
+    }
+
+    /// Whether `SessionCoordinator.reattach()` will actually run a handshake from this state,
+    /// rather than silently no-op. Same discipline as `allowsConnect`: `reattach()` guards on
+    /// this property directly, so this is the one place either needs to change to keep them
+    /// from drifting apart. `.connectFailed` is included deliberately — see `reattach()`'s own
+    /// doc comment for why a failed reattach must remain retryable, not just a failed connect.
+    public var allowsReattach: Bool {
+        switch self {
+        case .dropped, .connectFailed:
+            true
+        case .idle, .connecting, .attached:
+            false
+        }
+    }
+
     /// Why a connection that was `.attached` stopped being so. Distinct
     /// from `ConnectFailure` because these three describe a connection that
     /// genuinely existed and then ended, not one that never got established
@@ -240,11 +268,12 @@ public actor SessionCoordinator {
         }
     }
 
-    /// Runs the create→attach handshake at most once. Legal from `.idle`,
-    /// `.connectFailed`, and `.dropped` — every other state is a no-op,
-    /// deliberately silent rather than thrown: a duplicate call from an app
-    /// target status trigger (§B3) must be harmless, not something a caller
-    /// has to guard against itself. Also a silent no-op once `close()` has
+    /// Runs the create→attach handshake at most once. Legal exactly where
+    /// `connectionState.allowsConnect` says so (`.idle`, `.connectFailed`,
+    /// `.dropped`) — every other state is a no-op, deliberately silent
+    /// rather than thrown: a duplicate call from an app target status
+    /// trigger (§B3) must be harmless, not something a caller has to guard
+    /// against itself. Also a silent no-op once `close()` has
     /// ever been called on this coordinator — see `isClosed`'s own doc
     /// comment for why that is a one-way door, and for the `isClosed`
     /// recheck below that makes it hold against a call already in flight
@@ -275,12 +304,7 @@ public actor SessionCoordinator {
     /// `closeWinsAConnectThatRacesPastTheEntryCheckIntoThePostHandshakeWindow`.
     public func connect() async {
         guard !isClosed else { return }
-        switch connectionState {
-        case .connecting, .attached:
-            return
-        case .idle, .connectFailed, .dropped:
-            break
-        }
+        guard connectionState.allowsConnect else { return }
 
         connectionState = .connecting
         publish()
@@ -343,8 +367,9 @@ public actor SessionCoordinator {
     }
 
     /// Re-establishes the session after a drop, **or retries after a
-    /// previous reattach failed** — legal from both `.dropped` and
-    /// `.connectFailed`; every other state is a silent no-op, mirroring
+    /// previous reattach failed** — legal exactly where
+    /// `connectionState.allowsReattach` says so (`.dropped` and
+    /// `.connectFailed`); every other state is a silent no-op, mirroring
     /// `connect()`'s own discipline. On success, re-subscribes to the
     /// **new** stream `GatewaySession.reattach()` returns: the old one is
     /// already finished and cannot be revived (`GatewaySession`'s own
@@ -375,12 +400,7 @@ public actor SessionCoordinator {
     /// window a concurrent `close()` could otherwise win into.
     public func reattach() async {
         guard !isClosed else { return }
-        switch connectionState {
-        case .idle, .connecting, .attached:
-            return
-        case .dropped, .connectFailed:
-            break
-        }
+        guard connectionState.allowsReattach else { return }
 
         connectionState = .connecting
         publish()

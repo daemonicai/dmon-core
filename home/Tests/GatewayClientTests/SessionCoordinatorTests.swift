@@ -654,3 +654,30 @@ struct SessionCoordinatorTests {
         return (attachTransport, createTransport)
     }
 }
+
+/// `GatewayConnectionState.allowsConnect`/`allowsReattach` are the single source of truth
+/// `SessionCoordinator.connect()`/`reattach()` guard on themselves (see those methods' own doc
+/// comments) — exercised exhaustively here, over every case, so a case added or reclassified
+/// later has a test that must be updated alongside it rather than a silently stale assumption.
+/// `SessionCoordinatorTests` above keeps the complementary behavioural proof: that a call from an
+/// illegal state is actually a no-op, not merely that the property says it should be.
+@Suite
+struct GatewayConnectionStateLegalityTests {
+    @Test
+    func allowsConnectIsTrueOnlyForIdleConnectFailedAndDropped() {
+        #expect(GatewayConnectionState.idle.allowsConnect)
+        #expect(!GatewayConnectionState.connecting.allowsConnect)
+        #expect(!GatewayConnectionState.attached(sessionId: "s1").allowsConnect)
+        #expect(GatewayConnectionState.dropped(.closedLocally).allowsConnect)
+        #expect(GatewayConnectionState.connectFailed(.other(message: "boom")).allowsConnect)
+    }
+
+    @Test
+    func allowsReattachIsTrueOnlyForDroppedAndConnectFailed() {
+        #expect(!GatewayConnectionState.idle.allowsReattach)
+        #expect(!GatewayConnectionState.connecting.allowsReattach)
+        #expect(!GatewayConnectionState.attached(sessionId: "s1").allowsReattach)
+        #expect(GatewayConnectionState.dropped(.closedLocally).allowsReattach)
+        #expect(GatewayConnectionState.connectFailed(.other(message: "boom")).allowsReattach)
+    }
+}

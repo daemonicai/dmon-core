@@ -70,6 +70,27 @@ public struct TranscriptEntry: Identifiable, Hashable, Sendable {
     fileprivate mutating func markFailed(code: String, message: String, recoverable: Bool) {
         state = .failed(code: code, message: message, recoverable: recoverable)
     }
+
+    /// The failure detail a renderer should show **in addition to** `text` — `nil` when `text`
+    /// already carries the full reason and repeating it would just duplicate the row.
+    ///
+    /// `TurnTranscript.apply(_:)`'s `.failed` case sets `text` to the failure `message` itself
+    /// only on its no-open-turn branch, which always produces a `.notice` entry; its open-turn
+    /// branch instead keeps whatever partial content that (`.assistant`) entry had already
+    /// streamed, and never writes `message` into `text` at all — so without this property, that
+    /// entry's `code`/`message` would never be shown anywhere. `.refused` is only ever produced
+    /// by `recordSubmissionRefused(_:reason:)`, which is always a `.notice` entry and always sets
+    /// `text` to `reason` — so it never needs a detail line either. This lives here, on the type
+    /// that owns both `apply(_:)`'s branches and the entry's own `role`/`state`/`text`, rather
+    /// than as a renderer's traced-through-the-reducer guess at the same fact — a later change to
+    /// either branch changes this property along with it, with a compiler and test signal, rather
+    /// than silently invalidating a rule recorded somewhere else.
+    public var additionalFailureDetail: String? {
+        guard case .failed(let code, let message, let recoverable) = state, role != .notice else {
+            return nil
+        }
+        return "\(message) (\(code)\(recoverable ? "" : ", not recoverable"))"
+    }
 }
 
 /// Folds the `TurnEvent` sequence `TurnProjection.project(_:)` produces into

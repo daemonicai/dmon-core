@@ -213,4 +213,92 @@ struct TurnTranscriptTests {
         #expect(secondEntry?.state == .streaming)
         #expect(transcript.openTurn?.id == secondID)
     }
+
+    /// `TranscriptEntry.additionalFailureDetail` exists so a renderer never has to re-derive,
+    /// from `apply(_:)`'s own branches, whether `text` already carries a failure's reason —
+    /// every entry below comes from actually driving `TurnTranscript`, not a hand-built
+    /// `TranscriptEntry`, so a future change to those branches would break these fixtures too,
+    /// not just the property.
+    @Test
+    func additionalFailureDetailIsNilForEveryNonTerminalOrSuccessfulState() {
+        var transcript = TurnTranscript()
+        let assistantID = transcript.recordSubmittedTurn("hi")
+
+        let userEntry = transcript.entries[0]
+        #expect(userEntry.state == .complete)
+        #expect(userEntry.additionalFailureDetail == nil)
+
+        let awaiting = transcript.entries.first { $0.id == assistantID }
+        #expect(awaiting?.additionalFailureDetail == nil)
+
+        transcript.apply(.turnStarted)
+        let streaming = transcript.entries.first { $0.id == assistantID }
+        #expect(streaming?.additionalFailureDetail == nil)
+
+        transcript.apply(.turnEnded)
+        let ended = transcript.entries.first { $0.id == assistantID }
+        #expect(ended?.state == .ended)
+        #expect(ended?.additionalFailureDetail == nil)
+    }
+
+    /// The one case the property exists for: a mid-stream failure on an `.assistant` entry never
+    /// writes its `code`/`message` into `text` (`text` keeps the partial streamed content
+    /// instead — see `aMidTurnFailureAfterDeltasKeepsThePartialTextAndClosesTheOpenTurn` above),
+    /// so this is the only place that reason is visible at all.
+    @Test
+    func additionalFailureDetailSurfacesCodeAndMessageForAnAssistantEntryFailedMidStream() {
+        var transcript = TurnTranscript()
+        let assistantID = transcript.recordSubmittedTurn("hi")
+
+        transcript.apply(.turnStarted)
+        transcript.apply(.textDelta("partial"))
+        transcript.apply(.failed(code: "internalError", message: "boom", recoverable: false))
+
+        let entry = transcript.entries.first { $0.id == assistantID }
+        #expect(entry?.role == .assistant)
+        #expect(entry?.text == "partial", "text keeps the partial content, not the failure message")
+        #expect(entry?.additionalFailureDetail == "boom (internalError, not recoverable)")
+    }
+
+    @Test
+    func additionalFailureDetailOmitsTheNotRecoverableSuffixWhenTheFailureIsRecoverable() {
+        var transcript = TurnTranscript()
+        let assistantID = transcript.recordSubmittedTurn("hi")
+
+        transcript.apply(.failed(code: "turnInProgress", message: "a turn is already running", recoverable: true))
+
+        let entry = transcript.entries.first { $0.id == assistantID }
+        #expect(entry?.additionalFailureDetail == "a turn is already running (turnInProgress)")
+    }
+
+    /// The no-open-turn branch of `apply(_:)`'s `.failed` case already writes `message` into the
+    /// synthesised `.notice` entry's `text` (`aFailureWithNoOpenTurnAppendsANoticeEntryInFailed
+    /// State` above) — so `additionalFailureDetail` must stay `nil` here, or the row would show
+    /// the same reason twice.
+    @Test
+    func additionalFailureDetailIsNilForANoticeEntrySynthesisedFromAFailureWithNoOpenTurn() {
+        var transcript = TurnTranscript()
+
+        transcript.apply(.failed(code: "internalError", message: "unexpected", recoverable: false))
+
+        let entry = transcript.entries[0]
+        #expect(entry.role == .notice)
+        #expect(entry.text == "unexpected")
+        #expect(entry.additionalFailureDetail == nil)
+    }
+
+    /// `recordSubmissionRefused(_:reason:)` always writes `reason` into the notice entry's `text`
+    /// (`recordSubmissionRefusedKeepsTheTypedTextRecordsTheReasonAndLeavesNoOpenTurn` above) — so
+    /// this must stay `nil` too, for the same reason.
+    @Test
+    func additionalFailureDetailIsNilForARefusedNoticeEntry() {
+        var transcript = TurnTranscript()
+
+        transcript.recordSubmissionRefused("hi", reason: "no session is attached")
+
+        let entry = transcript.entries[1]
+        #expect(entry.role == .notice)
+        #expect(entry.state == .refused(reason: "no session is attached"))
+        #expect(entry.additionalFailureDetail == nil)
+    }
 }
