@@ -21,6 +21,8 @@ Debt that outlives a change needs somewhere that outlives a change.
 ## Open items
 
 ### Behaviour gaps
+- [First-run provisioning races the gateway's device-store reload](provisioning-races-device-store-reload.md) — the new-device path 401s on its first connect and never retries; observed once, live.
+- [Auth failure messages are truncated in the UI](auth-failure-messages-truncated-in-ui.md) — the five outcomes name the failure correctly, then the view clips the sentence and drops the recovery command.
 - [Silent failure when a child's executable cannot be resolved](silent-failure-on-unresolved-launch.md) — the most likely real-world failure shows no signal in any of the three UI panes.
 - [A crashed child's descendants are never group-killed](crashed-child-descendants-not-group-killed.md) — survivors leak for the host's lifetime.
 - [`.process` health checks are unimplemented](process-health-checks-unimplemented.md) — `HealthChecker` returns `.unknown` without executing anything.
