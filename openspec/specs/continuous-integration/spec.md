@@ -30,15 +30,18 @@ CI SHALL build and test only the areas affected by the changed paths, using a si
 
 ### Requirement: Swift app is built and tested on macOS
 
-CI SHALL build and test the Swift menu-bar app `daemon/Daemon.App` on a macOS runner, via `make daemon-app` (build) and a `make daemon-app-test` target that runs `swift test`. Because macOS runners are costly, this job SHALL be scoped to changes under `daemon/Daemon.App/**` (and `main` pushes). The Swift package is orthogonal to the .NET "core ⇒ all" rule and SHALL NOT be triggered by .NET-area changes.
+CI SHALL build and test each first-party Swift package on a macOS runner via that package's own `make` build target and a matching `make` test target that runs `swift test`. The Swift packages are `daemon/Daemon.App` (the dmonium menu-bar app, via `make daemon-app` and `make daemon-app-test`) and the `home/` macOS host `dmon-home`. Because macOS runners are costly, each Swift package SHALL have its **own independent path filter** scoped to that package's paths (and `main` pushes), so a change to one Swift package does not run the other's job. The Swift packages are orthogonal to the .NET "core ⇒ all" rule and SHALL NOT be triggered by .NET-area changes.
 
 #### Scenario: Swift change runs the macOS job
-- **WHEN** a change touches files under `daemon/Daemon.App/**`
-- **THEN** a macOS CI job runs `make daemon-app` and `make daemon-app-test`, and the Swift tests pass
+
+- **WHEN** a change touches files under a Swift package's paths (e.g. `daemon/Daemon.App/**` or `home/**`)
+- **THEN** a macOS CI job runs that package's `make` build and test targets, and its Swift tests pass
+- **AND** the other Swift package's macOS job does not run
 
 #### Scenario: Non-Swift change skips the macOS job
-- **WHEN** a change touches no files under `daemon/Daemon.App/**`
-- **THEN** the macOS Swift job does not run
+
+- **WHEN** a change touches no files under any Swift package's paths
+- **THEN** no macOS Swift job runs
 
 ### Requirement: Live-category tests are excluded from automated runs
 
