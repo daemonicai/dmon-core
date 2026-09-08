@@ -21,34 +21,27 @@ Debt that outlives a change needs somewhere that outlives a change.
 ## Open items
 
 ### Behaviour gaps
-- [First-run provisioning races the gateway's device-store reload](provisioning-races-device-store-reload.md) — the new-device path 401s on its first connect and never retries; observed once, live.
-- [Auth failure messages are truncated in the UI](auth-failure-messages-truncated-in-ui.md) — the five outcomes name the failure correctly, then the view clips the sentence and drops the recovery command.
-- [Silent failure when a child's executable cannot be resolved](silent-failure-on-unresolved-launch.md) — the most likely real-world failure shows no signal in any of the three UI panes.
-- [A crashed child's descendants are never group-killed](crashed-child-descendants-not-group-killed.md) — survivors leak for the host's lifetime.
-- [`.process` health checks are unimplemented](process-health-checks-unimplemented.md) — `HealthChecker` returns `.unknown` without executing anything.
+- [First-run provisioning races the gateway's device-store reload](provisioning-races-device-store-reload.md) — the new-device path 401s on its first connect and never retries; observed once, live. Cross-repo: the fix was decided to be gateway-side, so the note stayed here.
 - [A `turn.submit` can produce no event at all](turn-submit-can-produce-no-event-at-all.md) — cancellation before `turnStart` reaches the wire is swallowed silently, so a client cannot tell a wedged turn from a slow one.
 
-### Structural / by-convention-only
-- [`withTimeout` cannot bound work that ignores cancellation](timeout-race-cannot-bound-uncooperative-work.md) — mechanism proven by repro; the two `Supervisor` call sites are unaudited.
-- [The supervisor's shutdown walk is cancellable by construction](shutdown-walk-is-cancellable.md) — a future edit can skip children with no compiler or test signal.
-- [Observer single-construction is convention, not construction](observer-single-construction-by-convention.md) — two instances now; a third makes it worth closing.
-- [The termination path is load-bearing on process-scoped resources only](termination-path-process-scoped-only.md) — adding any other kind breaks it silently.
-- [Gateway enablement is a build-time constant](gateway-enablement-is-static.md) — "enabled" cannot yet mean "actually serving".
-- [Three near-identical stores](store-duplication-trigger.md) — deliberately not collapsed; the trigger to revisit is recorded.
-
-### Toolchain
-- [A closed `WebSocketGatewayTransport` can leave its read loop running forever](websocket-receive-cancellation-leak.md) — contained and tested; the residual leak needs a live socket to confirm or fix.
-- [Swift 6.3.3 async task-context crash, worked around twice](swift-task-dealloc-workarounds.md) — see also `home/TOOLCHAIN-NOTES.md`.
-
 ### Tests
-- [`.timeLimit` does not bound a hang on an un-cancellable continuation](swift-testing-timelimit-does-not-bound-continuation-hangs.md) — two hang-shaped regression tests carry a trait that cannot bound them; reproduced twice, and only an external timeout can work.
-- [`ChildSpawnerTests` readiness rests on a fixed sleep](childspawner-test-timing-assumption.md).
 - [`Dmon.Core.Tests` has a recurring intermittent failure](dmon-core-tests-intermittent-failure.md) — ~1 red run in 8; the failing test was not captured, so catch it with its name first.
-- [`WizardEngineTests` intermittent failure](wizard-engine-intermittent-failure.md) — .NET side, unrelated to `home/`; the one *identified* sighting.
+- [`WizardEngineTests` intermittent failure](wizard-engine-intermittent-failure.md) — the one *identified* sighting.
 
 ### Docs and tooling
 - [The protocol guide still says `profile` where the wire says `agent`](protocol-guide-uses-profile-not-agent.md) — client-facing guide; a client written from §3.2 fails at its first `create`. The real fix is an end-to-end sweep of the guide against the wire, which is unowned.
 - [Stale `Group 5` placeholder comment on a populated Desktop view](stale-group-placeholder-in-desktop-conversation-view.md) — same defect class `dmon-home-foundations` §9 removed from the protocol DTOs; the locative-vs-temporal test for `Group N` comments is recorded there.
-- [`make clean` cleans neither Swift tree](make-clean-misses-swift-trees.md).
+- [`make clean` does not clean the Swift tree](make-clean-misses-swift-trees.md) — `daemon/Daemon.App/.build/`.
 - [Documentation drift pass](docs-drift-pass.md) — hard-coded ADR count, ADR-013 status mismatch, an orphaned ADR summary.
 - [ADR-034 has no record of the Apple Silicon constraint](adr-034-missing-apple-silicon-constraint.md) — a binding constraint that is currently unwritten.
+
+## Moved out of this register
+
+`dmon-home` left this repository (ADR-038), and the fourteen notes describing
+Swift supervision, the Swift toolchain and the macOS host's UI went with the code
+they describe (ADR-038 Decision 4). They are in `daemonicai/dmon-home`'s own
+`tech-debt/`.
+
+The **first-run provisioning race** straddles the boundary and deliberately did
+*not* move: the Product Owner settled ADR-038's first open question in favour of
+the gateway-side fix, and the repository that owns the fix owns the note.

@@ -1,7 +1,7 @@
 # ADR-038: `dmon-home` Moves to Its Own Repository
 
 **Date:** 2026-09-08
-**Status:** Proposed
+**Status:** Accepted
 **Supersedes:** ADR-037 **Decision 1 only** — the `home/` top-level bucket. `dmon-home` ceases to be a member of this monorepo. Consequentially this **reverts ADR-037 D1's amendments**: `home/` leaves ADR-025 D2's bucket set and ADR-028 D1's bucket membership, both of which return to their pre-ADR-037 text.
 **Retains:** ADR-037 **Decisions 2, 3, 4 and 5 in full** — gateway-client-not-stdio-host (D2), the supersession of `dmonium` and the `dmon-home` / `ai.daemonic.dmon-home` / `DmonHomeApp` naming (D3), the speech hosting decision (D4, itself pending a separate reversal — see Decision 5 below), and the Apple-Silicon-only constraint (D5). None of those decisions depends on which repository the code sits in.
 **Builds on:** ADR-012 (the `gw` control-frame sub-protocol, which becomes the cross-repo contract seam), ADR-025 (bucket set and path-filtered CI), ADR-028 (bucket membership, `daemon/Daemon.App`), ADR-035 (release families — `dmon-home`'s prospective artifact leaves this repo's matrix).
@@ -192,15 +192,24 @@ What has changed since:
 
 ## Open questions
 
-- **Who fixes the provisioning race, and therefore where its note ends up** (Decision 4). The
-  gateway-side fix — re-read the device store before rejecting an unknown `keyId` — is the better
-  argued but touches the fail-closed auth path; the client-side retry is cheaper but encodes the
-  timing assumption. This wants deciding before the split rather than after, because afterwards
-  the two candidate fixes live in different repositories.
-- **Whether the new repository adopts this repository's OpenSpec apply workflow** (worker /
-  reviewer / supervisor agents, DEVLOG conventions) or a lighter one. Decision 3 gives it an
-  OpenSpec root; it does not settle the process around it. As it stands the repository has the
-  **base** OpenSpec skills only — no `.claude/agents/`, no `CLAUDE.md` — so the Architect-and-
-  three-agents loop this repository runs is **not** available there today. Adopting it is a
-  scaffolding step, not a decision that happens by default, and it should be settled before the
-  first change is applied in the new repository rather than discovered mid-change.
+Both were settled by the Product Owner on 2026-09-08, before the split was executed, exactly as
+each entry asked. Kept here rather than deleted, because the reasoning that made them questions
+is what a later reader will want.
+
+- **~~Who fixes the provisioning race, and therefore where its note ends up~~ (Decision 4).
+  RESOLVED: the gateway-side fix — re-read the device store before rejecting an unknown
+  `keyId` — and the note therefore stays in `dmon-core`,** which is what Decision 4 provisionally
+  said and is now decided rather than assumed. The client-side retry was rejected as cheaper but
+  assumption-encoding. The fix touches the fail-closed auth path and has not been made; the
+  decision is about *ownership*, not completion. Recorded in
+  `tech-debt/provisioning-races-device-store-reload.md`, whose "what to do" now carries the
+  ruling. The note's subject still straddles the boundary: whoever takes the fix will edit only
+  in this repository but must verify across both.
+
+- **~~Whether the new repository adopts this repository's OpenSpec apply workflow~~ (Decision 3).
+  RESOLVED: not yet — `dmon-home` gets a `CLAUDE.md` and its OpenSpec root, and the
+  worker/reviewer/supervisor agents are deferred.** So the Architect-and-three-agents loop is
+  still *not* available there, and its `CLAUDE.md` says so in as many words rather than leaving
+  the next reader to infer it from an empty `.claude/agents/`. Adopting the full loop later
+  remains a scaffolding step someone must take deliberately; nothing about the deferral makes it
+  harder.

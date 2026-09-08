@@ -1,4 +1,4 @@
-.PHONY: all build build-terminal build-core build-core-pack build-memory test test-live pack smoke schema clean daemon-app daemon-app-test dmon-home dmon-home-test dmon-home-app dmon-home-ios-check network release-wave
+.PHONY: all build build-terminal build-core build-core-pack build-memory test test-live pack smoke schema clean daemon-app daemon-app-test network release-wave
 
 CONFIG            ?= Release
 CORE_OUT          := build/dmoncore
@@ -67,36 +67,6 @@ daemon-app:
 
 daemon-app-test:
 	swift test --package-path daemon/Daemon.App
-
-dmon-home:
-	swift build -c release --package-path home
-
-dmon-home-test:
-	swift test --package-path home
-
-# Requires xcodegen (brew install xcodegen). home/project.yml is the source
-# of truth; the generated home/DmonHomeApp.xcodeproj is gitignored.
-# -destination silences the ambiguous "My Mac" vs "Any Mac" destination warning;
-# unrelated to ARCHS, which is set in project.yml and pins the built slice.
-# The lipo check enforces the spec requirement that the built binary reports
-# arm64 as its only architecture (ADR-037 Decision 5, design D15) — without it
-# an ARCHS regression in project.yml would go undetected until a human ran
-# lipo by hand.
-dmon-home-app:
-	xcodegen generate --spec home/project.yml --project home
-	xcodebuild -project home/DmonHomeApp.xcodeproj -scheme DmonHomeApp -configuration Release \
-		-derivedDataPath home/.build-xcode -destination 'platform=macOS,arch=arm64' -quiet build
-	lipo -archs home/.build-xcode/Build/Products/Release/DmonHomeApp.app/Contents/MacOS/DmonHomeApp | grep -qx arm64 \
-		|| { echo "dmon-home-app: expected arm64-only binary, got: $$(lipo -archs home/.build-xcode/Build/Products/Release/DmonHomeApp.app/Contents/MacOS/DmonHomeApp)"; exit 1; }
-
-# Portability gate (design D16, dmon-home-foundations 6.1): builds only the
-# GatewayClient target for a generic iOS destination, so a macOS-only
-# dependency creeping into that module fails a build rather than a review.
-# Separate derived-data path from dmon-home-app's home/.build-xcode, which
-# two Product Owner verification recipes depend on and must not be disturbed.
-dmon-home-ios-check:
-	cd home && xcodebuild -scheme GatewayClient -destination 'generic/platform=iOS' \
-		-derivedDataPath .build-ios -quiet build
 
 network:
 	dotnet pack frontends/Dmon.Network/Dmon.Network.csproj -c $(CONFIG) -o "$(PACK_OUT)"

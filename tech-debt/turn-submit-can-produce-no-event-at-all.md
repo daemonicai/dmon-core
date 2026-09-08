@@ -41,7 +41,7 @@ round trip on that path** — provider resolution (`GetCurrentAsync`) runs later
 ## Why it matters more to a client than it looks
 
 A client cannot distinguish "this submit produced nothing and never will" from "this turn is
-slow". `dmon-home`'s `TurnProjection` (`home/Sources/GatewayClient/TurnProjection.swift`) maps
+slow". `dmon-home`'s `TurnProjection` (`Sources/GatewayClient/TurnProjection.swift`, in the separate `daemonicai/dmon-home` repository) maps
 the wire to four terminal outcomes, and its doc comment names this case explicitly as the one
 where **no** terminal `TurnEvent` ever arrives. Any renderer that finalises purely on a terminal
 event will wait indefinitely. That is a client-side mitigation for a host-side gap.

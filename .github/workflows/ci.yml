@@ -14,8 +14,6 @@ name: CI
 #   docs/notes/whatever.md only                       -> []              (no .NET leg runs)
 #   daemon/Daemon.App/Sources/**                      -> [] for this job (Swift is orthogonal;
 #                                                          see the separate daemon-app job)
-#   home/**                                           -> [] for this job (Swift is orthogonal;
-#                                                          see the separate dmon-home job)
 #   daemon/Daemon.cs                                  -> ["daemon"]      (composition root, ADR-028)
 #   default-core/Directory.Packages.props             -> ["Everything"]  (root config widens)
 on:
@@ -138,47 +136,9 @@ jobs:
       - name: Test Daemon.App
         run: make daemon-app-test
 
-  dmon-home-changes:
-    name: Compute dmon-home trigger
-    runs-on: ubuntu-latest
-    outputs:
-      run: ${{ steps.filter.outputs.home }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Filter changed paths
-        id: filter
-        uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706 # v4.0.2
-        with:
-          base: ${{ github.ref }}
-          filters: |
-            home:
-              - 'home/**'
-
-  dmon-home:
-    name: dmon-home (macOS)
-    needs: dmon-home-changes
-    if: ${{ github.event_name == 'push' || needs.dmon-home-changes.outputs.run == 'true' }}
-    runs-on: macos-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Build dmon-home
-        run: make dmon-home
-
-      - name: Test dmon-home
-        run: make dmon-home-test
-
-      - name: iOS portability gate
-        run: make dmon-home-ios-check
-
   ci-gate:
     name: CI gate
-    needs: [changes, build-test, daemon-app-changes, daemon-app, dmon-home-changes, dmon-home]
+    needs: [changes, build-test, daemon-app-changes, daemon-app]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -198,6 +158,4 @@ jobs:
           check "daemon-app-changes" "${{ needs.daemon-app-changes.result }}" "no"
           check "build-test" "${{ needs.build-test.result }}" "yes"
           check "daemon-app" "${{ needs.daemon-app.result }}" "yes"
-          check "dmon-home-changes" "${{ needs.dmon-home-changes.result }}" "no"
-          check "dmon-home" "${{ needs.dmon-home.result }}" "yes"
           exit "$ok"

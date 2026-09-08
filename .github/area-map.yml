@@ -15,8 +15,9 @@
 # Non-.NET paths are intentionally NOT mapped here: they carry no .NET
 # ProjectReference into this graph, and each is instead scoped by its own
 # CI job with an independent path filter (Swift packages get their own
-# macOS job; see ci.yml). Current members: `daemon/Daemon.App/**` (the
-# dmonium menu-bar app) and `home/**` (the dmon-home macOS host).
+# macOS job; see ci.yml). Current member: `daemon/Daemon.App/**` (the
+# dmonium menu-bar app). `dmon-home` left this repository entirely
+# (ADR-038) and is built by its own repository's CI.
 
 root-config:
   - 'Directory.*.props'
