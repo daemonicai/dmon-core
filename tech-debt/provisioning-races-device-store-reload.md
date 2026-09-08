@@ -1,10 +1,11 @@
 # First-run provisioning races the gateway's device-store reload
 
 **Status:** open
-**Where:** client — `home/Sources/DeviceKeys/DeviceKeyProvisioner.swift` (`provision`) and
-`home/Sources/DeviceKeys/AuthenticatedTransportFactory.swift`; gateway —
-`frontends/Dmon.Network/NetworkConnectionEndpoint.cs` and `DeviceKeyStoreWatcher`
-**Surfaced:** 2026-09-07, running Phase 1 of `home/VERIFICATION-NOTES.md` for the first time
+**Where:** gateway — `frontends/Dmon.Network/NetworkConnectionEndpoint.cs` and
+`DeviceKeyStoreWatcher`; client — `Sources/DeviceKeys/DeviceKeyProvisioner.swift` (`provision`)
+and `Sources/DeviceKeys/AuthenticatedTransportFactory.swift`, **in the separate
+`daemonicai/dmon-home` repository**
+**Surfaced:** 2026-09-07, running Phase 1 of `dmon-home`'s `VERIFICATION-NOTES.md` for the first time
 **Severity:** high — it is the *first* launch on a new device that fails, and the failure names nothing
 
 ## What
@@ -66,9 +67,15 @@ Two shapes, and they are not equivalent:
 (2) is the better fix and the more dangerous one. Worth an explicit decision rather than a
 drive-by.
 
+**Decided 2026-09-08 by the Product Owner, as ADR-038's first open question: (2), the
+gateway-side fix.** That is why this note stayed in `dmon-core` when the rest of the `home/`
+register moved to `daemonicai/dmon-home` — the repository that owns the fix owns the note.
+The subject still straddles the boundary, so whoever takes it should expect to *verify*
+across both repositories even though they will only *edit* in this one.
+
 ## Related
 
 The same run turned up a separate, non-defect footgun — a `Dmon.cs` in the gateway's working
 directory silently switches core resolution to compile-from-source and times out the
-handshake. That one is recorded in `home/VERIFICATION-NOTES.md`, not here, because the code
+handshake. That one is recorded in `dmon-home`'s `VERIFICATION-NOTES.md`, not here, because the code
 behaves as designed.

@@ -1,0 +1,13 @@
+# Canonicalises the author and committer identities in this repo's history.
+#
+# All entries below are the same person. The variations are historic git config
+# — different name and email settings on the same machine at different times —
+# not different contributors. Canonical identity: Emmz Rendle <rendle@gmail.com>.
+#
+# Format: Canonical Name <canonical@email> Historic Name <historic@email>
+# See `git help mailmap`. Applies to git log/shortlog/blame and GitHub's
+# contributor view.
+
+Emmz Rendle <rendle@gmail.com> Rendle <rendle@gmail.com>
+Emmz Rendle <rendle@gmail.com> Rendle <rendle@xrai.glass>
+Emmz Rendle <rendle@gmail.com> Emmz Rendle <emmz.rendle@anna.money>

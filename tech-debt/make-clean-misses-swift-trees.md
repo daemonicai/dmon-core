@@ -1,4 +1,4 @@
-# `make clean` cleans neither Swift tree
+# `make clean` does not clean the Swift tree
 
 **Status:** open
 **Where:** `Makefile` — the `clean` target
@@ -7,20 +7,14 @@
 
 ## What
 
-`clean` is `rm -rf build/`, which misses:
+`clean` is `rm -rf build/`, which misses `daemon/Daemon.App/.build/`.
 
-- `daemon/Daemon.App/.build/` (pre-existing)
-- `home/.build/` (SwiftPM)
-- `home/.build-xcode/` (the app target's derived data)
-
-So a "clean" build leaves both Swift trees intact.
+So a "clean" build leaves the Swift tree intact.
 
 ## Why it is worth recording anyway
 
-Only because it is now a **known gap rather than a discovery**. The `home/`
-targets added in section 2 are *consistent* with the existing `Daemon.App`
-behaviour rather than introducing an inconsistency, which is why nobody has
-fixed it.
+Only because it is a **known gap rather than a discovery**. Nobody has fixed it
+because nothing in the .NET flow trips over it.
 
 The real cost is the failure mode when it bites: someone chasing a stale-build
 problem runs `make clean`, gets a clean result, and concludes the problem is in
@@ -29,10 +23,11 @@ hitting it has already ruled out the true cause.
 
 ## What to do
 
-Add both `home/` paths and `daemon/Daemon.App/.build/` to the `clean` target.
+Add `daemon/Daemon.App/.build/` to the `clean` target.
 
-**Care needed on one point:** task 3.3's and 4.7's human verification recipes
-hard-code paths under `home/.build-xcode` derived from `-configuration Release`
-and `-derivedDataPath home/.build-xcode`. Deleting that tree is fine; *changing*
-where it lives is not, and breaks both recipes in the Product Owner's hands
-mid-verification. Change either flag and both recipes move in the same commit.
+**Narrowed 2026-09-08 (ADR-038).** This note originally covered `home/`'s two
+Swift trees as well, plus a caution about not moving the `-derivedDataPath` two
+Product Owner verification recipes hard-code. `dmon-home` left this repository,
+and its own `make clean` removes `.build`, `.build-xcode`, `.build-ios` and the
+generated `.xcodeproj` — so that half is fixed there, and only `Daemon.App`
+remains open here.
