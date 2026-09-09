@@ -322,6 +322,17 @@ The turn sequence is `turnStart` → (one or more message/tool cycles) → `turn
 deltas incrementally from `messageDelta` events; `messageEnd` carries the final assembled
 message.
 
+**`sessionStarted` does not appear over the gateway.** The core emits a `sessionStarted`
+notification — carrying a full `SessionMeta`, and like the events above it is not a result
+event and carries no command `id` — when it creates a session on its own initiative,
+because a turn was submitted while no session was active. Over this protocol that cannot
+happen: `create` (§3.2) and `attach` (§3.3) both leave a session active before any
+`turn.submit` is accepted, so the sequence above is complete for gateway clients. It is
+listed here because a host speaking JSONL/stdio to the core directly *will* see
+`sessionStarted` precede `turnStart` on a session-less first turn, and because clients
+should in any case ignore notification event types they do not recognise rather than
+treating them as protocol errors.
+
 ---
 
 ## 6. Permission prompts
