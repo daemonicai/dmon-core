@@ -36,3 +36,9 @@
 - [x] 6.2 Verify the full test suite passes: `env -u MEKO_API_KEY make test` reports zero failures.
 - [x] 6.3 Verify the change validates: `openspec validate lazy-session-creation --strict` passes.
 - [x] 6.4 Human-in-the-loop verification, to be confirmed by the Product Owner before this task is ticked. Run the TUI, type a question WITHOUT `/new`, quit, and confirm: (a) a session-context line appeared when the session started, and (b) the conversation is present in that session's `messages.jsonl`. Recipe: `bash demo/build.sh` then `export DMON_CORE_PATH="$PWD/build/demo/Agent.dll"` then `cd demo && dotnet run --project ../frontends/Dmon.Terminal`; the transcript lands under the repo's `.dmon/sessions/<id>/`.
+
+## 7. Desktop: honour the reattach requirement (Product Owner directed)
+
+- [ ] 7.1 Track `sessionStarted` in `Dmon.Desktop` so a session the core creates on its own initiative becomes the host's active session. Verify the tolerance test is updated rather than left asserting the old behaviour: it must no longer claim the event is ignored.
+- [ ] 7.2 Verify the `desktop-host` requirement "re-open the active session directory" is now actually reachable: after an implicit session start, a reload sends `session.load` for that session id. This was previously unreachable because `_activeSessionId` was never set.
+- [ ] 7.3 Correct the stale comment at `SessionViewModel.cs:138` claiming the handler "mirrors Terminal's TrackActiveSession" — it stopped being true when the console host gained display responsibility.
