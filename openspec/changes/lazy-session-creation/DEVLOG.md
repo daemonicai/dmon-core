@@ -268,22 +268,53 @@ Nit, pre-existing and out of scope: the untouched `SessionUpdatedEvent` case (`:
 
 **This was necessary, not belt-and-braces.** The worker reported `dotnet pack` "Operation not permitted" and `CreateAppHost` failures and classified them as pre-existing environment artifacts, declaring its gates passed. They were **not** pre-existing — see the concurrency warning in `## NEXT`. Had that report been taken at face value, section 4 would have been committed on unverified gates.
 
+**[supervisor]** Section 4 (`e200255..04288d5`): **Approve** — no blockers, no remediation owed.
+
+- **"The host SHALL NOT track a new session silently" is true across the whole host, not merely the file.** Checked all nine `.cs` files in `frontends/Dmon.Terminal/`. There are exactly **two** session-id touchpoints: the sole *write* to `ActiveSessionId` inside `TrackActiveSession`, which now always displays; and a *read* in `Program.cs:172-177`, where `/reload` re-sends `SessionLoadCommand { Path = handler.ActiveSessionId }` after a core restart — whose `SessionLoadedResultEvent` returns through the same switch arm and prints. No startup-resume, no bootstrap session assignment, no gateway path in this host; `SlashCommandParser` holds no id. **A future silent route would have to bypass the only setter.** D6's class of bug is closed.
+- **No double announcement:** `SessionUpdatedEvent` is emitted from exactly one site (`SessionHandler.SetNameAsync`), so it never fires alongside a create or start.
+- **Ordering is right for a real terminal.** The implicit sequence is: echoed prompt → `[Session] Started: <guid>` → `── Thinking… ──` → stream. Attached to the user's submission, ahead of the turn, not mid-stream.
+- **On the bare GUID:** adequate, and full-not-truncated is correct. `SessionMeta` carries no path and no title, and `Name` is null on both creation paths, so **the id is the entire identity available on the wire** — and it is the key `/load` takes and the directory name under `.dmon/sessions/`, which is exactly what makes the PO's `6.4` check possible.
+- No dead scaffolding, no drift; the five arms are uniform and the tests drive real case arms comparing rendered scrollback rather than format strings.
+
+**[architect] Correction to this section's record — the `[worker]` and `[reviewer]` entries above are wrong on one point.** Both state the display fires *"before setting `ActiveSessionId`"*. The committed code does the opposite:
+
+```csharp
+ActiveSessionId = session.Id;
+_renderer.AddSystemLine($"[Session] {verb}: {session.Id}");
+```
+
+Behaviourally irrelevant — single-threaded, nothing observes between the two statements — but the reviewer presented it as a *verified structural property* and it is not what the code says, and I repeated the claim in this DEVLOG without checking it. Verified against the source at `ConsoleEventHandler.cs:615-621`. Recorded as an append rather than an edit, per the append-only convention. Given block 4A already produced one false gate report, the record should not carry a second unchecked claim.
+
+**[architect]** Also re-attributing the `[Session]`-prefix grammar collision: the block reviewer called it pre-existing, but before `04288d5` `[Session] {Title}` was the *only* grammar under that prefix, so **this change introduced it**. Disposition unchanged (not now), but it is this change's debt to declare, not someone else's to inherit. Carried to `## NEXT`.
+
+Section 4 closed.
+
+## 5. Regression safety for other hosts
+
+**[architect]** Base: `04288d5` — proves the additive `sessionStarted` event reaches hosts that do not know it without breaking them, at the layer that actually decides it rather than by inspection.
+
 ## NEXT
 
-Section 4's block has landed; **`[supervisor]` review of `e200255..HEAD` pending**. Then section 5 (`5.1` runtime correlation tolerance, `5.2` Desktop), then gates `6.1`–`6.3`.
+Section 5 in progress (`5.1` runtime correlation tolerance, `5.2` Desktop), then gates `6.1`–`6.3`.
 
-**`6.4` is human-in-the-loop and belongs to the Product Owner.** Do not tick it on any agent's say-so. Recipe from `tasks.md`: `bash demo/build.sh`, then `export DMON_CORE_PATH="$PWD/build/demo/Agent.dll"`, then `cd demo && dotnet run --project ../frontends/Dmon.Terminal`; type a question **without** `/new`, quit, and confirm (a) a session-context line appeared and (b) the conversation is in that session's `messages.jsonl` under the repo's `.dmon/sessions/<id>/`. Section 4 means the line to look for is `[Session] Started: <guid>`.
+**`6.4` is human-in-the-loop and belongs to the Product Owner.** Do not tick it on any agent's say-so. Recipe from `tasks.md`: `bash demo/build.sh`, then `export DMON_CORE_PATH="$PWD/build/demo/Agent.dll"`, then `cd demo && dotnet run --project ../frontends/Dmon.Terminal`; type a question **without** `/new`, quit, and confirm (a) a session-context line appeared and (b) the conversation is in that session's `messages.jsonl` under the repo's `.dmon/sessions/<id>/`.
 
-**⚠ NEVER RUN GATES CONCURRENTLY WITH AN AGENT.** Parallel `dotnet` builds race on shared `$TMPDIR` pack output paths and produce permission-shaped failures that are neither permission problems nor code failures: `Pack.targets(226,5): Access to the path '$TMPDIR/dmon-feed-<guid>/<Pkg>.nupkg' is denied. Operation not permitted` (kills ~16 `Dmon.Core.Tests` pack-based tests), `HostWriter.CreateAppHost` MSB4018 (kills `make build` on `Dmon.Terminal.csproj`), and `InitCommandTests` failures. **This bit us in block 4A**: the worker hit it, reported it as a "pre-existing environment artifact", and declared its gates passed — a **false green**, when a fully green run had happened twenty minutes earlier. Diagnosis order: the named `dmon-feed-<guid>` dir usually does **not exist** (a create failure, not stale state); `$TMPDIR` probes writable; `ps -eo pid,etime,comm | grep dotnet` shows a cluster of same-age processes. Re-run **sequentially** (`MSBUILDDISABLENODEREUSE=1` helps) → green. Do not accept a gate report whose failures do not reproduce sequentially, and do not accept "pre-existing" when a recent run was green.
+Two things to tell the PO before they run it, so nothing reads as a stray:
+- The line to look for is **`[Session] Started: <guid>`**, and the guid **is** the directory name under `.dmon/sessions/` — that is what makes step (b) possible.
+- **`/reload` now also prints `[Session] Loaded: <id>` where it previously printed nothing.** Intended under D6, but new.
 
-**Owed before the change is done — three `tech-debt/` files** (individual file + README index line, *not* a DEVLOG note, which archives with the change). All three are pre-existing and explicitly **not owed** by this change; both reviewers and the section-3 supervisor agreed they be carried rather than fixed here:
+**⚠ NEVER RUN GATES CONCURRENTLY WITH AN AGENT.** Parallel `dotnet` builds race on shared `$TMPDIR` pack output paths and produce permission-shaped failures that are neither permission problems nor code failures: `Pack.targets(226,5): Access to the path '$TMPDIR/dmon-feed-<guid>/<Pkg>.nupkg' is denied. Operation not permitted` (kills ~16 `Dmon.Core.Tests` pack-based tests), `HostWriter.CreateAppHost` MSB4018 (kills `make build` on `Dmon.Terminal.csproj`), `InitCommandTests` failures. **This bit us in block 4A**: the worker hit it, reported it as a "pre-existing environment artifact", and declared its gates passed — a **false green**, twenty minutes after a fully green run. Diagnosis order: the named `dmon-feed-<guid>` dir usually does **not exist** (a create failure, not stale state); `$TMPDIR` probes writable; `ps -eo pid,etime,comm | grep dotnet` shows a cluster of same-age processes. Re-run **sequentially** (`MSBUILDDISABLENODEREUSE=1` helps) → green. Never accept a gate report whose failures do not reproduce sequentially, and never accept "pre-existing" when a recent run was green.
+
+**Owed before the change is done — three `tech-debt/` files** (individual file + README index line, *not* a DEVLOG note, which archives with the change). All three pre-existing and explicitly not owed by this change:
 
 1. **No full-stack gateway harness** — nothing exercises real gateway → real spawned core → real turn. `Dmon.Network.Tests`' `FakeCoreProcess` replays scripted stdout; the only real `ICoreLauncher` in any test project spawns an actual OS process (`test/Dmon.Core.Tests/Integration/LiveToolCallE2ETest.cs`).
-2. **`SpySessionStore` tests are weaker than the `FakeResolver` pattern** — `TurnHandlerIntegrationTests` still leans on fakes where the creating and appending stores never meet. Block 3B's `FakeResolver` (real store, real filesystem, isolated only at the directory-resolution seam) is the better shape.
-3. **Half-created session directory on an aborted create** — `SessionStore.CreateAsync` (`core/Dmon.Core/Session/SessionStore.cs:98-102`) creates the directory, `attachments/` and `messages.jsonl` **before** its first `await` at `:114`. A cancellation there orphans a `meta.json`-less directory. Not host divergence (`_currentSession` stays null, so the next turn creates a fresh session), and shared with the explicit path — but the lazy branch makes it reachable **without a user action**. Include the open question of how `ListAsync` behaves on such a directory, and note it is a plausible contributor to the empty-session litter behind design D1.
+2. **`SpySessionStore` tests are weaker than the `FakeResolver` pattern** — `TurnHandlerIntegrationTests` leans on fakes where the creating and appending stores never meet. Block 3B's `FakeResolver` is the better shape.
+3. **Half-created session directory on an aborted create** — `SessionStore.CreateAsync` (`core/Dmon.Core/Session/SessionStore.cs:98-102`) creates the directory, `attachments/` and `messages.jsonl` **before** its first `await` at `:114`. A cancellation there orphans a `meta.json`-less directory. Not host divergence, and shared with the explicit path — but the lazy branch makes it reachable **without a user action**. Include how `ListAsync` behaves on such a directory; a plausible contributor to the empty-session litter behind design D1.
 
-**Also worth a follow-up note (block 4A reviewer, pre-existing):** the untouched `SessionUpdatedEvent` case (`ConsoleEventHandler.cs:177-179`) also prints under the `[Session]` prefix but in a different grammar — `[Session] {Title}` vs the new `[Session] {Verb}: {Id}`. Two shapes now share one prefix.
+**Introduced by this change, disposition still "not now" (supervisor, section 4).** The `[Session]` prefix now carries **two grammars**: the pre-existing `SessionUpdatedEvent` case prints `[Session] {Title}` (`ConsoleEventHandler.cs:177-179`) while the new path prints `[Session] {Verb}: {Id}`. Before `04288d5` there was only one grammar under that prefix, so **this change created the collision** — the block reviewer's "pre-existing" attribution was wrong. Recording it correctly so it does not read as someone else's debt and never get picked up.
 
-**Standing decision worth making consciously (supervisor, section 3).** `CommandDispatcher.DrainAsync` does `Task.WhenAll(_backgroundTasks)` with **no timeout**, and several `CancellationToken.None` emits live inside the turn task — a stuck stdout wedges graceful shutdown. Untouched here, but section 3's fix legitimately relies on that shape being acceptable.
+**Also worth doing (supervisor, section 4).** `TrackActiveSession` drops a session's `Name` where one exists — reachable on fork/clone/load, where the user may have deliberately named the session and now sees only a guid. `$"[Session] {verb}: {session.Name ?? session.Id}"` or `{Name} ({Id})`. Not a spec violation; not owed here.
 
-**Nit-level (supervisor, section 3).** `TurnHandlerIntegrationTests.cs` now carries a fourth `ISessionHandler` double, each re-implementing eight no-op members. Ripe for one configurable base next time someone touches the file.
+**Standing decision worth making consciously (supervisor, section 3).** `CommandDispatcher.DrainAsync` does `Task.WhenAll(_backgroundTasks)` with **no timeout**, and several `CancellationToken.None` emits live inside the turn task — a stuck stdout wedges graceful shutdown. Section 3's fix legitimately relies on that shape being acceptable.
+
+**Nit-level (supervisor, section 3).** `TurnHandlerIntegrationTests.cs` carries a fourth `ISessionHandler` double, each re-implementing eight no-op members. Ripe for one configurable base.
