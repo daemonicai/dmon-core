@@ -16,7 +16,7 @@
 - [x] 3.3 Turn the silent guard at `TurnHandler.PersistNewHistoryEntriesAsync` into a loud one: keep it as a defensive check but log a warning when it fires (design: "a silent guard is what caused this defect"). Verify with a test that asserts the warning is logged when the guard is reached.
 - [x] 3.4 Verify the end-to-end persistence fix: submit a turn with no active session and assert the completed turn's messages — including tool calls and tool results — are present in the new session's `messages.jsonl`. This is the defect this change exists to fix, so it must be covered by a test that fails against the pre-change code.
 - [x] 3.5 Verify a core that starts and never runs a turn creates no session directory (spec scenario "Core started but never asked to run a turn").
-- [ ] 3.6 Verify the gateway path does not trigger implicit creation: after the two-step `session.create` → path-less `session.load` handshake, submitting a turn creates no second session and emits no `sessionStarted`.
+- [x] 3.6 Verify the gateway path does not trigger implicit creation: after the two-step `session.create` → path-less `session.load` handshake, submitting a turn creates no second session and emits no `sessionStarted`.
 - [x] 3.7 Verify an implicitly created session is indistinguishable from an explicit one: `session.fork` and `session.load` against it succeed exactly as for a `session.create` session.
 
 ## 4. Console host: surface session start

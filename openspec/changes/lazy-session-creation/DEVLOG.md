@@ -173,10 +173,33 @@ Gates after the nit fixes: `make build` 0 warnings, `env -u MEKO_API_KEY make te
 
 **[reviewer, architectural note]** The `FakeResolver` pattern here — real store, real filesystem, isolated only at the directory-resolution seam — is a better template than the `SpySessionStore` fakes that `TurnHandlerIntegrationTests` still leans on. Worth considering whether those fake-store tests should eventually be supplemented by this pattern, for the same reason that drove this block's ruling. **Out of scope for this change** — parked here rather than actioned.
 
+**[architect]** Block 3C (`3.6`) briefed tests-only, with two named options — (1) drive the real handshake through the `Dmon.Network` harness, (2) re-enact its effect at core level — and an instruction to prefer (1) unless it needed heroics, and to state explicitly what (2) would not prove if it fell back.
+
+**[worker]** Block 3C complete — fell back to **option (2)**, core level, with the reasoning stated up front rather than discovered in review: `Dmon.Network.Tests`' gateway harness backs `DriveSessionHandshakeAsync` with a `FakeCoreProcess` that only replays scripted stdout lines, so a turn driven through it would never reach `TurnHandler.SubmitAsync` — it would echo scripted lines and exercise nothing.
+
+`GatewayHandshakeThenTurn_NoImplicitCreation_NoSecondSession` (added to `LazySessionCreationRealStackTests.cs`) re-enacts the handshake's effect against a real `SessionHandler` + `SessionStore` — explicit `SessionCreateCommand`, then a **path-less** `SessionLoadCommand` — then submits a turn and asserts `Assert.Empty(…OfType<SessionStartedEvent>())`, an unchanged on-disk session-directory count (**1 both before and after**), and an unchanged active session id. `.dmon/sessions` 770 before and after.
+
+**[reviewer]** Block 3C: **Approve** — no nits.
+
+**The worker's justification for dropping to core level was verified on its merits, not accepted.** The reviewer read `test/Dmon.Network.Tests/NetworkCreateE2ETests.cs` in full: `FakeCoreProcess` is a bare `ICoreProcess` over a caller-supplied `TextReader`/`TextWriter` pair with no `SessionHandler`, no `TurnHandler` and no session store — the tests script `session.createResult`/`session.loadResult` lines by hand. There is no path by which a `turn.submit` through that harness could reach the lazy branch. A grep of the whole test tree found the only real `ICoreLauncher` in any test project spawns an actual OS process (`test/Dmon.Core.Tests/Integration/LiveToolCallE2ETest.cs`) — so option (1) would have meant a live-process integration test. **The fallback is correct engineering, and the up-front scoping a credit.**
+
+**What remains unproven by test and rests on source inspection:** that the real `DriveSessionHandshakeAsync` completes create-then-load in that order before returning, leaving a session active on the wire. The reviewer confirmed the worker's characterisation is accurate **and complete** — that is the only gap, and it is itself partly covered by existing wire-level tests (`NetworkCreateE2ETests.HandleCreate_HappyPath_…` asserts create-before-load ordering into stdin; `NetworkCreateFlowTests` 6.1a/6.1b assert the returned session id and post-handshake state). It found no divergence between the re-enactment and the real handshake in ordering, path-less-load semantics, or what the gateway consumes before its pump starts.
+
+Also verified:
+
+- **The directory-count assertion is sound and the strongest claim in the block.** `GetSessionDirectory(id)` is `Path.Combine(GetRoot(), id)`, and nothing else creates a directory at root level (attachments live under `sessionDir/attachments`; `SessionIndex` writes a *file*, `index.db`). Asserting `== 1` both times is strictly stronger than a before/after comparison, and both properties are present.
+- **The path-less load branch is genuinely driven** — `SessionHandler.LoadAsync`'s `cmd.Path is null` path falls back to `_currentSession.Id`, which is exactly what the gateway does and the reason `CurrentSession` is non-null at turn time.
+- **The test can fail**: an unconditional-creation regression trips *both* assertions; a regression that treated the handshake session as "not real" would still trip the `SessionStartedEvent` one.
+- Hygiene, scope (additive-only, 82 lines, no production file touched, no section-5 work, no existing test modified) and style all clean.
+
+Gates: `make build` 0 warnings, `env -u MEKO_API_KEY make test` green (`Dmon.Core.Tests` 625 passed / 1 pre-existing skip), `openspec validate --strict` valid.
+
 ## NEXT
 
-Section 3, block **3C**: `3.6` — the gateway path (`Dmon.Network` test project). Then the section-3 supervisor review of `24b819b..HEAD`, then section 4.
+Section 3 is complete (`3.1`–`3.7` all ticked) and awaiting its `[supervisor]` review of `24b819b..HEAD`. Then section 4 (console host display), section 5 (regression safety for other hosts), and gates `6.1`–`6.3`.
 
-**`3.6` shape.** Prove that after the gateway's two-step `session.create` → path-less `session.load` handshake, submitting a turn creates **no second session** and emits **no** `sessionStarted`. The handshake is driven by `DriveSessionHandshakeAsync` in `frontends/Dmon.Network/NetworkConnectionEndpoint.cs` (~:525-545), which sends `SessionCreateCommand { Agent = agent }` and awaits the correlated result before the pump starts. Assert absence structurally, as `3.2` does.
+**`6.4` is human-in-the-loop and belongs to the Product Owner.** Do not tick it on any agent's say-so. Recipe from `tasks.md`: `bash demo/build.sh`, then `export DMON_CORE_PATH="$PWD/build/demo/Agent.dll"`, then `cd demo && dotnet run --project ../frontends/Dmon.Terminal`; type a question **without** `/new`, quit, and confirm (a) a session-context line appeared and (b) the conversation is in that session's `messages.jsonl` under the repo's `.dmon/sessions/<id>/`.
+
+**Standing gap for the supervisor to consider (reviewer, block 3C).** Nothing anywhere exercises the *full* stack for the gateway scenario — real gateway → real spawned core → real turn. `Dmon.Network.Tests` has no real-core harness (its `FakeCoreProcess` replays scripted stdout; the only real `ICoreLauncher` in any test project spawns an actual OS process, in `test/Dmon.Core.Tests/Integration/LiveToolCallE2ETest.cs`). This is **pre-existing infrastructure debt**, not something `3.6` introduced or owed. If the supervisor agrees it is worth carrying, it belongs in `tech-debt/` as its own file, not buried in this DEVLOG — this change archives and takes the note with it.
 
 **Gate runs must be unsandboxed.** Sandboxed `make build`/`make test` hit the known `dotnet` runfile/NuGet permission artifact — an environment signature, not a code failure.

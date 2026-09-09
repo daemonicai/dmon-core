@@ -143,6 +143,88 @@ public sealed class LazySessionCreationRealStackTests
         Assert.Equal(returned.Id, sessionHandler.CurrentSession!.Id);
     }
 
+    // ── 3.6: the gateway's create+load handshake leaves no room for the lazy branch ──
+
+    /// <summary>
+    /// Replicates the *effect* of <c>NetworkConnectionEndpoint.DriveSessionHandshakeAsync</c> —
+    /// an explicit <see cref="SessionCreateCommand"/> followed by a path-less
+    /// <see cref="SessionLoadCommand"/>, exactly as the gateway's two-step
+    /// <c>session.create</c> → <c>session.load</c> handshake does before any turn can be
+    /// submitted — against a real <see cref="SessionHandler"/> over a real
+    /// <see cref="SessionStore"/>, then submits a turn and proves:
+    /// <list type="bullet">
+    ///   <item>no second session directory appears on disk (session-directory count is
+    ///     unchanged by the turn — the strongest, hardest-to-fake assertion);</item>
+    ///   <item>no <see cref="SessionStartedEvent"/> is emitted (the lazy branch in
+    ///     <see cref="TurnHandler.SubmitAsync"/> never fires, asserted structurally by type,
+    ///     not merely "the events I expected are present");</item>
+    ///   <item>the active session id is unchanged across the turn.</item>
+    /// </list>
+    ///
+    /// This test operates at the core level (<c>SessionHandler</c> + <c>TurnHandler</c>), not
+    /// by driving <c>NetworkConnectionEndpoint</c> itself. The existing
+    /// <c>Dmon.Network.Tests</c> gateway harness (<c>NetworkCreateE2ETests</c>) backs
+    /// <c>DriveSessionHandshakeAsync</c> with an in-process <c>FakeCoreProcess</c> that only
+    /// replays scripted stdout lines over a raw stream — there is no real
+    /// <c>SessionHandler</c>/<c>TurnHandler</c> on the other end of that fake to submit a turn
+    /// against, so driving a turn through that harness would not exercise
+    /// <c>TurnHandler.SubmitAsync</c>'s lazy branch at all. This test therefore does NOT prove
+    /// that the real <c>DriveSessionHandshakeAsync</c> leaves a session active on the wire —
+    /// that is asserted structurally by inspection of its source (it always completes
+    /// <c>session.create</c> then <c>session.load</c> before returning, or throws). What this
+    /// test proves is the other half of the gateway's claim: GIVEN the state that handshake
+    /// leaves behind (an active session from create, reconfirmed by a path-less load), a
+    /// submitted turn triggers no implicit creation and no second session.
+    /// </summary>
+    [Fact]
+    public async Task GatewayHandshakeThenTurn_NoImplicitCreation_NoSecondSession()
+    {
+        using TempSessionsRoot tempRoot = new();
+        ISessionStore sessionStore = BuildRealStore(tempRoot.Path);
+        TestEventEmitter sessionEmitter = new();
+        SessionHandler sessionHandler = new(sessionStore, sessionEmitter, NullLogger<SessionHandler>.Instance);
+
+        // Replicate DriveSessionHandshakeAsync's effect: session.create, then a path-less
+        // session.load (mirrors the gateway sending SessionLoadCommand with no Path — see
+        // NetworkConnectionEndpoint.DriveSessionHandshakeAsync).
+        await sessionHandler.CreateAsync(
+            new SessionCreateCommand { Id = "gw-session-create" }, CancellationToken.None);
+        await sessionHandler.LoadAsync(
+            new SessionLoadCommand { Id = "gw-session-load", Path = null }, CancellationToken.None);
+
+        Assert.Empty(sessionEmitter.Events.OfType<CommandErrorEvent>());
+        SessionMeta? handshakeSession = sessionHandler.CurrentSession;
+        Assert.NotNull(handshakeSession);
+
+        string sessionsRootAfterHandshake = sessionStore.GetSessionDirectory(handshakeSession!.Id);
+        string sessionsRoot = Directory.GetParent(sessionsRootAfterHandshake)!.FullName;
+        int sessionDirCountAfterHandshake = Directory.GetDirectories(sessionsRoot).Length;
+        Assert.Equal(1, sessionDirCountAfterHandshake);
+
+        // Submit a turn exactly as the gateway-spawned core would receive it over stdio —
+        // CurrentSession is already set by the handshake above.
+        StubProviderRegistry providers = new(new StubChatClient("hi from gateway"));
+        (TurnHandler handler, TestEventEmitter turnEmitter) =
+            TurnHandlerFactory.Create(providers, sessionHandler: sessionHandler, sessionStore: sessionStore);
+
+        await handler.SubmitAsync(
+            new TurnSubmitCommand { Id = "gw-turn-1", Message = "hello" }, CancellationToken.None);
+
+        // If the lazy branch regressed onto this path, TurnHandler.SubmitAsync would find
+        // CurrentSession non-null anyway (a false negative for a naive null check alone) but
+        // would still be unreachable here since CurrentSession is set — so the discriminating
+        // regression this guards is: a change that re-creates a session unconditionally, or
+        // that treats the handshake's session as not "really" active. Either would emit a
+        // second SessionStartedEvent and/or grow the on-disk directory count below.
+        Assert.Empty(turnEmitter.Events.OfType<SessionStartedEvent>());
+
+        int sessionDirCountAfterTurn = Directory.GetDirectories(sessionsRoot).Length;
+        Assert.Equal(sessionDirCountAfterHandshake, sessionDirCountAfterTurn);
+        Assert.Equal(1, sessionDirCountAfterTurn);
+
+        Assert.Equal(handshakeSession.Id, sessionHandler.CurrentSession!.Id);
+    }
+
     // ── 3.7: an implicitly created session is a first-class session ─────────
 
     [Fact]
