@@ -27,6 +27,7 @@ namespace Dmon.Protocol.Events;
 [JsonDerivedType(typeof(ToolExecutionEndEvent), typeDiscriminator: "toolExecutionEnd")]
 [JsonDerivedType(typeof(ToolConfirmRequestEvent), typeDiscriminator: "tool.confirmRequest")]
 [JsonDerivedType(typeof(SessionUpdatedEvent), typeDiscriminator: "sessionUpdated")]
+[JsonDerivedType(typeof(SessionStartedEvent), typeDiscriminator: "sessionStarted")]
 [JsonDerivedType(typeof(CompactionStartEvent), typeDiscriminator: "compactionStart")]
 [JsonDerivedType(typeof(CompactionEndEvent), typeDiscriminator: "compactionEnd")]
 [JsonDerivedType(typeof(AuthLoginCompleteEvent), typeDiscriminator: "auth.loginComplete")]

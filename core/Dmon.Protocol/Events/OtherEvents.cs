@@ -1,5 +1,6 @@
 using System.Text.Json.Serialization;
 using Dmon.Protocol.Enums;
+using Dmon.Protocol.Sessions;
 
 namespace Dmon.Protocol.Events;
 
@@ -25,6 +26,18 @@ public sealed record SessionUpdatedEvent : Event
 
     [JsonPropertyName("title")]
     public required string Title { get; init; }
+}
+
+/// <summary>
+/// Emitted when the agent core implicitly creates a session on first use (ADR-015 §2/§3).
+/// This is a non-command notification: there is no originating command to correlate to, so
+/// it derives directly from <see cref="Event"/>, not <see cref="ResultEvent"/>, and carries no
+/// command <c>id</c>.
+/// </summary>
+public sealed record SessionStartedEvent : Event
+{
+    [JsonPropertyName("session")]
+    public required SessionMeta Session { get; init; }
 }
 
 public sealed record CompactionStartEvent : Event

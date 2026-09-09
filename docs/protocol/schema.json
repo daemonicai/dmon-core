@@ -906,6 +906,84 @@
         {
           "properties": {
             "type": {
+              "const": "sessionStarted"
+            },
+            "session": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "created": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "modified": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "agent": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "parentSession": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "forkEntryId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "tokens": {
+                  "type": "object",
+                  "properties": {
+                    "input": {
+                      "type": "integer"
+                    },
+                    "output": {
+                      "type": "integer"
+                    },
+                    "cacheRead": {
+                      "type": "integer"
+                    },
+                    "cacheWrite": {
+                      "type": "integer"
+                    }
+                  }
+                },
+                "cost": {
+                  "type": "object",
+                  "properties": {
+                    "total": {
+                      "type": "number"
+                    }
+                  }
+                }
+              },
+              "required": [
+                "id"
+              ]
+            }
+          },
+          "required": [
+            "session"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
               "const": "compactionStart"
             },
             "reason": {
@@ -1259,7 +1337,7 @@
                     "options": {
                       "type": "array",
                       "items": {
-                        "$ref": "#/anyOf/30/properties/step/anyOf/0/properties/options/items"
+                        "$ref": "#/anyOf/31/properties/step/anyOf/0/properties/options/items"
                       }
                     },
                     "minSelections": {
@@ -1457,29 +1535,10 @@
                   ]
                 },
                 "tokens": {
-                  "type": "object",
-                  "properties": {
-                    "input": {
-                      "type": "integer"
-                    },
-                    "output": {
-                      "type": "integer"
-                    },
-                    "cacheRead": {
-                      "type": "integer"
-                    },
-                    "cacheWrite": {
-                      "type": "integer"
-                    }
-                  }
+                  "$ref": "#/anyOf/19/properties/session/properties/tokens"
                 },
                 "cost": {
-                  "type": "object",
-                  "properties": {
-                    "total": {
-                      "type": "number"
-                    }
-                  }
+                  "$ref": "#/anyOf/19/properties/session/properties/cost"
                 }
               },
               "required": [
@@ -1539,10 +1598,10 @@
                   ]
                 },
                 "tokens": {
-                  "$ref": "#/anyOf/32/properties/session/properties/tokens"
+                  "$ref": "#/anyOf/19/properties/session/properties/tokens"
                 },
                 "cost": {
-                  "$ref": "#/anyOf/32/properties/session/properties/cost"
+                  "$ref": "#/anyOf/19/properties/session/properties/cost"
                 }
               },
               "required": [
@@ -1602,10 +1661,10 @@
                   ]
                 },
                 "tokens": {
-                  "$ref": "#/anyOf/32/properties/session/properties/tokens"
+                  "$ref": "#/anyOf/19/properties/session/properties/tokens"
                 },
                 "cost": {
-                  "$ref": "#/anyOf/32/properties/session/properties/cost"
+                  "$ref": "#/anyOf/19/properties/session/properties/cost"
                 }
               },
               "required": [
@@ -1665,10 +1724,10 @@
                   ]
                 },
                 "tokens": {
-                  "$ref": "#/anyOf/32/properties/session/properties/tokens"
+                  "$ref": "#/anyOf/19/properties/session/properties/tokens"
                 },
                 "cost": {
-                  "$ref": "#/anyOf/32/properties/session/properties/cost"
+                  "$ref": "#/anyOf/19/properties/session/properties/cost"
                 }
               },
               "required": [
@@ -1733,10 +1792,10 @@
                     ]
                   },
                   "tokens": {
-                    "$ref": "#/anyOf/32/properties/session/properties/tokens"
+                    "$ref": "#/anyOf/19/properties/session/properties/tokens"
                   },
                   "cost": {
-                    "$ref": "#/anyOf/32/properties/session/properties/cost"
+                    "$ref": "#/anyOf/19/properties/session/properties/cost"
                   }
                 },
                 "required": [

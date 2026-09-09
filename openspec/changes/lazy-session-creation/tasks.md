@@ -1,8 +1,8 @@
 ## 1. Protocol: the `sessionStarted` event
 
-- [ ] 1.1 Confirm design D3's ADR reading before writing code: re-read ADR-015 and verify that a non-command event carrying `SessionMeta` extends the accepted model (as `ErrorEvent` does) rather than contradicting it. Verify by recording the conclusion in DEVLOG; if the reading does NOT hold, STOP and report — the path is a superseding ADR, not a workaround.
-- [ ] 1.2 Add `SessionStartedEvent` carrying `SessionMeta` to `core/Dmon.Protocol/Events/`, deriving from `Event` and NOT from `ResultEvent`, and register its `[JsonDerivedType]` discriminator `"sessionStarted"` on the `Event` base. Verify with a round-trip serialization test asserting the `type` discriminator is `"sessionStarted"` and that no command-correlation `id` is present.
-- [ ] 1.3 Regenerate the machine-readable wire-protocol schema export so it declares `sessionStarted`. Verify the `protocol-schema` freshness gate passes and fails if the event is removed from the export.
+- [x] 1.1 Confirm design D3's ADR reading before writing code: re-read ADR-015 and verify that a non-command event carrying `SessionMeta` extends the accepted model (as `ErrorEvent` does) rather than contradicting it. Verify by recording the conclusion in DEVLOG; if the reading does NOT hold, STOP and report — the path is a superseding ADR, not a workaround.
+- [x] 1.2 Add `SessionStartedEvent` carrying `SessionMeta` to `core/Dmon.Protocol/Events/`, deriving from `Event` and NOT from `ResultEvent`, and register its `[JsonDerivedType]` discriminator `"sessionStarted"` on the `Event` base. Verify with a round-trip serialization test asserting the `type` discriminator is `"sessionStarted"` and that no command-correlation `id` is present.
+- [x] 1.3 Regenerate the machine-readable wire-protocol schema export so it declares `sessionStarted`. Verify the `protocol-schema` freshness gate passes and fails if the event is removed from the export.
 
 ## 2. Core: create-and-activate seam
 
