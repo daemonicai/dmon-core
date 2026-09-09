@@ -21,9 +21,9 @@
 
 ## 4. Console host: surface session start
 
-- [ ] 4.1 Give `ConsoleEventHandler.TrackActiveSession` the display responsibility so every route that makes a session active (`created`, `forked`, `cloned`, `loaded`) produces a user-visible line identifying the session, not just internal tracking (design D6). Verify with tests asserting a scrollback line is produced for each of the four routes.
-- [ ] 4.2 Handle the new `sessionStarted` event in `ConsoleEventHandler` through that same display path. Verify the displayed form matches the `/new` form, so explicit and implicit start are indistinguishable to the user.
-- [ ] 4.3 Verify `console-host/spec.md`'s existing requirement is now met: `/new` displays the new session context (it previously tracked silently — this is the second defect the change fixes).
+- [x] 4.1 Give `ConsoleEventHandler.TrackActiveSession` the display responsibility so every route that makes a session active (`created`, `forked`, `cloned`, `loaded`) produces a user-visible line identifying the session, not just internal tracking (design D6). Verify with tests asserting a scrollback line is produced for each of the four routes.
+- [x] 4.2 Handle the new `sessionStarted` event in `ConsoleEventHandler` through that same display path. Verify the displayed form matches the `/new` form, so explicit and implicit start are indistinguishable to the user.
+- [x] 4.3 Verify `console-host/spec.md`'s existing requirement is now met: `/new` displays the new session context (it previously tracked silently — this is the second defect the change fixes).
 
 ## 5. Regression safety for other hosts
 

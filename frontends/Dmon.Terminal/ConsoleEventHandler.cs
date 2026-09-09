@@ -206,19 +206,23 @@ internal sealed class ConsoleEventHandler
                 break;
 
             case SessionCreatedResultEvent created:
-                TrackActiveSession(created.Session);
+                TrackActiveSession(created.Session, "Started");
                 break;
 
             case SessionForkedResultEvent forked:
-                TrackActiveSession(forked.Session);
+                TrackActiveSession(forked.Session, "Forked");
                 break;
 
             case SessionClonedResultEvent cloned:
-                TrackActiveSession(cloned.Session);
+                TrackActiveSession(cloned.Session, "Cloned");
                 break;
 
             case SessionLoadedResultEvent loaded:
-                TrackActiveSession(loaded.Session);
+                TrackActiveSession(loaded.Session, "Loaded");
+                break;
+
+            case SessionStartedEvent started:
+                TrackActiveSession(started.Session, "Started");
                 break;
 
             case ProviderConfiguredEvent configured when _wizardActive:
@@ -602,10 +606,19 @@ internal sealed class ConsoleEventHandler
         await _sendCommand(submitCommand, cancellationToken).ConfigureAwait(false);
     }
 
-    private void TrackActiveSession(SessionMeta session)
+    /// <summary>
+    /// Makes <paramref name="session"/> the active session and surfaces its identity to the
+    /// user. This is the single display path for every route that starts a session — explicit
+    /// (<c>/new</c>, fork, clone, load) or implicit (<see cref="SessionStartedEvent"/>) — so no
+    /// route can make a session active silently (console-host spec, design D6).
+    /// </summary>
+    private void TrackActiveSession(SessionMeta session, string verb)
     {
-        if (!string.IsNullOrEmpty(session.Id))
-            ActiveSessionId = session.Id;
+        if (string.IsNullOrEmpty(session.Id))
+            return;
+
+        ActiveSessionId = session.Id;
+        _renderer.AddSystemLine($"[Session] {verb}: {session.Id}");
     }
 
     private static string? ExtractDeltaText(object delta)

@@ -17,6 +17,9 @@ public sealed class SessionTypedEventHandlerTests
     private static string LineText(Dcli.Line l) =>
         string.Concat(l.Segments.Select(s => s.Text));
 
+    private static List<string> ScrollbackLines(FakeTerminal fake) =>
+        fake.Calls.OfType<ScrollbackAppendLine>().Select(c => LineText(c.Line)).ToList();
+
     private static ConsoleEventHandler BuildHandler(
         FakeTerminal fake,
         List<Command> sentCommands,
@@ -97,6 +100,121 @@ public sealed class SessionTypedEventHandlerTests
         await handler.HandleRpcEventAsync((Event)evt, CancellationToken.None);
 
         Assert.Equal("session-d", handler.ActiveSessionId);
+    }
+
+    // ── session-start display — design D6 ────────────────────────────────────
+
+    [Fact]
+    public async Task SessionCreatedResult_DisplaysSessionLine()
+    {
+        FakeTerminal fake = new();
+        List<Command> cmds = [];
+        using CancellationTokenSource cts = new();
+        ConsoleEventHandler handler = BuildHandler(fake, cmds, cts);
+
+        SessionCreatedResultEvent evt = new() { CommandId = "c1", Session = MakeMeta("session-a") };
+        await handler.HandleRpcEventAsync((Event)evt, CancellationToken.None);
+
+        IEnumerable<string> lines = ScrollbackLines(fake);
+        Assert.Contains(lines, l => l.Contains("session-a"));
+    }
+
+    [Fact]
+    public async Task SessionForkedResult_DisplaysSessionLine()
+    {
+        FakeTerminal fake = new();
+        List<Command> cmds = [];
+        using CancellationTokenSource cts = new();
+        ConsoleEventHandler handler = BuildHandler(fake, cmds, cts);
+
+        SessionForkedResultEvent evt = new() { CommandId = "c2", Session = MakeMeta("session-b") };
+        await handler.HandleRpcEventAsync((Event)evt, CancellationToken.None);
+
+        IEnumerable<string> lines = ScrollbackLines(fake);
+        Assert.Contains(lines, l => l.Contains("session-b"));
+    }
+
+    [Fact]
+    public async Task SessionClonedResult_DisplaysSessionLine()
+    {
+        FakeTerminal fake = new();
+        List<Command> cmds = [];
+        using CancellationTokenSource cts = new();
+        ConsoleEventHandler handler = BuildHandler(fake, cmds, cts);
+
+        SessionClonedResultEvent evt = new() { CommandId = "c3", Session = MakeMeta("session-c") };
+        await handler.HandleRpcEventAsync((Event)evt, CancellationToken.None);
+
+        IEnumerable<string> lines = ScrollbackLines(fake);
+        Assert.Contains(lines, l => l.Contains("session-c"));
+    }
+
+    [Fact]
+    public async Task SessionLoadedResult_DisplaysSessionLine()
+    {
+        FakeTerminal fake = new();
+        List<Command> cmds = [];
+        using CancellationTokenSource cts = new();
+        ConsoleEventHandler handler = BuildHandler(fake, cmds, cts);
+
+        SessionLoadedResultEvent evt = new() { CommandId = "c4", Session = MakeMeta("session-d") };
+        await handler.HandleRpcEventAsync((Event)evt, CancellationToken.None);
+
+        IEnumerable<string> lines = ScrollbackLines(fake);
+        Assert.Contains(lines, l => l.Contains("session-d"));
+    }
+
+    [Fact]
+    public async Task SessionStartedEvent_DisplaysSessionLine()
+    {
+        FakeTerminal fake = new();
+        List<Command> cmds = [];
+        using CancellationTokenSource cts = new();
+        ConsoleEventHandler handler = BuildHandler(fake, cmds, cts);
+
+        SessionStartedEvent evt = new() { Session = MakeMeta("session-e") };
+        await handler.HandleRpcEventAsync((Event)evt, CancellationToken.None);
+
+        Assert.Equal("session-e", handler.ActiveSessionId);
+        IEnumerable<string> lines = ScrollbackLines(fake);
+        Assert.Contains(lines, l => l.Contains("session-e"));
+    }
+
+    [Fact]
+    public async Task SessionStartedEvent_DisplaysSameFormAsSessionCreatedResult()
+    {
+        // task 4.2: explicit (/new -> session.createResult) and implicit (sessionStarted)
+        // session start must be indistinguishable in wording to the user.
+        FakeTerminal createdFake = new();
+        ConsoleEventHandler createdHandler = BuildHandler(createdFake, [], new CancellationTokenSource());
+        await createdHandler.HandleRpcEventAsync(
+            (Event)new SessionCreatedResultEvent { CommandId = "c1", Session = MakeMeta("same-id") },
+            CancellationToken.None);
+
+        FakeTerminal startedFake = new();
+        ConsoleEventHandler startedHandler = BuildHandler(startedFake, [], new CancellationTokenSource());
+        await startedHandler.HandleRpcEventAsync(
+            (Event)new SessionStartedEvent { Session = MakeMeta("same-id") },
+            CancellationToken.None);
+
+        string createdLine = Assert.Single(ScrollbackLines(createdFake));
+        string startedLine = Assert.Single(ScrollbackLines(startedFake));
+        Assert.Equal(createdLine, startedLine);
+    }
+
+    [Fact]
+    public async Task SessionCreatedResult_EmptyId_DoesNotDisplayOrTrack()
+    {
+        FakeTerminal fake = new();
+        List<Command> cmds = [];
+        using CancellationTokenSource cts = new();
+        ConsoleEventHandler handler = BuildHandler(fake, cmds, cts);
+
+        SessionCreatedResultEvent evt = new() { CommandId = "c1", Session = MakeMeta(string.Empty) };
+        await handler.HandleRpcEventAsync((Event)evt, CancellationToken.None);
+
+        Assert.Null(handler.ActiveSessionId);
+        Assert.Empty(ScrollbackLines(fake));
     }
 
     [Fact]
