@@ -39,6 +39,6 @@
 
 ## 7. Desktop: honour the reattach requirement (Product Owner directed)
 
-- [ ] 7.1 Track `sessionStarted` in `Dmon.Desktop` so a session the core creates on its own initiative becomes the host's active session. Verify the tolerance test is updated rather than left asserting the old behaviour: it must no longer claim the event is ignored.
-- [ ] 7.2 Verify the `desktop-host` requirement "re-open the active session directory" is now actually reachable: after an implicit session start, a reload sends `session.load` for that session id. This was previously unreachable because `_activeSessionId` was never set.
-- [ ] 7.3 Correct the stale comment at `SessionViewModel.cs:138` claiming the handler "mirrors Terminal's TrackActiveSession" — it stopped being true when the console host gained display responsibility.
+- [x] 7.1 Track `sessionStarted` in `Dmon.Desktop` so a session the core creates on its own initiative becomes the host's active session. Verify the tolerance test is updated rather than left asserting the old behaviour: it must no longer claim the event is ignored.
+- [x] 7.2 Verify the `desktop-host` requirement "re-open the active session directory" is now actually reachable: after an implicit session start, a reload sends `session.load` for that session id. This was previously unreachable because `_activeSessionId` was never set.
+- [x] 7.3 Correct the stale comment at `SessionViewModel.cs:138` claiming the handler "mirrors Terminal's TrackActiveSession" — it stopped being true when the console host gained display responsibility.

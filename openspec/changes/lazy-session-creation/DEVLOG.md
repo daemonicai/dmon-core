@@ -368,15 +368,62 @@ What this change contributes is the *cost*: before section 3, a Desktop reload l
 
 **[architect]** Added a `desktop-host` **MODIFIED** spec delta rather than treating this as an unnumbered remediation, because the Product Owner added scope rather than reporting a defect in delivered work. The delta keeps both existing scenario headers verbatim (so `openspec archive` matches them by header text rather than reading it as drop-old-plus-add-new) and adds a third, "Implicitly created session is re-opened on reload". The requirement text gains one paragraph making explicit what was previously only implied: the host must track **every** route by which a session becomes active, *"because the desktop host issues no session-creating command"*. Tasks `7.1`–`7.3` added. `openspec validate --strict` passes.
 
+**[architect]** Block 7A (`7.1`–`7.3`) briefed with the conformance framing above, and one explicit fence: **do not give Desktop a session-identity display line.** Terminal shows `[Session] Started: <id>`; Desktop has no session chrome at all, and inventing some is a design question that deserves its own change rather than riding in on a conformance fix. This block is about *tracking*, not *surfacing*.
+
+**[worker]** Block 7A complete.
+
+- **`7.1`** Added `case SessionStartedEvent e: _activeSessionId = e.Session.Id; break;` as a fifth arm in `TrackActiveSession`.
+- **`7.2`** The renamed test drives it end to end: push `SessionStartedEvent { Session.Id = "session-implicit" }`, run the **real** `Reload` command, assert the resulting `SessionLoadCommand.Path == "session-implicit"`. That is the new spec scenario, proven rather than asserted.
+- **`7.3`** Comment rewritten to *"Unlike Terminal's TrackActiveSession, this has no display responsibility — Desktop has no session-identity chrome — so it only records the id needed by Reload to re-open the active session directory."*
+
+**[worker] Declined the Architect's suggested `await sut.Reload.Execute();`, with a correct reason** — the single `TestScheduler` is passed as `outputScheduler` to `ReactiveCommand.CreateFromTask`, and nothing pumps its queue beyond one `AdvanceBy(1)`, so a bare await would hang on a completion notification nobody drains. Kept the existing `Task.Delay(50)`, which is also the pre-existing `Group6Tests` idiom. **The reviewer verified this and upheld it.** Recording it because a worker pushing back on an Architect instruction *with evidence* is the behaviour we want, not a deviation to note.
+
+**[reviewer]** Block 7A: **Approve** (one nit, fixed before commit).
+
+- **`7.2` proves the scenario, not a field write.** The assertion reads `FakeCoreSession.SentCommands`, which is fresh per test and appended only by `SendAsync` — `ReloadAsync` does not touch it — so the captured `SessionLoadCommand` can only have come from `Reload`'s body.
+- **The now-live `Reload` path is sound.** Traced end to end: `SessionHandler.LoadAsync` derives the id via `Path.GetFileName(cmd.Path.TrimEnd(...))`, and `Path.GetFileName` on a separator-free string returns it unchanged, so a bare session id resolves correctly. This is not new ground — `frontends/Dmon.Terminal/Program.cs:171-181` constructs `SessionLoadCommand` the same way with a bare id and already works in production. Ordering (relaunch, then load against the fresh process) matches Terminal and the spec.
+- **The comment is true, not merely different** — verified against `ConsoleEventHandler.cs:608-621`, which does now write `[Session] {verb}: {id}` to scrollback.
+- The four pre-existing arms are untouched; other Desktop subscriptions unaffected.
+
+**Nit, fixed: this block had silently *removed* a guarantee.** The original test proved `TrackActiveSession`'s switch tolerates a genuinely **unhandled** event — it used `SessionStartedEvent` precisely *because* that type had no `case` arm. Giving it one in `7.1` reduced that test's no-throw half to "a *handled* case does not throw", and the switch's fall-through safety lost the test carrying its name. Restored as `UnrecognisedEvent_DoesNotThrow_AndDoesNotDisturbActiveSession`, using **`SessionUpdatedEvent`** — a real session-lifecycle notification that arrives on the same subscription and has no arm — asserting both no-throw and that the tracked id is undisturbed, via the same `Reload`/`SessionLoadCommand.Path` route.
+
+**[architect]** Full gates run by the Architect, sequentially: `make build` **0 warnings / 0 errors**; `env -u MEKO_API_KEY make test` **all 20 suites green, zero failures** — `Dmon.Desktop.Tests` **56** (was 54), `Dmon.Core.Tests` 626 / 1 pre-existing skip, `Dmon.Terminal.Tests` 194; `openspec validate lazy-session-creation --strict` valid.
+
+Section 7's blocks are complete. Awaiting the `[supervisor]` review of `6c2b84c..HEAD`.
+
 ## NEXT
 
-Section 7 in progress (PO-directed Desktop reattach fix, `7.1`–`7.3`). Sections 1–6 are closed and `6.4` is PO-verified.
-
-**Owed before archive:**
-
-- **Three `tech-debt/` files** (individual file + README index line — *not* a DEVLOG note, which archives with the change): (a) **no full-stack gateway harness** — `Dmon.Network.Tests`' `FakeCoreProcess` replays scripted stdout, and the only real `ICoreLauncher` in any test project spawns an OS process (`test/Dmon.Core.Tests/Integration/LiveToolCallE2ETest.cs`); (b) **`SpySessionStore` tests are weaker than block 3B's `FakeResolver` pattern**, where the creating and appending stores never meet; (c) **half-created session directory on an aborted create** — `SessionStore.CreateAsync` (`core/Dmon.Core/Session/SessionStore.cs:98-102`) builds the directory, `attachments/` and `messages.jsonl` **before** its first `await` at `:114`, so a cancellation there orphans a `meta.json`-less directory; include how `ListAsync` behaves on one, and note it is a plausible contributor to the empty-session litter behind design D1.
-- **At archive time, sync the standing spec with the `3.6`-backed reasoning, not the inspection one.** `proposal.md` "Impact → Other hosts" and `design.md` Risks still justify `dmon-home` safety by inspecting another repository; they archive as historical artefacts, but the standing spec should carry the stronger in-tree argument (`dmon-home` is a gateway client; `3.6` proves the gateway handshake never triggers implicit creation, so exposure is nil **by construction**).
-
-**Other parked items (unchanged):** the `[Session]` two-grammar collision (**introduced by this change**, not inherited); `TrackActiveSession` dropping a session's `Name` on fork/clone/load; `CommandDispatcher.DrainAsync` having no timeout while several `CancellationToken.None` emits live inside the turn task; the fourth `ISessionHandler` double in `TurnHandlerIntegrationTests.cs`; `ConversationViewModel`'s two switch *expressions*, safe only because both retain a `_` discard arm; and the `Task.Delay(50)` idiom in `Dmon.Desktop.Tests` (the cheap fix is `await sut.Reload.Execute();`, which is directly awaitable — **not** an `IsExecuting` subscription).
-
-**⚠ NEVER RUN GATES CONCURRENTLY WITH AN AGENT.** Parallel `dotnet` builds race on shared `$TMPDIR` pack output paths and produce permission-shaped failures that are neither permission problems nor code failures (`Pack.targets` "Operation not permitted", `HostWriter.CreateAppHost` MSB4018, `InitCommandTests`). This bit us in block 4A: the worker hit it, called it "pre-existing", and declared its gates passed — a **false green**, twenty minutes after a green run. Diagnose: the named `dmon-feed-<guid>` dir usually does **not exist** (a create failure, not stale state); `$TMPDIR` probes writable; `ps -eo pid,etime,comm | grep dotnet` shows same-age processes. Re-run sequentially (`MSBUILDDISABLENODEREUSE=1`) → green. Workers are briefed to run only their own scoped test projects; the Architect runs the full gates.
+- **Resume point: section 2, block 2.1–2.4** (the `tool.confirmResponse` command). Section 1 is
+  closed: reviewer **Approve**, supervisor **Approve**, `GATES_EXIT:0`, landed as `a674212`.
+- **Carry-forward into section 3 — the obligation the compiler will NOT enforce.** `TurnTranscript
+  .apply(_:)` currently ends `.permissionRequested` in `break` (`TurnTranscript.swift:400-405`), a
+  deliberate placeholder from block 1.1–1.3. The section 1 ruling assumed 3.1 would break the switch
+  and force the issue — **it will not**: 3.1 adds a case to `TranscriptEntry.State`, not to
+  `TurnEvent`, so 3.1/3.3/3.4/3.5 can all land green with the `break` intact and a permission
+  request silently doing nothing. **Therefore block 3's brief must require a test that folds
+  `.permissionRequested` into a `TurnTranscript` and asserts a non-empty pending collection** — that
+  test fails against `break`, so the suite enforces what a comment cannot. The section 3 supervisor
+  review must confirm that branch no longer ends in `break`.
+- **Watch item for section 2 — the contract asymmetry.** `dmon-core`'s `RiskLevel` carries a bare
+  `[JsonConverter(typeof(JsonStringEnumConverter))]` and `WireSerializerOptions` applies `CamelCase`
+  to property *names* only, so inbound risk really is `"None"/"Low"/"Medium"/"High"` and section 1's
+  exact-match decode is right. But `JsonStringEnumConverter` *deserializes* case-insensitively — do
+  **not** assume that symmetry runs the other way if `tool.confirmResponse` ever gains an
+  enum-valued member.
+- **Parked defect, for whichever later block is next inside `TurnProjection.swift`:**
+  `jsonObject(_:)` decodes with `.fragmentsAllowed` (`:206`) but the `args` re-encode does not
+  (`:222`), and `JSONSerialization.data(withJSONObject:)` throws on a top-level non-container. So an
+  `args` that is a bare string, number, bool or null projects to `nil` — the prompt vanishes and the
+  turn hangs, which is the exact failure this change exists to remove. `dmon-core` sends an object,
+  so it is not a blocker; widen it plus a test when a block is already in that file.
+- **Nits parked from section 1, non-blocking:** no test for unexpected risk-value casing
+  (`"medium"`, `"NONE"` → `.unknown`, which is correct behaviour, just untested); and
+  `ToolRisk.init(wireValue:)` is internal with no known-case → wire-string mapping, which is fine
+  now and additive to widen if section 5 or 6 fixtures need it.
+- **Sections 5 and 7 carry verification no automated gate can close** — observing the rendered card,
+  and a live gateway with a freshly built `ndmon`. Implement and self-test as far as possible, then
+  hand the Product Owner a copy-pasteable recipe and **wait** before ticking 5.1–5.5, 7.2 and 7.3.
+- **Watch item for section 4:** `GatewaySession` owns the only send path (`submitTurn(_:)`), and its
+  `connection` is private, so `SessionCoordinator.answer(confirmID:decision:)` needs a new
+  `GatewaySession` method to reach `GatewayConnection.sendCommand(_:)`. That is the ADR-003 path —
+  never `ControlFrame`'s `"gw"` path.
