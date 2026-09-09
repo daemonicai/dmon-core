@@ -142,14 +142,41 @@ Also verified: both absence-assertions exist and are on the correct seams (`Asse
 
 Nit (fixed): the warning was a plain concatenated string rather than the file's structured-logging style, and did not say how much was lost — weak for a guard whose entire purpose is to make a future failure visible. Now carries `{DiscardedEntryCount}`. The test asserts a positive count by regex rather than a hardcoded literal, since the exact count depends on pipeline internals.
 
+**[architect]** Block 3B (`3.4`, `3.5`, `3.7`) briefed **tests-only**, with the supervisor's real-stack ruling as a hard constraint and an explicit instruction to *report, not adjust*, if any test needed production changes to pass. Also asked for the confirmation the 3A reviewer wanted: that the real `CreateAndActivateAsync` cannot return a `SessionMeta` without setting `CurrentSession`.
+
+**[worker]** Block 3B complete — one new file, `test/Dmon.Core.Tests/Rpc/LazySessionCreationRealStackTests.cs`, no production change.
+
+- Wired against a **real** `SessionHandler` over a **real** `SessionStore` and a real `AttachmentStore`, isolated by a private `FakeResolver` that redirects only `ISessionDirectoryResolver.Resolve()` to a temp path.
+- **3.4** drives a real tool call through `FunctionInvokingChatClient` (reusing the existing `FunctionCallProviderStub` + `StubToolRegistry`), then asserts **from disk**: the session dir and `messages.jsonl` exist, and `ReadRecordsAsync` yields an `assistant` record carrying a `ToolCallPart` named `stub_tool` **and** a `tool`-role record carrying a `ToolResultPart`.
+- **3.5** constructs the handlers as production wiring does, submits no turn, and asserts the sessions root does not exist.
+- **3.7** builds two independent real stacks (implicit vs explicit), forks and loads both, and compares each fork against **its own** source session.
+- Added `CreateAndActivateAsync_AlwaysSetsCurrentSessionBeforeReturning` — requested in the brief, so accounted for, not unscoped extra.
+
+**Pre-change proof for 3.4** (task requires the test fail against pre-change code): copied `TurnHandler.cs` from `24b819b` over the working file, ran the test, saw it fail at `Assert.NotNull(created)`, restored. The Architect verified afterwards that `TurnHandler.cs` is byte-identical to `HEAD`.
+
+**[reviewer]** Block 3B: **Approve** (two cosmetic nits, both fixed before commit).
+
+The binding question for this block was whether the real-stack ruling was actually honoured. **It was — `FakeResolver` is a compliant seam, not a violation.** `ISessionDirectoryResolver.Resolve(string)` is pure path computation (it walks up looking for `.dmon/config.yaml` and returns a root string); it never touches `SessionMeta` and is not part of `ISessionStore`. `SessionStore.GetRoot()` calls the resolver and then does the real `Directory.CreateDirectory` **itself**, and every store method underneath is genuine I/O — `Directory.CreateDirectory`, `File.Create`, `FileStream` read/write, JSON (de)serialisation, index upserts. Decisively: the `AttachmentStore` is wired through the *same* `FakeResolver` instance, so the creating and appending paths share one resolver — exactly the property the prohibited fakes lack.
+
+- **3.4 reads real bytes.** `ReadRecordsAsync` goes through the real `FileStream`/`StreamReader`/`JsonSerializer` path, not an in-memory round trip. Both sides of the tool round trip are asserted as separate `MessageRecord`s.
+- **The pre-change proof is precise, not a conflation.** Diffing `24b819b`'s `SubmitAsync` against HEAD: the old code never called `CreateAndActivateAsync` at all, and its guard was `if (_sessionStore is null || CurrentSession is null) return;` — so a session-less turn ran to completion and then silently skipped persistence entirely. Failing at `Assert.NotNull(created)` lands on exactly that root cause; "no session created" and "nothing persisted" are the same defect here.
+- **3.5 is a real regression test.** `SessionStore.GetRoot()` — the only thing that creates the root — is reachable only from inside `ISessionStore` methods, and both handler constructors do pure field assignment with no eager store call. A regression to eager/startup creation would make the root exist and turn this red.
+- **3.7 establishes parity, not dual success.** Each fork is compared against **its own** source (`ParentSession`/`ForkEntryId`/`Agent`), which is the correct shape — cross-comparing two independent sessions would be wrong. These are the fields that would diverge if the implicit path forked differently.
+- **Hygiene verified empirically**: `TempSessionsRoot : IDisposable` used via `using`, so cleanup survives a failing assert; `.dmon/sessions` was **770 entries before and after** the full run, and `git status` showed no tracked-file changes. Nothing added to the litter design D1 exists to avoid.
+- Confirmed no 3A test was weakened, renamed or deleted, and no 3.6/gateway work leaked in.
+
+Nits, both fixed: the raw-text `Contains("\"toolCall\"")`/`"toolResult"` checks were a whole-file substring scan, redundant with the structured assertions and liable to give a future reader false confidence — **dropped** (the structured `ToolCallPart`/`ToolResultPart` assertions are the real evidence); and a leftover `await Task.CompletedTask;` — removed, with `CoreStartedButNeverSubmitsATurn_CreatesNoSessionDirectory` made a plain `void` `[Fact]` since it awaits nothing.
+
+Gates after the nit fixes: `make build` 0 warnings, `env -u MEKO_API_KEY make test` full suite green (`Dmon.Core.Tests` 624 passed / 1 skipped / 0 failed), `openspec validate --strict` valid.
+
+**[architect]** Noted from the worker's report: a standalone `dotnet test --filter` invocation hit a `vstest.console`/testhost connection flake. Not treated as evidence of anything — the full-suite run is the gate and it is green, and the same filtered test passed cleanly before the edits. Recording it only so a future session recognises the signature rather than re-diagnosing it.
+
+**[reviewer, architectural note]** The `FakeResolver` pattern here — real store, real filesystem, isolated only at the directory-resolution seam — is a better template than the `SpySessionStore` fakes that `TurnHandlerIntegrationTests` still leans on. Worth considering whether those fake-store tests should eventually be supplemented by this pattern, for the same reason that drove this block's ruling. **Out of scope for this change** — parked here rather than actioned.
+
 ## NEXT
 
-Section 3, block **3B**: `3.4`, `3.5`, `3.7` — end-to-end proof against the **real** `SessionHandler` + `SessionStore`. Then **3C**: `3.6` (gateway path).
+Section 3, block **3C**: `3.6` — the gateway path (`Dmon.Network` test project). Then the section-3 supervisor review of `24b819b..HEAD`, then section 4.
 
-**Owed by the architect, next:** update `docs/protocol/README.md` §5.3 — now that `sessionStarted` has an emitter, that table under-describes the turn stream (supervisor note 1 on section 1). Doc-only, so the Architect's edit.
-
-**Binding on 3B (supervisor, section 2) — do not let a worker choose otherwise.** `3.4`–`3.7` must run against a real `SessionHandler` over a real `SessionStore` rooted at a temp dir (`TempSessionDir`, `test/Dmon.Core.Tests/Rpc/SessionHandlerTypedEventsTests.cs:59`), **not** the `TurnHandlerIntegrationTests` fakes. Those fakes mint a `SessionMeta` in-memory and call no `ISessionStore`, and are paired with a `SpySessionStore` that writes nothing to disk — in production the creating and appending store are the same object; in the fakes they are two objects that never meet. **The trap:** a fake-based test *would* fail against pre-change code (null `CurrentSession` → no append), so it appears to satisfy `3.4`'s "must fail against the pre-change code" clause while proving nothing about persistence. `3.4` (read `messages.jsonl`), `3.5` (no directory), `3.6` (no second session) and `3.7` (fork/load parity) are all literally unsatisfiable against the fakes.
-
-**Also for 3B (reviewer, block 3A).** `BrokenActivationSessionHandler` proves the `3.3` guard is reachable *in test* by hard-coding `CurrentSession` to null — a state the real seam cannot produce. Fine as defence-in-depth, but 3B is the place to confirm the real `CreateAndActivateAsync` cannot return a `SessionMeta` without setting `CurrentSession`.
+**`3.6` shape.** Prove that after the gateway's two-step `session.create` → path-less `session.load` handshake, submitting a turn creates **no second session** and emits **no** `sessionStarted`. The handshake is driven by `DriveSessionHandshakeAsync` in `frontends/Dmon.Network/NetworkConnectionEndpoint.cs` (~:525-545), which sends `SessionCreateCommand { Agent = agent }` and awaits the correlated result before the pump starts. Assert absence structurally, as `3.2` does.
 
 **Gate runs must be unsandboxed.** Sandboxed `make build`/`make test` hit the known `dotnet` runfile/NuGet permission artifact — an environment signature, not a code failure.
