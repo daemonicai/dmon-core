@@ -38,7 +38,6 @@ Debt that outlives a change needs somewhere that outlives a change.
 - [`make clean` does not clean the Swift tree](make-clean-misses-swift-trees.md) — `daemon/Daemon.App/.build/`.
 - [Documentation drift pass](docs-drift-pass.md) — hard-coded ADR count, ADR-013 status mismatch, an orphaned ADR summary.
 - [ADR-034 has no record of the Apple Silicon constraint](adr-034-missing-apple-silicon-constraint.md) — a binding constraint that is currently unwritten.
-- [The `sessionStarted` tolerance claim rests on inspecting another repository](standing-spec-carries-cross-repo-tolerance-claim.md) — **due at archive of `lazy-session-creation`, then delete.** Sync the standing spec with task `3.6`'s by-construction argument, not `proposal.md`'s cross-repo inspection of `dmon-home`.
 
 ## Moved out of this register
 

@@ -41,6 +41,8 @@ The agent core SHALL expose `sessionStarted` on the RPC surface as a **non-comma
 
 The event SHALL appear in the machine-readable wire-protocol schema export, and the schema freshness gate SHALL fail if the export omits it.
 
+Because a gateway-fronted session is always made active by the gateway's own `session.create` → path-less `session.load` handshake before any `turn.submit` is accepted, the core SHALL NOT emit `sessionStarted` on that path at all. Gateway clients are therefore not exposed to the event by construction, for as long as that handshake guarantee holds; hosts speaking JSONL/stdio to the core directly are the only ones that receive it.
+
 #### Scenario: Implicit creation emits the non-command event
 
 - **WHEN** the core creates a session implicitly
