@@ -205,7 +205,14 @@ internal sealed class NoopThinkingHandler : IThinkingHandler
 /// </summary>
 internal sealed class StubSessionHandler : ISessionHandler
 {
-    public SessionMeta? CurrentSession => null;
+    public SessionMeta? CurrentSession { get; private set; }
+
+    public Task<SessionMeta> CreateAndActivateAsync(string? agent, CancellationToken cancellationToken)
+    {
+        SessionMeta meta = new() { Id = Guid.NewGuid().ToString("N"), Created = DateTimeOffset.UtcNow, Modified = DateTimeOffset.UtcNow };
+        CurrentSession = meta;
+        return Task.FromResult(meta);
+    }
 
     public Task CreateAsync(SessionCreateCommand cmd, CancellationToken cancellationToken) => Task.CompletedTask;
     public Task ForkAsync(SessionForkCommand cmd, CancellationToken cancellationToken) => Task.CompletedTask;
@@ -1471,7 +1478,14 @@ internal sealed class ActiveSessionHandler : ISessionHandler
         CurrentSession = new SessionMeta { Id = sessionId, Created = DateTimeOffset.UtcNow, Modified = DateTimeOffset.UtcNow };
     }
 
-    public SessionMeta? CurrentSession { get; }
+    public SessionMeta? CurrentSession { get; private set; }
+
+    public Task<SessionMeta> CreateAndActivateAsync(string? agent, CancellationToken cancellationToken)
+    {
+        SessionMeta meta = new() { Id = Guid.NewGuid().ToString("N"), Created = DateTimeOffset.UtcNow, Modified = DateTimeOffset.UtcNow };
+        CurrentSession = meta;
+        return Task.FromResult(meta);
+    }
 
     public Task CreateAsync(SessionCreateCommand cmd, CancellationToken cancellationToken) => Task.CompletedTask;
     public Task ForkAsync(SessionForkCommand cmd, CancellationToken cancellationToken) => Task.CompletedTask;

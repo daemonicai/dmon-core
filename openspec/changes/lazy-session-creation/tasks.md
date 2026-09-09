@@ -6,8 +6,8 @@
 
 ## 2. Core: create-and-activate seam
 
-- [ ] 2.1 Extract the create-and-activate step out of `SessionHandler.CreateAsync` into one internal seam (create via `ISessionStore.CreateAsync`, set active, fire session-activity notification) that does NOT emit any event, leaving event emission to the caller. Verify existing `session.create` behaviour is unchanged: `session.createResult` is still emitted with the command id and the session is still active afterwards.
-- [ ] 2.2 Route the existing `session.create` command path through the new seam. Verify the full existing SessionHandler test suite still passes with no changes to its expectations.
+- [x] 2.1 Extract the create-and-activate step out of `SessionHandler.CreateAsync` into one internal seam (create via `ISessionStore.CreateAsync`, set active, fire session-activity notification) that does NOT emit any event, leaving event emission to the caller. Verify existing `session.create` behaviour is unchanged: `session.createResult` is still emitted with the command id and the session is still active afterwards.
+- [x] 2.2 Route the existing `session.create` command path through the new seam. Verify the full existing SessionHandler test suite still passes with no changes to its expectations.
 
 ## 3. Core: lazy creation on first turn
 

@@ -31,11 +31,17 @@ public sealed class SessionHandler : ISessionHandler
         _listeners = listeners ?? [];
     }
 
-    public async Task CreateAsync(SessionCreateCommand cmd, CancellationToken cancellationToken)
+    public async Task<SessionMeta> CreateAndActivateAsync(string? agent, CancellationToken cancellationToken)
     {
-        SessionMeta meta = await _store.CreateAsync(name: null, agent: cmd.Agent, cancellationToken).ConfigureAwait(false);
+        SessionMeta meta = await _store.CreateAsync(name: null, agent, cancellationToken).ConfigureAwait(false);
         _currentSession = meta;
         NotifySessionActivated(meta.Id);
+        return meta;
+    }
+
+    public async Task CreateAsync(SessionCreateCommand cmd, CancellationToken cancellationToken)
+    {
+        SessionMeta meta = await CreateAndActivateAsync(cmd.Agent, cancellationToken).ConfigureAwait(false);
         await _emitter.EmitAsync(new SessionCreatedResultEvent
         {
             CommandId = cmd.Id,
