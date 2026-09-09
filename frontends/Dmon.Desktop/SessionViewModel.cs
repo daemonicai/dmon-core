@@ -134,7 +134,9 @@ public sealed class SessionViewModel : ReactiveObject, IScreen
     public bool IsStreaming => _isStreaming.Value;
 
     // ---------------------------------------------------------------------------
-    // Active session tracking — mirrors Terminal's TrackActiveSession
+    // Active session tracking. Unlike Terminal's TrackActiveSession, this has no display
+    // responsibility — Desktop has no session-identity chrome — so it only records the id
+    // needed by Reload to re-open the active session directory.
     // ---------------------------------------------------------------------------
 
     private void TrackActiveSession(Event evt)
@@ -151,6 +153,9 @@ public sealed class SessionViewModel : ReactiveObject, IScreen
                 _activeSessionId = e.Session.Id;
                 break;
             case SessionLoadedResultEvent e:
+                _activeSessionId = e.Session.Id;
+                break;
+            case SessionStartedEvent e:
                 _activeSessionId = e.Session.Id;
                 break;
         }

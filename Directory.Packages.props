@@ -10,8 +10,16 @@
       is set on a specific reference (for out-of-tree consumer samples that
       pin their own published package version).
     - <GlobalPackageReference> replaces the per-project PackageReference for
-      MinVer and SourceLink; it implies PrivateAssets="all" and is applied
-      to every project automatically.
+      MinVer; it implies PrivateAssets="all" and is applied to every project
+      automatically.
+    - SourceLink is NOT referenced here. The .NET 8+ SDK has it built in, so
+      the old Microsoft.SourceLink.GitHub 8.0.0 package was redundant — and it
+      dragged in Microsoft.Build.Tasks.Git 8.0.0, whose advisory
+      GHSA-23fw-v26w-5fgq turned NU1902 into a fatal error under
+      TreatWarningsAsErrors for every packable project. The source-link
+      behaviour itself is unchanged: PublishRepositoryUrl,
+      EmbedUntrackedSources and ContinuousIntegrationBuild in
+      Directory.Build.props are SDK properties and still drive it.
     - Do NOT change version numbers here; bump a single entry to update the
       whole solution.
   -->
@@ -22,7 +30,6 @@
 
   <!-- Build-time tooling (global — PrivateAssets="all" implied) -->
   <ItemGroup>
-    <GlobalPackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" />
     <GlobalPackageReference Include="MinVer" Version="6.0.0" />
   </ItemGroup>
 

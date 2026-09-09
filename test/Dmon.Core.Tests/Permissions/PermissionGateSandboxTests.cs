@@ -99,6 +99,7 @@ public sealed class PermissionGateSandboxTests : IDisposable
         private readonly SessionMeta _session = new() { Id = sessionId };
 
         public SessionMeta? CurrentSession => _session;
+        public Task<SessionMeta> CreateAndActivateAsync(string? agent, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task CreateAsync(SessionCreateCommand cmd, CancellationToken cancellationToken) => Task.CompletedTask;
         public Task ForkAsync(SessionForkCommand cmd, CancellationToken cancellationToken) => Task.CompletedTask;
         public Task CloneAsync(SessionCloneCommand cmd, CancellationToken cancellationToken) => Task.CompletedTask;

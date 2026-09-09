@@ -51,6 +51,18 @@ public sealed class SessionHandlerTypedEventsTests
         Assert.NotNull(evt.Session);
     }
 
+    [Fact]
+    public async Task CreateAsync_ExplicitCreation_DoesNotEmitSessionStarted()
+    {
+        var (handler, emitter, _) = Build();
+        SessionCreateCommand cmd = new() { Id = "cmd-create-2" };
+
+        await handler.CreateAsync(cmd, CancellationToken.None);
+
+        Assert.Single(emitter.Emitted.OfType<SessionCreatedResultEvent>());
+        Assert.Empty(emitter.Emitted.OfType<SessionStartedEvent>());
+    }
+
     // ── ForkAsync ─────────────────────────────────────────────────────────────
 
     [Fact]

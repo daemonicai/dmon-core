@@ -137,6 +137,7 @@ public sealed class TurnHandlerAgentTests
             Modified = DateTimeOffset.UtcNow
         };
 
+        public Task<SessionMeta> CreateAndActivateAsync(string? agent, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task CreateAsync(SessionCreateCommand cmd, CancellationToken cancellationToken) => Task.CompletedTask;
         public Task ForkAsync(SessionForkCommand cmd, CancellationToken cancellationToken) => Task.CompletedTask;
         public Task CloneAsync(SessionCloneCommand cmd, CancellationToken cancellationToken) => Task.CompletedTask;

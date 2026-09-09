@@ -7,6 +7,7 @@ namespace Dmon.Core.Rpc;
 public interface ISessionHandler
 {
     SessionMeta? CurrentSession { get; }
+    Task<SessionMeta> CreateAndActivateAsync(string? agent, CancellationToken cancellationToken);
     Task CreateAsync(SessionCreateCommand cmd, CancellationToken cancellationToken);
     Task ForkAsync(SessionForkCommand cmd, CancellationToken cancellationToken);
     Task CloneAsync(SessionCloneCommand cmd, CancellationToken cancellationToken);
