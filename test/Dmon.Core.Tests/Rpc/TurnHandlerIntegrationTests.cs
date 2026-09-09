@@ -17,6 +17,7 @@ using Dmon.Core.Providers;
 using Dmon.Core.Rpc;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Dmon.Core.Tests.Rpc;
@@ -251,7 +252,8 @@ internal static class TurnHandlerFactory
         IActiveModelStore? store = null,
         ISessionHandler? sessionHandler = null,
         ISessionStore? sessionStore = null,
-        IToolRegistry? tools = null)
+        IToolRegistry? tools = null,
+        ILogger<TurnHandler>? logger = null)
     {
         emitter ??= new TestEventEmitter();
         IToolRegistry toolRegistry = tools ?? new EmptyToolRegistry();
@@ -276,7 +278,7 @@ internal static class TurnHandlerFactory
             pipelineBuilder,
             configuration,
             new NoopSessionAssetProvisioner(),
-            NullLogger<TurnHandler>.Instance,
+            logger ?? NullLogger<TurnHandler>.Instance,
             sessionStore: sessionStore);
 
         return (handler, emitter);
@@ -624,21 +626,26 @@ public sealed class TurnHandlerIntegrationTests
     }
 
     [Fact]
-    public async Task Submit_WithNoActiveSession_DoesNotCallSessionStore()
+    public async Task Submit_WithNoActiveSession_CreatesSessionLazilyAndPersists()
     {
+        // StubSessionHandler starts with CurrentSession = null; TurnHandler must create
+        // and activate a session before the turn executes so persistence is not skipped.
         StubChatClient client = new("response");
         SpySessionStore spyStore = new();
-        // StubSessionHandler returns CurrentSession = null.
+        StubSessionHandler sessionHandler = new();
 
         StubProviderRegistry providers = new(client);
         (TurnHandler handler, _) = TurnHandlerFactory.Create(
             providers,
+            sessionHandler: sessionHandler,
             sessionStore: spyStore);
 
         TurnSubmitCommand cmd = new() { Id = "req-1", Message = "Hello" };
         await handler.SubmitAsync(cmd, CancellationToken.None);
 
-        Assert.Equal(0, spyStore.AppendMessagesCallCount);
+        Assert.NotNull(sessionHandler.CurrentSession);
+        Assert.NotEqual(0, spyStore.AppendMessagesCallCount);
+        Assert.Equal(sessionHandler.CurrentSession!.Id, spyStore.AppendMessagesCalls[0].SessionId);
     }
 
     [Fact]
@@ -653,6 +660,210 @@ public sealed class TurnHandlerIntegrationTests
         await handler.SubmitAsync(cmd, CancellationToken.None);
 
         Assert.Contains(emitter.Events, e => e is TurnEndEvent);
+    }
+
+    // ── lazy session creation (task 3.1 / 3.2 / 3.3) ────────────────────────
+
+    [Fact]
+    public async Task Submit_NoActiveSession_CreatesSessionBeforeFirstProviderCall()
+    {
+        StubSessionHandler sessionHandler = new();
+        SessionAtCallCapturingChatClient client = new(sessionHandler);
+        (TurnHandler handler, _) = TurnHandlerFactory.Create(
+            new StubProviderRegistry(client),
+            sessionHandler: sessionHandler);
+
+        TurnSubmitCommand cmd = new() { Id = "req-1", Message = "Hello" };
+        await handler.SubmitAsync(cmd, CancellationToken.None);
+
+        Assert.True(client.WasCalled);
+        Assert.NotNull(client.SessionIdAtFirstCall);
+        Assert.NotNull(sessionHandler.CurrentSession);
+        Assert.Equal(sessionHandler.CurrentSession!.Id, client.SessionIdAtFirstCall);
+    }
+
+    [Fact]
+    public async Task Submit_NoActiveSession_EmitsSessionStartedButNotCreateResult()
+    {
+        StubChatClient client = new("Hi");
+        StubSessionHandler sessionHandler = new();
+        (TurnHandler handler, TestEventEmitter emitter) = TurnHandlerFactory.Create(
+            new StubProviderRegistry(client),
+            sessionHandler: sessionHandler);
+
+        await handler.SubmitAsync(new TurnSubmitCommand { Id = "req-1", Message = "Hello" }, CancellationToken.None);
+
+        SessionStartedEvent started = Assert.Single(emitter.Events.OfType<SessionStartedEvent>());
+        Assert.Equal(sessionHandler.CurrentSession!.Id, started.Session.Id);
+        Assert.Empty(emitter.Events.OfType<SessionCreatedResultEvent>());
+    }
+
+    [Fact]
+    public async Task Submit_SecondTurnSameSession_DoesNotReemitSessionStarted()
+    {
+        StubChatClient client = new("Hi");
+        StubSessionHandler sessionHandler = new();
+        (TurnHandler handler, TestEventEmitter emitter) = TurnHandlerFactory.Create(
+            new StubProviderRegistry(client),
+            sessionHandler: sessionHandler);
+
+        await handler.SubmitAsync(new TurnSubmitCommand { Id = "req-1", Message = "Hello" }, CancellationToken.None);
+        await handler.SubmitAsync(new TurnSubmitCommand { Id = "req-2", Message = "Again" }, CancellationToken.None);
+
+        Assert.Single(emitter.Events.OfType<SessionStartedEvent>());
+    }
+
+    [Fact]
+    public async Task Submit_WithActiveSession_DoesNotCreateOrEmitSessionStarted()
+    {
+        ActiveSessionHandler sessionHandler = new("existing-session");
+        StubChatClient client = new("Hi");
+        (TurnHandler handler, TestEventEmitter emitter) = TurnHandlerFactory.Create(
+            new StubProviderRegistry(client),
+            sessionHandler: sessionHandler);
+
+        await handler.SubmitAsync(new TurnSubmitCommand { Id = "req-1", Message = "Hello" }, CancellationToken.None);
+
+        Assert.Empty(emitter.Events.OfType<SessionStartedEvent>());
+        Assert.Equal("existing-session", sessionHandler.CurrentSession!.Id);
+    }
+
+    [Fact]
+    public async Task Submit_GuardReached_LogsWarning()
+    {
+        CapturingLogger<TurnHandler> logger = new();
+        StubChatClient client = new("Hi");
+        BrokenActivationSessionHandler sessionHandler = new();
+        SpySessionStore store = new();
+        (TurnHandler handler, _) = TurnHandlerFactory.Create(
+            new StubProviderRegistry(client),
+            sessionHandler: sessionHandler,
+            sessionStore: store,
+            logger: logger);
+
+        await handler.SubmitAsync(new TurnSubmitCommand { Id = "req-1", Message = "Hello" }, CancellationToken.None);
+
+        CapturingLogger<TurnHandler>.Entry warning = Assert.Single(
+            logger.Entries, e => e.Level == LogLevel.Warning);
+        Assert.Matches(@"[1-9]\d*", warning.Message);
+    }
+
+    [Fact]
+    public async Task Submit_NoSessionStoreConfigured_DoesNotLogWarning()
+    {
+        // _sessionStore is null is a legitimate configuration (core running without a
+        // store) and must not produce the "should-never-happen" warning.
+        CapturingLogger<TurnHandler> logger = new();
+        StubChatClient client = new("Hi");
+        (TurnHandler handler, _) = TurnHandlerFactory.Create(
+            new StubProviderRegistry(client),
+            logger: logger);
+
+        await handler.SubmitAsync(new TurnSubmitCommand { Id = "req-1", Message = "Hello" }, CancellationToken.None);
+
+        Assert.DoesNotContain(logger.Entries, e => e.Level == LogLevel.Warning);
+    }
+}
+
+/// <summary>
+/// Records whether it was invoked and the active session id (via the shared
+/// <see cref="ISessionHandler"/>) at the moment the provider is first called.
+/// </summary>
+internal sealed class SessionAtCallCapturingChatClient : IChatClient
+{
+    private readonly ISessionHandler _sessionHandler;
+    private readonly string _text;
+
+    public bool WasCalled { get; private set; }
+    public string? SessionIdAtFirstCall { get; private set; }
+
+    public SessionAtCallCapturingChatClient(ISessionHandler sessionHandler, string text = "Hello.")
+    {
+        _sessionHandler = sessionHandler;
+        _text = text;
+    }
+
+    public object? GetService(Type serviceType, object? serviceKey = null) => null;
+
+    public Task<ChatResponse> GetResponseAsync(
+        IEnumerable<ChatMessage> messages,
+        ChatOptions? options = null,
+        CancellationToken cancellationToken = default)
+    {
+        RecordCall();
+        return Task.FromResult(new ChatResponse([new ChatMessage(ChatRole.Assistant, _text)]));
+    }
+
+    public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
+        IEnumerable<ChatMessage> messages,
+        ChatOptions? options = null,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        RecordCall();
+        await Task.Yield();
+        yield return new ChatResponseUpdate(ChatRole.Assistant, _text);
+    }
+
+    private void RecordCall()
+    {
+        if (WasCalled)
+            return;
+
+        WasCalled = true;
+        SessionIdAtFirstCall = _sessionHandler.CurrentSession?.Id;
+    }
+
+    public void Dispose() { }
+}
+
+/// <summary>
+/// ISessionHandler whose CreateAndActivateAsync mints a session but never actually
+/// activates it — simulates a broken seam so the "should-never-happen" persist-guard
+/// branch in <see cref="TurnHandler.PersistNewHistoryEntriesAsync"/> can be exercised.
+/// </summary>
+internal sealed class BrokenActivationSessionHandler : ISessionHandler
+{
+    public SessionMeta? CurrentSession => null;
+
+    public Task<SessionMeta> CreateAndActivateAsync(string? agent, CancellationToken cancellationToken)
+    {
+        SessionMeta meta = new() { Id = Guid.NewGuid().ToString("N"), Created = DateTimeOffset.UtcNow, Modified = DateTimeOffset.UtcNow };
+        return Task.FromResult(meta);
+    }
+
+    public Task CreateAsync(SessionCreateCommand cmd, CancellationToken cancellationToken) => Task.CompletedTask;
+    public Task ForkAsync(SessionForkCommand cmd, CancellationToken cancellationToken) => Task.CompletedTask;
+    public Task CloneAsync(SessionCloneCommand cmd, CancellationToken cancellationToken) => Task.CompletedTask;
+    public Task LoadAsync(SessionLoadCommand cmd, CancellationToken cancellationToken) => Task.CompletedTask;
+    public Task ListAsync(SessionListCommand cmd, CancellationToken cancellationToken) => Task.CompletedTask;
+    public Task SetNameAsync(SessionSetNameCommand cmd, CancellationToken cancellationToken) => Task.CompletedTask;
+    public Task GetStatsAsync(SessionGetStatsCommand cmd, CancellationToken cancellationToken) => Task.CompletedTask;
+    public Task GetMessagesAsync(SessionGetMessagesCommand cmd, CancellationToken cancellationToken) => Task.CompletedTask;
+}
+
+/// <summary>
+/// ILogger&lt;T&gt; fake that captures every log entry for assertions.
+/// </summary>
+internal sealed class CapturingLogger<T> : ILogger<T>
+{
+    public sealed record Entry(LogLevel Level, string Message);
+
+    private readonly List<Entry> _entries = [];
+
+    public IReadOnlyList<Entry> Entries => _entries;
+
+    public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+    public bool IsEnabled(LogLevel logLevel) => true;
+
+    public void Log<TState>(
+        LogLevel logLevel,
+        EventId eventId,
+        TState state,
+        Exception? exception,
+        Func<TState, Exception?, string> formatter)
+    {
+        _entries.Add(new Entry(logLevel, formatter(state, exception)));
     }
 }
 

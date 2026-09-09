@@ -15,6 +15,7 @@ using Dmon.Protocol.Conversation;
 using Dmon.Protocol.Delta;
 using Dmon.Protocol.Enums;
 using Dmon.Protocol.Events;
+using Dmon.Protocol.Sessions;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Configuration;
 
@@ -125,6 +126,14 @@ public sealed class TurnHandler : ITurnHandler
         _turnCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         try
         {
+            if (_sessionHandler.CurrentSession is null)
+            {
+                SessionMeta createdSession = await _sessionHandler.CreateAndActivateAsync(agent: null, _turnCts.Token)
+                    .ConfigureAwait(false);
+                await _emitter.EmitAsync(new SessionStartedEvent { Session = createdSession }, _turnCts.Token)
+                    .ConfigureAwait(false);
+            }
+
             NotifyTurnStarted(_sessionHandler.CurrentSession?.Id);
 
             if (!_systemPromptInjected)
@@ -524,8 +533,21 @@ public sealed class TurnHandler : ITurnHandler
 
     private async Task PersistNewHistoryEntriesAsync(CancellationToken cancellationToken)
     {
-        if (_sessionStore is null || _sessionHandler.CurrentSession is null)
+        if (_sessionStore is null)
             return;
+
+        if (_sessionHandler.CurrentSession is null)
+        {
+            // SubmitAsync creates and activates a session before a turn executes, so this
+            // should never be reachable while a store is configured. A silent guard here is
+            // what caused the original defect (turns discarded with no active session), so
+            // this now fails loudly instead of quietly skipping persistence.
+            _logger.LogWarning(
+                "PersistNewHistoryEntriesAsync reached with no active session despite a configured session store; " +
+                "skipping persistence of {DiscardedEntryCount} history entries for this turn.",
+                _history.Count - _persistedCount);
+            return;
+        }
 
         string sessionId = _sessionHandler.CurrentSession.Id;
 

@@ -95,16 +95,61 @@ Everything else the reviewer verified clean:
 
 Nit carried to section 3: the two `TurnHandlerIntegrationTests.cs` fakes' `CreateAndActivateAsync` invokes no `ISessionActivityListener` and neither fake takes one — fine for what section 3 needs, but a divergence from the real seam that a fake-only test would not catch.
 
+**[supervisor]** Section 2 (`84530c7..24b819b`): **Approve** — no blockers.
+
+Gates re-run unsandboxed and green: `make build` 0 warnings / 0 errors; `env -u MEKO_API_KEY make test` all suites (`Dmon.Core.Tests` 613 passed / 1 skipped / 0 failed, Terminal 187, Network 223, Memory 51, Routing 45, Dcal 14, Providers 32, Mtplx 32); `openspec validate --strict` valid. Section diff +97/−9 across 10 files.
+
+**On the question the section exists to answer — does the seam make divergence *impossible*, or only unlikely?** Impossible, at the `SessionHandler` boundary. The supervisor enumerated everything `CreateAsync` did before the extraction against everything now left outside the seam: the seam is `_store.CreateAsync` → `_currentSession = meta` → `NotifySessionActivated` → return, and `CreateAsync` retains **only** the `SessionCreatedResultEvent` emission. No residual create-or-activate state is left for a caller to set, so section 3 cannot legitimately produce a differently-shaped session. It also checked the two places divergence could hide *above* the seam and cleared both: `SessionLock` is acquired by `LoadAsync` only (neither create path locks — symmetric and pre-existing), and `CommandDispatcher` routes `SessionCreateCommand` straight to `CreateAsync` with no post-step, unlike `LoadAndSeedAsync`. **D4's structural claim holds.**
+
+**Seam shape justified, not over-built.** `Task<SessionMeta> CreateAndActivateAsync(string? agent, CancellationToken)` is the minimum that works: §3 needs the returned meta for `sessionStarted`, and `agent` is required because the *explicit* path must pass `cmd.Agent` through the same single `_store.CreateAsync` call — which is exactly what makes divergence impossible. Removing the parameter would break D4, not simplify it. D5's `null` resolution agreed.
+
+Two findings, both discharged as section-3 obligations rather than a remediation block (see `## NEXT`): `3.2` must assert event **absence** structurally, and `3.4`–`3.7` must run against the real `SessionHandler` + `SessionStore`, not the integration-test fakes.
+
+Architectural notes:
+
+1. **`ISessionHandler` shape drift.** Every other member is `Task X(SomeCommand cmd, ct)` — a command handler. `CreateAndActivateAsync` is a *capability*, and is now the only non-command member besides the `CurrentSession` property. The Architect's call is defensible and not worth re-opening for one member, but **if a second non-command capability ever lands, split them** — a narrow `ISessionActivator` that `SessionHandler` also implements keeps the command contract command-shaped and stops the eight test fakes growing a throwing stub each time.
+2. **Public API addition on a packable first-party assembly (ADR-024).** `ISessionHandler` is public surface of `Dmon.Core`; adding an interface member is source-breaking for any external implementor. There are none and there are no production deployments, so it is a clean break — but it is a `Dmon.Core` package-version consequence nobody has declared. Worth one line in §6 if the release matrix is touched. No protocol `Major.Minor` implication; section 2 leaves the wire untouched.
+3. **The six `NotSupportedException` stubs are honest and unreachable today**, but become a latent runtime hazard the moment any *other* core component calls the seam through an injected `ISessionHandler`. If a later change adds such a caller, those stubs need real implementations rather than a widened blast radius.
+
+Section 2 closed.
+
+## 3. Core: lazy creation on first turn
+
+**[architect]** Base: `24b819b` — the defect fix itself: a turn submitted with no active session creates one before it executes, announces it, and is persisted.
+
+**[architect]** Block 3A (`3.1`–`3.3`) briefed with the exact insertion point and both supervisor constraints (absence-assertions; fakes are adequate for 3.1–3.3 only).
+
+**[worker]** Block 3A complete.
+
+- **Insertion** at `TurnHandler.SubmitAsync` (`core/Dmon.Core/Rpc/TurnHandler.cs:128-134`), inside the existing `try`, after `_turnCts` is created and **before** `NotifyTurnStarted` — so the asset provisioner and system-prompt build see a non-null session id (design D2). When `CurrentSession is null`: `CreateAndActivateAsync(agent: null, _turnCts.Token)` (design D5), then emit `SessionStartedEvent { Session = createdSession }`. The emission lives in `TurnHandler`, not the seam.
+- **Token:** `_turnCts.Token`, consistent with every other await in the method. The new code sits inside the `try` whose `finally` unconditionally disposes `_turnCts` and releases `_turnGate`, so a throwing or cancelled creation cannot leak the gate.
+- **Guard (3.3)** split into two clauses: `_sessionStore is null` returns **silently** (a core running without persistence is a legitimate configuration, and warning every turn would be noise); `CurrentSession is null` now warns. Structured-logging style with the count of what was lost: `"…skipping persistence of {DiscardedEntryCount} history entries for this turn."`
+- **Rewrote an existing test that encoded the defect.** `Submit_WithNoActiveSession_DoesNotCallSessionStore` asserted `AppendMessagesCallCount == 0` — the silent discard itself. Now `Submit_WithNoActiveSession_CreatesSessionLazilyAndPersists`, asserting the session is created and the persisted session id matches it.
+- New test doubles: `SessionAtCallCapturingChatClient` (captures `CurrentSession?.Id` at the first provider call), `BrokenActivationSessionHandler`, `CapturingLogger<T>` (no logger-capture fake existed in this project).
+
+Gates: `make build` 0 warnings, `env -u MEKO_API_KEY make test` green (`Dmon.Core.Tests` 620/620, 1 pre-existing unrelated skip), `openspec validate --strict` valid.
+
+**[reviewer]** Block 3A: **Approve** (one nit, fixed before commit).
+
+The two items most able to be green-but-worthless were both checked and both hold:
+
+- **The ordering proof is real.** `SessionAtCallCapturingChatClient` reads `CurrentSession?.Id` at the moment `GetResponseAsync`/`GetStreamingResponseAsync` is first invoked, i.e. inside `RunTurnAsync`. Moving creation to persist time would make the captured id null and fail the test. Not a post-hoc check.
+- **The rewritten test is a real regression guard, not a tautology.** Confirmed against `git show 24b819b:…` that the old test asserted `AppendMessagesCallCount == 0` — literally the defect — and that the replacement asserts the persisted `SessionId` equals the newly created session's id.
+
+Also verified: both absence-assertions exist and are on the correct seams (`Assert.Empty(…OfType<SessionCreatedResultEvent>())` on the implicit path; new `CreateAsync_ExplicitCreation_DoesNotEmitSessionStarted` with `Assert.Empty(…OfType<SessionStartedEvent>())` on the explicit path); `_turnGate` release is safe on a throwing/cancelled creation (the new code is inside the existing `try`/`finally` extents, traced rather than trusted); the guard split is sound; `Submit_GuardReached_LogsWarning` asserts `LogLevel.Warning`, not merely that something was logged; emit-once is covered by a second-turn test and an already-active test; `TurnHandlerFactory.Create`'s new `ILogger` parameter is the *test* helper, not production DI, so no production call site changed.
+
+**Verdict on `BrokenActivationSessionHandler`:** honest, but it manufactures a state the real seam cannot produce (`CurrentSession` hard-coded to `null`). Acceptable as defence-in-depth coverage of deliberately defensive code — **not** a live-path proof. Carried to 3B.
+
+Nit (fixed): the warning was a plain concatenated string rather than the file's structured-logging style, and did not say how much was lost — weak for a guard whose entire purpose is to make a future failure visible. Now carries `{DiscardedEntryCount}`. The test asserts a positive count by regex rather than a hardcoded literal, since the exact count depends on pipeline internals.
+
 ## NEXT
 
-Section 2 is closed pending its `[supervisor]` review of `84530c7..HEAD`. Then section 3 — the actual defect fix.
+Section 3, block **3B**: `3.4`, `3.5`, `3.7` — end-to-end proof against the **real** `SessionHandler` + `SessionStore`. Then **3C**: `3.6` (gateway path).
 
-**Owed by the architect, landing with section 3:** update `docs/protocol/README.md` §5.3 to record that a session-less first turn is preceded by `sessionStarted` (supervisor note 1 on section 1).
+**Owed by the architect, next:** update `docs/protocol/README.md` §5.3 — now that `sessionStarted` has an emitter, that table under-describes the turn stream (supervisor note 1 on section 1). Doc-only, so the Architect's edit.
 
-**Carry into section 3 — the reviewer's nit on block 2A.** The two `TurnHandlerIntegrationTests.cs` fakes' `CreateAndActivateAsync` does **not** invoke any `ISessionActivityListener`, and neither fake takes one. That is fine for what section 3 needs (`TurnHandler` does not consume listeners directly), but it is a point where the fake's observable behaviour diverges from the real seam's, so a section-3 test written only against the fake would not catch a listener regression. Brief section 3 accordingly.
+**Binding on 3B (supervisor, section 2) — do not let a worker choose otherwise.** `3.4`–`3.7` must run against a real `SessionHandler` over a real `SessionStore` rooted at a temp dir (`TempSessionDir`, `test/Dmon.Core.Tests/Rpc/SessionHandlerTypedEventsTests.cs:59`), **not** the `TurnHandlerIntegrationTests` fakes. Those fakes mint a `SessionMeta` in-memory and call no `ISessionStore`, and are paired with a `SpySessionStore` that writes nothing to disk — in production the creating and appending store are the same object; in the fakes they are two objects that never meet. **The trap:** a fake-based test *would* fail against pre-change code (null `CurrentSession` → no append), so it appears to satisfy `3.4`'s "must fail against the pre-change code" clause while proving nothing about persistence. `3.4` (read `messages.jsonl`), `3.5` (no directory), `3.6` (no second session) and `3.7` (fork/load parity) are all literally unsatisfiable against the fakes.
 
-**Design D5 resolved by the architect** (see the section-2 base post below for the full reasoning): the implicit path passes `agent: null`.
+**Also for 3B (reviewer, block 3A).** `BrokenActivationSessionHandler` proves the `3.3` guard is reachable *in test* by hard-coding `CurrentSession` to null — a state the real seam cannot produce. Fine as defence-in-depth, but 3B is the place to confirm the real `CreateAndActivateAsync` cannot return a `SessionMeta` without setting `CurrentSession`.
 
-**Insertion point for `3.1`**: `TurnHandler.SubmitAsync` (`core/Dmon.Core/Rpc/TurnHandler.cs:112`), immediately after the `_turnGate` is acquired and `_turnCts` is created, and **before** `NotifyTurnStarted(...)` at :128 — that call, plus the asset provisioning and system-prompt build that follow it, all read `_sessionHandler.CurrentSession?.Id`. Creating any later would hand them a null session id and violate design D2.
-
-**Gate runs must be unsandboxed.** Sandboxed `make build`/`make test` hit the known `dotnet` runfile `build-start.cache` permission artifact — an environment signature, not a code failure.
+**Gate runs must be unsandboxed.** Sandboxed `make build`/`make test` hit the known `dotnet` runfile/NuGet permission artifact — an environment signature, not a code failure.
