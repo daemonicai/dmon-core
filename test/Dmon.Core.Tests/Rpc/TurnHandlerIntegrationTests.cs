@@ -728,6 +728,71 @@ public sealed class TurnHandlerIntegrationTests
         Assert.Equal("existing-session", sessionHandler.CurrentSession!.Id);
     }
 
+    /// <summary>
+    /// Cancels an external <see cref="CancellationTokenSource"/> synchronously before returning
+    /// from <see cref="CreateAndActivateAsync"/>, simulating a <c>turn.abort</c> (or core shutdown)
+    /// landing between the session being created and the <c>sessionStarted</c> emit that announces it.
+    /// </summary>
+    internal sealed class CancelsOnCreateSessionHandler : ISessionHandler
+    {
+        private readonly CancellationTokenSource _cancelOnCreate;
+
+        public CancelsOnCreateSessionHandler(CancellationTokenSource cancelOnCreate)
+        {
+            _cancelOnCreate = cancelOnCreate;
+        }
+
+        public SessionMeta? CurrentSession { get; private set; }
+
+        public Task<SessionMeta> CreateAndActivateAsync(string? agent, CancellationToken cancellationToken)
+        {
+            SessionMeta meta = new() { Id = Guid.NewGuid().ToString("N"), Created = DateTimeOffset.UtcNow, Modified = DateTimeOffset.UtcNow };
+            CurrentSession = meta;
+            _cancelOnCreate.Cancel();
+            return Task.FromResult(meta);
+        }
+
+        public Task CreateAsync(SessionCreateCommand cmd, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task ForkAsync(SessionForkCommand cmd, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task CloneAsync(SessionCloneCommand cmd, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task LoadAsync(SessionLoadCommand cmd, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task ListAsync(SessionListCommand cmd, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task SetNameAsync(SessionSetNameCommand cmd, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task GetStatsAsync(SessionGetStatsCommand cmd, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task GetMessagesAsync(SessionGetMessagesCommand cmd, CancellationToken cancellationToken) => Task.CompletedTask;
+    }
+
+    [Fact]
+    public async Task Submit_TurnCancelledBeforeSessionStartedEmit_StillEmitsSessionStarted()
+    {
+        using CancellationTokenSource outerCts = new();
+        CancelsOnCreateSessionHandler sessionHandler = new(outerCts);
+        StubChatClient client = new("Hi");
+        (TurnHandler handler, TestEventEmitter emitter) = TurnHandlerFactory.Create(
+            new StubProviderRegistry(client),
+            sessionHandler: sessionHandler);
+
+        TurnSubmitCommand cmd = new() { Id = "req-1", Message = "Hello" };
+
+        // The turn's own token is cancelled by the handler double before CreateAndActivateAsync
+        // returns, so by the time control reaches the sessionStarted emit, cancellation of the
+        // linked _turnCts token is already observed — this is not a race, it is sequenced by
+        // the double itself. SubmitAsync's turn body is expected to throw OperationCanceledException
+        // once RunTurnAsync observes the token, which is fine: the assertion is about the emit that
+        // already happened before that point.
+        try
+        {
+            await handler.SubmitAsync(cmd, outerCts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+
+        SessionStartedEvent started = Assert.Single(emitter.Events.OfType<SessionStartedEvent>());
+        Assert.Equal(sessionHandler.CurrentSession!.Id, started.Session.Id);
+        Assert.NotNull(sessionHandler.CurrentSession);
+    }
+
     [Fact]
     public async Task Submit_GuardReached_LogsWarning()
     {

@@ -194,12 +194,49 @@ Also verified:
 
 Gates: `make build` 0 warnings, `env -u MEKO_API_KEY make test` green (`Dmon.Core.Tests` 625 passed / 1 pre-existing skip), `openspec validate --strict` valid.
 
+**[supervisor]** Section 3 (`24b819b..1ce9690`): **Request changes** — one blocker. *(Remediated below; see the round-2 verdict.)*
+
+What it verified and cleared first — the two structural claims the section rests on both hold, independently confirmed rather than taken from the DEVLOG:
+
+- **`ISessionStore.CreateAsync` has exactly one caller** (`SessionHandler.CreateAndActivateAsync`), whose only two callers are explicit `session.create` and the new lazy branch. **Design D1 is therefore structurally true, not merely test-asserted** — there is no path that creates a session before a turn needs one.
+- **The silent `_sessionStore is null` guard clause is not a production hole.** `ISessionStore` and `TurnHandler` are registered in the same `AddDmonCore` (`core/Dmon.Core/DaemonServiceExtensions.cs:95`, `:130`) and `SubmitAsync` is the only entry point that runs a turn, so a store-less core is test-only.
+- Cancellation, a throwing `CreateAndActivateAsync` (dispatcher emits `internalError`; the `finally` releases `_turnGate`), the follow-up/steer loop (persist runs after `break`, on `CancellationToken.None`) and compaction all check out.
+- **D5 holds on the implemented result, not just the reasoning**: `/new` sends `SessionCreateCommand { Id }` with `Agent` unset (`frontends/Dmon.Terminal/SlashCommandParser.cs:59-63`), so `agent: null` is byte-for-byte what `/new` produces, and both paths hard-code `name: null` in the same seam.
+- The two test bodies (fakes in `TurnHandlerIntegrationTests`, real stack in `LazySessionCreationRealStackTests`) are a deliberate, recorded fidelity pyramid, not cross-block drift.
+- `BrokenActivationSessionHandler` still earns its place: task 3.3 demands a test that reaches the guard and the real seam by construction cannot, while 3B's `CreateAndActivateAsync_AlwaysSetsCurrentSessionBeforeReturning` documents that relationship rather than contradicting it.
+
+**BLOCKER — `sessionStarted` could be silently dropped, permanently.** `TurnHandler.cs:129-135` emitted the event on `_turnCts.Token`, and `EventEmitter.EmitAsync` honours its token (`core/Dmon.Core/Rpc/EventEmitter.cs:21`). So a `turn.abort` (Esc in the TUI) or a shutdown landing between the create returning and the emit running would throw `OperationCanceledException`, which `CommandDispatcher.RunGuardedAsync` swallows by design (`CommandDispatcher.cs:84-87`) — **while the session is already created, on disk, and active**. The host never learns it exists, and never recovers: every later turn finds `CurrentSession` non-null, so the event is never re-emitted, and for the rest of that core's life the host writes to a session id it was never told about. That is exactly the core/host divergence this change exists to eliminate, and leaves unmet the spec clause *"so a host learns the identity of a session it never requested"*.
+
+The supervisor noted this was a **slipped block-level finding**: the 3A reviewer examined this very token for `_turnGate`-leak safety and cleared it on those grounds, but the *delivery* consequence went unexamined. The file already had the convention two callers away — `TurnEndEvent` and the provider-switch emits use `CancellationToken.None` with the comment *"these emits must reach the host even when the prior turn aborted"*.
+
+**[architect]** Carved a remediation block from the finding. Ticks nothing — every section-3 box is already ticked — and lands as a `fix:` commit, per the apply workflow. Folded in the supervisor's architectural note 1 (a comment-only correction) since it touches the same file.
+
+**[worker]** Remediation complete.
+
+- `TurnHandler.cs:136` emits `SessionStartedEvent` on **`CancellationToken.None`**, with a comment matching the house style of the two sibling sites but carrying the session-specific rationale: the session is already durable on disk, so the emit must reach the host regardless of turn cancellation or the host permanently loses track of its identity. `CreateAndActivateAsync` is untouched, still on `_turnCts.Token` — a cancelled *creation* correctly means there is nothing to announce.
+- New test `Submit_TurnCancelledBeforeSessionStartedEmit_StillEmitsSessionStarted` plus a `CancelsOnCreateSessionHandler` double that cancels the outer CTS **synchronously inside** `CreateAndActivateAsync` before returning.
+- Comment-only correction to `CoreStartedButNeverSubmitsATurn_CreatesNoSessionDirectory`: it no longer claims to construct the handlers "exactly as the core start path does", since the real path also runs `BootstrapService.RunAsync`, which creates the sessions root on first run. No assertion changed.
+- **Red/green proof:** stashed only the `TurnHandler.cs` fix, ran the new test alone → `Assert.Single() Failure: The collection was empty`, i.e. the event genuinely never reached the emitter. Restored → passes.
+
+**[reviewer]** Remediation block: **Approve** — no blockers, no nits.
+
+- **The hole is closed.** Traced `EmitAsync`: the only two interruptible points are `_gate.WaitAsync` and the `WriteLineAsync`/`FlushAsync` pair, both now on `None`; `JsonSerializer.Serialize` on a plain DTO is neither cancellable nor blocking. `RunGuardedAsync` swallows only `OperationCanceledException`, and the emit can no longer produce one.
+- **No new wedge shape.** After acquiring `_gate`, `EmitAsync` does exactly one `WriteLineAsync` + `FlushAsync` and releases — structurally identical to the seven existing `CancellationToken.None` emit sites in the same file. A stuck stdout write was already a systemic risk; this does not worsen it or make it reachable in a new state. The worker's "same class" argument was assessed on its merits and holds.
+- **The test is deterministic, not racy.** The double cancels before returning a `Task.FromResult`, so the `await` in `SubmitAsync` resumes synchronously with no thread hop — `_turnCts.Token` (linked from the outer token) is guaranteed cancelled by the time the emit line runs. `TestEventEmitter` mirrors the real emitter's token-honouring `_gate.WaitAsync`, so reverting the fix reproduces the real failure mode rather than an artificial one.
+- **The comment fix is accurate**: `BootstrapService.RunAsync` does `Directory.CreateDirectory(sessionsPath)` unconditionally on first run (`core/Dmon.Core/Bootstrap/BootstrapService.cs:63-65`), so the test's "no root" result really is stronger than real-core behaviour.
+- Scope clean: three files, `tasks.md` diff against `1ce9690` empty, additive-only, no existing test weakened.
+
+Gates: `make build` 0 warnings, `env -u MEKO_API_KEY make test` green (`Dmon.Core.Tests` 626 passed / 1 pre-existing skip), `openspec validate --strict` valid.
+
 ## NEXT
 
-Section 3 is complete (`3.1`–`3.7` all ticked) and awaiting its `[supervisor]` review of `24b819b..HEAD`. Then section 4 (console host display), section 5 (regression safety for other hosts), and gates `6.1`–`6.3`.
+Section 3 remediation has landed; **re-running the `[supervisor]` on `24b819b..HEAD`** (round 2 of a maximum 2 — if it still requests changes, stop and put it to the Product Owner rather than carving a third block). Then section 4 (console host display), section 5 (regression safety for other hosts), gates `6.1`–`6.3`.
 
 **`6.4` is human-in-the-loop and belongs to the Product Owner.** Do not tick it on any agent's say-so. Recipe from `tasks.md`: `bash demo/build.sh`, then `export DMON_CORE_PATH="$PWD/build/demo/Agent.dll"`, then `cd demo && dotnet run --project ../frontends/Dmon.Terminal`; type a question **without** `/new`, quit, and confirm (a) a session-context line appeared and (b) the conversation is in that session's `messages.jsonl` under the repo's `.dmon/sessions/<id>/`.
 
-**Standing gap for the supervisor to consider (reviewer, block 3C).** Nothing anywhere exercises the *full* stack for the gateway scenario — real gateway → real spawned core → real turn. `Dmon.Network.Tests` has no real-core harness (its `FakeCoreProcess` replays scripted stdout; the only real `ICoreLauncher` in any test project spawns an actual OS process, in `test/Dmon.Core.Tests/Integration/LiveToolCallE2ETest.cs`). This is **pre-existing infrastructure debt**, not something `3.6` introduced or owed. If the supervisor agrees it is worth carrying, it belongs in `tech-debt/` as its own file, not buried in this DEVLOG — this change archives and takes the note with it.
+**Owed before the change is done — two `tech-debt/` files** (per the tech-debt convention: an individual file plus a README index line, *not* a DEVLOG `## NEXT` note, which archives with the change and vanishes):
+
+1. **No full-stack gateway harness.** Nothing exercises real gateway → real spawned core → real turn. `Dmon.Network.Tests`' `FakeCoreProcess` replays scripted stdout; the only real `ICoreLauncher` in any test project spawns an actual OS process (`test/Dmon.Core.Tests/Integration/LiveToolCallE2ETest.cs`). Pre-existing infrastructure debt, explicitly **not** owed by this change — both the block-3C reviewer and the section-3 supervisor agreed it should be carried rather than fixed here.
+2. **`SpySessionStore`-based tests are weaker than the `FakeResolver` pattern.** `TurnHandlerIntegrationTests` still leans on fakes where the creating and appending stores never meet. The `FakeResolver` template introduced in block 3B (real store, real filesystem, isolated only at the directory-resolution seam) is the better shape and those tests would be stronger for it. Parked by the block-3B reviewer, agreed by the section-3 supervisor.
 
 **Gate runs must be unsandboxed.** Sandboxed `make build`/`make test` hit the known `dotnet` runfile/NuGet permission artifact — an environment signature, not a code failure.

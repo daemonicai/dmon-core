@@ -130,7 +130,10 @@ public sealed class TurnHandler : ITurnHandler
             {
                 SessionMeta createdSession = await _sessionHandler.CreateAndActivateAsync(agent: null, _turnCts.Token)
                     .ConfigureAwait(false);
-                await _emitter.EmitAsync(new SessionStartedEvent { Session = createdSession }, _turnCts.Token)
+                // Use CancellationToken.None — the session is already created and durable on disk; this
+                // emit must reach the host even if the turn is aborted before it runs, or the host never
+                // learns the session's identity and stays permanently out of sync with core.
+                await _emitter.EmitAsync(new SessionStartedEvent { Session = createdSession }, CancellationToken.None)
                     .ConfigureAwait(false);
             }
 

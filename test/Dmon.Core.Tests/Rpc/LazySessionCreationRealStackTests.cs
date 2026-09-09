@@ -106,8 +106,12 @@ public sealed class LazySessionCreationRealStackTests
         TestEventEmitter sessionEmitter = new();
         SessionHandler sessionHandler = new(sessionStore, sessionEmitter, NullLogger<SessionHandler>.Instance);
 
-        // Construct the turn handler exactly as the core start path does — real session
-        // handler, real session store — but never submit a turn.
+        // Construct the turn handler with real session handler/store and never submit a turn.
+        // This does not model the real core start path — that also runs BootstrapService,
+        // which creates the sessions root on a first run regardless of whether a turn is ever
+        // submitted. What this proves is narrower: constructing the handlers and running no
+        // turn creates no per-session directory (stronger here: the root itself stays absent,
+        // because nothing in this harness touches ISessionStore before a turn is submitted).
         StubProviderRegistry providers = new(new StubChatClient());
         (TurnHandler _, TestEventEmitter turnEmitter) =
             TurnHandlerFactory.Create(providers, sessionHandler: sessionHandler, sessionStore: sessionStore);
