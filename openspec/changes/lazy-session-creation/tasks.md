@@ -27,8 +27,8 @@
 
 ## 5. Regression safety for other hosts
 
-- [ ] 5.1 Verify request/response tolerance: a host awaiting the result of an unrelated command receives `sessionStarted` mid-flight and the pending command still completes. Test at the `Dmon.Runtime` correlation layer rather than relying on inspection of `RpcTransportExtensions`.
-- [ ] 5.2 Verify `Dmon.Desktop` is unaffected — it switches on known event types and must ignore `sessionStarted` without error.
+- [x] 5.1 Verify request/response tolerance: a host awaiting the result of an unrelated command receives `sessionStarted` mid-flight and the pending command still completes. Test at the `Dmon.Runtime` correlation layer rather than relying on inspection of `RpcTransportExtensions`.
+- [x] 5.2 Verify `Dmon.Desktop` is unaffected — it switches on known event types and must ignore `sessionStarted` without error.
 
 ## 6. Gates
 

@@ -86,6 +86,59 @@ public sealed class RpcTransportExtensionsTests
     }
 
     // ---------------------------------------------------------------
+    // (e) Task 5.1 — sessionStarted arriving mid-flight does not disrupt correlation
+    // (lazy-session-creation, design.md Risks: request/response tolerance)
+    // ---------------------------------------------------------------
+
+    /// <summary>
+    /// A host awaiting the result of an unrelated command receives a <see cref="SessionStartedEvent"/>
+    /// mid-flight (fed to the reader before the correlated result). <see cref="RpcTransportExtensions.RequestAsync"/>
+    /// must skip it — it is not a <see cref="ResultEvent"/> at all — and still return the correlated
+    /// result for the pending command.
+    ///
+    /// Regression this catches: if the correlation loop's guard (<c>evt is ResultEvent result &amp;&amp;
+    /// result.CommandId == command.Id</c>) were weakened — e.g. to match on any event carrying a
+    /// <c>SessionMeta</c>, or to return the first event unconditionally — this test fails, because the
+    /// interleaved <see cref="SessionStartedEvent"/> carries a *different* session id
+    /// ("session-mid-flight") than the correlated result ("test-session"). A test that only asserted
+    /// "no exception" would not catch that class of regression; asserting the exact returned session id
+    /// does.
+    /// </summary>
+    [Fact]
+    public async Task RequestAsync_SkipsSessionStartedEvent_MidFlight_ThenReturnsCorrelatedResult()
+    {
+        FeedableReader reader = new();
+        CapturingWriter writer = new();
+
+        // Mid-flight: the additive, non-command-correlated event arrives BEFORE the result
+        // for the pending command. Feeding order into the FeedableReader's channel IS the
+        // read order for the await-foreach correlation loop, so this ordering is deterministic
+        // rather than incidental.
+        SessionStartedEvent sessionStarted = new()
+        {
+            Session = new SessionMeta
+            {
+                Id       = "session-mid-flight",
+                Created  = DateTimeOffset.UtcNow,
+                Modified = DateTimeOffset.UtcNow,
+            },
+        };
+        reader.Feed(SerializeEvent(sessionStarted));
+        reader.Feed(SerializeEvent(MakeSessionCreated("cmd-pending")));
+
+        CoreProcessRpcTransport transport = new(reader, writer);
+        SessionCreateCommand command = new() { Id = "cmd-pending" };
+
+        // Hang guard only — the assertions below are what prove correctness, not the timeout.
+        ResultEvent result = await transport.RequestAsync(
+            command, TimeSpan.FromSeconds(5), CancellationToken.None);
+
+        SessionCreatedResultEvent created = Assert.IsType<SessionCreatedResultEvent>(result);
+        Assert.Equal("cmd-pending", created.CommandId);
+        Assert.Equal("test-session", created.Session.Id);
+    }
+
+    // ---------------------------------------------------------------
     // (b) CommandErrorEvent with matching CommandId is returned, not thrown
     // ---------------------------------------------------------------
 
