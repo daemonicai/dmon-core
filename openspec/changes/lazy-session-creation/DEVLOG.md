@@ -391,39 +391,53 @@ What this change contributes is the *cost*: before section 3, a Desktop reload l
 
 Section 7's blocks are complete. Awaiting the `[supervisor]` review of `6c2b84c..HEAD`.
 
+**[supervisor]** Section 7 (`6c2b84c..844b744`): **Request changes** — one blocker, **not in the C#**. *(Remediated below.)*
+
+On the code, unreserved approval, with several things verified independently rather than taken from the block review:
+
+- **The spec delta is genuinely proven.** The new scenario's THEN has two clauses and the test pins both by driving the real `Reload` command and asserting on `SessionLoadCommand.Path` — proving tracking *through its only observable consumer* rather than by reading the private field. The right seam.
+- **MODIFIED was the right shape and will survive `openspec archive`.** Both retained scenario headers match `openspec/specs/desktop-host/spec.md:118` and `:123` character-for-character and the requirement header matches `:114`, so the header-text match reads it as one modified requirement plus one added scenario — not drop-old-plus-add-new. `desktop-host` has a real `## Purpose`, so the known TBD-Purpose archive trap does not apply.
+- **The display fence was the right cut.** Read the whole standing `desktop-host` spec: it carries **no** session-identity display requirement anywhere. Nothing obliged Desktop to surface identity, and inventing session chrome inside a conformance fix would have been the scope creep.
+- **The now-live reload path is sound — four links, all checked.** `SessionStore.CreateAsync` mints a hyphenated `Guid`, so the "bare id" is structurally separator-free, not merely safe by convention; `Path.GetFileName` returns it unchanged on both Unix and Windows. **Beyond what the block reviewer traced:** the dispatcher routes not to `LoadAsync` but to `LoadAndSeedAsync` (`CommandDispatcher.cs:127→:145`), which then calls `_turn.SeedHistoryFromSessionAsync` — so reload **re-seeds turn history**, and "the conversation continues in the same session directory" is true in the strong sense, not just the filesystem sense. And the real risk, the lock hand-off: `LoadAsync` acquires the new `SessionLock` before releasing the old and would emit `sessionLocked` if the previous core still held it, but `CoreLauncher.RestartAsync` stops the old process before starting the new one and only then reads `agentReady`, which `CoreSessionService.ReloadAsync` awaits fully before the load is sent. Sequential throughout — **no window where two cores contend for the same directory.**
+- **Coverage restoration is equivalent, not adjacent.** The lost guarantee was "the `default`-less switch falls through silently for a type with no arm and does not disturb tracked state"; `SessionUpdatedEvent` has no arm and is a real notification on the same subscription, and both halves are asserted through the identical route. What the old test *also* did — prove `SessionStartedEvent` specifically does not throw — is now proven by the first test. **Net coverage is a strict superset.**
+- **The Terminal/Desktop divergence is defensible**, and survives only because it is *named in the code*: `design.md` titles D6 *"One display path in the **console host**"*, and the rewritten comment says explicitly what Desktop does not do and why. **Had `7.3` been skipped, the stale "mirrors Terminal" comment would have made this a blocker.**
+
+One correction to the record it asked for: the section-7 entry's *"Desktop has been violating this SHALL since it shipped"* **overstates it.** Pre-change no session was ever active on Desktop, so the unconditional "re-open the active session directory" was arguably **vacuously** satisfied. The conclusion and the delta shape are unaffected — after section 3 there is no charitable reading left, which is exactly why a MODIFIED delta carrying a scenario that could not have existed before this change is the honest instrument. Carried to `## NEXT`.
+
+**BLOCKER — commit `844b744` overwrote the DEVLOG's `## NEXT` with content from a different change in a different repository.** The section's own commit destroyed the change's archive record: the whole "owed before archive" block — the three `tech-debt/` files with the detail needed to write them, the standing-spec sync note, every parked item, and the block-4A false-green concurrency warning — was replaced by `dmon-home`'s Swift permission-work handoff (`TurnTranscript.swift`, `GatewaySession`, `ControlFrame`'s `"gw"` path, a live `ndmon`), including an instruction to "wait before ticking 5.1–5.5, 7.2 and 7.3" — tasks that are ticked and do not mean what that line thinks. **A block reviewer looking at a two-file code diff could not have seen this.**
+
+**[architect] Blocker confirmed and remediated. The cause was mine, and it is worth recording precisely.** `$TMPDIR` is shared across Claude Code sessions **and across repositories**. I had been staging each `## NEXT` rewrite at `$TMPDIR/devlog/next.md`. A concurrent `dmon-home` session wrote *its* handoff notes to that same path at 22:30 while this work was running, and my section-7 append **reused that file without rewriting it in the same command** — so it pasted dmon-home's content into this DEVLOG verbatim.
+
+Restored `## NEXT` from `6c2b84c` and re-written for a closed section 7, now staged in the **session-specific scratchpad** rather than `$TMPDIR`, with the staging file written in the same command that consumes it. Verified afterwards that zero foreign references (`TurnTranscript`, `GatewaySession`, `ControlFrame`, `ndmon`) remain and that every `## N.` heading survives. The append helper now also asserts the section headings are intact before writing — the same guard that caught the earlier truncation in block 2A.
+
+Two ironies worth keeping, because both are lessons this change already learned and then re-learned the hard way: this is the **second** time a naive `## NEXT` staging step has damaged this file (block 2A truncated it by matching the heading text inside the file's own header), and the failure mode is the **same class** as the `$TMPDIR` build races recorded above — shared temp state across concurrent agents, silently corrupting a result that then *looks* fine.
+
+Added supervisor notes A1 (D6's principle unhonoured on Desktop — a deferral, not a resolution), A2 (a fourth `tech-debt/` file: `CoreSessionService` can permanently complete its shared event subject on a reload race, newly consequential because section 7 gives users a reason to reload) and A3 (`_activeSessionId` has no memory barrier) to `## NEXT`.
+
+Section 7 closed on the code; the record is restored.
+
 ## NEXT
 
-- **Resume point: section 2, block 2.1–2.4** (the `tool.confirmResponse` command). Section 1 is
-  closed: reviewer **Approve**, supervisor **Approve**, `GATES_EXIT:0`, landed as `a674212`.
-- **Carry-forward into section 3 — the obligation the compiler will NOT enforce.** `TurnTranscript
-  .apply(_:)` currently ends `.permissionRequested` in `break` (`TurnTranscript.swift:400-405`), a
-  deliberate placeholder from block 1.1–1.3. The section 1 ruling assumed 3.1 would break the switch
-  and force the issue — **it will not**: 3.1 adds a case to `TranscriptEntry.State`, not to
-  `TurnEvent`, so 3.1/3.3/3.4/3.5 can all land green with the `break` intact and a permission
-  request silently doing nothing. **Therefore block 3's brief must require a test that folds
-  `.permissionRequested` into a `TurnTranscript` and asserts a non-empty pending collection** — that
-  test fails against `break`, so the suite enforces what a comment cannot. The section 3 supervisor
-  review must confirm that branch no longer ends in `break`.
-- **Watch item for section 2 — the contract asymmetry.** `dmon-core`'s `RiskLevel` carries a bare
-  `[JsonConverter(typeof(JsonStringEnumConverter))]` and `WireSerializerOptions` applies `CamelCase`
-  to property *names* only, so inbound risk really is `"None"/"Low"/"Medium"/"High"` and section 1's
-  exact-match decode is right. But `JsonStringEnumConverter` *deserializes* case-insensitively — do
-  **not** assume that symmetry runs the other way if `tool.confirmResponse` ever gains an
-  enum-valued member.
-- **Parked defect, for whichever later block is next inside `TurnProjection.swift`:**
-  `jsonObject(_:)` decodes with `.fragmentsAllowed` (`:206`) but the `args` re-encode does not
-  (`:222`), and `JSONSerialization.data(withJSONObject:)` throws on a top-level non-container. So an
-  `args` that is a bare string, number, bool or null projects to `nil` — the prompt vanishes and the
-  turn hangs, which is the exact failure this change exists to remove. `dmon-core` sends an object,
-  so it is not a blocker; widen it plus a test when a block is already in that file.
-- **Nits parked from section 1, non-blocking:** no test for unexpected risk-value casing
-  (`"medium"`, `"NONE"` → `.unknown`, which is correct behaviour, just untested); and
-  `ToolRisk.init(wireValue:)` is internal with no known-case → wire-string mapping, which is fine
-  now and additive to widen if section 5 or 6 fixtures need it.
-- **Sections 5 and 7 carry verification no automated gate can close** — observing the rendered card,
-  and a live gateway with a freshly built `ndmon`. Implement and self-test as far as possible, then
-  hand the Product Owner a copy-pasteable recipe and **wait** before ticking 5.1–5.5, 7.2 and 7.3.
-- **Watch item for section 4:** `GatewaySession` owns the only send path (`submitTurn(_:)`), and its
-  `connection` is private, so `SessionCoordinator.answer(confirmID:decision:)` needs a new
-  `GatewaySession` method to reach `GatewayConnection.sendCommand(_:)`. That is the ADR-003 path —
-  never `ControlFrame`'s `"gw"` path.
+**All 24 tasks ticked. Sections 1–7 closed with supervisor approval; `6.4` PO-verified.** Not pushed, not merged, not archived.
+
+**Owed before archive:**
+
+1. **Four `tech-debt/` files** (individual file + README index line — *not* a DEVLOG note, which archives with the change):
+   - **(a) No full-stack gateway harness.** Nothing exercises real gateway → real spawned core → real turn. `Dmon.Network.Tests`' `FakeCoreProcess` replays scripted stdout; the only real `ICoreLauncher` in any test project spawns an OS process (`test/Dmon.Core.Tests/Integration/LiveToolCallE2ETest.cs`).
+   - **(b) `SpySessionStore` tests are weaker than block 3B's `FakeResolver` pattern**, where the creating and appending stores never meet. `TurnHandlerIntegrationTests` still leans on those fakes.
+   - **(c) Half-created session directory on an aborted create.** `SessionStore.CreateAsync` (`core/Dmon.Core/Session/SessionStore.cs:98-102`) builds the directory, `attachments/` and `messages.jsonl` **before** its first `await` at `:114`, so a cancellation there orphans a `meta.json`-less directory. Include how `ListAsync` behaves on one; a plausible contributor to the empty-session litter behind design D1.
+   - **(d) NEW (section-7 supervisor, A2) — `CoreSessionService` can permanently complete its shared event subject on a reload race.** In `frontends/Dmon.Desktop/CoreSessionService.cs`, `PumpEventsAsync`'s `await foreach` calls `CompleteSubjects()` on a *normal* exit, which calls `_eventSubject.OnCompleted()`; `_eventSubject` is never recreated. `ReloadAsync` cancels `_sessionCts` before disposing the client, so the loop normally exits via `OperationCanceledException` and the subject survives — but if disposal completes the underlying channel first, the loop exits normally and every `SessionViewModel` subscription is dead for the remaining life of the window: **the reload appears to succeed, the `session.load` is still sent, and the UI silently stops receiving events.** Pre-existing (it belongs to the archived Avalonia change), and the cancel-before-dispose ordering makes it unlikely — but **section 7 is what gives users a reason to take the reload path**, so it is newly consequential.
+
+2. **Standing-spec sync note.** At archive time, carry `3.6`'s in-tree argument into the standing spec rather than `proposal.md`'s cross-repo inspection: `dmon-home` is a **gateway client**, and `3.6` proves the gateway handshake never triggers implicit creation, so exposure to `sessionStarted` is nil **by construction** — conditional only on the gateway continuing to guarantee an active session before accepting `turn.submit`. `proposal.md` "Impact → Other hosts" and `design.md` Risks archive as historical artefacts with the weaker claim; the standing spec should not.
+
+**Carry-forward from section 7:**
+
+- **D6's *principle* is now unhonoured on exactly one host (supervisor A1).** "No route may make a session active silently" is a good rule, and Desktop breaks it: a Desktop user cannot tell which session they are in, or that a reload re-opened rather than replaced it. Correctly out of scope for a conformance fix — the standing `desktop-host` spec has **no** session-identity display requirement anywhere — but the fence drawn here is a **deferral, not a resolution**. It deserves a `tech-debt/` file or a small follow-up change proposing session chrome for Desktop, so the divergence lives somewhere that does not archive with this change.
+- **`_activeSessionId` has no memory barrier (supervisor A3).** Written from the Rx subscription, read inside `ReactiveCommand.CreateFromTask`'s body after an `await`. Benign as written — both sides originate on the UI scheduler and the await is a barrier in practice — and it was equally unsynchronised for the four pre-existing arms. But it went from a field nothing read to a field the reload contract depends on. A one-word `volatile` if anyone is in the file.
+- **A record correction the supervisor asked for.** The section-7 DEVLOG says *"Desktop has been violating this SHALL since it shipped."* That overstates it: pre-change, no session was ever active on Desktop, so the unconditional "re-open the active session directory" was arguably **vacuously** satisfied. The conclusion and the delta shape are unaffected — after section 3 there is no charitable reading left, which is exactly why a MODIFIED delta carrying a scenario that *could not have existed before this change* is the honest instrument.
+
+**Other parked items:** the `[Session]` two-grammar collision (**introduced by this change**, not inherited); `TrackActiveSession` dropping a session's `Name` on fork/clone/load; `CommandDispatcher.DrainAsync` having no timeout while several `CancellationToken.None` emits live inside the turn task; the fourth `ISessionHandler` double in `TurnHandlerIntegrationTests.cs`; `ConversationViewModel`'s two switch *expressions*, safe only because both retain a `_` discard arm; and the `Task.Delay(50)` idiom in `Dmon.Desktop.Tests` (the cheap fix is `await sut.Reload.Execute();` — **except** where the `TestScheduler` is the `outputScheduler`, in which case a bare await deadlocks and the sleep is correct; see the section-7 worker's upheld pushback).
+
+**⚠ NEVER RUN GATES CONCURRENTLY WITH AN AGENT.** Parallel `dotnet` builds race on shared `$TMPDIR` pack output paths and produce permission-shaped failures that are neither permission problems nor code failures: `Pack.targets(226,5): Access to the path '$TMPDIR/dmon-feed-<guid>/<Pkg>.nupkg' is denied. Operation not permitted` (kills ~16 `Dmon.Core.Tests` pack-based tests), `HostWriter.CreateAppHost` MSB4018 (kills `make build`), `InitCommandTests` failures. **This bit us in block 4A**: the worker hit it, called it a "pre-existing environment artifact", and declared its gates passed — a **false green**, twenty minutes after a fully green run. Diagnose: the named `dmon-feed-<guid>` dir usually does **not exist** (a create failure, not stale state); `$TMPDIR` probes writable; `ps -eo pid,etime,comm | grep dotnet` shows a cluster of same-age processes. Re-run **sequentially** (`MSBUILDDISABLENODEREUSE=1` helps) → green.
+
+**⚠ DO NOT STAGE DEVLOG EDITS THROUGH `$TMPDIR`.** `$TMPDIR` is shared across Claude Code sessions **and across repositories**. A concurrent `dmon-home` session wrote its own `devlog/next.md` to the same path mid-run, and a section-7 append that reused that file without rewriting it in the same command pasted **dmon-home's Swift handoff notes** into this DEVLOG, destroying the owed-before-archive record (caught by the section-7 supervisor, restored from `6c2b84c`). Use the **session-specific scratchpad** directory, and write the staging file in the same command that consumes it.
