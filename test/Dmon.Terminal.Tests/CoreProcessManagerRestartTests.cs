@@ -32,7 +32,11 @@ public sealed class CoreProcessManagerRestartTests
             // picks it up via <cwd>/.dmon/config.yaml — no shared bin-dir mutation.
             string dmonDir = Path.Combine(tempWorkDir, ".dmon");
             Directory.CreateDirectory(dmonDir);
+            // sessionStore must be explicit: with no key here it falls through to
+            // ~/.dmon/config.yaml, so a developer's global "sessionStore: global" would
+            // make this test write a session into their real home store.
             await File.WriteAllTextAsync(Path.Combine(dmonDir, "config.yaml"), """
+                sessionStore: local
                 providers:
                   test:
                     adapter: openai

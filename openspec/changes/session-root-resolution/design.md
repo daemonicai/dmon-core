@@ -81,6 +81,27 @@ style (blockquote under the title, as in ADR-012/017/018), dated and attributed 
 change. The note states that `.dmon/config.yaml` is the root marker, and that `:80`/`:90`'s
 "`.dmon/` directory" means a directory containing that file.
 
+### D9 — A third writer the measurement could not see: `CoreProcessManagerRestartTests` (Product Owner, 2026-09-10)
+
+`test/Dmon.Terminal.Tests/CoreProcessManagerRestartTests.cs` spawns a real core through
+`CoreProcessManager`, which the D6 search for launch sites missed. It uses a temp
+working directory, writes a `.dmon/config.yaml` holding only a `providers:` block, and
+sends `session.create`. Its marker makes the directory a root, but it sets no
+`sessionStore`. So the effective setting comes from `~/.dmon/config.yaml`, and on a
+machine where that says `global` or a path, the test writes into the home store. D6's
+measurement showed zero only because the measuring machine's global config has no
+`sessionStore` key. The machine hid the defect; the test was never shown to be clean.
+
+Fix: add `sessionStore: local` to that YAML, the same rule as D2/D8 and the Risks
+bullet. No new assertion is needed. The test's purpose is restart behaviour, and the
+`IntegrationSmokeTest` guard (D8) already pins the mechanism.
+
+Verification must not write into the real home store. Setting `HOME` to a temp
+directory redirects the global fallback there. The environment variable
+`sessionStore=global` stands in for a developer's global setting: the host builder
+reads un-prefixed environment variables as configuration, at lower precedence than
+the project YAML. (The worker must confirm that claim, not assume it.)
+
 ### D7 — The live e2e test is tagged `Live` (Product Owner, 2026-09-10)
 
 `LiveToolCallE2ETest` gets `[Trait("Category", "Live")]`, matching
@@ -117,6 +138,10 @@ list and by port 8666 being free).
 The second is the "empty twin" seen beside every live session. It is a separate test
 that runs alongside the live one, not a second session from the same run. No other
 assembly wrote to either store. The repo's `.dmon/sessions` was untouched.
+
+**Limit of the measurement:** a zero delta shows a test is clean only on the measuring
+machine's configuration. A third writer, whose output depends on the global
+`sessionStore`, was invisible to it. See D9.
 
 ### D8 — `CoreProcessFixture` gets the same marker, and `IntegrationSmokeTest` gets the regression guard
 
