@@ -28,5 +28,5 @@ When the agent is invoked from the project root itself, that root's `.dmon/confi
 - **THEN** the core ensures `~/.dmon/` exists, writes a default `~/.dmon/config.yaml`, ensures `~/.dmon/sessions/` exists, and emits `bootstrapNotice {path, created[]}`, where `created[]` names those three paths, before continuing
 
 #### Scenario: Store redirected to global via config
-- **WHEN** the agent is invoked from the project root itself, and that root's `.dmon/config.yaml` contains `sessionStore: global`
+- **WHEN** the agent is invoked from the project root itself, that root's `.dmon/config.yaml` contains `sessionStore: global`, and no higher-precedence configuration layer (such as the root's `.dmon/config.local.yaml`) overrides it
 - **THEN** sessions are stored in `~/.dmon/sessions/` even though a project root was found

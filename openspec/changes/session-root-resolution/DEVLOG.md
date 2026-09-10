@@ -112,6 +112,22 @@ Notes for section 3:
 
 **[architect]** Record fixes applied: (a) D8's last paragraph is corrected to the true reason. (b) Risks bullet 1 points to D9, and the Non-Goal allows the one-off `HOME` redirect. D9 is **left in place** rather than renumbered, because the ids are labels and earlier DEVLOG posts cite them. (c) `## NEXT` rewritten **in full** below. The stale tails came from editing only the first lines of the block, twice. (d) Adopted for `3.2`. Canary adopted into `3.2`'s verification. Latent repo-marker hazard goes to the register in `3.3`. **Section 2 closed.**
 
+## 3. Correct the spec and close the loop
+
+**[architect]** Base: `eb669a1` — confirms the spec delta against the implementation (with the precedence clause folded in), runs the whole-suite check with a canary store, and updates the register.
+
+**[architect]** Block 3A (`3.1`, Architect: spec text and verification). The redirect scenario now ends "…and no higher-precedence configuration layer (such as the root's `.dmon/config.local.yaml`) overrides it" (section-1 supervisor note 1). `validate --strict` valid. Scenario-by-scenario coverage (`test/Dmon.Core.Tests/Session/SessionDirectoryResolverTests.cs` = SDRT):
+
+| Scenario | Covered by |
+|---|---|
+| Project-local store used when `.dmon/config.yaml` exists | **explicit `local`:** SDRT `Resolve_SessionStoreLocal_…`, and end-to-end through a real core by 2.1 (`IntegrationSmokeTest`, CI), 2.2 (live), and 2.3 (restart, unasserted). **unset:** SDRT `Resolve_DmonDirNoConfig_…` and 1.1(b) `Resolve_DmonDirConfigLocalAndConfigYaml_…`. **walk-up from a subdirectory to the root:** SDRT `Resolve_WalksUpFromSubdirectory` (injected config, so it pins the marker walk, not where `sessionStore` is read from; that case is deliberately unspecified) |
+| Global store when no `.dmon/config.yaml` | SDRT `Resolve_NoDmonDir_…` and 1.1(a) |
+| A `.dmon/` without `config.yaml` is not a root | 1.1(a) `Resolve_DmonDirOnlyConfigLocal_…`, mutation-checked twice |
+| First-use bootstrap creates `~/.dmon/` | **No test**: `BootstrapService` reads the home and working directories directly, so there is nothing to inject. Recorded in `tech-debt/bootstrap-service-untested-and-duplicates-root-walk.md`. The text was checked against the code by the section-1 supervisor and the 1R reviewer |
+| Store redirected to global via config | SDRT `Resolve_SessionStoreGlobal_…` (injected config, so it pins the resolver's mapping, not the file-layering half) |
+
+Correction found while mapping: SDRT has `Resolve_SessionStoreCustomAbsolutePath_ReturnsCustomPath`, so the absolute-path form **is** tested at the resolver level. `tech-debt/session-store-setting-ignored-from-subdirectory.md` step 4 says "no test exercises the path form". I copied that from the 1R reviewer's nit without checking. It is fixed in `3.3`. Ticked `3.1`.
+
 ## NEXT
 
 Sections 1 and 2 are closed. Nothing is pending with the Product Owner: the third writer was fixed in 2C, and test-trace cleanup was done and verified. **Next: section 3**, all Architect-owned (spec text, verification, register):

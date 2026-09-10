@@ -12,6 +12,6 @@
 
 ## 3. Correct the spec and close the loop
 
-- [ ] 3.1 Confirm that the `session-storage` delta in this change matches the implemented behaviour: the negative scenario is exercised by 1.1(a), and the project-local scenario by 1.1(b), 2.1 and 2.2. Verify: `openspec validate session-root-resolution --strict` passes.
+- [x] 3.1 Confirm that the `session-storage` delta in this change matches the implemented behaviour: the negative scenario is exercised by 1.1(a), and the project-local scenario by 1.1(b), 2.1 and 2.2. Verify: `openspec validate session-root-resolution --strict` passes.
 - [ ] 3.2 Whole-suite regression check with no dmon host process running (process list and port 8666 checked, design D6): snapshot both session stores, run `env -u MEKO_API_KEY make test` and `env -u MEKO_API_KEY make test-live` with provider keys set, and confirm that **neither** store gained a directory. Record the counts in `DEVLOG.md`. Verify: zero new directories in both stores. If the known Terminal hang aborts the run, as it did on 2026-09-10, record that; it does not block this task, provided every assembly that starts a core ran to completion.
 - [ ] 3.3 Update the register. Mark `tech-debt/live-e2e-test-writes-into-home-session-store.md` `resolved` with the merge commit, noting that `IntegrationSmokeTest` was a second writer. Verify: the note's status line and `tech-debt/README.md` both reflect the resolution, and the note keeps its provenance.
