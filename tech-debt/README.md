@@ -29,6 +29,7 @@ Debt that outlives a change needs somewhere that outlives a change.
 ### Tests
 - [`Dmon.Core.Tests` has a recurring intermittent failure](dmon-core-tests-intermittent-failure.md) — ~1 red run in 8; the failing test was not captured, so catch it with its name first.
 - [`WizardEngineTests` intermittent failure](wizard-engine-intermittent-failure.md) — the one *identified* sighting.
+- [Three `Dmon.Terminal.Tests` tests hang](terminal-tests-hang.md) — 17 minutes in one full-suite run; the next one was aborted by a 5-minute hang detector after 191 of 194 had passed. Tests not yet named.
 - [No test harness exercises a real gateway over a real spawned core](no-full-stack-gateway-test-harness.md) — `Dmon.Network.Tests` fakes the core with a scripted-stdout replayer, so every gateway task must test one level down and say so.
 - [The live e2e test writes into the user's home session store](live-e2e-test-writes-into-home-session-store.md) — `LiveToolCallE2ETest` writes `config.local.yaml`, but the resolver only recognises `config.yaml`, so every live run leaves a session in `~/.dmon/sessions`. All 390 real-looking sessions there are this test.
 - [`SpySessionStore`-based turn tests cannot see persistence](spy-session-store-weaker-than-fake-resolver.md) — the creating and appending stores are different objects, so such a test can fail against pre-change code while proving nothing about persistence. Use block 3B's `FakeResolver` pattern instead.
