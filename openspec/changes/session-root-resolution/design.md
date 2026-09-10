@@ -28,7 +28,8 @@ Current behaviour, which this change keeps:
 - Changing the resolver, the bootstrap, or any configuration layering.
 - Redirecting `HOME` for tests. Bootstrap and global config reads touching the real
   `~/.dmon/config.yaml` are read-mostly and out of scope. This change is about **session
-  writes** into the real store.
+  writes** into the real store. (D9's one-off verification redirects `HOME` for a
+  manual run; no test does.)
 - Pruning existing litter.
 
 ## Decisions
@@ -156,9 +157,12 @@ one runs on every plain `make test` and in CI, with no key needed, so it is the
 change's main regression guard. D3 still covers the live path.
 
 `LegacyExtensionsListIgnoredIntegrationTest` does not use the fixture. It launches
-its own core in its own temp directory and already writes a `config.yaml` there, so
-it is already a project root and is out of scope. That is consistent with the
-measurement.
+its own core in its own temp directory, which already holds a `config.yaml`. Being a
+root is **not** what makes it safe (corrected after the section-2 re-review). Its
+`config.yaml` holds only `extensions:` and no `sessionStore`, which is the same shape
+that made the D9 test a writer. It is out of scope because it **never creates a
+session**: it waits for `agentReady` and closes stdin, and since #115 the core creates
+no session without a command.
 
 ## Risks / Trade-offs
 
@@ -166,7 +170,10 @@ measurement.
   the measuring run, such as a key that was not set] → The measuring run had
   `GEMINI_API_KEY` and `OPENAI_API_KEY` set. The spec's negative scenario plus D3's
   assertion guard the known case, and the tech-debt note stays as the record for
-  anything else.
+  anything else. **This risk materialised:** D9's writer depended on the global
+  `sessionStore`, which the measuring machine does not set. `3.2` therefore adds a
+  canary run (an environment-supplied absolute `sessionStore` path) that exposes any
+  test with a root but no pin.
 - [`config.yaml` in the temp root changes the effective config for the live test] → It
   contains only `sessionStore: local`. That is **not** inert (corrected after the
   section-1 supervisor review). The core's working directory is the temp root, so
