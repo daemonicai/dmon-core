@@ -26,10 +26,14 @@ Debt that outlives a change needs somewhere that outlives a change.
 - [An aborted `session.create` orphans a `meta.json`-less directory](aborted-create-orphans-session-directory.md) — pre-existing, but `lazy-session-creation` made it reachable without any user action. **Ruled out as the litter mechanism (2026-09-10)**: 1 of 1,219 empty session directories lacks `meta.json`. Now only a tidy-up.
 - [A Desktop reload can permanently kill the session's event stream](desktop-reload-can-kill-the-event-subject.md) — a race in `CoreSessionService` completes the never-recreated event subject; the reload looks successful and the UI silently goes deaf. Newly consequential because section 7 of `lazy-session-creation` gave users a reason to reload.
 
+- [A project root's `sessionStore` is ignored from a subdirectory](session-store-setting-ignored-from-subdirectory.md) — config is layered from the working directory's `.dmon/`, not the discovered root's, contradicting ADR-004 step 1. **Undecided**: the spec deliberately leaves the subdirectory case unspecified until the Product Owner rules.
+- [`~/.dmon/config.yaml` makes `$HOME` a project root](home-dmon-config-makes-home-a-project-root.md) — a custom global `sessionStore` path is honoured under `$HOME` and ignored outside it.
+
 ### Tests
 - [`Dmon.Core.Tests` has a recurring intermittent failure](dmon-core-tests-intermittent-failure.md) — ~1 red run in 8; the failing test was not captured, so catch it with its name first.
 - [`WizardEngineTests` intermittent failure](wizard-engine-intermittent-failure.md) — the one *identified* sighting.
-- [Three `Dmon.Terminal.Tests` tests hang](terminal-tests-hang.md) — 17 minutes in one full-suite run; the next one was aborted by a 5-minute hang detector after 191 of 194 had passed. Tests not yet named.
+- [Three `Dmon.Terminal.Tests` tests hang, intermittently](terminal-tests-hang.md) — 17 minutes in one full-suite run; the next was aborted by a 5-minute hang detector after 191 of 194 had passed; a third passed in 19 s. Tests not yet named.
+- [`BootstrapService` is untested and duplicates the resolver's root walk](bootstrap-service-untested-and-duplicates-root-walk.md) — the spec's bootstrap scenario has no test, and its own copy of the marker rule can drift from the resolver's.
 - [No test harness exercises a real gateway over a real spawned core](no-full-stack-gateway-test-harness.md) — `Dmon.Network.Tests` fakes the core with a scripted-stdout replayer, so every gateway task must test one level down and say so.
 - [The live e2e test writes into the user's home session store](live-e2e-test-writes-into-home-session-store.md) — `LiveToolCallE2ETest` writes `config.local.yaml`, but the resolver only recognises `config.yaml`, so every live run leaves a session in `~/.dmon/sessions`. All 390 real-looking sessions there are this test.
 - [`SpySessionStore`-based turn tests cannot see persistence](spy-session-store-weaker-than-fake-resolver.md) — the creating and appending stores are different objects, so such a test can fail against pre-change code while proving nothing about persistence. Use block 3B's `FakeResolver` pattern instead.

@@ -143,5 +143,12 @@ measurement.
   assertion guard the known case, and the tech-debt note stays as the record for
   anything else.
 - [`config.yaml` in the temp root changes the effective config for the live test] → It
-  contains only `sessionStore: local`, which is the default, so the only effect is root
-  detection.
+  contains only `sessionStore: local`. That is **not** inert (corrected after the
+  section-1 supervisor review). The core's working directory is the temp root, so
+  this project layer overrides any `sessionStore` in the developer's
+  `~/.dmon/config.yaml`. That is the intended effect: it pins the store to the temp
+  root whatever the developer's global setting is. The marker must therefore carry
+  `sessionStore: local` explicitly (an empty or comment-only file would leave a
+  global `sessionStore: global` in force). The core must be launched **with the temp
+  root as its working directory**, because only then is that file layered in (see
+  `tech-debt/session-store-setting-ignored-from-subdirectory.md`).

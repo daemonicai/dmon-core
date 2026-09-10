@@ -33,6 +33,21 @@ Brief to worker (1.1):
 
 **[architect]** Block 1A gates: `make build` clean (0 warnings); `env -u MEKO_API_KEY make test` exit 0, every assembly green (Core 628 passed / 1 skipped, up 2); `openspec validate --strict` valid. `Dmon.Terminal.Tests` passed 194/194 in **19 s**. Earlier the same day it took 17 min in one run and hung in another (`tech-debt/terminal-tests-hang.md`), so that hang is intermittent, not constant. Ticked `1.1`–`1.2`.
 
+**[supervisor]** Section 1 (`d770b96..688ae5b`): **Request changes.** The tests are sound and mutation-checked. **B1:** the ADR-004 note says *"the code has always implemented step 1"*, but step 1 is "walk up for `.dmon/config.yaml` → **read sessionStore**". The code does the walk-up, but reads `sessionStore` from the merged `IConfiguration`, which `DmonHostBuilder.cs:44-50` layers from the **working directory's** `.dmon/`, not the discovered root's. From `<root>/src`, a root's `sessionStore: global` is ignored. The spec delta's redirect scenario ("the project root's `.dmon/config.yaml` contains `sessionStore: global`") states that false behaviour as a SHALL. Also: the bootstrap scenario's THEN overstates (`sessions/` is not necessarily empty, and `created[]` always lists all three paths). The design's Risks bullet wrongly calls the `sessionStore: local` marker inert (it overrides the developer's global setting). Scenario coverage: bootstrap has no test anywhere, and the redirect is tested only with injected config. For section 2: the marker must carry `sessionStore: local` explicitly, and the core's working directory must be the temp root. For the register: `~/.dmon/config.yaml` makes `$HOME` a root, and `BootstrapService` is untested and re-implements the walk-up.
+
+**[architect]** B1 verified against `DmonHostBuilder.cs:44-50`. It is a spec-versus-code conflict, so it went to the Product Owner, with three options: state only what is true and decided; match the code; or fix the code here. **The Product Owner chose option 1** (2026-09-10): state only what is true and decided, and park the subdirectory behaviour as explicitly undecided.
+
+**[architect]** Remediation block 1R (doc-only, no task numbers, ticks nothing):
+- **Spec delta:** the requirement now says a root's `.dmon/sessions/` is used when the *effective* `sessionStore` is `local`/unset. It states that a root's `config.yaml` contributes when invoked **from the root itself**, and says explicitly that the subdirectory case is **not specified**. The project-local scenario is conditioned on the effective `sessionStore`. The redirect scenario is limited to "invoked from the project root itself". The bootstrap THEN now says "ensures … exists / writes a default `config.yaml` / `created[]` names those three paths".
+- **ADR-004 note:** now claims only the marker, and adds a "known gap, not resolved by this note" sentence pointing to the new register note.
+- **design.md Risks:** corrected. The marker is not inert and must carry `sessionStore: local`, and the core must run with the temp root as its working directory. Section 2's briefs rely on this.
+- **Register (3 new notes, 1 update):** `session-store-setting-ignored-from-subdirectory.md` (undecided), `home-dmon-config-makes-home-a-project-root.md`, `bootstrap-service-untested-and-duplicates-root-walk.md`; `terminal-tests-hang.md` updated (third run passed in 19 s, so the hang is intermittent).
+- `openspec validate --strict`: valid.
+
+**[reviewer]** Block 1R: **Approve.** Every claim was checked against `DmonHostBuilder.cs`, `SessionDirectoryResolver.cs` and `BootstrapService.cs`. Each SHALL and scenario is true for every working directory it covers, and the subdirectory case is left open, not asserted either way. Nits: a line reference was stale (`:75-104`, actually `:76-107`); and `sessionStore: <absolute path>` is now unspecified.
+
+**[architect]** Both nits applied: fixed the line reference, and added a step 4 to `session-store-setting-ignored-from-subdirectory.md` to decide the path form together with the subdirectory case. Gates: the diff is `.md`-only (checked: no non-`.md` file changed), so `make build`/`make test` cannot be affected and were not re-run; `openspec validate --strict` is valid.
+
 ## NEXT
 
-Block 1A committed. Next: the section-1 supervisor review over `d770b96..HEAD` (single-block section, still required), then open section 2.
+Block 1R committed. Next: re-run the section-1 supervisor over `d770b96..HEAD` (round 2 of 2). If it still requests changes, stop and go to the Product Owner.

@@ -16,7 +16,9 @@ Two full-suite runs on `main` @ `1004b6c`, on the same machine, the same morning
 | `env -u MEKO_API_KEY make test` | Passed 194/194 | **17 m 2 s** |
 | same command plus `--blame-hang-timeout 5m` | Passed 191, then **no activity for 5 min**, hang dump taken, **run aborted** (exit 1) | 2 s + 5 min |
 
-So three tests either take many minutes or never finish. The first run's 17 minutes
+A third run the same morning (`make test`, block 1A gates of `session-root-resolution`)
+passed **194/194 in 19 s**. So the hang is **intermittent**, not constant. When it
+happens, three tests either take many minutes or never finish. The first run's 17 minutes
 suggests the former: they eventually complete, perhaps by timing out internally.
 Every other assembly in the same runs finished in seconds (Core: 52 s).
 
