@@ -59,8 +59,11 @@ This path produced exactly one orphan
 (`19831aab-d6fc-4092-8f2b-8478914821cd`, 2026-09-07), so it is real but rare.
 The litter has other sources:
 
-- **`~/.dmon/sessions` is entirely test output.** See
+- **`~/.dmon/sessions`: every session with content is test output.** See
   [the live e2e test writes into the home session store](live-e2e-test-writes-into-home-session-store.md).
+  Its *empty* sessions are mixed: most are that test's twins, but real hosts whose
+  working directory has no `.dmon/config.yaml` (such as dmon-home's gateway core) also
+  write there.
 - **The repo's litter is historical.** 744 of its 764 empty sessions were created
   between 2026-05-25 and 2026-06-14, 598 of them in a burst from 06-11 to 06-13. No
   empty session has appeared since then, apart from the one orphan above. The

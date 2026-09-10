@@ -26,7 +26,15 @@ provider key set leaves a session in the developer's real home store.**
   ./marker.txt…"*. None is a real user session.
 - Before `lazy-session-creation` (#115), each run left **two** directories: the
   real session plus an empty twin created within about a second. That accounts
-  for most of the 455 empty directories there.
+  for most of the 455 empty directories there, **but not all**. The store is also
+  the fallback for real hosts. On 2026-09-10 the dmon-home app
+  (`DmonHomeApp` → `ndmon` → core, working directory `dmon-home`, no
+  `.dmon/config.yaml`) created sessions there while this was being measured.
+  Empty sessions in `~/.dmon/sessions` therefore **cannot** be assumed to be test
+  output.
+- The test has no `[Trait("Category", "Live")]`, so plain `make test` runs it (and
+  makes a paid API call) whenever a provider key is set. That is why the sessions
+  accumulated so quickly.
 - On `main` at `610f5db`, one run of the test left **one** directory
   (`6f94be14-…`, with content) and no twin. #115 removed the twin, but the
   pollution remains.
@@ -49,5 +57,8 @@ provider key set leaves a session in the developer's real home store.**
    quietly writing back into `~`.
 2. Check the other tests that spawn a core (`CoreProcessFixture` users,
    `Dmon.Network.Tests`) for the same fallback.
-3. After the fix, `~/.dmon/sessions` can be cleared. Every session in it is test
-   output. That is the owner's call, not an automatic step.
+3. After the fix, the test's sessions can be pruned from `~/.dmon/sessions`.
+   **Do not clear the whole store**: real hosts write there too. Only sessions
+   whose first message is the test's `marker.txt` prompt, plus the empty twin
+   created within about a second of each, are identifiably test output. Pruning
+   is the owner's call, not an automatic step.
