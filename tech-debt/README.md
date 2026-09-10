@@ -23,13 +23,14 @@ Debt that outlives a change needs somewhere that outlives a change.
 ### Behaviour gaps
 - [First-run provisioning races the gateway's device-store reload](provisioning-races-device-store-reload.md) — the new-device path 401s on its first connect and never retries; observed once, live. Cross-repo: the fix was decided to be gateway-side, so the note stayed here.
 - [A `turn.submit` can produce no event at all](turn-submit-can-produce-no-event-at-all.md) — cancellation before `turnStart` reaches the wire is swallowed silently, so a client cannot tell a wedged turn from a slow one.
-- [An aborted `session.create` orphans a `meta.json`-less directory](aborted-create-orphans-session-directory.md) — pre-existing, but `lazy-session-creation` made it reachable without any user action. A candidate mechanism for the 99.3% empty-session litter; **check whether the litter lacks `meta.json` before treating it as the cause**.
+- [An aborted `session.create` orphans a `meta.json`-less directory](aborted-create-orphans-session-directory.md) — pre-existing, but `lazy-session-creation` made it reachable without any user action. **Ruled out as the litter mechanism (2026-09-10)**: 1 of 1,219 empty session directories lacks `meta.json`. Now only a tidy-up.
 - [A Desktop reload can permanently kill the session's event stream](desktop-reload-can-kill-the-event-subject.md) — a race in `CoreSessionService` completes the never-recreated event subject; the reload looks successful and the UI silently goes deaf. Newly consequential because section 7 of `lazy-session-creation` gave users a reason to reload.
 
 ### Tests
 - [`Dmon.Core.Tests` has a recurring intermittent failure](dmon-core-tests-intermittent-failure.md) — ~1 red run in 8; the failing test was not captured, so catch it with its name first.
 - [`WizardEngineTests` intermittent failure](wizard-engine-intermittent-failure.md) — the one *identified* sighting.
 - [No test harness exercises a real gateway over a real spawned core](no-full-stack-gateway-test-harness.md) — `Dmon.Network.Tests` fakes the core with a scripted-stdout replayer, so every gateway task must test one level down and say so.
+- [The live e2e test writes into the user's home session store](live-e2e-test-writes-into-home-session-store.md) — `LiveToolCallE2ETest` writes `config.local.yaml`, but the resolver only recognises `config.yaml`, so every live run leaves a session in `~/.dmon/sessions`. All 390 real-looking sessions there are this test.
 - [`SpySessionStore`-based turn tests cannot see persistence](spy-session-store-weaker-than-fake-resolver.md) — the creating and appending stores are different objects, so such a test can fail against pre-change code while proving nothing about persistence. Use block 3B's `FakeResolver` pattern instead.
 
 ### Docs and tooling

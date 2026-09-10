@@ -3,7 +3,7 @@
 **Status:** open
 **Where:** `core/Dmon.Core/Session/SessionStore.cs:98-114`
 **Surfaced:** 2026-09-09, section-3 supervisor of `lazy-session-creation`
-**Severity:** low for correctness, **possibly high as the explanation for a measured problem**
+**Severity:** low — **ruled out** (2026-09-10) as the explanation for the empty-session litter; see [Checked](#checked-2026-09-10)
 
 ## What
 
@@ -45,10 +45,30 @@ least as plausible, and nobody has checked whether the litter directories lack
 **That check is cheap and should come first.** It is the difference between a
 tidy-up and a fix.
 
+## Checked (2026-09-10)
+
+The check was run, and the answer is **tidy-up, not fix**. Verified by counting
+every directory, not by sampling:
+
+| Store | Dirs | Empty `messages.jsonl` | …of which lack `meta.json` |
+|---|---|---|---|
+| repo `.dmon/sessions` | 770 | 764 | **1** |
+| `~/.dmon/sessions` | 845 | 455 | **0** |
+
+This path produced exactly one orphan
+(`19831aab-d6fc-4092-8f2b-8478914821cd`, 2026-09-07), so it is real but rare.
+The litter has other sources:
+
+- **`~/.dmon/sessions` is entirely test output.** See
+  [the live e2e test writes into the home session store](live-e2e-test-writes-into-home-session-store.md).
+- **The repo's litter is historical.** 744 of its 764 empty sessions were created
+  between 2026-05-25 and 2026-06-14, 598 of them in a burst from 06-11 to 06-13. No
+  empty session has appeared since then, apart from the one orphan above. The
+  source was not identified. It has stopped, so it only matters for pruning.
+
 ## What to do
 
-1. Establish the fact: sample the empty-`messages.jsonl` directories and see how
-   many lack `meta.json`. That decides whether this is the mechanism.
+1. ~~Establish the fact.~~ Done. See above.
 2. Determine how `ListAsync` behaves on a `meta.json`-less directory — whether it
    skips, throws, or yields a half-populated `SessionMeta`. Unknown at the time
    of writing, and it governs whether the orphan is inert or actively harmful.
