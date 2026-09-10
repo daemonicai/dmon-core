@@ -50,6 +50,16 @@ public sealed class CoreProcessFixture : IAsyncLifetime
         }
         """);
 
+        // Marks contentRoot as a project .dmon root (SessionDirectoryResolver.FindDmonRoot
+        // requires .dmon/config.yaml to exist) and pins sessionStore to "local" so sessions
+        // land under <contentRoot>/.dmon/sessions instead of falling back to the developer's
+        // real ~/.dmon/sessions — a project config.yaml layers over ~/.dmon/config.yaml, so
+        // an empty/comment-only marker would leave a developer's "sessionStore: global" in
+        // force.
+        string dmonDir = Path.Combine(contentRoot, ".dmon");
+        Directory.CreateDirectory(dmonDir);
+        await File.WriteAllTextAsync(Path.Combine(dmonDir, "config.yaml"), "sessionStore: local\n");
+
         var psi = new ProcessStartInfo
         {
             FileName = "dotnet",

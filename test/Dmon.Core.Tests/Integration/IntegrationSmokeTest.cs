@@ -50,7 +50,11 @@ public class IntegrationSmokeTest : IClassFixture<CoreProcessFixture>
         Assert.Equal(cmdId, root.GetProperty("id").GetString());
 
         JsonElement session = root.GetProperty("session");
-        Assert.NotNull(session.GetProperty("id").GetString());
+        string? sessionId = session.GetProperty("id").GetString();
+        Assert.NotNull(sessionId);
+
+        string metaPath = Path.Combine(_fixture.CoreDir!, ".dmon", "sessions", sessionId!, "meta.json");
+        Assert.True(File.Exists(metaPath), $"Expected session meta.json at '{metaPath}' but it was not found.");
     }
 
     [Fact]
