@@ -46,8 +46,23 @@ and ADR-004's amendment note points here.
 3. Then specify the subdirectory case in the `session-storage` spec, and remove
    ADR-004's "known gap" sentence.
 4. At the same time, decide whether `sessionStore: <absolute path>` is supported.
-   ADR-004 names it, and the resolver's `switch` implements it. But the
-   `session-root-resolution` spec deliberately covers only `local` and `global`, and
-   no test exercises the path form.
+   ADR-004 names it, the resolver's `switch` implements it, and
+   `SessionDirectoryResolverTests.Resolve_SessionStoreCustomAbsolutePath_ReturnsCustomPath`
+   tests it at the resolver level with injected config. But the
+   `session-root-resolution` spec deliberately covers only `local` and `global`.
+   (Corrected 2026-09-10: an earlier version of this note said no test exercised the
+   path form.)
+
+## A related way to split a project's sessions
+
+The provider-setup wizard's `local` scope writes `<CWD>/.dmon/config.yaml`
+(`core/Dmon.Core/Rpc/ProviderSetupHandler.cs:457-460`). That is an app action that
+**creates a root marker**. Run from a subdirectory of an existing root, it creates a
+nested root, and sessions started there from then on go to the nested
+`.dmon/sessions/`, splitting the project's history. (This is not the `ActiveModelStore`
+model-switch path, which writes only `config.local.yaml` and so creates no root.)
+Decide it together with the question above; both are about which directory counts as
+"the project". Surfaced by the section-1 supervisor of `session-root-resolution`
+(inferred from the code).
 
 Related: [`$HOME` is a project root once bootstrapped](home-dmon-config-makes-home-a-project-root.md).

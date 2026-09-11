@@ -32,10 +32,12 @@ Debt that outlives a change needs somewhere that outlives a change.
 ### Tests
 - [`Dmon.Core.Tests` has a recurring intermittent failure](dmon-core-tests-intermittent-failure.md) — ~1 red run in 8; the failing test was not captured, so catch it with its name first.
 - [`WizardEngineTests` intermittent failure](wizard-engine-intermittent-failure.md) — the one *identified* sighting.
-- [Three `Dmon.Terminal.Tests` tests hang, intermittently](terminal-tests-hang.md) — 17 minutes in one full-suite run; the next was aborted by a 5-minute hang detector after 191 of 194 had passed; a third passed in 19 s. Tests not yet named.
+- [Three `Dmon.Terminal.Tests` tests hang, intermittently](terminal-tests-hang.md) — the `InitCommandTests`: `InitFeedFixture` waits for stdout EOF with no timeout, and a reusable MSBuild node started by `pack-core.sh` holds the pipe open until it idles out (~15 min). Verified 2026-09-11. Workaround: `MSBUILDDISABLENODEREUSE=1`.
 - [`BootstrapService` is untested and duplicates the resolver's root walk](bootstrap-service-untested-and-duplicates-root-walk.md) — the spec's bootstrap scenario has no test, and its own copy of the marker rule can drift from the resolver's.
 - [No test harness exercises a real gateway over a real spawned core](no-full-stack-gateway-test-harness.md) — `Dmon.Network.Tests` fakes the core with a scripted-stdout replayer, so every gateway task must test one level down and say so.
-- [The live e2e test writes into the user's home session store](live-e2e-test-writes-into-home-session-store.md) — `LiveToolCallE2ETest` writes `config.local.yaml`, but the resolver only recognises `config.yaml`, so every live run leaves a session in `~/.dmon/sessions`. All 390 real-looking sessions there are this test.
+- ~~[The live e2e test writes into the user's home session store](live-e2e-test-writes-into-home-session-store.md)~~ — **resolved** by `session-root-resolution`. There were three writers (the live test, `CoreProcessFixture`, and `CoreProcessManagerRestartTests`); all now pin `sessionStore: local` in a temp-root `config.yaml`. The accumulated test sessions are not yet pruned.
+- [`MekoLiveSmokeTests` passes silently without its key](meko-live-smoke-passes-without-key.md) — a plain `[Fact]` that returns early when `MEKO_API_KEY` is absent, so `make test-live` reports Passed having tested nothing.
+- [The repo's own `.dmon/config.yaml` has no `sessionStore` pin](repo-dmon-config-unpinned.md) — latent: a future test that creates a session with its working directory inside the repo would follow the developer's global setting.
 - [`SpySessionStore`-based turn tests cannot see persistence](spy-session-store-weaker-than-fake-resolver.md) — the creating and appending stores are different objects, so such a test can fail against pre-change code while proving nothing about persistence. Use block 3B's `FakeResolver` pattern instead.
 
 ### Docs and tooling

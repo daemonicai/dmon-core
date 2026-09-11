@@ -68,6 +68,16 @@ wizard one and inherit its reasoning about why a swallowed re-prompt would be a 
 user-facing defect. **If it is a different test**, this note stays and the wizard note's
 "observed once" status is still accurate.
 
+## A separate symptom: a Core hang (2026-09-10)
+
+`session-root-resolution`'s first `3.2` attempt **hung** (it did not fail) in
+`Dmon.Core.Tests` for more than 9 minutes. Three full Core runs on 2026-09-11 (627 passed, 1 skipped, each) did not
+reproduce it. The Terminal hang's cause has since been verified: a fixture waits for stdout
+EOF while a reusable MSBuild node holds the pipe open. Three Core test files have the same
+shape (`ToolPackTests`, `CompositionRootTests`, `VersionRangeRestoreTests`). That is a
+**lead** for the hang only. It says nothing about this note's one-off `Failed: 1`, which
+is a different symptom. See [the Terminal hang](terminal-tests-hang.md).
+
 ## Provenance
 
 Observed and measured by the Architect during section 6 of `dmon-home-foundations`
