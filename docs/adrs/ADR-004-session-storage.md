@@ -3,6 +3,8 @@
 **Date:** 2026-05-22
 **Status:** Accepted
 
+> **Amendment (2026-09-10, change `session-root-resolution`) — clarification only:** under *Session location*, the prose's "looking for a `.dmon/` directory" and step 5's "no `.dmon/` found" mean a `.dmon/` directory **containing `config.yaml`**, as step 1 of the discovery order already states. `.dmon/config.yaml` is the project-root marker. A `.dmon/` holding only the app-managed `config.local.yaml` does not mark a root, so a model switch cannot relocate a project's sessions. No decision changes. The code has always used `.dmon/config.yaml` as the marker; see the `session-storage` spec, *Session discovery — `.dmon/config.yaml` marks the project root*. **Known gap, not resolved by this note:** step 1's "read sessionStore" is honoured only when the working directory *is* the root. The core reads `sessionStore` from the working directory's layered configuration, not from the discovered root's file, so from a subdirectory the root's setting is ignored. Whether that is a defect or the intended rule is undecided. See `tech-debt/session-store-setting-ignored-from-subdirectory.md`.
+
 ## Context
 
 Sessions need to be portable — copyable, shareable, forkable mid-conversation. The brief commits to a session-as-relocatable-directory model (from Pi). The decisions here concern what lives inside that directory, how large outputs are handled, how compaction works, and where sessions are stored.

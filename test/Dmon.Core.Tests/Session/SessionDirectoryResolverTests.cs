@@ -132,6 +132,76 @@ public sealed class SessionDirectoryResolverTests : IDisposable
     }
 
     [Fact]
+    public void Resolve_DmonDirOnlyConfigLocal_ReturnsFallbackGlobalPath()
+    {
+        string projectDir = Path.Combine(_tempRoot, "project");
+        Directory.CreateDirectory(projectDir);
+
+        string dmonDir = Path.Combine(projectDir, ".dmon");
+        Directory.CreateDirectory(dmonDir);
+
+        // .dmon/ holds only the app-managed config.local.yaml — no config.yaml marker.
+        File.WriteAllText(Path.Combine(dmonDir, "config.local.yaml"), "activeModel: gpt-5\n");
+
+        AssertNoAncestorConfigYaml(projectDir);
+
+        IConfiguration config = CreateConfig();
+        SessionDirectoryResolver resolver = new(config);
+
+        string result = resolver.Resolve(projectDir);
+
+        string expected = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+            ".dmon",
+            "sessions");
+
+        Assert.Equal(expected, result);
+    }
+
+    [Fact]
+    public void Resolve_DmonDirConfigLocalAndConfigYaml_ReturnsLocalSessions()
+    {
+        string projectDir = Path.Combine(_tempRoot, "project");
+        Directory.CreateDirectory(projectDir);
+
+        string dmonDir = Path.Combine(projectDir, ".dmon");
+        Directory.CreateDirectory(dmonDir);
+
+        File.WriteAllText(Path.Combine(dmonDir, "config.local.yaml"), "activeModel: gpt-5\n");
+        // Adding config.yaml alongside config.local.yaml is what marks this a root.
+        File.WriteAllText(Path.Combine(dmonDir, "config.yaml"), "# empty config\n");
+
+        IConfiguration config = CreateConfig();
+        SessionDirectoryResolver resolver = new(config);
+
+        string result = resolver.Resolve(projectDir);
+
+        string expected = Path.Combine(projectDir, ".dmon", "sessions");
+        Assert.Equal(expected, result);
+    }
+
+    private static void AssertNoAncestorConfigYaml(string start)
+    {
+        string? current = Path.GetFullPath(start);
+
+        while (current is not null)
+        {
+            string candidate = Path.Combine(current, ".dmon", "config.yaml");
+            Assert.False(
+                File.Exists(candidate),
+                $"Test precondition violated: '{candidate}' exists, so this temp tree cannot discriminate a bare .dmon/ from a real root.");
+
+            string? parent = Path.GetDirectoryName(current);
+            if (parent == current)
+            {
+                break;
+            }
+
+            current = parent;
+        }
+    }
+
+    [Fact]
     public void Resolve_WalksUpFromSubdirectory()
     {
         string projectDir = Path.Combine(_tempRoot, "project");

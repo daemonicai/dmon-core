@@ -1,11 +1,27 @@
 # The live e2e test writes into the user's home session store
 
-**Status:** open
+**Status:** resolved by change `session-root-resolution` (branch `change/session-root-resolution`; merge commit to be added after merge)
 **Where:** `test/Dmon.Core.Tests/Integration/LiveToolCallE2ETest.cs:57-61`, against
 `core/Dmon.Core/Session/SessionDirectoryResolver.cs:47`
 **Surfaced:** 2026-09-10, while checking the
 [aborted-create orphan](aborted-create-orphans-session-directory.md)
 **Severity:** low for correctness, but it pollutes real user state on every live test run
+
+## Resolution (2026-09-10)
+
+This test was **one of three** writers; the change fixed all three.
+
+| Writer | What it left in `~/.dmon/sessions` | Fix |
+|---|---|---|
+| `LiveToolCallE2ETest` (this note) | a session with content, on every run with a provider key | `sessionStore: local` marker, an assertion that the session landed in its temp root, and `[Trait("Category", "Live")]` so plain `make test` no longer runs it or makes a paid call |
+| `IntegrationSmokeTest` via `CoreProcessFixture` | the empty "twin" beside every live session, on **every** `make test`, key or not | the same marker in the fixture, plus an assertion that runs in CI |
+| `CoreProcessManagerRestartTests` | nothing on the measuring machine; a session on any machine whose global config sets `sessionStore: global` or a path | an explicit `sessionStore: local` in the `config.yaml` it already wrote |
+
+The third writer was invisible to measurement, because its behaviour depended on the developer's global `sessionStore`. The section-2 supervisor found it by reading the code. The final check ran the suite a second time with an environment-supplied canary `sessionStore` path. That would expose any other test of that kind, meaning one whose core finds a root with no pin, provided the developer's `~/.dmon/config.yaml` sets no `sessionStore` (the environment is the lowest configuration layer). A core that finds no root always writes to `~/.dmon/sessions`, whatever the setting, and the home-store count catches that instead. See the change's `DEVLOG.md` §3.
+
+The rule it established is recorded in the `session-storage` spec and in ADR-004's amendment note: `.dmon/config.yaml` marks a project root. Every test that launches a real core in a temp directory **and creates a session** must write that marker with an explicit `sessionStore: local`, and must keep the temp directory as the core's working directory. `LegacyExtensionsListIgnoredIntegrationTest` writes a marker without a pin; that is acceptable because it never creates a session.
+
+The test sessions that had already accumulated were **not** pruned by the change. That remains the owner's call; see step 3 below.
 
 ## What
 

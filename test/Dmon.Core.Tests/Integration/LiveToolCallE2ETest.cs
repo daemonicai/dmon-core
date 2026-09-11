@@ -15,7 +15,12 @@ namespace Dmon.Core.Tests.Integration;
 ///
 /// Per ADR-005, provider credentials come from env vars.  The test SKIPS — never silently
 /// passes — when no provider key is present.
+///
+/// Marks the temp content root as its own session root via <c>.dmon/config.yaml</c> (see
+/// <see cref="BuildRootMarkerYaml"/>) so session discovery never falls back to the real
+/// <c>~/.dmon/sessions</c> — see session-root-resolution design D2/D3.
 /// </summary>
+[Trait("Category", "Live")]
 public sealed class LiveToolCallE2ETest
 {
     // Provider detection — first match wins.
@@ -50,12 +55,21 @@ public sealed class LiveToolCallE2ETest
         string markerContent = $"live-e2e-marker-{Guid.NewGuid():N}";
         await File.WriteAllTextAsync(markerPath, markerContent);
 
+        // Write <cwd>/.dmon/config.yaml as the session-root marker: SessionDirectoryResolver
+        // walks up from the working directory looking for this exact file, so its presence
+        // is what keeps sessions inside contentRoot instead of falling back to the real
+        // ~/.dmon/sessions. sessionStore: local is spelled out explicitly rather than relying
+        // on the resolver's own default, so a developer's global sessionStore: global setting
+        // can never leak into this test (design D2).
+        string dmonDir = Path.Combine(contentRoot, ".dmon");
+        Directory.CreateDirectory(dmonDir);
+        string configPath = Path.Combine(dmonDir, "config.yaml");
+        await File.WriteAllTextAsync(configPath, BuildRootMarkerYaml());
+
         // Write provider config into <cwd>/.dmon/config.local.yaml — the highest-priority
         // config source in DmonHostBuilder's layering (wins over ~/.dmon/config.yaml and
         // appsettings.json). This ensures the test-selected provider is the active one
         // regardless of the user's global ~/.dmon/config.yaml.
-        string dmonDir = Path.Combine(contentRoot, ".dmon");
-        Directory.CreateDirectory(dmonDir);
         string configLocalPath = Path.Combine(dmonDir, "config.local.yaml");
         string configLocalYaml = BuildProviderConfigYaml(adapter, modelId);
         await File.WriteAllTextAsync(configLocalPath, configLocalYaml);
@@ -79,6 +93,12 @@ public sealed class LiveToolCallE2ETest
         try
         {
             await RunRoundTripAsync(client, markerPath, markerContent, stderrLines);
+
+            // Regression guard for session-root-resolution: the turn above must have
+            // persisted into contentRoot's own session store, not the developer's real
+            // ~/.dmon/sessions. Runs after TurnEndEvent was observed and before the
+            // finally below deletes contentRoot.
+            AssertSessionPersistedUnderContentRoot(contentRoot, stderrLines);
         }
         finally
         {
@@ -88,6 +108,33 @@ public sealed class LiveToolCallE2ETest
             try { Directory.Delete(contentRoot, recursive: true); }
             catch { /* best effort */ }
         }
+    }
+
+    private static void AssertSessionPersistedUnderContentRoot(
+        string contentRoot, List<string> stderrLines)
+    {
+        string FormatFailure(string msg) =>
+            $"{msg}\nCore stderr:\n{string.Join("\n", stderrLines)}";
+
+        string sessionsDir = Path.Combine(contentRoot, ".dmon", "sessions");
+
+        Assert.True(Directory.Exists(sessionsDir),
+            FormatFailure($"Expected a local session store at {sessionsDir} — " +
+                "session discovery must have fallen back to the global store."));
+
+        string[] sessionDirs = Directory.GetDirectories(sessionsDir);
+        Assert.True(sessionDirs.Length > 0,
+            FormatFailure($"No session directories found under {sessionsDir}."));
+
+        bool anyHasMessages = sessionDirs.Any(dir =>
+        {
+            string messagesPath = Path.Combine(dir, "messages.jsonl");
+            return File.Exists(messagesPath)
+                && new FileInfo(messagesPath).Length > 0;
+        });
+
+        Assert.True(anyHasMessages,
+            FormatFailure($"No session under {sessionsDir} has a non-empty messages.jsonl."));
     }
 
     private static async Task RunRoundTripAsync(
@@ -206,6 +253,11 @@ public sealed class LiveToolCallE2ETest
         // Unreachable — Skip.If throws. Satisfies the compiler.
         throw new InvalidOperationException(SkipReason);
     }
+
+    // Minimal marker for SessionDirectoryResolver: its mere presence marks contentRoot as
+    // a session root, and an explicit sessionStore: local overrides any inherited global
+    // setting rather than relying on the resolver's own "local" default (design D2).
+    private static string BuildRootMarkerYaml() => "sessionStore: local" + Environment.NewLine;
 
     private static string BuildProviderConfigYaml(string adapter, string modelId)
     {
