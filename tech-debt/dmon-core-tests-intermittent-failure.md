@@ -86,7 +86,7 @@ is a different symptom. See [the Terminal hang](terminal-tests-hang.md).
 suspected mechanism is now closed in this assembly. Two full runs with node reuse **on**
 then passed (629/630, 1 skip, 57-59 s). The Core hang itself was **never forced**, so
 treat it as "probably the same cause, now fixed" rather than "verified fixed". A Core hang
-seen after this merge is a new finding. The `Failed: 1` above is untouched: still open,
+seen after `9edd380` is a new finding. The `Failed: 1` above is untouched: still open,
 still unnamed.
 
 ## Provenance

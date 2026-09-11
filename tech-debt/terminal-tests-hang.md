@@ -1,7 +1,6 @@
 # Three `Dmon.Terminal.Tests` tests hang
 
-**Status:** resolved on branch `fix/terminal-tests-hang` (2026-09-11); the merge commit is
-recorded here once merged.
+**Status:** resolved by PR #117 (squash-merged as `9edd380`, 2026-09-11)
 **Where:** `test/Dmon.Terminal.Tests/InitFeedFixture.cs:54-92` (`RunAsync`), shared by the
 three `InitCommandTests`
 **Surfaced:** 2026-09-10, while measuring which tests write into `~/.dmon/sessions`
@@ -117,7 +116,7 @@ Apply the same fix to every copy of the shape:
   `dotnet` with redirected output and `ReadToEndAsync`; check each one.
 
 **Workaround until then:** run the suite with `MSBUILDDISABLENODEREUSE=1` exported. No
-longer needed once the resolution above is merged.
+longer needed since `9edd380`.
 
 ## History
 
