@@ -25,6 +25,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Include="..\Shared\ProcessRunner.cs" Link="Shared\ProcessRunner.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\core\Dmon.Core\Dmon.Core.csproj" />
     <ProjectReference Include="..\..\core\Dmon.Runtime\Dmon.Runtime.csproj" />
     <ProjectReference Include="..\..\providers\Dmon.Providers.Anthropic\Dmon.Providers.Anthropic.csproj" />
