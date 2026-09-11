@@ -23,8 +23,15 @@ that project's sessions from the global store to a local one.
   root. Replace the stale `.daemon` naming with `.dmon`.
 - Correct the first-use bootstrap scenario to match `BootstrapService`. When neither
   `~/.dmon/config.yaml` nor any ancestor `.dmon/config.yaml` exists, the core creates
-  **`~/.dmon/`** (not `.dmon/` at CWD) with a default `config.yaml` and an empty
-  `sessions/`.
+  **`~/.dmon/`** (not `.dmon/` at CWD): it ensures `~/.dmon/` exists, writes a default
+  `~/.dmon/config.yaml`, ensures `~/.dmon/sessions/` exists, and emits `bootstrapNotice`
+  naming those paths.
+- State only what is true and decided. The `sessionStore` redirect scenario applies when
+  the agent is invoked from the project root itself, with no higher-precedence layer
+  overriding it. The core reads `sessionStore` from the working directory's configuration
+  layers, not the discovered root's, so from a subdirectory a root's setting is ignored.
+  That case is deliberately left unspecified and parked as undecided
+  (`tech-debt/session-store-setting-ignored-from-subdirectory.md`).
 - Add an amendment note to ADR-004 that resolves its internal contradiction in favour of
   its own algorithm (`:86`). The decision is unchanged; only the prose that contradicted
   it is corrected.
@@ -39,9 +46,14 @@ that project's sessions from the global store to a local one.
   `config.local.yaml` resolves to the global store.
 - Give `CoreProcessFixture` the same marker, and make `IntegrationSmokeTest` assert
   that its created session lands in the fixture's root. A full-suite diff of the store
-  (design D6) found this fixture to be the only other writer: its
+  (design D6) found this fixture to be the second writer: its
   `SessionCreateReturnsNewSession` leaves an empty session in `~` on every `make test`,
   key or no key. That is the "empty twin" beside each live-test session.
+- Pin `sessionStore: local` in `CoreProcessManagerRestartTests`' `config.yaml`. This
+  third writer was invisible to the store diff, because it writes to `~` only on a machine
+  whose global config sets `sessionStore: global` or a path (design D9). Every marker
+  these tests write pins `sessionStore: local` explicitly for the same reason: an
+  unpinned root follows the developer's global setting.
 
 No runtime behaviour changes. No user's sessions move.
 
@@ -64,7 +76,8 @@ _None._
 - **Tests:** `test/Dmon.Core.Tests/Integration/LiveToolCallE2ETest.cs` (marker,
   assertion, `Live` trait), `test/Dmon.Core.Tests/CoreProcessFixture.cs` and
   `Integration/IntegrationSmokeTest.cs` (marker, assertion), and
-  `Session/SessionDirectoryResolverTests.cs` (the rule pin).
+  `Session/SessionDirectoryResolverTests.cs` (the rule pin), and
+  `test/Dmon.Terminal.Tests/CoreProcessManagerRestartTests.cs` (the pin).
 - **Production code:** none.
 - **Out of scope:** stale `.daemon/` wording in the `auth` and `console-host` specs.
   That belongs to `tech-debt/docs-drift-pass.md`. Clearing the existing litter in

@@ -154,9 +154,11 @@ Why the empty canary is evidence, not the lazy pass: the lazy pass would be the 
 
 **[architect]** Note (1) applied: `CompositionRootTests.RunDotnetAsync` is added to `terminal-tests-hang.md`'s fix list. **Section 3 closed; every section is closed.**
 
+**[architect]** Product Owner (2026-09-11): correct the proposal, push, and open the PR. `proposal.md` now: bootstrap matches the spec (it *ensures* `sessions/` exists and emits `bootstrapNotice`, with no "empty"); `CoreProcessFixture` is the **second** writer; the restart test is added as the third (D9), with the explicit-pin rationale; the "true and decided" bullet covers the unspecified subdirectory case; the restart test file is listed under Impact.
+
 ## NEXT
 
-- **Up next:** the Product Owner's call on `proposal.md` (below). Then push the branch and open the PR when asked, and propose `/opsx:archive` and wait for confirmation.
-- **Open questions (Product Owner):** should `proposal.md` be corrected before archive (it says `CoreProcessFixture` is "the only other writer", and that bootstrap creates an "empty `sessions/`"; sections 1 and 2 disproved both), or kept as the historical record of intent?
+- **Up next:** the PR's review and merge. After merge, propose `/opsx:archive` and wait for confirmation.
+- **Open questions:** none.
 - **After merge:** amend `tech-debt/live-e2e-test-writes-into-home-session-store.md`'s status line with the merge commit.
 - **Carry-forward:** a suite run can hang the `InitCommandTests` (and possibly Core's `ComposedCoreFeedFixture` users) until a build node idles out (~15 min). Until `terminal-tests-hang.md`'s fix lands, export `MSBUILDDISABLENODEREUSE=1` for gate runs. `make build-core` needs the sandbox off (nuget.org, `NU1900`).
