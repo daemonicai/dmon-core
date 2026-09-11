@@ -1,7 +1,9 @@
 ## Purpose
 
 Define the session-as-relocatable-directory storage model: the on-disk layout (`messages.jsonl`, `meta.json`, `attachments/`), session-storage ownership of the canonical conversation record (the dmon-owned parts model), append-only message logging, write-time attachment offloading, non-destructive compaction, project-local-vs-global store discovery, session fork and clone operations, and the SQLite session index.
+
 ## Requirements
+
 ### Requirement: Session-as-relocatable-directory
 Each session SHALL be stored as a self-contained directory that can be copied, moved, or shared without losing any content. No data outside the session directory is required to read session content.
 
@@ -78,25 +80,6 @@ Compaction SHALL append a `CompactionMessage` (`{type:"compaction", …}`) to `m
 - **WHEN** `messages.jsonl` contains multiple `CompactionMessage` records
 - **THEN** the last one takes precedence
 
-### Requirement: Session discovery — project-local by default
-The system SHALL discover the session store by walking up the directory tree from CWD, looking for a `.daemon/` directory. If found, sessions are stored in `.daemon/sessions/`. If not found, the fallback is `~/.daemon/sessions/`.
-
-#### Scenario: Project-local store used when .daemon/ exists
-- **WHEN** the agent is invoked from a directory with a `.daemon/` directory in its ancestor tree
-- **THEN** sessions are stored in that `.daemon/sessions/` directory
-
-#### Scenario: Global store used when no .daemon/ found
-- **WHEN** no `.daemon/` directory exists in the ancestor tree and the user has not opted into project-local storage
-- **THEN** sessions are stored in `~/.daemon/sessions/`
-
-#### Scenario: First-use bootstrap creates .daemon/ at CWD
-- **WHEN** a user starts their first session in a project that has no `.daemon/` in its ancestor tree and config opts into project-local storage (the default)
-- **THEN** the core creates `.daemon/` at CWD with a default `config.yaml` and empty `sessions/`, then emits `bootstrapNotice {path, created[]}` listing the files written before continuing
-
-#### Scenario: Store redirected to global via config
-- **WHEN** `.daemon/config.yaml` contains `sessionStore: global`
-- **THEN** sessions are stored in `~/.daemon/sessions/` regardless of project-local directory presence
-
 ### Requirement: Session fork and clone
 The system SHALL support forking a session at a specific `entryId` and cloning an entire session. A fork or clone SHALL inherit the source session's `profile`, copying it into the new session's `meta.json`; profile inheritance SHALL be the only profile behaviour for fork and clone (no per-operation profile override).
 
@@ -138,3 +121,27 @@ The session record SHALL persist the selected agent-profile name in `meta.json` 
 - **WHEN** a session whose `meta.json` records `profile` = `"researcher"` is loaded
 - **THEN** the loaded session record exposes `profile` = `"researcher"` without the caller re-supplying it
 
+### Requirement: Session discovery — `.dmon/config.yaml` marks the project root
+The system SHALL discover the session store by walking up the directory tree from CWD, looking for a `.dmon/config.yaml` **file**. The nearest directory containing one is the project root. When a root is found and the effective `sessionStore` setting is `local` (the default), sessions SHALL be stored in that root's `.dmon/sessions/`. When no root is found, sessions SHALL be stored in `~/.dmon/sessions/`. A `.dmon/` directory that does not contain `config.yaml` (for example, one holding only the app-managed `config.local.yaml`) SHALL NOT mark a project root.
+
+When the agent is invoked from the project root itself, that root's `.dmon/config.yaml` contributes to the effective `sessionStore`. Which configuration supplies `sessionStore` when the agent is invoked from a **subdirectory** of the root is not specified by this requirement.
+
+#### Scenario: Project-local store used when .dmon/config.yaml exists
+- **WHEN** the agent is invoked from a directory with a `.dmon/config.yaml` in its ancestor tree, and the effective `sessionStore` is `local` or unset
+- **THEN** sessions are stored in the `.dmon/sessions/` directory beside the nearest such `config.yaml`
+
+#### Scenario: Global store used when no .dmon/config.yaml found
+- **WHEN** no `.dmon/config.yaml` exists in the ancestor tree
+- **THEN** sessions are stored in `~/.dmon/sessions/`
+
+#### Scenario: A .dmon/ directory without config.yaml is not a root
+- **WHEN** the agent is invoked from a directory whose `.dmon/` contains `config.local.yaml` but no `config.yaml`, and no ancestor contains `.dmon/config.yaml`
+- **THEN** sessions are stored in `~/.dmon/sessions/`, not in that directory's `.dmon/sessions/`
+
+#### Scenario: First-use bootstrap creates ~/.dmon/
+- **WHEN** the core starts and neither `~/.dmon/config.yaml` nor any `.dmon/config.yaml` in the CWD's ancestor tree exists
+- **THEN** the core ensures `~/.dmon/` exists, writes a default `~/.dmon/config.yaml`, ensures `~/.dmon/sessions/` exists, and emits `bootstrapNotice {path, created[]}`, where `created[]` names those three paths, before continuing
+
+#### Scenario: Store redirected to global via config
+- **WHEN** the agent is invoked from the project root itself, that root's `.dmon/config.yaml` contains `sessionStore: global`, and no higher-precedence configuration layer (such as the root's `.dmon/config.local.yaml`) overrides it
+- **THEN** sessions are stored in `~/.dmon/sessions/` even though a project root was found
