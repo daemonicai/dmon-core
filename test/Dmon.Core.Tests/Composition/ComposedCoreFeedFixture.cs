@@ -1,5 +1,5 @@
-using System.Diagnostics;
 using System.Reflection;
+using Dmon.Tests.Shared;
 
 namespace Dmon.Core.Tests.Composition;
 
@@ -53,41 +53,14 @@ public sealed class ComposedCoreFeedFixture : IAsyncLifetime
 
     private static async Task RunAsync(string fileName, string arguments, string workingDirectory)
     {
-        ProcessStartInfo psi = new()
-        {
-            FileName = fileName,
-            Arguments = arguments,
-            WorkingDirectory = workingDirectory,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false,
-            CreateNoWindow = true,
-        };
+        ProcessResult result = await ProcessRunner.RunAsync(
+            fileName, arguments, workingDirectory, TimeSpan.FromMinutes(5));
 
-        using Process proc = new() { StartInfo = psi };
-        proc.Start();
-
-        Task<string> stdoutTask = proc.StandardOutput.ReadToEndAsync();
-        Task<string> stderrTask = proc.StandardError.ReadToEndAsync();
-
-        using CancellationTokenSource cts = new(TimeSpan.FromMinutes(5));
-        try
-        {
-            await proc.WaitForExitAsync(cts.Token);
-        }
-        catch (OperationCanceledException)
-        {
-            try { proc.Kill(entireProcessTree: true); } catch { /* best effort */ }
-            throw new TimeoutException($"pack-core.sh timed out after 5 minutes.");
-        }
-
-        string output = await stdoutTask;
-        string errors = await stderrTask;
-
-        if (proc.ExitCode != 0)
+        if (result.ExitCode != 0)
         {
             throw new InvalidOperationException(
-                $"pack-core.sh failed (exit {proc.ExitCode}).\nstdout: {output}\nstderr: {errors}");
+                $"pack-core.sh failed (exit {result.ExitCode}){result.TruncatedNote}.\n" +
+                $"stdout: {result.StandardOutput}\nstderr: {result.StandardError}");
         }
     }
 }

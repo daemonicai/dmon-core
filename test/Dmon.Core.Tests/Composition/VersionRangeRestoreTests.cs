@@ -1,5 +1,5 @@
-using System.Diagnostics;
 using System.Text.Json;
+using Dmon.Tests.Shared;
 
 namespace Dmon.Core.Tests.Composition;
 
@@ -86,13 +86,14 @@ public sealed class VersionRangeRestoreTests : IAsyncLifetime
             """;
         File.WriteAllText(Path.Combine(workDir, "nuget.config"), nugetConfigContent);
 
-        (int exitCode, string stdout, string stderr) = await RunDotnetAsync(
-            "restore", $"\"{Path.Combine(workDir, "pin-test.csproj")}\"",
-            workDir, timeoutSeconds: 120);
+        ProcessResult restoreResult = await ProcessRunner.RunAsync(
+            "dotnet", $"restore \"{Path.Combine(workDir, "pin-test.csproj")}\"",
+            workDir, TimeSpan.FromSeconds(120));
 
         Assert.True(
-            exitCode == 0,
-            $"dotnet restore failed (exit {exitCode}).\nstdout: {stdout}\nstderr: {stderr}");
+            restoreResult.ExitCode == 0,
+            $"dotnet restore failed (exit {restoreResult.ExitCode}){restoreResult.TruncatedNote}.\n" +
+            $"stdout: {restoreResult.StandardOutput}\nstderr: {restoreResult.StandardError}");
 
         string assetsPath = Path.Combine(workDir, "obj", "project.assets.json");
         Assert.True(
@@ -131,14 +132,15 @@ public sealed class VersionRangeRestoreTests : IAsyncLifetime
             """;
         File.WriteAllText(Path.Combine(stubDir, "dmoncore-stub.csproj"), csprojContent);
 
-        (int exitCode, string stdout, string stderr) = await RunDotnetAsync(
-            "pack", $"dmoncore-stub.csproj -c Release -o \"{_tempFeed}\" --nologo",
-            stubDir, timeoutSeconds: 60);
+        ProcessResult result = await ProcessRunner.RunAsync(
+            "dotnet", $"pack dmoncore-stub.csproj -c Release -o \"{_tempFeed}\" --nologo",
+            stubDir, TimeSpan.FromSeconds(60));
 
-        if (exitCode != 0)
+        if (result.ExitCode != 0)
         {
             throw new InvalidOperationException(
-                $"Stub pack at {version} failed (exit {exitCode}).\nstdout: {stdout}\nstderr: {stderr}");
+                $"Stub pack at {version} failed (exit {result.ExitCode}){result.TruncatedNote}.\n" +
+                $"stdout: {result.StandardOutput}\nstderr: {result.StandardError}");
         }
     }
 
@@ -173,44 +175,6 @@ public sealed class VersionRangeRestoreTests : IAsyncLifetime
     {
         foreach (JsonProperty lib in libraries.EnumerateObject())
             yield return lib.Name;
-    }
-
-    private static async Task<(int ExitCode, string Stdout, string Stderr)> RunDotnetAsync(
-        string verb, string arguments, string workingDirectory, int timeoutSeconds)
-    {
-        ProcessStartInfo psi = new()
-        {
-            FileName = "dotnet",
-            Arguments = $"{verb} {arguments}",
-            WorkingDirectory = workingDirectory,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false,
-            CreateNoWindow = true,
-        };
-
-        using Process proc = new() { StartInfo = psi };
-        proc.Start();
-
-        Task<string> stdoutTask = proc.StandardOutput.ReadToEndAsync();
-        Task<string> stderrTask = proc.StandardError.ReadToEndAsync();
-
-        using CancellationTokenSource cts = new(TimeSpan.FromSeconds(timeoutSeconds));
-        try
-        {
-            await proc.WaitForExitAsync(cts.Token);
-        }
-        catch (OperationCanceledException)
-        {
-            try { proc.Kill(entireProcessTree: true); } catch { /* best effort */ }
-            throw new TimeoutException(
-                $"dotnet {verb} timed out after {timeoutSeconds} seconds.");
-        }
-
-        string stdout = await stdoutTask;
-        string stderr = await stderrTask;
-
-        return (proc.ExitCode, stdout, stderr);
     }
 
     private static void TryDelete(string? path)

@@ -3,6 +3,7 @@ using System.Reflection;
 using System.Text.Json;
 using Dmon.Protocol;
 using Dmon.Terminal;
+using Dmon.Tests.Shared;
 
 namespace Dmon.Terminal.Tests;
 
@@ -115,42 +116,14 @@ public sealed class InitCommandTests(InitFeedFixture feed) : IClassFixture<InitF
         string workingDirectory,
         int timeoutSeconds)
     {
-        ProcessStartInfo psi = new()
-        {
-            FileName = "dotnet",
-            Arguments = $"{verb} \"{targetPath}\"",
-            WorkingDirectory = workingDirectory,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false,
-            CreateNoWindow = true,
-        };
+        ProcessResult result = await ProcessRunner.RunAsync(
+            "dotnet", $"{verb} \"{targetPath}\"", workingDirectory, TimeSpan.FromSeconds(timeoutSeconds));
 
-        using Process proc = new() { StartInfo = psi };
-        proc.Start();
-
-        // Read stdout and stderr concurrently to avoid the pipe-buffer deadlock.
-        Task<string> stdoutTask = proc.StandardOutput.ReadToEndAsync();
-        Task<string> stderrTask = proc.StandardError.ReadToEndAsync();
-
-        using CancellationTokenSource cts = new(TimeSpan.FromSeconds(timeoutSeconds));
-        try
-        {
-            await proc.WaitForExitAsync(cts.Token);
-        }
-        catch (OperationCanceledException)
-        {
-            try { proc.Kill(entireProcessTree: true); } catch { /* best effort */ }
-            throw new TimeoutException($"dotnet {verb} timed out after {timeoutSeconds}s.");
-        }
-
-        string output = await stdoutTask;
-        string errors = await stderrTask;
-
-        if (proc.ExitCode != 0)
+        if (result.ExitCode != 0)
         {
             throw new InvalidOperationException(
-                $"dotnet {verb} failed (exit {proc.ExitCode}).\nstdout: {output}\nstderr: {errors}");
+                $"dotnet {verb} failed (exit {result.ExitCode}){result.TruncatedNote}.\n" +
+                $"stdout: {result.StandardOutput}\nstderr: {result.StandardError}");
         }
     }
 

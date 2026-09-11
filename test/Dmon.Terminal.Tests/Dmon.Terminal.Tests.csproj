@@ -19,6 +19,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Include="..\Shared\ProcessRunner.cs" Link="Shared\ProcessRunner.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\frontends\Dmon.Terminal\Dmon.Terminal.csproj" />
   </ItemGroup>
 

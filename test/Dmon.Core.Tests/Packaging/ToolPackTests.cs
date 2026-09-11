@@ -1,7 +1,7 @@
-using System.Diagnostics;
 using System.IO.Compression;
 using System.Reflection;
 using System.Text.RegularExpressions;
+using Dmon.Tests.Shared;
 
 namespace Dmon.Core.Tests.Packaging;
 
@@ -177,41 +177,17 @@ public sealed class ToolPackTests : IAsyncLifetime
 
     private static async Task RunPackAsync(string csprojPath, string outputDir)
     {
-        ProcessStartInfo psi = new()
-        {
-            FileName = "dotnet",
-            Arguments = $"pack \"{csprojPath}\" -c Release -o \"{outputDir}\"",
-            WorkingDirectory = Path.GetDirectoryName(csprojPath)!,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false,
-            CreateNoWindow = true,
-        };
+        ProcessResult result = await ProcessRunner.RunAsync(
+            "dotnet",
+            $"pack \"{csprojPath}\" -c Release -o \"{outputDir}\"",
+            Path.GetDirectoryName(csprojPath)!,
+            TimeSpan.FromMinutes(3));
 
-        using Process proc = new() { StartInfo = psi };
-        proc.Start();
-
-        Task<string> stdoutTask = proc.StandardOutput.ReadToEndAsync();
-        Task<string> stderrTask = proc.StandardError.ReadToEndAsync();
-
-        using CancellationTokenSource cts = new(TimeSpan.FromMinutes(3));
-        try
-        {
-            await proc.WaitForExitAsync(cts.Token);
-        }
-        catch (OperationCanceledException)
-        {
-            try { proc.Kill(entireProcessTree: true); } catch { /* best effort */ }
-            throw new TimeoutException("dotnet pack timed out after 3 minutes.");
-        }
-
-        string output = await stdoutTask;
-        string errors = await stderrTask;
-
-        if (proc.ExitCode != 0)
+        if (result.ExitCode != 0)
         {
             throw new InvalidOperationException(
-                $"dotnet pack failed (exit {proc.ExitCode}).\nstdout: {output}\nstderr: {errors}");
+                $"dotnet pack failed (exit {result.ExitCode}){result.TruncatedNote}.\n" +
+                $"stdout: {result.StandardOutput}\nstderr: {result.StandardError}");
         }
     }
 
