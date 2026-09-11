@@ -63,6 +63,7 @@ Apply the same fix to every copy of the shape:
   `FileBasedProgramLaunchTests` and `PackagingChecksTests`. **Fix it in the same change**,
   or the Core side keeps the hang.
 - `InitCommandTests.RunDotnetAsync` (lines 112-155), for its own `dotnet` calls.
+- `Composition/CompositionRootTests.RunDotnetAsync` (lines 141-175), the same shape again.
 - `Packaging/ToolPackTests.cs` and `Composition/VersionRangeRestoreTests.cs`, which also run
   `dotnet` with redirected output and `ReadToEndAsync`; check each one.
 
