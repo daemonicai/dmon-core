@@ -1,6 +1,6 @@
 # The live e2e test writes into the user's home session store
 
-**Status:** resolved by change `session-root-resolution` (branch `change/session-root-resolution`; merge commit to be added after merge)
+**Status:** resolved by change `session-root-resolution` (PR #116, squash-merged as `90eed64`, 2026-09-11)
 **Where:** `test/Dmon.Core.Tests/Integration/LiveToolCallE2ETest.cs:57-61`, against
 `core/Dmon.Core/Session/SessionDirectoryResolver.cs:47`
 **Surfaced:** 2026-09-10, while checking the
