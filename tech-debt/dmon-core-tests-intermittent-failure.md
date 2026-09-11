@@ -71,11 +71,15 @@ user-facing defect. **If it is a different test**, this note stays and the wizar
 ## A separate symptom: a Core hang (2026-09-10)
 
 `session-root-resolution`'s first `3.2` attempt **hung** (it did not fail) in
-`Dmon.Core.Tests` for more than 9 minutes. Three full Core runs on 2026-09-11 (627 passed, 1 skipped, each) did not
-reproduce it. The Terminal hang's cause has since been verified: a fixture waits for stdout
-EOF while a reusable MSBuild node holds the pipe open. Three Core test files have the same
-shape (`ToolPackTests`, `CompositionRootTests`, `VersionRangeRestoreTests`). That is a
-**lead** for the hang only. It says nothing about this note's one-off `Failed: 1`, which
+`Dmon.Core.Tests` for more than 9 minutes. On 2026-09-11, **one** full Core run with MSBuild
+node reuse on (627 passed, 1 skipped) did not reproduce it. Two more full runs passed, but
+they had `MSBUILDDISABLENODEREUSE=1` set, which switches off the suspected mechanism, so
+they are not fair non-reproductions. The Terminal hang's cause has since been verified: a
+fixture waits for stdout EOF while a reusable MSBuild node holds the pipe open. The leading
+suspect here is `Composition/ComposedCoreFeedFixture.cs:54-92`, a line-for-line twin of
+that fixture, shared by `CompositionRootTests`, `FileBasedProgramLaunchTests` and
+`PackagingChecksTests`. `ToolPackTests` and `VersionRangeRestoreTests` have a similar
+shape. That is a **lead** for the hang only. It says nothing about this note's one-off `Failed: 1`, which
 is a different symptom. See [the Terminal hang](terminal-tests-hang.md).
 
 ## Provenance

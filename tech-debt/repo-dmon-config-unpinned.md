@@ -25,9 +25,25 @@ No test does this today: in-process session tests use temp roots or a `FakeResol
 The repo's historical `.dmon/sessions` litter (744 of 764 empty sessions dated
 2026-05-25 to 06-14) may be an earlier instance, with the source long since removed.
 
+## Why pinning the repo root would not fix it
+
+The obvious remedy, adding `sessionStore: local` to the repo's `.dmon/config.yaml`, would
+**not protect the tests**. The core reads `sessionStore` only from the `.dmon/` YAML files
+in its **working directory** (`core/Dmon.Core/Hosting/DmonHostBuilder.cs:45-50`), not
+from the root the resolver walks up to. A test host running in
+`test/<Project>/bin/<Config>/net10.0/` would find the repo root but never read its pin.
+This is the gap recorded in
+[`sessionStore` is ignored from a subdirectory](session-store-setting-ignored-from-subdirectory.md)
+and in ADR-004's amendment note. So this hazard **depends on that undecided question**:
+if it is decided so that a root's own setting applies from its subdirectories, a repo
+pin becomes a real remedy.
+
 ## What to do
 
-Decide whether the repo root should pin `sessionStore: local`. The catch: it is also a
-real project root for anyone running dmon in this checkout, and a pin would override
-their own global choice there. The alternative is a test-side guard, for example an
-analyzer or a base fixture that refuses to use the real resolver without a temp root.
+1. **Test-side guard first.** For example, an analyzer or a base fixture that refuses to
+   use the real resolver without a temp root that has an explicit `sessionStore: local`.
+   That works whatever the subdirectory question decides.
+2. Only after the subdirectory question is decided, consider pinning the repo root. Even
+   then there is a catch: the repo is also a real project root for anyone running dmon in
+   this checkout, and a pin would override their own global choice there. Today a pin
+   would only take effect for a core whose working directory **is** the repo root.

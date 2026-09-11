@@ -24,10 +24,14 @@ worker nodes (`/nodeReuse:true`), and those inherit the pipe. When `pack-core.sh
 a node is still alive and idle, holding the pipe open, so the fixture blocks until the
 node's idle timeout ends it. That is about 15 minutes, which fits the 17-minute run below.
 
-If a reusable node is **already** running when the fixture starts, `dotnet pack` connects
-to it instead of spawning one, so no new holder inherits the pipe and the tests pass in
-seconds. That is why the hang is intermittent. It reproduces whenever the run starts with
-no nodes alive, for example right after `dotnet build-server shutdown`.
+**Why it is intermittent (inferred, not verified):** the hang needs a node that the fixture's
+own `pack` **spawned**. If `pack` connects to a node that already exists, no new holder
+inherits the pipe. But "the run started with no nodes" does not predict it. In the first
+plain run below, the `dotnet test` build had already started nodes, and Terminal still
+hung; `Dmon.Core.Tests`' identical fixture (see below) ran in the same run and did not.
+Which fixture's `pack` ends up spawning a node, rather than reusing one, depends on node
+availability and handshake at that moment. The one **verified** reproduction is the
+standalone `--filter InitCommandTests` control, from zero nodes.
 
 **How it was forced**, on the `change/session-root-resolution` branch, from zero MSBuild nodes each time:
 
@@ -51,8 +55,16 @@ Either measure works alone; doing both is more robust:
    the exit wait, or read with `OutputDataReceived` and stop reading once the process has
    exited.
 
-`InitCommandTests.RunDotnetAsync` (lines 112-155) has the same shape for its own `dotnet`
-calls, so apply the fix there as well.
+Apply the same fix to every copy of the shape:
+
+- `test/Dmon.Core.Tests/Composition/ComposedCoreFeedFixture.cs:54-92`: a line-for-line
+  twin of `InitFeedFixture.RunAsync` (it runs `pack-core.sh`, waits 5 min for exit, then
+  awaits stdout with no timeout). It is shared by `CompositionRootTests`,
+  `FileBasedProgramLaunchTests` and `PackagingChecksTests`. **Fix it in the same change**,
+  or the Core side keeps the hang.
+- `InitCommandTests.RunDotnetAsync` (lines 112-155), for its own `dotnet` calls.
+- `Packaging/ToolPackTests.cs` and `Composition/VersionRangeRestoreTests.cs`, which also run
+  `dotnet` with redirected output and `ReadToEndAsync`; check each one.
 
 **Workaround until then:** run the suite with `MSBUILDDISABLENODEREUSE=1` exported.
 
@@ -89,8 +101,8 @@ live node that holds a pipe.
 On 2026-09-10 a filtered `Dmon.Core.Tests` run sat for more than 6 minutes at 0% CPU and
 was killed while dmon-home was running. The same afternoon, `session-root-resolution`'s
 first `3.2` attempt hung in `Dmon.Core.Tests` for more than 9 minutes **without**
-dmon-home. Three Core test files have the same shape as `InitFeedFixture`, running `dotnet`
-with redirected output and waiting for EOF with no reuse guard: `Packaging/ToolPackTests.cs`,
-`Composition/CompositionRootTests.cs` and `Composition/VersionRangeRestoreTests.cs`.
-That is a lead only; the Core hang has not been forced. See
+dmon-home. The leading suspect is `Composition/ComposedCoreFeedFixture.cs`, the Core
+twin of `InitFeedFixture` (see the fix list above). `Packaging/ToolPackTests.cs` and
+`Composition/VersionRangeRestoreTests.cs` have a similar shape. That is a lead only; the
+Core hang has not been forced. See
 [the `Dmon.Core.Tests` intermittent failure](dmon-core-tests-intermittent-failure.md).
