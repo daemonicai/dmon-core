@@ -1,12 +1,61 @@
 # Three `Dmon.Terminal.Tests` tests hang
 
-**Status:** open. Tests named and cause verified (2026-09-11); not yet fixed.
+**Status:** resolved on branch `fix/terminal-tests-hang` (2026-09-11); the merge commit is
+recorded here once merged.
 **Where:** `test/Dmon.Terminal.Tests/InitFeedFixture.cs:54-92` (`RunAsync`), shared by the
 three `InitCommandTests`
 **Surfaced:** 2026-09-10, while measuring which tests write into `~/.dmon/sessions`
 (`session-root-resolution`)
 **Severity:** medium. It blocks `make test` from completing reliably, and it hides any
 failure in the tests that hang.
+
+## Resolution (2026-09-11)
+
+All six copies of the shape now call one helper, `test/Shared/ProcessRunner.cs`, which is
+compiled into both `Dmon.Core.Tests` and `Dmon.Terminal.Tests` as a linked file. It applies
+both measures from the fix list below, and each one works on its own:
+
+1. It sets `MSBUILDDISABLENODEREUSE=1` on every process it starts, so no worker node
+   outlives `pack-core.sh`.
+2. It never waits unboundedly for EOF. Output is pumped into a snapshot; after the process
+   exits, the drain gets a 10 s grace. If a descendant still holds the pipe, the helper
+   returns what it has with `OutputTruncated = true`: a zero exit still passes, and a
+   non-zero one fails with a note that the output was cut short.
+   `ProcessRunnerTests` proves this in isolation with `bash -c 'sleep 30 & echo $!'`.
+
+**Forced both ways (verified 2026-09-11)**, from zero MSBuild nodes each time, node reuse on
+in the outer environment, `--filter InitCommandTests`:
+
+| Tree | Result |
+|---|---|
+| `main` @ `ac1fa98` (before) | hung; aborted at the 2 min hang timeout; a `nodeReuse:true` MSBuild node was alive afterwards |
+| the fix | **3/3 in 7 s**; no MSBuild node afterwards |
+| the fix with measure 1 disabled (measure 2 alone) | **3/3**, ~12 s slower (one drain grace used up); a `nodeReuse:true` node **was** alive afterwards, so the hang condition was present and was survived |
+
+Measure 1 alone is the `MSBUILDDISABLENODEREUSE=1` row of the forcing table below. Two
+full `dotnet test Everything.slnx` runs **without** the workaround variable then passed
+every assembly, about 70 s each (Terminal 194/194 in 24-25 s, Core 629/630 with 1 skip).
+
+**A correction to the fix list below.** Option 2's "read with `OutputDataReceived` and stop
+reading once the process has exited" does **not** work. Since .NET 5,
+`Process.WaitForExitAsync` (and parameterless `WaitForExit()`) also waits for EOF on streams
+read in that async mode, so it reproduces the hang. The helper pumps with `ReadAsync`
+instead, and says so in a comment.
+
+**Left alone, deliberately:**
+- The long-running `dotnet run`/`dotnet exec` readers (`RunAndReadAgentReadyAsync` in
+  `InitCommandTests` and `CompositionRootTests`, `FileBasedProgramLaunchTests`,
+  `CoreProcessFixture`, `LegacyExtensionsListIgnoredIntegrationTest`). They read lines under a
+  token and kill the tree, which is a different shape, and none of them builds.
+- **Production has the same shape, not reproduced.** `CoreProcessManager.BuildFileBasedProgramAsync`
+  (`core/Dmon.Runtime/CoreProcessManager.cs:186-192`) runs `dotnet build <Dmon.cs>` and then
+  awaits `ReadToEndAsync` bounded only by the caller's token, and the Terminal host's token
+  has no deadline (`frontends/Dmon.Terminal/Program.cs:30-37`). One forcing attempt
+  (`FileBasedProgramLaunchTests`, zero nodes, reuse on) passed 2/2 in 13 s with **no** MSBuild
+  node left behind. The inference, not verified: a single-project file-based build does not
+  start an out-of-process worker node, while `pack-core.sh`'s multi-project packs do. If a
+  `Dmon.cs` ever gains project references, or MSBuild changes that behaviour, this becomes
+  the same hang at host startup.
 
 ## Cause (verified 2026-09-11)
 
@@ -43,7 +92,7 @@ standalone `--filter InitCommandTests` control, from zero nodes.
 | `--filter InitCommandTests`, reuse on (the control) | hung, aborted at 2 min; an `MSBuild.dll` node started **during the fixture** was still alive afterwards |
 | two full suites with `MSBUILDDISABLENODEREUSE=1` | Terminal **194/194 in 21-22 s** both times |
 
-## Fix (not applied)
+## Fix (as recorded before the resolution; see the correction above)
 
 It needs a test-code change, which was out of scope for `session-root-resolution`.
 Either measure works alone; doing both is more robust:
@@ -67,7 +116,8 @@ Apply the same fix to every copy of the shape:
 - `Packaging/ToolPackTests.cs` and `Composition/VersionRangeRestoreTests.cs`, which also run
   `dotnet` with redirected output and `ReadToEndAsync`; check each one.
 
-**Workaround until then:** run the suite with `MSBUILDDISABLENODEREUSE=1` exported.
+**Workaround until then:** run the suite with `MSBUILDDISABLENODEREUSE=1` exported. No
+longer needed once the resolution above is merged.
 
 ## History
 
